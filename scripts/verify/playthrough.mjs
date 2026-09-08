@@ -240,8 +240,16 @@ await wait(4800);
 await shot('12-fim');
 log(`17. end screen: ${end}`);
 
-const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('tecgame_usuarios') || '[]'));
-log(`18. usuarios rows written: ${stored.length} -> ${JSON.stringify(stored[0] ?? null)}`);
+const stored = await page.evaluate(() => ({
+  usuarios: JSON.parse(localStorage.getItem('tecgame:usuarios') || '[]'),
+  contatos: JSON.parse(localStorage.getItem('tecgame:contatos') || '[]'),
+}));
+log(`18. usuarios: ${stored.usuarios.length} -> ${JSON.stringify(stored.usuarios[0] ?? null)}`);
+log(`    contatos: ${stored.contatos.length} -> ${JSON.stringify(stored.contatos[0] ?? null)}`);
+// O ranking e lido publicamente, entao telefone nao pode estar nele.
+if (!stored.usuarios.length) throw new Error('nenhum resultado gravado');
+if ('telefone' in stored.usuarios[0]) throw new Error('telefone vazou para a colecao do ranking');
+if (stored.contatos[0]?.telefone !== '(16) 99703-7115') throw new Error('telefone nao foi para contatos');
 
 // ---- restart ------------------------------------------------------------
 await clickText('REINICIAR');

@@ -13,6 +13,8 @@ import { CONFIG } from './config.js';
 import { getRecords, putRecord } from './storage.js';
 
 const LOCAL_KEY = 'usuarios';
+/** Telefone fica separado do ranking; ver addUsuario e firebase/firestore.rules. */
+const CONTACT_KEY = 'contatos';
 
 /* -------------------------------------------------------- UsuariosRecord -- */
 
@@ -58,12 +60,25 @@ async function ensureFirestore() {
 
 /**
  * `await UsuariosRecord.collection.doc().set(createUsuariosRecordData(...))`
- * The `data` field is a server timestamp in the Dart; here it is the client
- * clock, which is only ever used for ordering the ranking.
+ *
+ * O Dart gravava tudo — inclusive o TELEFONE — numa unica colecao `usuarios`,
+ * cujas regras liberavam leitura para qualquer um. Como o ranking do jogo le
+ * essa colecao no cliente, sem servidor, a leitura tem de continuar publica; o
+ * que muda e o que vai la dentro. O registro e partido em dois:
+ *
+ *   usuarios  o resultado da partida, SEM telefone  -> e o que o ranking le
+ *   contatos  nome + telefone                       -> escrita cega, leitura autenticada
+ *
+ * Ver firebase/firestore.rules. O `data` e server timestamp no Dart; aqui, com
+ * Firestore desligado, e o relogio do cliente, usado so para ordenar e para a
+ * retencao de um ano.
  */
 export async function addUsuario(record, { serverTimestamp = false } = {}) {
-  const row = { ...record };
+  const { telefone, ...partida } = record;
+  const row = { ...partida };
   if (serverTimestamp) row.data = new Date().toISOString();
+
+  const contato = telefone ? { nome: partida.nome ?? '', telefone, ...(row.data ? { data: row.data } : {}) } : null;
 
   if (CONFIG.useFirestore) {
     try {
@@ -71,6 +86,11 @@ export async function addUsuario(record, { serverTimestamp = false } = {}) {
       const payload = { ...row };
       if (serverTimestamp) payload.data = fs.serverTimestamp();
       await fs.addDoc(fs.collection(db, 'usuarios'), payload);
+      if (contato) {
+        const c = { ...contato };
+        if (serverTimestamp) c.data = fs.serverTimestamp();
+        await fs.addDoc(fs.collection(db, 'contatos'), c);
+      }
       return;
     } catch (error) {
       console.warn('Firestore write failed, falling back to local storage.', error);
@@ -78,6 +98,7 @@ export async function addUsuario(record, { serverTimestamp = false } = {}) {
   }
 
   putRecord(LOCAL_KEY, row);
+  if (contato) putRecord(CONTACT_KEY, contato);
 }
 
 /**
@@ -126,11 +147,13 @@ export async function queryUsuariosRecordCount() {
   return readLocal().length;
 }
 
-/** UsuariosRecord's getters all default a missing field. */
+/**
+ * UsuariosRecord's getters all default a missing field. `telefone` saiu de
+ * proposito: o ranking nao o le mais (ver addUsuario).
+ */
 function normalize(row) {
   return {
     nome: row.nome ?? '',
-    telefone: row.telefone ?? '',
     atuacao: row.atuacao ?? '',
     venceu: row.venceu ?? false,
     tempo: row.tempo ?? 0.0,
@@ -155,7 +178,9 @@ export async function enviarMensagemZap({ numero = '', resultado = '' } = {}) {
   };
 
   if (!CONFIG.useWhatsApp) {
-    console.info('[enviarMensagemZap] disabled in config.js', { numero, resultado, body });
+    // Sem despejar numero nem corpo: o console do totem fica visivel a quem
+    // abrir o inspetor, e isto e dado pessoal.
+    console.info('[enviarMensagemZap] desligado em config.js (useWhatsApp)');
     return { succeeded: false, skipped: true };
   }
 
@@ -176,7 +201,7 @@ export async function enviarMensagemZap({ numero = '', resultado = '' } = {}) {
  *  Dart but never called from a widget; kept for parity. */
 export async function enviarMensagemAgente({ nome = '', telefone = '', venceu = null } = {}) {
   if (!CONFIG.useAgentWebhook) {
-    console.info('[enviarMensagemAgente] disabled in config.js', { nome, telefone, venceu });
+    console.info('[enviarMensagemAgente] desligado em config.js (useAgentWebhook)');
     return { succeeded: false, skipped: true };
   }
   try {

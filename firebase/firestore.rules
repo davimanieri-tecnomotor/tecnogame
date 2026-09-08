@@ -1,0 +1,82 @@
+rules_version = '2';
+
+// Regras do TecGame.
+//
+// As regras que vinham no projeto FlutterFlow original eram:
+//
+//     match /usuarios/{document} {
+//       allow create: if true;
+//       allow read:   if true;
+//       ...
+//     }
+//
+// Isso deixava qualquer visitante (a) ler a coleção inteira, com NOME e
+// TELEFONE de todos os jogadores, e (b) criar documentos arbitrários — o que
+// contradiz a política de privacidade exibida no próprio jogo. As regras abaixo
+// fecham os dois furos mantendo o ranking funcionando sem servidor.
+//
+// A ideia: o jogo lê o ranking, então a leitura tem de ser pública; logo o dado
+// lido não pode conter telefone. O telefone vai para `contatos`, que é
+// write-only para o cliente e só a área administrativa (autenticada) lê.
+//
+// Deploy:  firebase deploy --only firestore:rules,firestore:indexes
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------------------------------------------------------------- ranking
+    // Uma partida. Sem telefone: é isto que o ranking do jogo lê.
+    match /usuarios/{document} {
+      allow read: if true;
+
+      allow create: if isPartidaValida(request.resource.data);
+
+      // Um resultado nunca é editado nem apagado pelo cliente.
+      allow update, delete: if false;
+    }
+
+    // --------------------------------------------------------------- contatos
+    // Nome + telefone, para o disparo de WhatsApp. Escrita cega: o cliente
+    // grava e não lê de volta. Só quem estiver autenticado enxerga.
+    match /contatos/{document} {
+      allow read: if request.auth != null;
+      allow create: if isContatoValido(request.resource.data);
+      allow update, delete: if request.auth != null;
+    }
+
+    // ------------------------------------------------------------- conteúdo
+    // Baralho de perguntas e veículos publicado pela área administrativa.
+    // O totem lê; só um administrador autenticado escreve.
+    match /conteudo/{document} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Nada mais é acessível.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+// Valida o formato de um resultado de partida, para que a coleção não possa ser
+// usada como depósito de dados arbitrários.
+function isPartidaValida(d) {
+  return d.keys().hasOnly(['nome', 'atuacao', 'venceu', 'tempo', 'equipamento', 'invalido', 'data'])
+    && d.keys().hasAll(['nome', 'venceu'])
+    && d.nome is string && d.nome.size() > 0 && d.nome.size() <= 30
+    && d.venceu is bool
+    && (!('atuacao' in d) || (d.atuacao is string && d.atuacao.size() <= 60))
+    && (!('equipamento' in d) || (d.equipamento is string && d.equipamento.size() <= 20))
+    && (!('tempo' in d) || (d.tempo is number && d.tempo >= 0 && d.tempo <= 60000))
+    && (!('invalido' in d) || (d.invalido is int && d.invalido >= 0 && d.invalido <= 100))
+    && (!('data' in d) || d.data is timestamp);
+}
+
+function isContatoValido(d) {
+  return d.keys().hasOnly(['nome', 'telefone', 'atuacao', 'venceu', 'data'])
+    && d.keys().hasAll(['nome', 'telefone'])
+    && d.nome is string && d.nome.size() > 0 && d.nome.size() <= 30
+    && d.telefone is string && d.telefone.size() >= 11 && d.telefone.size() <= 20
+    && (!('data' in d) || d.data is timestamp);
+}

@@ -175,7 +175,7 @@ log('--- idle ranking (timer fast-forwarded)');
 // timer by advancing it through the page's own clock.
 await page.evaluate(() => {
   localStorage.setItem(
-    'tecgame_usuarios',
+    'tecgame:usuarios',
     JSON.stringify([
       { nome: 'Ana', telefone: '1', atuacao: 'x', venceu: true, tempo: 52000, equipamento: 'Rasther 3' },
       { nome: 'Bruno', telefone: '2', atuacao: 'x', venceu: true, tempo: 41000, equipamento: 'Td90' },
@@ -289,7 +289,7 @@ await wait(4800);
 await shot('08-ganhou');
 log('  reached Ganhou');
 
-const rows = await page.evaluate(() => JSON.parse(localStorage.getItem('tecgame_usuarios') || '[]'));
+const rows = await page.evaluate(() => JSON.parse(localStorage.getItem('tecgame:usuarios') || '[]'));
 const winner = rows.find((r) => r.nome === 'Vencedor');
 log(`  stored: ${JSON.stringify(winner)}`);
 if (!winner?.venceu) throw new Error('win was not recorded');
