@@ -11,7 +11,7 @@
 <head>
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 
   <!-- iOS meta tags & icons -->
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -35,11 +35,9 @@
   <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f1f4f8">
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1d2428">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet"
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Inter+Tight:wght@100..900&family=Open+Sans:wght@300..800&family=Roboto:wght@100..900&family=Roboto+Mono:wght@100..700&display=swap">
-
+  <!-- Fontes auto-hospedadas (scripts/fetch_fonts.py). Antes vinham do CDN do
+       Google, e o totem de feira sem internet caia para a fonte do sistema. -->
+  <link rel="stylesheet" href="css/fonts.css">
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
@@ -50,6 +48,17 @@
     <div id="stage">
       <div id="pages"></div>
       <div id="overlays"></div>
+    </div>
+    <!-- O jogo e 16:9 de tela cheia; em retrato a escala fica ilegivel. -->
+    <div id="rotate-hint" aria-hidden="true">
+      <div class="rotate-hint-inner">
+        <svg viewBox="0 0 24 24" width="72" height="72" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="3" y="7" width="18" height="10" rx="2" />
+          <path d="M8 3.5 A9 9 0 0 1 16 3.5" stroke-linecap="round" />
+        </svg>
+        <strong>Gire o aparelho</strong>
+        <span>O TecGame foi feito para tela na horizontal.</span>
+      </div>
     </div>
     <noscript>
       <div class="boot-message">

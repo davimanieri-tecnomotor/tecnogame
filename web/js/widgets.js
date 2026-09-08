@@ -562,23 +562,47 @@ export function Img(src, { width, height, fit = 'cover', alignment, style } = {}
 
 /** InkWell with all the splash/focus/hover/highlight colours set to
  *  transparent, which is how every tap target in this project is written. */
-export function InkWell({ onTap, child, style, disabled = false } = {}) {
+export function InkWell({ onTap, child, style, disabled = false, label } = {}) {
+  const interactive = Boolean(onTap) && !disabled;
   const node = inheritFill(
     el(
       'div',
       {
         class: 'ff-inkwell',
         role: 'button',
+        // Um <div role="button"> nao entra na ordem de tabulacao por conta
+        // propria, e sem isto o teclado nao alcanca nada no jogo.
+        tabindex: interactive ? '0' : null,
+        'aria-label': label ?? null,
+        'aria-disabled': disabled ? 'true' : null,
         style: { display: 'flex', flexDirection: 'column', ...style },
       },
       child
     ),
     child
   );
-  if (onTap && !disabled) {
+  if (interactive) {
     node.addEventListener('click', (event) => {
       event.stopPropagation();
       onTap(event);
+    });
+    // Enter e Espaco, o contrato de um botao. Espaco tem de ter o rolar da
+    // pagina cancelado no keydown, mas dispara no keyup, como um <button>.
+    node.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        event.stopPropagation();
+        onTap(event);
+      } else if (event.key === ' ' || event.key === 'Spacebar') {
+        event.preventDefault();
+      }
+    });
+    node.addEventListener('keyup', (event) => {
+      if (event.key === ' ' || event.key === 'Spacebar') {
+        event.preventDefault();
+        event.stopPropagation();
+        onTap(event);
+      }
     });
   }
   return node;
