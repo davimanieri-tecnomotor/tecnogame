@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: npm ci
+
+      # Falha se um import não resolver, se algo importado não for usado, ou se
+      # web/js/bundle.js estiver mais velho que qualquer módulo (o modo file://
+      # rodaria código antigo).
+      - name: Checagem estática
+        run: npm run check
+
+      # Os dados gerados têm de bater com o Dart original: se o gerador produzir
+      # algo diferente do que está commitado, alguém editou à mão.
+      - name: Dados gerados estão em sincronia
+        run: |
+          npm run gen
+          git diff --exit-code -- web/js/questions.js web/js/translations.js web/js/offensive_words.js
+
+      # Mesma checagem para o bundle: regerar não pode mudar nada.
+      - name: Bundle está em sincronia
+        run: |
+          npm run bundle
+          git diff --exit-code -- web/js/bundle.js
+
+      - name: Servir web/ em background
+        run: |
+          npx http-server web -p 8099 -c-1 --silent &
+          for i in $(seq 1 60); do
+            curl -sfo /dev/null http://127.0.0.1:8099/index.html && exit 0
+            sleep 1
+          done
+          echo "servidor nao subiu em 60s" >&2
+          exit 1
+
+      # Puppeteer headless: as rotas renderizam sem erro de console, com todas as
+      # imagens e nada fora do palco de 1920x1080.
+      - name: Rotas (HTTP, módulos ES)
+        run: npm run verify:routes
+
+      - name: Partida completa ponta a ponta
+        run: npm run verify:play
+
+      - name: Diálogos, i18n e ramo de vitória
+        run: npm run verify:dialogs
+
+      - name: Escala do palco em várias resoluções
+        run: npm run verify:sizes
+
+      # O mesmo jogo tem de funcionar aberto direto do disco, pelo bundle clássico.
+      - name: Rotas (file://, bundle clássico)
+        env:
+          BASE: file://${{ github.workspace }}/web/index.html
+        run: npm run verify:routes
+
+      - name: Partida completa (file://)
+        env:
+          BASE: file://${{ github.workspace }}/web/index.html
+        run: npm run verify:play
+
+      - name: Guardar capturas quando falhar
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capturas
+          path: |
+            shots/
+            play/
+            play2/
+          if-no-files-found: ignore
+          retention-days: 7
