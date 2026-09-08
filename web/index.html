@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<!--
+  data-theme pins FlutterFlowTheme's dark palette, which is what the kiosk
+  showed: every Text in the Dart that doesn't override its colour falls back to
+  theme.primaryText, and the whole game is drawn on dark/blue art. The Flutter
+  app used ThemeMode.system, so removing this attribute restores that exact
+  behaviour (both palettes are in css/app.css and follow prefers-color-scheme);
+  in light mode the uncoloured labels turn near-black, as they did there.
+-->
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="TecGame">
+
+  <meta name="robots" content="noindex" />
+
+  <link rel="icon" type="image/png" href="favicon.png" />
+
+  <meta property="og:title" content="TecGame" />
+  <meta property="og:description" content="Built with FlutterFlow." />
+  <meta name="twitter:title" content="TecGame" />
+  <meta name="twitter:description" content="Built with FlutterFlow." />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <title> TecGame </title>
+  <meta name="description" content="Built with FlutterFlow." />
+
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f1f4f8">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1d2428">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Inter+Tight:wght@100..900&family=Open+Sans:wght@300..800&family=Roboto:wght@100..900&family=Roboto+Mono:wght@100..700&display=swap">
+
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <!-- The whole app is laid out on a fixed 1920x1080 stage (the resolution the
+       FlutterFlow app was designed for) and uniformly scaled to fit the window,
+       so every hard-coded size from the Dart source lands on the same pixel. -->
+  <div id="viewport">
+    <div id="stage">
+      <div id="pages"></div>
+      <div id="overlays"></div>
+    </div>
+    <noscript id="boot-message">Este jogo precisa de JavaScript.</noscript>
+  </div>
+
+  <script>
+    // Boot with the readable ES modules in js/. Opening this file straight from
+    // disk makes the browser refuse them ("blocked by CORS policy", because
+    // file:// has a null origin), so fall back to js/bundle.js - the same code
+    // concatenated into one classic script, which file:// does allow.
+    // main.js guards on window.__tecgameBooted, so only the first one runs.
+    (function () {
+      var fellBack = false;
+
+      function loadBundle() {
+        if (window.__tecgameBooted || fellBack) return;
+        fellBack = true;
+        var s = document.createElement('script');
+        s.src = 'js/bundle.js';
+        s.onerror = showFailure;
+        document.head.appendChild(s);
+      }
+
+      function showFailure() {
+        if (window.__tecgameBooted) return;
+        var el = document.createElement('div');
+        el.style.cssText =
+          'position:fixed;inset:0;display:grid;place-items:center;padding:5vw;' +
+          'font:16px/1.6 system-ui,sans-serif;color:#fff;background:#000B18;text-align:center';
+        el.innerHTML =
+          '<div><strong style="font-size:1.3em">O jogo nao carregou.</strong><br><br>' +
+          'Sirva a pasta <code>web/</code> por HTTP:<br>' +
+          '<code style="display:inline-block;margin-top:8px;padding:8px 12px;background:#0053B6;border-radius:6px">' +
+          'npm start</code><br><br>e abra <code>http://localhost:8099</code>.</div>';
+        document.body.appendChild(el);
+      }
+
+      window.__tecgameLoadBundle = loadBundle;
+      // Safety net: if nothing booted, try the bundle, then report clearly.
+      setTimeout(loadBundle, 2500);
+      setTimeout(showFailure, 8000);
+    })();
+  </script>
+  <script type="module" src="js/main.js" onerror="window.__tecgameLoadBundle()"></script>
+</body>
+</html>

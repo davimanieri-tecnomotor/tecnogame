@@ -1,0 +1,195 @@
+// Port of lib/pages/escolha/roleta/roleta_widget.dart
+//
+// The prize wheel. Pressing GIRAR draws a new `escolha` (1.0 - 1.9, never one
+// of the last five), spins the wheel by that many turns over 5s, remembers the
+// draw and moves on to the selected car.
+
+import {
+  Align,
+  ClipRRect,
+  Column,
+  Container,
+  Img,
+  InkWell,
+  Padding,
+  Stack,
+  StackAlign,
+  Txt,
+  color,
+  decorationImage,
+  el,
+  linearGradient,
+  unfocus,
+} from '../widgets.js';
+import { style } from '../theme.js';
+import { L } from '../i18n.js';
+import { FFAppState } from '../state.js';
+import { numeroAleatorio } from '../functions.js';
+import { playSound } from '../audio.js';
+import { goNamed, TransitionInfo, PageTransitionType } from '../router.js';
+import {
+  AnimationInfo,
+  AnimationTrigger,
+  Curves,
+  FadeEffect,
+  RotateEffect,
+  ScaleEffect,
+  animateOnActionTrigger,
+  animateOnPageLoad,
+  delayed,
+} from '../anim.js';
+
+export function RoletaWidget() {
+  const model = { apertaButton: true };
+
+  const animationsMap = {
+    columnOnPageLoadAnimation: new AnimationInfo({
+      trigger: AnimationTrigger.onPageLoad,
+      effectsBuilder: () => [
+        ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [5.0, 5.0], end: [1.0, 1.0] }),
+        FadeEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: 0.0, end: 1.0 }),
+      ],
+    }),
+    // effectsBuilder is null in the Dart: the spin's effects are supplied at
+    // the animateOnActionTrigger call site so they can read FFAppState().escolha.
+    containerOnActionTriggerAnimation1: new AnimationInfo({
+      trigger: AnimationTrigger.onActionTrigger,
+      applyInitialState: true,
+      effectsBuilder: null,
+    }),
+    containerOnActionTriggerAnimation2: new AnimationInfo({
+      trigger: AnimationTrigger.onActionTrigger,
+      applyInitialState: true,
+      effectsBuilder: () => [
+        ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 200.0, begin: [1.0, 1.0], end: [0.9, 0.9] }),
+        ScaleEffect({ curve: Curves.easeInOut, delay: 200.0, duration: 200.0, begin: [0.9, 0.9], end: [1.0, 1.0] }),
+      ],
+    }),
+  };
+
+  const wheel = Container({
+    width: 836.1,
+    height: 946.0,
+    color: color(0x00FFFFFF),
+    borderRadius: 22.0,
+    alignment: [0.0, 0.0],
+    child: ClipRRect({
+      borderRadius: 20.0,
+      child: Img('assets/images/Roleta.png', { width: 864.3, height: 893.2, fit: 'cover' }),
+    }),
+  });
+  // `effects:` is read when forward() runs, so the rotation always uses the
+  // value drawn a moment earlier.
+  animateOnActionTrigger(wheel, animationsMap.containerOnActionTriggerAnimation1, null);
+  animationsMap.containerOnActionTriggerAnimation1.effectsBuilder = () => [
+    RotateEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 5000.0, begin: 0.0, end: FFAppState.escolha }),
+  ];
+
+  const spinButton = InkWell({
+    onTap: async () => {
+      await animationsMap.containerOnActionTriggerAnimation2.controller.forward();
+      if (!model.apertaButton) return;
+
+      model.apertaButton = false;
+      FFAppState.escolha = numeroAleatorio([...FFAppState.listaEscolhas]);
+      playSound(model, 'soundPlayer', 'assets/audios/roleta-normal-1_2GXmNRPk.mp3', 0.6);
+      await animationsMap.containerOnActionTriggerAnimation1.controller.forward();
+      await delayed(1000);
+
+      // Keep a rolling window of the last five draws so the same car can't come
+      // up again too soon.
+      if (FFAppState.listaEscolhas.length >= 5) {
+        FFAppState.removeFromListaEscolhas(FFAppState.listaEscolhas[0]);
+      }
+      FFAppState.addToListaEscolhas(FFAppState.escolha);
+
+      model.apertaButton = true;
+      goNamed('carroSleecionado', {
+        extra: {
+          __transition_info__: new TransitionInfo({
+            hasTransition: true,
+            transitionType: PageTransitionType.fade,
+            duration: 0,
+          }),
+        },
+      });
+    },
+    child: Container({
+      width: 428.0,
+      height: 68.07,
+      gradient: linearGradient({
+        colors: [color(0xFFEF3939), color(0xFF700505)],
+        stops: [0.0, 1.0],
+        begin: [0.0, -1.0],
+        end: [0, 1.0],
+      }),
+      borderRadius: 16.0,
+      child: Align({
+        alignment: [0.0, 0.0],
+        child: Txt(L('x6urz5cq') /* GIRAR A ROLETA */, style('bodyMedium', { fontWeight: 700, fontSize: 32.0 })),
+      }),
+    }),
+  });
+  animateOnActionTrigger(spinButton, animationsMap.containerOnActionTriggerAnimation2);
+
+  const content = Column({
+    mainAxisSize: 'max',
+    crossAxisAlignment: 'center',
+    children: [
+      Padding({
+        padding: [0.0, 0.0, 0.0, 64.0],
+        child: Container({
+          width: 1821.8,
+          height: 839.8,
+          child: Stack({
+            children: [
+              StackAlign({ alignment: [0.0, 0.0], child: wheel }),
+              StackAlign({
+                alignment: [0.0, 1.0],
+                child: Padding({
+                  padding: [0.0, 0.0, 0.0, 30.0],
+                  child: ClipRRect({
+                    borderRadius: 8.0,
+                    child: Img('assets/images/Seta_.png', { width: 101.4, height: 85.0, fit: 'cover' }),
+                  }),
+                }),
+              }),
+              StackAlign({
+                alignment: [0.0, 0.0],
+                child: ClipRRect({
+                  borderRadius: 24.0,
+                  child: Img('assets/images/Logo_Tecnomotor_sem_fundo.png', {
+                    width: 100.0,
+                    height: 100.0,
+                    fit: 'contain',
+                    alignment: [0.0, 0.0],
+                  }),
+                }),
+              }),
+            ],
+          }),
+        }),
+      }),
+      spinButton,
+    ],
+  });
+  animateOnPageLoad(content, animationsMap.columnOnPageLoadAnimation);
+
+  const root = el(
+    'div',
+    { class: 'ff-scaffold', style: { background: color(0xFF1D1D2B) } },
+    Container({
+      width: Infinity,
+      height: Infinity,
+      image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),
+      child: Column({
+        mainAxisSize: 'min',
+        mainAxisAlignment: 'center',
+        height: Infinity,
+        children: [Align({ alignment: [0.0, 0.0], child: content })],
+      }),
+    })
+  );
+  root.addEventListener('click', unfocus);
+  return root;
+}

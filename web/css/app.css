@@ -1,0 +1,473 @@
+/* ==========================================================================
+   TecGame - HTML/CSS/JS port of the FlutterFlow project `tec_game`.
+
+   Layout model
+   ------------
+   The Dart source is full of absolute sizes (Container(width: 1821.8), 70px
+   type, `MediaQuery.sizeOf(context).width * 0.574`, ...). Those numbers only
+   make sense against the resolution the app was authored for, 1920x1080.
+   So the app renders into a fixed 1920x1080 `#stage` which is then uniformly
+   scaled to fit the window - the same thing Flutter's own layout produced on
+   the kiosk, and it lets every literal from the Dart carry over unchanged.
+   `SW` / `SH` in the JS are therefore 1920 / 1080.
+   ========================================================================== */
+
+/* --------------------------------------------------------------- fonts --- */
+@font-face {
+  font-family: 'pirulen';
+  src: url('../assets/fonts/pirulen_rg.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Paralucent';
+  src: url('../assets/fonts/ParalucentStencilExtraLight.otf') format('opentype');
+  font-weight: 200;
+  font-style: italic;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Paralucent';
+  src: url('../assets/fonts/ParalucentCondLight.otf') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Paralucent';
+  src: url('../assets/fonts/ParalucentMedium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Paralucent';
+  src: url('../assets/fonts/ParalucentStencilMedium.otf') format('opentype');
+  font-weight: 500;
+  font-style: italic;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Paralucent';
+  src: url('../assets/fonts/ParalucentBold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+/* --------------------------------------------------------------- theme --- */
+/* FlutterFlowTheme, verbatim from lib/flutter_flow/flutter_flow_theme.dart.
+   The Dart app runs with ThemeMode.system, so both palettes are kept and
+   selected the same way Flutter selects them. Set `data-theme` on <html> to
+   pin one (the kiosk ran in dark mode). */
+:root {
+  --primary: #4B39EF;
+  --secondary: #39D2C0;
+  --tertiary: #EE8B60;
+  --alternate: #E0E3E7;
+  --primary-text: #14181B;
+  --secondary-text: #57636C;
+  --primary-background: #F1F4F8;
+  --secondary-background: #FFFFFF;
+  --accent1: rgba(75, 57, 239, 0.30);
+  --accent2: rgba(57, 210, 192, 0.30);
+  --accent3: rgba(238, 139, 96, 0.30);
+  --accent4: rgba(255, 255, 255, 0.80);
+  --success: #249689;
+  --warning: #F9CF58;
+  --error: #FF5963;
+  --info: #FFFFFF;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --alternate: #262D34;
+    --primary-text: #FFFFFF;
+    --secondary-text: #95A1AC;
+    --primary-background: #1D2428;
+    --secondary-background: #14181B;
+    --accent4: rgba(38, 45, 52, 0.70);
+  }
+}
+
+:root[data-theme="dark"] {
+  --alternate: #262D34;
+  --primary-text: #FFFFFF;
+  --secondary-text: #95A1AC;
+  --primary-background: #1D2428;
+  --secondary-background: #14181B;
+  --accent4: rgba(38, 45, 52, 0.70);
+}
+
+/* --------------------------------------------------------------- stage --- */
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  color-scheme: light dark;
+}
+
+#viewport {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+}
+
+/* Centred by translating half its own (unscaled) size, which the scale that
+   follows does not affect - a grid/flex centre would instead centre the
+   1920x1080 box and let it overflow once the window is smaller than that. */
+#stage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  transform-origin: center center;
+  /* --stage-scale is written by js/stage.js on every resize */
+  transform: translate(-50%, -50%) scale(var(--stage-scale, 1));
+}
+
+#pages,
+#overlays {
+  position: absolute;
+  inset: 0;
+}
+
+#overlays {
+  pointer-events: none;
+}
+
+#overlays > * {
+  pointer-events: auto;
+}
+
+/* ------------------------------------------------------- flutter atoms --- */
+/* Scaffold */
+.ff-scaffold {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* Scaffold hands its body tight constraints, so the body fills the screen. */
+.ff-scaffold > * {
+  width: 100%;
+  height: 100%;
+}
+
+/* Column / Row: Flutter defaults are mainAxisAlignment.start and
+   crossAxisAlignment.center for both. */
+.ff-col,
+.ff-row {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  justify-content: flex-start;
+  align-items: center;
+  /* Flutter never lets a child exceed its parent's constraints; propagating
+     the cap down the chain reproduces that clamping. */
+  max-width: 100%;
+}
+
+.ff-col {
+  flex-direction: column;
+}
+
+.ff-row {
+  flex-direction: row;
+}
+
+/* MainAxisSize.max fills the parent along the main axis. */
+.ff-col.ff-main-max {
+  height: 100%;
+}
+
+.ff-row.ff-main-max {
+  width: 100%;
+}
+
+/* Stack: every child shares one auto-sized grid cell, which reproduces
+   "the Stack is as big as its largest non-positioned child" and lets Align
+   children place themselves with place-self. */
+.ff-stack {
+  position: relative;
+  display: grid;
+  grid-template-areas: "stack";
+  min-width: 0;
+  min-height: 0;
+  /* Stack's default clipBehavior is Clip.hardEdge. */
+  overflow: hidden;
+}
+
+.ff-stack > * {
+  grid-area: stack;
+}
+
+/* Align rendered in normal flow (e.g. inside a Column): takes the full cross
+   size and positions its child, exactly like Flutter's Align with no factors. */
+.ff-align {
+  display: flex;
+  width: 100%;
+}
+
+/* Align/Positioned inside a Stack at a fractional alignment: absolute, with
+   Flutter's formula  child = (a + 1) / 2 * (parent - child). */
+.ff-abs {
+  position: absolute;
+  width: -moz-max-content;
+  width: max-content;
+  height: -moz-max-content;
+  height: max-content;
+}
+
+.ff-expanded {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* A Container with an explicit size passes tight constraints to its child, so
+   the child fills the box instead of shrink-wrapping. */
+.ff-tight > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.ff-inkwell {
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.ff-inkwell,
+.ff-btn {
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  margin: 0;
+  text-align: inherit;
+}
+
+.ff-btn {
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Text. Flutter's default line height comes from the font's own metrics;
+   these values are the (ascent + descent + lineGap) / unitsPerEm read off the
+   actual font files (see scripts, and Google Fonts metrics for Inter). */
+.ff-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  line-height: 1.2109;
+  /* Flutter lays text out from the font box, not a half-leading box. */
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+.ff-text[data-family="pirulen"] {
+  line-height: 1.2;
+}
+
+.ff-text[data-family="Paralucent"] {
+  line-height: 1.2;
+}
+
+.ff-text[data-family="Roboto"] {
+  line-height: 1.1719;
+}
+
+.ff-text[data-family="Roboto Mono"] {
+  line-height: 1.3188;
+}
+
+.ff-text[data-family="Open Sans"] {
+  line-height: 1.3623;
+}
+
+.ff-img {
+  display: block;
+  flex: none;
+  /* Flutter clamps an Image to its parent's constraints rather than letting it
+     overflow, so the box shrinks instead of being clipped. */
+  max-width: 100%;
+}
+
+/* SingleChildScrollView */
+.ff-scroll {
+  overflow: hidden auto;
+  scrollbar-width: none;
+  max-height: 100%;
+}
+
+.ff-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Material icons are drawn as inline SVG; keep them from stretching. */
+.ff-icon {
+  flex: none;
+  display: block;
+}
+
+/* ---------------------------------------------------------- form field --- */
+.ff-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  padding: 0;
+}
+
+.ff-input::-webkit-outer-spin-button,
+.ff-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* InputDecoration: Flutter's default (non-dense, outline border) content
+   padding is EdgeInsets.symmetric(horizontal: 12, vertical: 16) plus the
+   border width, and the field's min height follows the text size. */
+.ff-field {
+  display: flex;
+  align-items: center;
+  padding: 16px 12px;
+  border-style: solid;
+  border-width: 1px;
+  width: 100%;
+}
+
+.ff-field-error {
+  padding: 8px 12px 0;
+}
+
+.ff-dropdown {
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  width: 100%;
+}
+
+.ff-dropdown-menu {
+  position: absolute;
+  z-index: 40;
+  overflow: auto;
+  scrollbar-width: thin;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
+}
+
+.ff-dropdown-item {
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ff-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* --------------------------------------------------------- transitions --- */
+/* page_transition: PageTransitionType.fade / .scale */
+.ff-page {
+  position: absolute;
+  inset: 0;
+}
+
+@keyframes ff-page-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ff-page-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes ff-page-scale-in {
+  from { transform: scale(0); }
+  to { transform: scale(1); }
+}
+
+@keyframes ff-page-scale-out {
+  from { transform: scale(1); }
+  to { transform: scale(0); }
+}
+
+/* showDialog: the barrier fades in over 150ms and the child scales/fades in,
+   matching Flutter's DialogRoute. */
+.ff-barrier {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.5401);
+  animation: ff-barrier-in 150ms linear both;
+}
+
+.ff-barrier.ff-closing {
+  animation: ff-barrier-out 75ms linear both;
+}
+
+@keyframes ff-barrier-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ff-barrier-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.ff-dialog {
+  animation: ff-dialog-in 150ms cubic-bezier(0.05, 0.7, 0.1, 1) both;
+}
+
+.ff-barrier.ff-closing .ff-dialog {
+  animation: ff-dialog-out 75ms cubic-bezier(0.3, 0, 0.8, 0.15) both;
+}
+
+@keyframes ff-dialog-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ff-dialog-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes ff-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ------------------------------------------------------------- video ----- */
+.ff-video {
+  display: block;
+  background: #000;
+}
