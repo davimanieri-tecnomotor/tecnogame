@@ -281,7 +281,9 @@ export function FlutterFlowDropDown({
       controller.value = option;
       label.textContent = labelFor(option, index);
       close();
-      onChanged?.(option);
+      // O índice vai junto porque quem chama às vezes precisa saber QUAL opção
+      // foi escolhida, e não só o rótulo já traduzido (ver cadastro.js).
+      onChanged?.(option, index);
     });
     menu.appendChild(item);
   });
@@ -426,6 +428,28 @@ export function FFButtonWidget({ text, onPressed, options = {} } = {}) {
   return node;
 }
 
+/**
+ * Curves.ease = cubic-bezier(0.25, 0.1, 0.25, 1), avaliada por bisseccao em x.
+ * Antes aqui havia uma curva inventada que so acertava os extremos.
+ */
+function curveEase(t) {
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  const bez = (a, b, u) => {
+    const v = 1 - u;
+    return 3 * v * v * u * a + 3 * v * u * u * b + u * u * u;
+  };
+  let lo = 0;
+  let hi = 1;
+  let u = t;
+  for (let i = 0; i < 20; i++) {
+    u = (lo + hi) / 2;
+    if (bez(0.25, 0.25, u) < t) lo = u;
+    else hi = u;
+  }
+  return bez(0.1, 1, u);
+}
+
 /** ScrollController, used by the ranking dialog's auto-scroll. */
 export class ScrollController {
   constructor() {
@@ -457,9 +481,7 @@ export class ScrollController {
       const step = (now) => {
         if (cancelled || !node.isConnected) return resolve();
         const t = duration === 0 ? 1 : Math.min(1, (now - start) / duration);
-        // Curves.ease
-        const eased = 1 - Math.pow(1 - t, 3) * 0.9 - (1 - t) * 0.1 * (1 - t);
-        node.scrollTop = from + (to - from) * (t === 1 ? 1 : eased);
+        node.scrollTop = from + (to - from) * curveEase(t);
         if (t < 1) requestAnimationFrame(step);
         else resolve();
       };

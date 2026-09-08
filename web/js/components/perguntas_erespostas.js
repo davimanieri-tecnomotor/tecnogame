@@ -725,13 +725,14 @@ export function PerguntasErespostasWidget() {
   /* --------------------------------------------------------- on page load -- */
   // Background music, then a 1Hz tick that sends the player to Perdeu when the
   // clock runs out.
+  // Sem loop: o Dart chama setAsset().then(play()) e nunca setLoopMode, e a
+  // faixa (~2min48) cobre a rodada de 60s de sobra.
   playSound(
     model,
     'soundPlayer1',
     'assets/audios/Eric_Skiff_-_A_Night_Of_Dizzy_Spells_NO_COPYRIGHT_8-bit_Music_Background.mp3',
     0.2
   );
-  model.soundPlayer1.el.loop = true;
   model.timerController.onStartTimer();
   model.instantTimer = InstantTimer.periodic({
     duration: 1000,

@@ -10,8 +10,9 @@
 // semantics (`where venceu == true`, `orderBy tempo desc`, `limit n`).
 
 import { CONFIG } from './config.js';
+import { getRecords, putRecord } from './storage.js';
 
-const LOCAL_KEY = 'tecgame_usuarios';
+const LOCAL_KEY = 'usuarios';
 
 /* -------------------------------------------------------- UsuariosRecord -- */
 
@@ -34,22 +35,8 @@ export function createUsuariosRecordData({
   return record;
 }
 
-function readLocal() {
-  try {
-    const raw = localStorage.getItem(LOCAL_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (_) {
-    return [];
-  }
-}
-
-function writeLocal(list) {
-  try {
-    localStorage.setItem(LOCAL_KEY, JSON.stringify(list));
-  } catch (_) {
-    /* storage unavailable */
-  }
-}
+/** Ranking local, já com a retenção de um ano aplicada (ver storage.js). */
+const readLocal = () => getRecords(LOCAL_KEY);
 
 /* ------------------------------------------------------------- Firestore -- */
 
@@ -90,9 +77,7 @@ export async function addUsuario(record, { serverTimestamp = false } = {}) {
     }
   }
 
-  const list = readLocal();
-  list.push(row);
-  writeLocal(list);
+  putRecord(LOCAL_KEY, row);
 }
 
 /**

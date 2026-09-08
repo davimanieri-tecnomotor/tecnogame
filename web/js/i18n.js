@@ -1,8 +1,7 @@
 // Port of lib/flutter_flow/internationalization.dart.
 
 import { TRANSLATIONS } from './translations.js';
-
-const LOCALE_KEY = '__locale_key__';
+import { readRaw, writeRaw } from './storage.js';
 
 /** FFLocalizations.languages() */
 export const LANGUAGES = ['pt', 'es', 'en'];
@@ -20,12 +19,8 @@ const listeners = new Set();
 let locale = readStoredLocale() ?? defaultLocale();
 
 function readStoredLocale() {
-  try {
-    const stored = localStorage.getItem(LOCALE_KEY);
-    return stored && stored.length ? stored : null;
-  } catch (_) {
-    return null;
-  }
+  const stored = readRaw('locale');
+  return stored && stored.length ? stored : null;
 }
 
 function defaultLocale() {
@@ -58,11 +53,7 @@ export const FFLocalizations = {
 /** `setAppLanguage(context, lang)` */
 export function setAppLanguage(lang) {
   locale = lang;
-  try {
-    localStorage.setItem(LOCALE_KEY, lang);
-  } catch (_) {
-    /* private mode */
-  }
+  writeRaw('locale', lang);
   document.documentElement.lang = lang === 'pt' ? 'pt-BR' : lang;
   for (const fn of listeners) fn(lang);
 }
