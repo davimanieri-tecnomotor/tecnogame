@@ -72,6 +72,9 @@ jobs:
       - name: Troca de idioma preserva o formulário
         run: npm run verify:idioma
 
+      - name: Alvos alcançáveis por teclado
+        run: npm run verify:teclado
+
       # O mesmo jogo tem de funcionar aberto direto do disco, pelo bundle clássico.
       - name: Rotas (file://, bundle clássico)
         env:

@@ -580,23 +580,47 @@
     
   /** InkWell with all the splash/focus/hover/highlight colours set to  
    *  transparent, which is how every tap target in this project is written. */  
-  function InkWell({ onTap, child, style, disabled = false } = {}) {  
+  function InkWell({ onTap, child, style, disabled = false, label } = {}) {  
+    const interactive = Boolean(onTap) && !disabled;  
     const node = inheritFill(  
       el(  
         'div',  
         {  
           class: 'ff-inkwell',  
           role: 'button',  
+          // Um <div role="button"> nao entra na ordem de tabulacao por conta  
+          // propria, e sem isto o teclado nao alcanca nada no jogo.  
+          tabindex: interactive ? '0' : null,  
+          'aria-label': label ?? null,  
+          'aria-disabled': disabled ? 'true' : null,  
           style: { display: 'flex', flexDirection: 'column', ...style },  
         },  
         child  
       ),  
       child  
     );  
-    if (onTap && !disabled) {  
+    if (interactive) {  
       node.addEventListener('click', (event) => {  
         event.stopPropagation();  
         onTap(event);  
+      });  
+      // Enter e Espaco, o contrato de um botao. Espaco tem de ter o rolar da  
+      // pagina cancelado no keydown, mas dispara no keyup, como um <button>.  
+      node.addEventListener('keydown', (event) => {  
+        if (event.key === 'Enter') {  
+          event.preventDefault();  
+          event.stopPropagation();  
+          onTap(event);  
+        } else if (event.key === ' ' || event.key === 'Spacebar') {  
+          event.preventDefault();  
+        }  
+      });  
+      node.addEventListener('keyup', (event) => {  
+        if (event.key === ' ' || event.key === 'Spacebar') {  
+          event.preventDefault();  
+          event.stopPropagation();  
+          onTap(event);  
+        }  
       });  
     }  
     return node;  
@@ -3196,223 +3220,223 @@
 
   /* ===== backend.js ===== */
   __define("backend.js", function (__exports, __require) {
-  // Port of the Firestore layer (lib/backend/backend.dart, usuarios_record.dart)  
-  // and the two HTTP calls in lib/backend/api_requests/api_calls.dart.  
-  //  
-  // The Dart app talks to the Firebase project `projeto-assis-3qcf6v` and to  
-  // z-api.io for the WhatsApp message. Both are kept here with their original  
-  // configuration but are OFF by default, so running this port does not write  
-  // into the live collection or send messages from the production WhatsApp  
-  // instance. Flip the flags in config.js to switch them on; with Firestore off,  
-  // the ranking is stored in this browser instead and every query keeps the same  
-  // semantics (`where venceu == true`, `orderBy tempo desc`, `limit n`).  
-    
+  // Port of the Firestore layer (lib/backend/backend.dart, usuarios_record.dart)
+  // and the two HTTP calls in lib/backend/api_requests/api_calls.dart.
+  //
+  // The Dart app talks to the Firebase project `projeto-assis-3qcf6v` and to
+  // z-api.io for the WhatsApp message. Both are kept here with their original
+  // configuration but are OFF by default, so running this port does not write
+  // into the live collection or send messages from the production WhatsApp
+  // instance. Flip the flags in config.js to switch them on; with Firestore off,
+  // the ranking is stored in this browser instead and every query keeps the same
+  // semantics (`where venceu == true`, `orderBy tempo desc`, `limit n`).
+  
   const { CONFIG } = __require("config.js");
   const { getRecords, putRecord } = __require("storage.js");
-    
-  const LOCAL_KEY = 'usuarios';  
-  /** Telefone fica separado do ranking; ver addUsuario e firebase/firestore.rules. */  
-  const CONTACT_KEY = 'contatos';  
-    
-  /* -------------------------------------------------------- UsuariosRecord -- */  
-    
-  /** createUsuariosRecordData(...) - fields with a null value are omitted, which  
-   *  is what FlutterFlow's `createUsuariosRecordData` does. */  
-  function createUsuariosRecordData({  
-    nome = null,  
-    telefone = null,  
-    atuacao = null,  
-    venceu = null,  
-    tempo = null,  
-    equipamento = null,  
-    data = null,  
-    invalido = null,  
-  } = {}) {  
-    const record = { nome, telefone, atuacao, venceu, tempo, equipamento, data, invalido };  
-    for (const key of Object.keys(record)) {  
-      if (record[key] == null) delete record[key];  
-    }  
-    return record;  
-  }  
-    
-  /** Ranking local, já com a retenção de um ano aplicada (ver storage.js). */  
-  const readLocal = () => getRecords(LOCAL_KEY);  
-    
-  /* ------------------------------------------------------------- Firestore -- */  
-    
-  let firestore = null;  
-    
-  async function ensureFirestore() {  
-    if (!CONFIG.useFirestore) return null;  
-    if (firestore) return firestore;  
-    const [{ initializeApp }, fs] = await Promise.all([  
-      import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js'),  
-      import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'),  
-    ]);  
-    const app = initializeApp(CONFIG.firebaseOptions);  
-    firestore = { db: fs.getFirestore(app), fs };  
-    return firestore;  
-  }  
-    
-  /* ------------------------------------------------------------------ API --- */  
-    
-  /**  
-   * `await UsuariosRecord.collection.doc().set(createUsuariosRecordData(...))`  
-   *  
-   * O Dart gravava tudo — inclusive o TELEFONE — numa unica colecao `usuarios`,  
-   * cujas regras liberavam leitura para qualquer um. Como o ranking do jogo le  
-   * essa colecao no cliente, sem servidor, a leitura tem de continuar publica; o  
-   * que muda e o que vai la dentro. O registro e partido em dois:  
-   *  
-   *   usuarios  o resultado da partida, SEM telefone  -> e o que o ranking le  
-   *   contatos  nome + telefone                       -> escrita cega, leitura autenticada  
-   *  
-   * Ver firebase/firestore.rules. O `data` e server timestamp no Dart; aqui, com  
-   * Firestore desligado, e o relogio do cliente, usado so para ordenar e para a  
-   * retencao de um ano.  
-   */  
-  async function addUsuario(record, { serverTimestamp = false } = {}) {  
-    const { telefone, ...partida } = record;  
-    const row = { ...partida };  
-    if (serverTimestamp) row.data = new Date().toISOString();  
-    
-    const contato = telefone ? { nome: partida.nome ?? '', telefone, ...(row.data ? { data: row.data } : {}) } : null;  
-    
-    if (CONFIG.useFirestore) {  
-      try {  
-        const { db, fs } = await ensureFirestore();  
-        const payload = { ...row };  
-        if (serverTimestamp) payload.data = fs.serverTimestamp();  
-        await fs.addDoc(fs.collection(db, 'usuarios'), payload);  
-        if (contato) {  
-          const c = { ...contato };  
-          if (serverTimestamp) c.data = fs.serverTimestamp();  
-          await fs.addDoc(fs.collection(db, 'contatos'), c);  
-        }  
-        return;  
-      } catch (error) {  
-        console.warn('Firestore write failed, falling back to local storage.', error);  
-      }  
-    }  
-    
-    putRecord(LOCAL_KEY, row);  
-    if (contato) putRecord(CONTACT_KEY, contato);  
-  }  
-    
-  /**  
-   * `queryUsuariosRecord(queryBuilder: ...where('venceu', isEqualTo: true)  
-   *   .orderBy('tempo', descending: true), limit: n)`  
-   *  
-   * `tempo` holds the milliseconds *left on the clock*, so descending order puts  
-   * the fastest players first - the ranking is sorted exactly as in the Dart.  
-   */  
-  async function queryUsuariosVencedores({ limit = 15 } = {}) {  
-    if (CONFIG.useFirestore) {  
-      try {  
-        const { db, fs } = await ensureFirestore();  
-        const snapshot = await fs.getDocs(  
-          fs.query(  
-            fs.collection(db, 'usuarios'),  
-            fs.where('venceu', '==', true),  
-            fs.orderBy('tempo', 'desc'),  
-            fs.limit(limit)  
-          )  
-        );  
-        return snapshot.docs.map((doc) => normalize(doc.data()));  
-      } catch (error) {  
-        console.warn('Firestore read failed, falling back to local storage.', error);  
-      }  
-    }  
-    
-    return readLocal()  
-      .filter((row) => row.venceu === true)  
-      .sort((a, b) => (b.tempo ?? 0) - (a.tempo ?? 0))  
-      .slice(0, limit)  
-      .map(normalize);  
-  }  
-    
-  /** `queryUsuariosRecordCount()` */  
-  async function queryUsuariosRecordCount() {  
-    if (CONFIG.useFirestore) {  
-      try {  
-        const { db, fs } = await ensureFirestore();  
-        const snapshot = await fs.getCountFromServer(fs.collection(db, 'usuarios'));  
-        return snapshot.data().count;  
-      } catch (error) {  
-        console.warn('Firestore count failed, falling back to local storage.', error);  
-      }  
-    }  
-    return readLocal().length;  
-  }  
-    
-  /**  
-   * UsuariosRecord's getters all default a missing field. `telefone` saiu de  
-   * proposito: o ranking nao o le mais (ver addUsuario).  
-   */  
-  function normalize(row) {  
-    return {  
-      nome: row.nome ?? '',  
-      atuacao: row.atuacao ?? '',  
-      venceu: row.venceu ?? false,  
-      tempo: row.tempo ?? 0.0,  
-      equipamento: row.equipamento ?? '',  
-      data: row.data ?? null,  
-      invalido: row.invalido ?? 0,  
-    };  
-  }  
-    
-  /* ------------------------------------------------------------ API calls --- */  
-    
-  /** EnviarMensagemZapCall.call({numero, resultado}) */  
-  async function enviarMensagemZap({ numero = '', resultado = '' } = {}) {  
-    const body = {  
-      phone: numero,  
-      message:  
-        '🏁 Você finalizou o *TECNOGAME* 🎮🚀\n\nObrigado por visitar nosso estande!\n\n👉 Fale com um representante ou acesse nosso site:\nhttps://tecnomotor.com.br',  
-      image: 'https://cambioautomaticodobrasil.com.br/app/uploads/2023/01/tecnomotor.jpg',  
-      linkUrl: 'https://tecnomotor.com.br',  
-      title: 'Clique aqui',  
-      linkDescription: 'Site da Tecnomotor',  
-    };  
-    
-    if (!CONFIG.useWhatsApp) {  
-      // Sem despejar numero nem corpo: o console do totem fica visivel a quem  
-      // abrir o inspetor, e isto e dado pessoal.  
-      console.info('[enviarMensagemZap] desligado em config.js (useWhatsApp)');  
-      return { succeeded: false, skipped: true };  
-    }  
-    
-    try {  
-      const response = await fetch(CONFIG.zapApiUrl, {  
-        method: 'POST',  
-        headers: { 'Content-Type': 'application/json', 'Client-Token': CONFIG.zapClientToken },  
-        body: JSON.stringify(body),  
-      });  
-      return { succeeded: response.ok, statusCode: response.status, jsonBody: await response.json().catch(() => null) };  
-    } catch (error) {  
-      console.warn('enviarMensagemZap failed', error);  
-      return { succeeded: false };  
-    }  
-  }  
-    
-  /** EnviarMensagemAgenteCall.call({nome, telefone, venceu}) - defined in the  
-   *  Dart but never called from a widget; kept for parity. */  
-  async function enviarMensagemAgente({ nome = '', telefone = '', venceu = null } = {}) {  
-    if (!CONFIG.useAgentWebhook) {  
-      console.info('[enviarMensagemAgente] desligado em config.js (useAgentWebhook)');  
-      return { succeeded: false, skipped: true };  
-    }  
-    try {  
-      const response = await fetch(CONFIG.agentWebhookUrl, {  
-        method: 'POST',  
-        headers: { 'Content-Type': 'application/json' },  
-        body: JSON.stringify({ nome, telefone, venceu }),  
-      });  
-      return { succeeded: response.ok, statusCode: response.status };  
-    } catch (error) {  
-      console.warn('enviarMensagemAgente failed', error);  
-      return { succeeded: false };  
-    }  
+  
+  const LOCAL_KEY = 'usuarios';
+  /** Telefone fica separado do ranking; ver addUsuario e firebase/firestore.rules. */
+  const CONTACT_KEY = 'contatos';
+  
+  /* -------------------------------------------------------- UsuariosRecord -- */
+  
+  /** createUsuariosRecordData(...) - fields with a null value are omitted, which
+   *  is what FlutterFlow's `createUsuariosRecordData` does. */
+  function createUsuariosRecordData({
+    nome = null,
+    telefone = null,
+    atuacao = null,
+    venceu = null,
+    tempo = null,
+    equipamento = null,
+    data = null,
+    invalido = null,
+  } = {}) {
+    const record = { nome, telefone, atuacao, venceu, tempo, equipamento, data, invalido };
+    for (const key of Object.keys(record)) {
+      if (record[key] == null) delete record[key];
+    }
+    return record;
+  }
+  
+  /** Ranking local, já com a retenção de um ano aplicada (ver storage.js). */
+  const readLocal = () => getRecords(LOCAL_KEY);
+  
+  /* ------------------------------------------------------------- Firestore -- */
+  
+  let firestore = null;
+  
+  async function ensureFirestore() {
+    if (!CONFIG.useFirestore) return null;
+    if (firestore) return firestore;
+    const [{ initializeApp }, fs] = await Promise.all([
+      import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js'),
+      import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'),
+    ]);
+    const app = initializeApp(CONFIG.firebaseOptions);
+    firestore = { db: fs.getFirestore(app), fs };
+    return firestore;
+  }
+  
+  /* ------------------------------------------------------------------ API --- */
+  
+  /**
+   * `await UsuariosRecord.collection.doc().set(createUsuariosRecordData(...))`
+   *
+   * O Dart gravava tudo — inclusive o TELEFONE — numa unica colecao `usuarios`,
+   * cujas regras liberavam leitura para qualquer um. Como o ranking do jogo le
+   * essa colecao no cliente, sem servidor, a leitura tem de continuar publica; o
+   * que muda e o que vai la dentro. O registro e partido em dois:
+   *
+   *   usuarios  o resultado da partida, SEM telefone  -> e o que o ranking le
+   *   contatos  nome + telefone                       -> escrita cega, leitura autenticada
+   *
+   * Ver firebase/firestore.rules. O `data` e server timestamp no Dart; aqui, com
+   * Firestore desligado, e o relogio do cliente, usado so para ordenar e para a
+   * retencao de um ano.
+   */
+  async function addUsuario(record, { serverTimestamp = false } = {}) {
+    const { telefone, ...partida } = record;
+    const row = { ...partida };
+    if (serverTimestamp) row.data = new Date().toISOString();
+  
+    const contato = telefone ? { nome: partida.nome ?? '', telefone, ...(row.data ? { data: row.data } : {}) } : null;
+  
+    if (CONFIG.useFirestore) {
+      try {
+        const { db, fs } = await ensureFirestore();
+        const payload = { ...row };
+        if (serverTimestamp) payload.data = fs.serverTimestamp();
+        await fs.addDoc(fs.collection(db, 'usuarios'), payload);
+        if (contato) {
+          const c = { ...contato };
+          if (serverTimestamp) c.data = fs.serverTimestamp();
+          await fs.addDoc(fs.collection(db, 'contatos'), c);
+        }
+        return;
+      } catch (error) {
+        console.warn('Firestore write failed, falling back to local storage.', error);
+      }
+    }
+  
+    putRecord(LOCAL_KEY, row);
+    if (contato) putRecord(CONTACT_KEY, contato);
+  }
+  
+  /**
+   * `queryUsuariosRecord(queryBuilder: ...where('venceu', isEqualTo: true)
+   *   .orderBy('tempo', descending: true), limit: n)`
+   *
+   * `tempo` holds the milliseconds *left on the clock*, so descending order puts
+   * the fastest players first - the ranking is sorted exactly as in the Dart.
+   */
+  async function queryUsuariosVencedores({ limit = 15 } = {}) {
+    if (CONFIG.useFirestore) {
+      try {
+        const { db, fs } = await ensureFirestore();
+        const snapshot = await fs.getDocs(
+          fs.query(
+            fs.collection(db, 'usuarios'),
+            fs.where('venceu', '==', true),
+            fs.orderBy('tempo', 'desc'),
+            fs.limit(limit)
+          )
+        );
+        return snapshot.docs.map((doc) => normalize(doc.data()));
+      } catch (error) {
+        console.warn('Firestore read failed, falling back to local storage.', error);
+      }
+    }
+  
+    return readLocal()
+      .filter((row) => row.venceu === true)
+      .sort((a, b) => (b.tempo ?? 0) - (a.tempo ?? 0))
+      .slice(0, limit)
+      .map(normalize);
+  }
+  
+  /** `queryUsuariosRecordCount()` */
+  async function queryUsuariosRecordCount() {
+    if (CONFIG.useFirestore) {
+      try {
+        const { db, fs } = await ensureFirestore();
+        const snapshot = await fs.getCountFromServer(fs.collection(db, 'usuarios'));
+        return snapshot.data().count;
+      } catch (error) {
+        console.warn('Firestore count failed, falling back to local storage.', error);
+      }
+    }
+    return readLocal().length;
+  }
+  
+  /**
+   * UsuariosRecord's getters all default a missing field. `telefone` saiu de
+   * proposito: o ranking nao o le mais (ver addUsuario).
+   */
+  function normalize(row) {
+    return {
+      nome: row.nome ?? '',
+      atuacao: row.atuacao ?? '',
+      venceu: row.venceu ?? false,
+      tempo: row.tempo ?? 0.0,
+      equipamento: row.equipamento ?? '',
+      data: row.data ?? null,
+      invalido: row.invalido ?? 0,
+    };
+  }
+  
+  /* ------------------------------------------------------------ API calls --- */
+  
+  /** EnviarMensagemZapCall.call({numero, resultado}) */
+  async function enviarMensagemZap({ numero = '', resultado = '' } = {}) {
+    const body = {
+      phone: numero,
+      message:
+        '🏁 Você finalizou o *TECNOGAME* 🎮🚀\n\nObrigado por visitar nosso estande!\n\n👉 Fale com um representante ou acesse nosso site:\nhttps://tecnomotor.com.br',
+      image: 'https://cambioautomaticodobrasil.com.br/app/uploads/2023/01/tecnomotor.jpg',
+      linkUrl: 'https://tecnomotor.com.br',
+      title: 'Clique aqui',
+      linkDescription: 'Site da Tecnomotor',
+    };
+  
+    if (!CONFIG.useWhatsApp) {
+      // Sem despejar numero nem corpo: o console do totem fica visivel a quem
+      // abrir o inspetor, e isto e dado pessoal.
+      console.info('[enviarMensagemZap] desligado em config.js (useWhatsApp)');
+      return { succeeded: false, skipped: true };
+    }
+  
+    try {
+      const response = await fetch(CONFIG.zapApiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Client-Token': CONFIG.zapClientToken },
+        body: JSON.stringify(body),
+      });
+      return { succeeded: response.ok, statusCode: response.status, jsonBody: await response.json().catch(() => null) };
+    } catch (error) {
+      console.warn('enviarMensagemZap failed', error);
+      return { succeeded: false };
+    }
+  }
+  
+  /** EnviarMensagemAgenteCall.call({nome, telefone, venceu}) - defined in the
+   *  Dart but never called from a widget; kept for parity. */
+  async function enviarMensagemAgente({ nome = '', telefone = '', venceu = null } = {}) {
+    if (!CONFIG.useAgentWebhook) {
+      console.info('[enviarMensagemAgente] desligado em config.js (useAgentWebhook)');
+      return { succeeded: false, skipped: true };
+    }
+    try {
+      const response = await fetch(CONFIG.agentWebhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome, telefone, venceu }),
+      });
+      return { succeeded: response.ok, statusCode: response.status };
+    } catch (error) {
+      console.warn('enviarMensagemAgente failed', error);
+      return { succeeded: false };
+    }
   }
   Object.defineProperty(__exports, "createUsuariosRecordData", { get: () => createUsuariosRecordData, enumerable: true });
   Object.defineProperty(__exports, "addUsuario", { get: () => addUsuario, enumerable: true });
@@ -3424,217 +3448,237 @@
 
   /* ===== anim.js ===== */
   __define("anim.js", function (__exports, __require) {
-  // Port of the flutter_animate effects the project uses (Scale, Fade, Move,
-  // Rotate) plus flutter_flow_animations' AnimationInfo / animateOnPageLoad /
-  // animateOnActionTrigger.
-  //
-  // Each AnimationInfo turns into one Web Animations API animation. Effects are
-  // grouped per animated property and laid out on a shared timeline that runs
-  // from 0 to the longest (delay + duration), which is how flutter_animate
-  // composes an effect list: a value holds at `begin` through its delay, tweens
-  // over its duration, then holds at `end`.
-  
-  /** Curves -> cubic-bezier, from Flutter's Curves definitions. */
-  const Curves = {
-    linear: 'linear',
-    ease: 'cubic-bezier(0.25, 0.1, 0.25, 1)',
-    easeIn: 'cubic-bezier(0.42, 0, 1, 1)',
-    easeOut: 'cubic-bezier(0, 0, 0.58, 1)',
-    easeInOut: 'cubic-bezier(0.42, 0, 0.58, 1)',
-  };
-  
-  /* --------------------------------------------------------------- effects -- */
-  
-  const effect = (kind, neutral) => ({ curve = Curves.easeInOut, delay = 0, duration = 0, begin, end } = {}) => ({
-    kind,
-    neutral,
-    curve,
-    delay,
-    duration,
-    begin: begin ?? neutral,
-    end: end ?? neutral,
-  });
-  
-  const ScaleEffect = effect('scale', [1, 1]);
-  const FadeEffect = effect('fade', 1);
-  const MoveEffect = effect('move', [0, 0]);
-  const RotateEffect = effect('rotate', 0);
-  
-  /* ---------------------------------------------------------- AnimationInfo -- */
-  
-  const AnimationTrigger = {
-    onPageLoad: 'onPageLoad',
-    onActionTrigger: 'onActionTrigger',
-  };
-  
-  class AnimationInfo {
-    constructor({ trigger, effectsBuilder = null, loop = false, reverse = false, applyInitialState = false } = {}) {
-      this.trigger = trigger;
-      this.effectsBuilder = effectsBuilder;
-      this.loop = loop;
-      this.reverse = reverse;
-      this.applyInitialState = applyInitialState;
-      this._targets = [];
-      // `animationsMap['x']!.controller.forward(from: 0.0)` in the Dart.
-      this.controller = { forward: () => this._forward() };
-    }
-  
-    _forward() {
-      const runs = this._targets
-        .map(({ node, effects }) => run(node, effects ?? this.effectsBuilder?.(), this))
-        .filter(Boolean);
-      return runs.length ? Promise.all(runs) : Promise.resolve();
-    }
-  }
-  
-  /* ------------------------------------------------------------- timelines -- */
-  
-  const lerp = (a, b, t) => (Array.isArray(a) ? a.map((v, i) => v + (b[i] - v) * t) : a + (b - a) * t);
-  
-  /** Value of one property's timeline at time `t` (raw, no easing applied - the
-   *  easing lives on the emitted keyframe). */
-  function sampleTrack(segments, neutral, t) {
-    if (segments.length === 0) return neutral;
-    if (t <= segments[0].t0) return segments[0].from;
-    let value = segments[0].from;
-    for (const segment of segments) {
-      if (t >= segment.t1) {
-        value = segment.to;
-      } else if (t > segment.t0) {
-        return lerp(segment.from, segment.to, (t - segment.t0) / (segment.t1 - segment.t0));
-      } else {
-        return value;
-      }
-    }
-    return value;
-  }
-  
-  /** The easing that governs the output segment starting at `t`. */
-  function easingAt(segments, t) {
-    for (const segment of segments) {
-      if (t >= segment.t0 && t < segment.t1) return segment.curve;
-    }
-    return 'linear';
-  }
-  
-  /**
-   * Run an effect list on a node. Returns a promise that settles when the
-   * animation finishes (never, for looping ones - those resolve immediately so
-   * awaiting an `onPageLoad` loop can't deadlock a caller).
-   */
-  function run(node, effects, info = {}) {
-    if (!node || !effects || effects.length === 0) return null;
-  
-    const total = effects.reduce((max, e) => Math.max(max, e.delay + e.duration), 0);
-    if (total === 0) return null;
-  
-    const byKind = new Map();
-    for (const e of effects) {
-      if (!byKind.has(e.kind)) byKind.set(e.kind, { neutral: e.neutral, segments: [] });
-      byKind.get(e.kind).segments.push({ t0: e.delay, t1: e.delay + e.duration, from: e.begin, to: e.end, curve: e.curve });
-    }
-    for (const track of byKind.values()) track.segments.sort((a, b) => a.t0 - b.t0);
-  
-    // Union of every segment boundary, so each emitted keyframe interval sits
-    // inside a single input effect and can carry that effect's curve.
-    const offsets = new Set([0, total]);
-    for (const track of byKind.values()) {
-      for (const segment of track.segments) {
-        offsets.add(segment.t0);
-        offsets.add(segment.t1);
-      }
-    }
-    const times = [...offsets].sort((a, b) => a - b);
-  
-    // A transform written by a fractional Stack alignment must survive.
-    const base = node.dataset.baseTransform || '';
-    const move = byKind.get('move');
-    const scale = byKind.get('scale');
-    const rotate = byKind.get('rotate');
-    const fade = byKind.get('fade');
-  
-    const frameAt = (t) => {
-      const frame = { offset: total === 0 ? 0 : t / total };
-      const parts = base ? [base] : [];
-      if (move) {
-        const [x, y] = sampleTrack(move.segments, move.neutral, t);
-        parts.push(`translate(${x}px, ${y}px)`);
-      }
-      if (rotate) parts.push(`rotate(${sampleTrack(rotate.segments, rotate.neutral, t)}turn)`);
-      if (scale) {
-        const [x, y] = sampleTrack(scale.segments, scale.neutral, t);
-        parts.push(`scale(${x}, ${y})`);
-      }
-      if (parts.length) frame.transform = parts.join(' ');
-      if (fade) frame.opacity = String(sampleTrack(fade.segments, fade.neutral, t));
-      return frame;
-    };
-  
-    const keyframes = times.map((t, index) => {
-      const frame = frameAt(t);
-      if (index < times.length - 1) {
-        // Prefer the curve of whichever track is tweening across this interval.
-        frame.easing =
-          [move, scale, rotate, fade]
-            .filter(Boolean)
-            .map((track) => easingAt(track.segments, t))
-            .find((curve) => curve !== 'linear') ?? 'linear';
-      }
-      return frame;
-    });
-  
-    // applyInitialState: pin frame 0 inline so nothing flashes at its end value
-    // in the frame before the animation starts.
-    const first = keyframes[0];
-    if (first.transform) node.style.transform = first.transform;
-    if (first.opacity != null) node.style.opacity = first.opacity;
-  
-    const animation = node.animate(keyframes, {
-      duration: total,
-      iterations: info.loop ? Infinity : 1,
-      direction: info.loop && info.reverse ? 'alternate' : 'normal',
-      fill: 'both',
-    });
-  
-    if (info.loop) return Promise.resolve();
-    return animation.finished.then(
-      () => {},
-      () => {}
-    );
-  }
-  
-  /* ------------------------------------------------- widget-level wrappers -- */
-  
-  /** `.animateOnPageLoad(animationsMap['x']!)` */
-  function animateOnPageLoad(node, info) {
-    if (!node || !info) return node;
-    const effects = info.effectsBuilder?.();
-    if (!effects || effects.length === 0) return node;
-    // Hold the initial state right away, then start on the next frame (the page
-    // is still being assembled when the builder runs).
-    const total = effects.reduce((max, e) => Math.max(max, e.delay + e.duration), 0);
-    if (total > 0) {
-      if (effects.some((e) => e.kind === 'fade')) {
-        const fade = effects.find((e) => e.kind === 'fade');
-        node.style.opacity = String(fade.begin);
-      }
-      requestAnimationFrame(() => run(node, effects, info));
-    }
-    return node;
-  }
-  
-  /** `.animateOnActionTrigger(animationsMap['x']!, effects: [...])` - registers
-   *  the node so `info.controller.forward(from: 0.0)` animates it. */
-  function animateOnActionTrigger(node, info, effects = null) {
-    if (!node || !info) return node;
-    info._targets.push({ node, effects });
-    return node;
-  }
-  
-  /** setupAnimations(...) - nothing to pre-register in this port. */
-  function setupAnimations() {}
-  
-  /** `await Future.delayed(Duration(milliseconds: n))` */
+  // Port of the flutter_animate effects the project uses (Scale, Fade, Move,  
+  // Rotate) plus flutter_flow_animations' AnimationInfo / animateOnPageLoad /  
+  // animateOnActionTrigger.  
+  //  
+  // Each AnimationInfo turns into one Web Animations API animation. Effects are  
+  // grouped per animated property and laid out on a shared timeline that runs  
+  // from 0 to the longest (delay + duration), which is how flutter_animate  
+  // composes an effect list: a value holds at `begin` through its delay, tweens  
+  // over its duration, then holds at `end`.  
+    
+  /**  
+   * Quem pede menos movimento no sistema nao deve receber os loops infinitos —  
+   * o jogo pulsa varios elementos para sempre. As animacoes de um disparo ficam:  
+   * sao curtas e comunicam estado (o toque afundando um botao, a tela entrando).  
+   */  
+  const semLoops = () => {  
+    try {  
+      return window.matchMedia('(prefers-reduced-motion: reduce)').matches;  
+    } catch (_) {  
+      return false;  
+    }  
+  };  
+    
+  /** Curves -> cubic-bezier, from Flutter's Curves definitions. */  
+  const Curves = {  
+    linear: 'linear',  
+    ease: 'cubic-bezier(0.25, 0.1, 0.25, 1)',  
+    easeIn: 'cubic-bezier(0.42, 0, 1, 1)',  
+    easeOut: 'cubic-bezier(0, 0, 0.58, 1)',  
+    easeInOut: 'cubic-bezier(0.42, 0, 0.58, 1)',  
+  };  
+    
+  /* --------------------------------------------------------------- effects -- */  
+    
+  const effect = (kind, neutral) => ({ curve = Curves.easeInOut, delay = 0, duration = 0, begin, end } = {}) => ({  
+    kind,  
+    neutral,  
+    curve,  
+    delay,  
+    duration,  
+    begin: begin ?? neutral,  
+    end: end ?? neutral,  
+  });  
+    
+  const ScaleEffect = effect('scale', [1, 1]);  
+  const FadeEffect = effect('fade', 1);  
+  const MoveEffect = effect('move', [0, 0]);  
+  const RotateEffect = effect('rotate', 0);  
+    
+  /* ---------------------------------------------------------- AnimationInfo -- */  
+    
+  const AnimationTrigger = {  
+    onPageLoad: 'onPageLoad',  
+    onActionTrigger: 'onActionTrigger',  
+  };  
+    
+  class AnimationInfo {  
+    constructor({ trigger, effectsBuilder = null, loop = false, reverse = false, applyInitialState = false } = {}) {  
+      this.trigger = trigger;  
+      this.effectsBuilder = effectsBuilder;  
+      this.loop = loop;  
+      this.reverse = reverse;  
+      this.applyInitialState = applyInitialState;  
+      this._targets = [];  
+      // `animationsMap['x']!.controller.forward(from: 0.0)` in the Dart.  
+      this.controller = { forward: () => this._forward() };  
+    }  
+    
+    _forward() {  
+      const runs = this._targets  
+        .map(({ node, effects }) => run(node, effects ?? this.effectsBuilder?.(), this))  
+        .filter(Boolean);  
+      return runs.length ? Promise.all(runs) : Promise.resolve();  
+    }  
+  }  
+    
+  /* ------------------------------------------------------------- timelines -- */  
+    
+  const lerp = (a, b, t) => (Array.isArray(a) ? a.map((v, i) => v + (b[i] - v) * t) : a + (b - a) * t);  
+    
+  /** Value of one property's timeline at time `t` (raw, no easing applied - the  
+   *  easing lives on the emitted keyframe). */  
+  function sampleTrack(segments, neutral, t) {  
+    if (segments.length === 0) return neutral;  
+    if (t <= segments[0].t0) return segments[0].from;  
+    let value = segments[0].from;  
+    for (const segment of segments) {  
+      if (t >= segment.t1) {  
+        value = segment.to;  
+      } else if (t > segment.t0) {  
+        return lerp(segment.from, segment.to, (t - segment.t0) / (segment.t1 - segment.t0));  
+      } else {  
+        return value;  
+      }  
+    }  
+    return value;  
+  }  
+    
+  /** The easing that governs the output segment starting at `t`. */  
+  function easingAt(segments, t) {  
+    for (const segment of segments) {  
+      if (t >= segment.t0 && t < segment.t1) return segment.curve;  
+    }  
+    return 'linear';  
+  }  
+    
+  /**  
+   * Run an effect list on a node. Returns a promise that settles when the  
+   * animation finishes (never, for looping ones - those resolve immediately so  
+   * awaiting an `onPageLoad` loop can't deadlock a caller).  
+   */  
+  function run(node, effects, info = {}) {  
+    if (!node || !effects || effects.length === 0) return null;  
+    
+    const total = effects.reduce((max, e) => Math.max(max, e.delay + e.duration), 0);  
+    if (total === 0) return null;  
+    
+    // Loop infinito com "menos movimento" ligado: fixa o estado final e sai.  
+    if (info.loop && semLoops()) {  
+      const fade = effects.find((e) => e.kind === 'fade');  
+      if (fade) node.style.opacity = String(fade.end);  
+      return Promise.resolve();  
+    }  
+    
+    const byKind = new Map();  
+    for (const e of effects) {  
+      if (!byKind.has(e.kind)) byKind.set(e.kind, { neutral: e.neutral, segments: [] });  
+      byKind.get(e.kind).segments.push({ t0: e.delay, t1: e.delay + e.duration, from: e.begin, to: e.end, curve: e.curve });  
+    }  
+    for (const track of byKind.values()) track.segments.sort((a, b) => a.t0 - b.t0);  
+    
+    // Union of every segment boundary, so each emitted keyframe interval sits  
+    // inside a single input effect and can carry that effect's curve.  
+    const offsets = new Set([0, total]);  
+    for (const track of byKind.values()) {  
+      for (const segment of track.segments) {  
+        offsets.add(segment.t0);  
+        offsets.add(segment.t1);  
+      }  
+    }  
+    const times = [...offsets].sort((a, b) => a - b);  
+    
+    // A transform written by a fractional Stack alignment must survive.  
+    const base = node.dataset.baseTransform || '';  
+    const move = byKind.get('move');  
+    const scale = byKind.get('scale');  
+    const rotate = byKind.get('rotate');  
+    const fade = byKind.get('fade');  
+    
+    const frameAt = (t) => {  
+      const frame = { offset: total === 0 ? 0 : t / total };  
+      const parts = base ? [base] : [];  
+      if (move) {  
+        const [x, y] = sampleTrack(move.segments, move.neutral, t);  
+        parts.push(`translate(${x}px, ${y}px)`);  
+      }  
+      if (rotate) parts.push(`rotate(${sampleTrack(rotate.segments, rotate.neutral, t)}turn)`);  
+      if (scale) {  
+        const [x, y] = sampleTrack(scale.segments, scale.neutral, t);  
+        parts.push(`scale(${x}, ${y})`);  
+      }  
+      if (parts.length) frame.transform = parts.join(' ');  
+      if (fade) frame.opacity = String(sampleTrack(fade.segments, fade.neutral, t));  
+      return frame;  
+    };  
+    
+    const keyframes = times.map((t, index) => {  
+      const frame = frameAt(t);  
+      if (index < times.length - 1) {  
+        // Prefer the curve of whichever track is tweening across this interval.  
+        frame.easing =  
+          [move, scale, rotate, fade]  
+            .filter(Boolean)  
+            .map((track) => easingAt(track.segments, t))  
+            .find((curve) => curve !== 'linear') ?? 'linear';  
+      }  
+      return frame;  
+    });  
+    
+    // applyInitialState: pin frame 0 inline so nothing flashes at its end value  
+    // in the frame before the animation starts.  
+    const first = keyframes[0];  
+    if (first.transform) node.style.transform = first.transform;  
+    if (first.opacity != null) node.style.opacity = first.opacity;  
+    
+    const animation = node.animate(keyframes, {  
+      duration: total,  
+      iterations: info.loop ? Infinity : 1,  
+      direction: info.loop && info.reverse ? 'alternate' : 'normal',  
+      fill: 'both',  
+    });  
+    
+    if (info.loop) return Promise.resolve();  
+    return animation.finished.then(  
+      () => {},  
+      () => {}  
+    );  
+  }  
+    
+  /* ------------------------------------------------- widget-level wrappers -- */  
+    
+  /** `.animateOnPageLoad(animationsMap['x']!)` */  
+  function animateOnPageLoad(node, info) {  
+    if (!node || !info) return node;  
+    const effects = info.effectsBuilder?.();  
+    if (!effects || effects.length === 0) return node;  
+    // Hold the initial state right away, then start on the next frame (the page  
+    // is still being assembled when the builder runs).  
+    const total = effects.reduce((max, e) => Math.max(max, e.delay + e.duration), 0);  
+    if (total > 0) {  
+      if (effects.some((e) => e.kind === 'fade')) {  
+        const fade = effects.find((e) => e.kind === 'fade');  
+        node.style.opacity = String(fade.begin);  
+      }  
+      requestAnimationFrame(() => run(node, effects, info));  
+    }  
+    return node;  
+  }  
+    
+  /** `.animateOnActionTrigger(animationsMap['x']!, effects: [...])` - registers  
+   *  the node so `info.controller.forward(from: 0.0)` animates it. */  
+  function animateOnActionTrigger(node, info, effects = null) {  
+    if (!node || !info) return node;  
+    info._targets.push({ node, effects });  
+    return node;  
+  }  
+    
+  /** setupAnimations(...) - nothing to pre-register in this port. */  
+  function setupAnimations() {}  
+    
+  /** `await Future.delayed(Duration(milliseconds: n))` */  
   const delayed = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
   Object.defineProperty(__exports, "Curves", { get: () => Curves, enumerable: true });
   Object.defineProperty(__exports, "ScaleEffect", { get: () => ScaleEffect, enumerable: true });

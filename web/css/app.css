@@ -117,15 +117,45 @@ body {
   padding: 0;
   height: 100%;
   overflow: hidden;
-  background: #000;
+  background: #000B18;
   color-scheme: light dark;
+  /* Totem de toque: sem duplo-toque pra zoom, sem "arrasta pra recarregar",
+     sem selecionar texto por toque longo. */
+  touch-action: manipulation;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
+/* A moldura em volta do palco. O jogo e 16:9 fixo; em qualquer tela que nao
+   seja 16:9 sobra faixa. Antes era preto puro, o que fazia parecer defeito.
+   Agora a propria arte do jogo preenche a faixa, desfocada e escurecida, e o
+   palco ganha uma borda de luz que o separa do fundo. */
 #viewport {
   position: fixed;
   inset: 0;
   overflow: hidden;
-  background: #000;
+  background: #000B18;
+}
+
+#viewport::before {
+  content: '';
+  position: absolute;
+  /* Estoura a caixa para o desfoque nao deixar as bordas transparentes. */
+  inset: -8%;
+  background: url('../assets/images/BG_Seleo_Equipamento.png') center / cover no-repeat;
+  filter: blur(28px) brightness(0.32) saturate(0.85);
+  transform: scale(1.06);
+  pointer-events: none;
+}
+
+/* Vinheta por cima da moldura, para o olho ir ao centro. */
+#viewport::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(0, 11, 24, 0) 40%, rgba(0, 11, 24, 0.75) 100%);
+  pointer-events: none;
 }
 
 /* Centred by translating half its own (unscaled) size, which the scale that
@@ -141,6 +171,97 @@ body {
   transform-origin: center center;
   /* --stage-scale is written by js/stage.js on every resize */
   transform: translate(-50%, -50%) scale(var(--stage-scale, 1));
+  /* Separa o palco da moldura desfocada. A sombra e desenhada no espaco do
+     palco, entao a escala a reduz junto — dividir por --stage-scale mantem a
+     espessura constante na tela. */
+  box-shadow: 0 0 calc(60px / var(--stage-scale, 1)) rgba(0, 0, 0, 0.65);
+  /* Evita o flash preto entre o primeiro paint e a primeira tela montada. */
+  animation: ff-stage-in 420ms ease-out both;
+}
+
+@keyframes ff-stage-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* --------------------------------------------------------- aviso de giro -- */
+#rotate-hint {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: none;
+  place-items: center;
+  padding: 8vw;
+  text-align: center;
+  background: #000B18;
+  color: #fff;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.rotate-hint-inner {
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  max-width: 22rem;
+}
+
+.rotate-hint-inner strong {
+  font-family: 'pirulen', 'Inter', sans-serif;
+  font-size: clamp(1.1rem, 5vw, 1.6rem);
+  letter-spacing: 2px;
+}
+
+.rotate-hint-inner span {
+  font-size: clamp(0.9rem, 3.6vw, 1.05rem);
+  line-height: 1.5;
+  color: #95A1AC;
+}
+
+.rotate-hint-inner svg {
+  color: #0053B6;
+  animation: ff-rotate-nudge 2.4s ease-in-out infinite;
+}
+
+@keyframes ff-rotate-nudge {
+  0%, 55%, 100% { transform: rotate(0deg); }
+  75%, 90% { transform: rotate(90deg); }
+}
+
+/* Retrato num aparelho de toque: a escala do palco ficaria ilegivel. Em
+   monitor (que tem ponteiro fino) nao atrapalha, mesmo em janela alta. */
+@media (orientation: portrait) and (pointer: coarse) {
+  #rotate-hint {
+    display: grid;
+  }
+
+  #viewport > #stage {
+    visibility: hidden;
+  }
+}
+
+/* ------------------------------------------------------- menos movimento -- */
+/* O jogo pulsa varios elementos em loop infinito. Quem pediu menos movimento no
+   sistema recebe as transicoes, mas nao os loops. */
+@media (prefers-reduced-motion: reduce) {
+  #stage {
+    animation: none;
+  }
+
+  .rotate-hint-inner svg {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ foco -- */
+/* Os alvos de toque sao divs; sem isto o teclado navega invisivel. */
+.ff-inkwell:focus-visible,
+.ff-btn:focus-visible,
+.ff-dropdown:focus-visible,
+.ff-input:focus-visible,
+.ff-dropdown-item:focus-visible {
+  outline: 3px solid #FFBC00;
+  outline-offset: 3px;
+  border-radius: 4px;
 }
 
 #pages,
