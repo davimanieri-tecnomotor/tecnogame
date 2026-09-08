@@ -35,7 +35,6 @@ const routes = new Map();
 const namedPaths = new Map();
 
 let current = null;
-let historyStack = [];
 let navigating = false;
 
 export function defineRoute({ name, path, builder }) {
@@ -109,7 +108,7 @@ function transitionOut(node, info) {
 
 /* -------------------------------------------------------------- navigate -- */
 
-async function render(path, { info, push }) {
+async function render(path, { info }) {
   if (navigating) return;
   navigating = true;
   try {
@@ -139,7 +138,6 @@ async function render(path, { info, push }) {
     container.appendChild(node);
 
     current = { route, node, dispose: page?.__dispose ?? node.__dispose ?? null, path };
-    if (push && previous) historyStack.push(previous.path);
 
     if (location.hash.slice(1) !== path) {
       history.replaceState({ path }, '', `#${path}`);
@@ -154,26 +152,26 @@ async function render(path, { info, push }) {
 /** `context.goNamed(name, queryParameters: ..., extra: {__transition_info__})` */
 export function goNamed(name, { queryParameters = null, extra = null } = {}) {
   const path = buildPath(name, queryParameters);
-  historyStack = [];
-  return render(path, { info: extra?.__transition_info__, push: false });
+  return render(path, { info: extra?.__transition_info__ });
 }
 
-/** `context.pushNamed(...)` - same, but the previous page stays on the stack. */
+/**
+ * `context.pushNamed(...)`.
+ *
+ * No go_router isto empilha a rota. Aqui nao existe pilha propria: o unico
+ * consumidor era `safePop()`, que nenhuma tela chamava (o Dart tambem nao), e
+ * o botao Voltar do navegador ja e tratado pelo listener de `hashchange`. Fica
+ * como sinonimo de goNamed para os call sites continuarem legiveis ao lado do
+ * Dart.
+ */
 export function pushNamed(name, { queryParameters = null, extra = null } = {}) {
   const path = buildPath(name, queryParameters);
-  return render(path, { info: extra?.__transition_info__, push: true });
+  return render(path, { info: extra?.__transition_info__ });
 }
 
 /** `context.go(path)` */
 export function go(path) {
-  historyStack = [];
-  return render(path, { info: null, push: false });
-}
-
-/** `context.safePop()` */
-export function safePop() {
-  const previous = historyStack.pop();
-  return render(previous ?? '/', { info: null, push: false });
+  return render(path, { info: null });
 }
 
 function buildPath(name, queryParameters) {
@@ -187,12 +185,12 @@ function buildPath(name, queryParameters) {
 /** initialLocation: '/' */
 export function startRouter() {
   const initial = location.hash.slice(1) || '/';
-  render(initial, { info: null, push: false });
+  render(initial, { info: null });
 
   window.addEventListener('hashchange', () => {
     const path = location.hash.slice(1) || '/';
     if (current && current.path === path) return;
-    render(path, { info: null, push: false });
+    render(path, { info: null });
   });
 }
 

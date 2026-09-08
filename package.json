@@ -12,7 +12,8 @@
     "verify:routes": "node scripts/verify/routes.mjs",
     "verify:play": "node scripts/verify/playthrough.mjs",
     "verify:dialogs": "node scripts/verify/dialogs.mjs",
-    "verify:sizes": "node scripts/verify/sizes.mjs"
+    "verify:sizes": "node scripts/verify/sizes.mjs",
+    "verify:idioma": "node scripts/verify/idioma.mjs"
   },
   "devDependencies": {
     "http-server": "^14.1.1",
