@@ -1,0 +1,18 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "usuarios",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "venceu",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "tempo",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ]
+}
