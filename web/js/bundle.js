@@ -1383,157 +1383,263 @@
   Object.defineProperty(__exports, "QUESTIONS", { get: () => QUESTIONS, enumerable: true });
   });
 
-  /* ===== state.js ===== */
-  __define("state.js", function (__exports, __require) {
-  // Port of lib/app_state.dart (FFAppState) and the CadastroStruct it holds.
+  /* ===== storage.js ===== */
+  __define("storage.js", function (__exports, __require) {
+  // Todo acesso a localStorage do jogo passa por aqui.
   //
-  // The three question lists are persisted under the same SharedPreferences keys
-  // the Dart used, so a browser that already has them keeps them; anything else
-  // falls back to the values compiled into the app.
+  // Três motivos:
+  //
+  // 1. Namespace. As chaves vinham do FlutterFlow (`ff_questoesBrasil`,
+  //    `__locale_key__`) e num mesmo domínio colidiriam com um build Flutter do
+  //    mesmo jogo — que gravava naquelas chaves um formato diferente (lista de
+  //    strings serializadas, não JSON de objetos). Agora tudo vive sob `tecgame:`.
+  //
+  // 2. Tolerância a falha. Em modo privado, com cookies de site bloqueados, e em
+  //    alguns navegadores por `file://`, o simples `window.localStorage` já
+  //    *lança*. Cada acesso aqui é protegido, então o jogo roda sem persistir em
+  //    vez de morrer na primeira tela.
+  //
+  // 3. Retenção. A política de privacidade do jogo promete apagar os dados depois
+  //    de um ano. `putRecord` estampa a data e `getRecords` descarta o que passou
+  //    do prazo, então a promessa vale também no armazenamento local — não só no
+  //    Firestore.
   
-  const { QUESTIONS } = __require("questions.js");
+  const PREFIX = 'tecgame:';
   
-  const listeners = new Set();
+  /** Chaves antigas, lidas uma vez para ninguém perder o que já tinha. */
+  const LEGACY = {
+    'usuarios': 'tecgame_usuarios',
+    'locale': '__locale_key__',
+    'questoes.pt': 'ff_questoesBrasil',
+    'questoes.en': 'ff_questoesEnglish',
+    'questoes.es': 'ff_questoesSpanish',
+  };
   
-  /** CadastroStruct */
-  class CadastroStruct {
-    constructor({ nome, telefone, atuacao, invalido } = {}) {
-      this._nome = nome;
-      this._telefone = telefone;
-      this._atuacao = atuacao;
-      this._invalido = invalido;
-    }
+  /** Um ano, o prazo que a política de privacidade promete. */
+  const RETENCAO_MS = 365 * 24 * 60 * 60 * 1000;
   
-    get nome() {
-      return this._nome ?? '';
-    }
-  
-    set nome(v) {
-      this._nome = v;
-    }
-  
-    get telefone() {
-      return this._telefone ?? '';
-    }
-  
-    set telefone(v) {
-      this._telefone = v;
-    }
-  
-    get atuacao() {
-      return this._atuacao ?? '';
-    }
-  
-    set atuacao(v) {
-      this._atuacao = v;
-    }
-  
-    get invalido() {
-      return this._invalido ?? 0;
-    }
-  
-    set invalido(v) {
-      this._invalido = v;
+  /**
+   * `localStorage` quando dá, `null` quando o navegador recusa. Não faz cache do
+   * resultado porque a permissão pode mudar durante a sessão.
+   */
+  function store() {
+    try {
+      const s = window.localStorage;
+      // Alguns navegadores só falham no primeiro uso de verdade, não no getter.
+      const probe = `${PREFIX}__probe__`;
+      s.setItem(probe, '1');
+      s.removeItem(probe);
+      return s;
+    } catch (_) {
+      return null;
     }
   }
   
-  function loadQuestions(key, fallback) {
+  /** Texto cru de uma chave, caindo para a chave legada do FlutterFlow. */
+  function readRaw(name) {
+    const s = store();
+    if (!s) return null;
     try {
-      const raw = localStorage.getItem(key);
-      if (!raw) return fallback;
-      const list = JSON.parse(raw);
-      if (!Array.isArray(list) || list.length === 0) return fallback;
-      return list;
+      const atual = s.getItem(PREFIX + name);
+      if (atual != null) return atual;
+      const antiga = LEGACY[name];
+      return antiga ? s.getItem(antiga) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  
+  function writeRaw(name, value) {
+    const s = store();
+    if (!s) return false;
+    try {
+      s.setItem(PREFIX + name, value);
+      return true;
+    } catch (_) {
+      // Cota estourada ou escrita negada: seguir sem persistir.
+      return false;
+    }
+  }
+  
+  function readJson(name, fallback) {
+    const raw = readRaw(name);
+    if (raw == null) return fallback;
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed == null ? fallback : parsed;
     } catch (error) {
-      console.warn(`Can't decode persisted data type. Error: ${error}.`);
+      console.warn(`[storage] ${name} ilegível, usando o padrão.`, error);
       return fallback;
     }
   }
   
-  function saveQuestions(key, list) {
+  function writeJson(name, value) {
     try {
-      localStorage.setItem(key, JSON.stringify(list));
+      return writeRaw(name, JSON.stringify(value));
     } catch (_) {
-      /* storage unavailable */
+      return false;
     }
   }
   
-  class FFAppStateClass {
-    constructor() {
-      this.questoesBrasil = QUESTIONS.pt;
-      this.questoesEnglish = QUESTIONS.en;
-      this.questoesSpanish = QUESTIONS.es;
-  
-      this.scannerEscolhido = '';
-      this.tempoAcabando = false;
-      this.escolha = 1.5;
-  
-      /// Essa variável serve para controlar qual popUp estará aberto quando o
-      /// user clicar.  0 = fechado, 1 = Apoio, Etc...
-      this.ajuda = 0;
-  
-      this.cadastro = new CadastroStruct();
-      this.ordemNumeros = [4, 2, 3, 1];
-      this.listaEscolhas = [];
-      this.linguagem = '';
-      this.finalizou = false;
-    }
-  
-    /** initializePersistedState() */
-    initializePersistedState() {
-      this.questoesBrasil = loadQuestions('ff_questoesBrasil', QUESTIONS.pt);
-      this.questoesEnglish = loadQuestions('ff_questoesEnglish', QUESTIONS.en);
-      this.questoesSpanish = loadQuestions('ff_questoesSpanish', QUESTIONS.es);
-    }
-  
-    persistQuestions() {
-      saveQuestions('ff_questoesBrasil', this.questoesBrasil);
-      saveQuestions('ff_questoesEnglish', this.questoesEnglish);
-      saveQuestions('ff_questoesSpanish', this.questoesSpanish);
-    }
-  
-    /** update(callback) - runs the mutation then notifies listeners. */
-    update(callback) {
-      if (callback) callback();
-      this.notifyListeners();
-    }
-  
-    updateCadastroStruct(updateFn) {
-      updateFn(this.cadastro);
-    }
-  
-    addToListaEscolhas(value) {
-      this.listaEscolhas.push(value);
-    }
-  
-    removeFromListaEscolhas(value) {
-      const index = this.listaEscolhas.indexOf(value);
-      if (index >= 0) this.listaEscolhas.splice(index, 1);
-    }
-  
-    notifyListeners() {
-      for (const fn of listeners) fn(this);
-    }
+  /**
+   * Registros com prazo de validade. `agora` entra por parâmetro para o teste
+   * poder envelhecer a base sem mexer no relógio.
+   */
+  function getRecords(name, agora = Date.now()) {
+    const list = readJson(name, []);
+    if (!Array.isArray(list)) return [];
+    const corte = agora - RETENCAO_MS;
+    const vivos = list.filter((r) => {
+      const t = r && r.data ? Date.parse(r.data) : NaN;
+      return Number.isNaN(t) ? true : t >= corte;
+    });
+    // Só reescreve quando algo realmente expirou, para não gravar a cada leitura.
+    if (vivos.length !== list.length) writeJson(name, vivos);
+    return vivos;
   }
   
-  const FFAppState = new FFAppStateClass();
-  
-  function onAppStateChange(fn) {
-    listeners.add(fn);
-    return () => listeners.delete(fn);
+  function putRecord(name, record, agora = Date.now()) {
+    const list = getRecords(name, agora);
+    list.push(record);
+    return writeJson(name, list);
   }
-  
-  /** The question for the currently selected wheel value, in a given language. */
-  function questaoAtual(lang = 'pt') {
-    const list =
-      lang === 'en' ? FFAppState.questoesEnglish : lang === 'es' ? FFAppState.questoesSpanish : FFAppState.questoesBrasil;
-    const index = Math.trunc(FFAppState.escolha * 10) % 10;
-    return list[index] ?? null;
+  Object.defineProperty(__exports, "RETENCAO_MS", { get: () => RETENCAO_MS, enumerable: true });
+  Object.defineProperty(__exports, "readRaw", { get: () => readRaw, enumerable: true });
+  Object.defineProperty(__exports, "writeRaw", { get: () => writeRaw, enumerable: true });
+  Object.defineProperty(__exports, "readJson", { get: () => readJson, enumerable: true });
+  Object.defineProperty(__exports, "writeJson", { get: () => writeJson, enumerable: true });
+  Object.defineProperty(__exports, "getRecords", { get: () => getRecords, enumerable: true });
+  Object.defineProperty(__exports, "putRecord", { get: () => putRecord, enumerable: true });
+  });
+
+  /* ===== state.js ===== */
+  __define("state.js", function (__exports, __require) {
+  // Port of lib/app_state.dart (FFAppState) and the CadastroStruct it holds.  
+  //  
+  // The three question lists are persisted under the same SharedPreferences keys  
+  // the Dart used, so a browser that already has them keeps them; anything else  
+  // falls back to the values compiled into the app.  
+    
+  const { QUESTIONS } = __require("questions.js");
+  const { readJson } = __require("storage.js");
+    
+  const listeners = new Set();  
+    
+  /** CadastroStruct */  
+  class CadastroStruct {  
+    constructor({ nome, telefone, atuacao, invalido } = {}) {  
+      this._nome = nome;  
+      this._telefone = telefone;  
+      this._atuacao = atuacao;  
+      this._invalido = invalido;  
+    }  
+    
+    get nome() {  
+      return this._nome ?? '';  
+    }  
+    
+    set nome(v) {  
+      this._nome = v;  
+    }  
+    
+    get telefone() {  
+      return this._telefone ?? '';  
+    }  
+    
+    set telefone(v) {  
+      this._telefone = v;  
+    }  
+    
+    get atuacao() {  
+      return this._atuacao ?? '';  
+    }  
+    
+    set atuacao(v) {  
+      this._atuacao = v;  
+    }  
+    
+    get invalido() {  
+      return this._invalido ?? 0;  
+    }  
+    
+    set invalido(v) {  
+      this._invalido = v;  
+    }  
+  }  
+    
+  /**  
+   * As três listas de questões vinham persistidas pelo Dart. Nada no jogo grava  
+   * essas chaves — só o admin publica baralho — mas a leitura fica para não  
+   * descartar o que um totem já tenha guardado.  
+   */  
+  function loadQuestions(name, fallback) {  
+    const list = readJson(name, null);  
+    return Array.isArray(list) && list.length > 0 ? list : fallback;  
+  }  
+    
+  class FFAppStateClass {  
+    constructor() {  
+      this.questoesBrasil = QUESTIONS.pt;  
+      this.questoesEnglish = QUESTIONS.en;  
+      this.questoesSpanish = QUESTIONS.es;  
+    
+      this.scannerEscolhido = '';  
+      this.tempoAcabando = false;  
+      this.escolha = 1.5;  
+    
+      /// Essa variável serve para controlar qual popUp estará aberto quando o  
+      /// user clicar.  0 = fechado, 1 = Apoio, Etc...  
+      this.ajuda = 0;  
+    
+      this.cadastro = new CadastroStruct();  
+      this.ordemNumeros = [4, 2, 3, 1];  
+      this.listaEscolhas = [];  
+      this.linguagem = '';  
+      this.finalizou = false;  
+    }  
+    
+    /** initializePersistedState() */  
+    initializePersistedState() {  
+      this.questoesBrasil = loadQuestions('questoes.pt', QUESTIONS.pt);  
+      this.questoesEnglish = loadQuestions('questoes.en', QUESTIONS.en);  
+      this.questoesSpanish = loadQuestions('questoes.es', QUESTIONS.es);  
+    }  
+    
+    /** update(callback) - runs the mutation then notifies listeners. */  
+    update(callback) {  
+      if (callback) callback();  
+      this.notifyListeners();  
+    }  
+    
+    addToListaEscolhas(value) {  
+      this.listaEscolhas.push(value);  
+    }  
+    
+    removeFromListaEscolhas(value) {  
+      const index = this.listaEscolhas.indexOf(value);  
+      if (index >= 0) this.listaEscolhas.splice(index, 1);  
+    }  
+    
+    notifyListeners() {  
+      for (const fn of listeners) fn(this);  
+    }  
+  }  
+    
+  const FFAppState = new FFAppStateClass();  
+    
+  /**  
+   * Contraparte de `notifyListeners()`. Hoje nenhuma tela assina — o porte  
+   * re-renderiza por navegação, não por observação — mas é o seam que dá sentido  
+   * ao `update()` espalhado pelo código, que existe por paridade com o  
+   * ChangeNotifier do Dart.  
+   */  
+  function onAppStateChange(fn) {  
+    listeners.add(fn);  
+    return () => listeners.delete(fn);  
   }
   Object.defineProperty(__exports, "CadastroStruct", { get: () => CadastroStruct, enumerable: true });
   Object.defineProperty(__exports, "FFAppState", { get: () => FFAppState, enumerable: true });
   Object.defineProperty(__exports, "onAppStateChange", { get: () => onAppStateChange, enumerable: true });
-  Object.defineProperty(__exports, "questaoAtual", { get: () => questaoAtual, enumerable: true });
   });
 
   /* ===== dialog.js ===== */
@@ -1635,204 +1741,202 @@
 
   /* ===== router.js ===== */
   __define("router.js", function (__exports, __require) {
-  // Port of lib/flutter_flow/nav/nav.dart - the go_router setup plus the
-  // page_transition animations it hands to CustomTransitionPage.
-  //
-  // Routes keep the paths from the Dart, moved behind the hash so the app runs
-  // from any static host (and from file://) without server rewrites:
-  //   /cadastro -> #/cadastro
-  
+  // Port of lib/flutter_flow/nav/nav.dart - the go_router setup plus the  
+  // page_transition animations it hands to CustomTransitionPage.  
+  //  
+  // Routes keep the paths from the Dart, moved behind the hash so the app runs  
+  // from any static host (and from file://) without server rewrites:  
+  //   /cadastro -> #/cadastro  
+    
   const { popAllDialogs } = __require("dialog.js");
   const { unfocus } = __require("widgets.js");
-  
-  const PageTransitionType = { fade: 'fade', scale: 'scale' };
-  
-  const Alignment = {
-    bottomCenter: [0, 1],
-    center: [0, 0],
-    topCenter: [0, -1],
-  };
-  
-  /** TransitionInfo from nav.dart. */
-  class TransitionInfo {
-    constructor({ hasTransition, transitionType = PageTransitionType.fade, duration = 300, alignment = null } = {}) {
-      this.hasTransition = hasTransition;
-      this.transitionType = transitionType;
-      this.duration = duration;
-      this.alignment = alignment;
-    }
-  
-    static appDefault() {
-      return new TransitionInfo({ hasTransition: false });
-    }
-  }
-  
-  const routes = new Map();
-  /** name -> path, so goNamed/pushNamed can resolve like go_router does. */
-  const namedPaths = new Map();
-  
-  let current = null;
-  let historyStack = [];
-  let navigating = false;
-  
-  function defineRoute({ name, path, builder }) {
-    routes.set(path, { name, path, builder });
-    namedPaths.set(name, path);
-  }
-  
-  function resolve(path) {
-    const [bare] = path.split('?');
-    return routes.get(bare) ?? null;
-  }
-  
-  function parseQuery(path) {
-    const index = path.indexOf('?');
-    if (index < 0) return {};
-    return Object.fromEntries(new URLSearchParams(path.slice(index + 1)).entries());
-  }
-  
-  /** deserializeParam(value, ParamType.int) for the one int param in the app. */
-  const ParamType = { int: 'int', String: 'String', double: 'double', bool: 'bool' };
-  
-  function deserializeParam(raw, type) {
-    if (raw == null) return null;
-    switch (type) {
-      case ParamType.int:
-        return Number.parseInt(raw, 10);
-      case ParamType.double:
-        return Number.parseFloat(raw);
-      case ParamType.bool:
-        return raw === 'true';
-      default:
-        return raw;
-    }
-  }
-  
-  const serializeParam = (value) => (value == null ? null : String(value));
-  
-  /* --------------------------------------------------------- transitions ---- */
-  
-  function transitionIn(node, info) {
-    if (!info || !info.hasTransition || info.duration === 0) return Promise.resolve();
-    const duration = info.duration;
-    if (info.transitionType === PageTransitionType.scale) {
-      const [ax, ay] = info.alignment ?? Alignment.center;
-      node.style.transformOrigin = `${((ax + 1) / 2) * 100}% ${((ay + 1) / 2) * 100}%`;
-      return node
-        .animate([{ transform: 'scale(0)' }, { transform: 'scale(1)' }], {
-          duration,
-          easing: 'linear',
-          fill: 'both',
-        })
-        .finished.catch(() => {});
-    }
-    return node
-      .animate([{ opacity: 0 }, { opacity: 1 }], { duration, easing: 'linear', fill: 'both' })
-      .finished.catch(() => {});
-  }
-  
-  function transitionOut(node, info) {
-    if (!info || !info.hasTransition || info.duration === 0) return Promise.resolve();
-    const duration = info.duration;
-    if (info.transitionType === PageTransitionType.scale) {
-      return node
-        .animate([{ transform: 'scale(1)' }, { transform: 'scale(0)' }], { duration, easing: 'linear', fill: 'both' })
-        .finished.catch(() => {});
-    }
-    return node
-      .animate([{ opacity: 1 }, { opacity: 0 }], { duration, easing: 'linear', fill: 'both' })
-      .finished.catch(() => {});
-  }
-  
-  /* -------------------------------------------------------------- navigate -- */
-  
-  async function render(path, { info, push }) {
-    if (navigating) return;
-    navigating = true;
-    try {
-      const route = resolve(path) ?? resolve('/cadastro');
-      const params = { ...parseQuery(path) };
-  
-      popAllDialogs();
-      unfocus();
-  
-      const container = document.getElementById('pages');
-      const previous = current;
-  
-      if (previous) {
-        // dispose() on the outgoing page's state.
-        previous.dispose?.();
-        await transitionOut(previous.node, info);
-      }
-  
-      const node = document.createElement('div');
-      node.className = 'ff-page';
-      node.dataset.route = route.name;
-  
-      const page = route.builder({ params, node });
-      if (page && page !== node) node.appendChild(page);
-  
-      if (previous) previous.node.remove();
-      container.appendChild(node);
-  
-      current = { route, node, dispose: page?.__dispose ?? node.__dispose ?? null, path };
-      if (push && previous) historyStack.push(previous.path);
-  
-      if (location.hash.slice(1) !== path) {
-        history.replaceState({ path }, '', `#${path}`);
-      }
-  
-      await transitionIn(node, info);
-    } finally {
-      navigating = false;
-    }
-  }
-  
-  /** `context.goNamed(name, queryParameters: ..., extra: {__transition_info__})` */
-  function goNamed(name, { queryParameters = null, extra = null } = {}) {
-    const path = buildPath(name, queryParameters);
-    historyStack = [];
-    return render(path, { info: extra?.__transition_info__, push: false });
-  }
-  
-  /** `context.pushNamed(...)` - same, but the previous page stays on the stack. */
-  function pushNamed(name, { queryParameters = null, extra = null } = {}) {
-    const path = buildPath(name, queryParameters);
-    return render(path, { info: extra?.__transition_info__, push: true });
-  }
-  
-  /** `context.go(path)` */
-  function go(path) {
-    historyStack = [];
-    return render(path, { info: null, push: false });
-  }
-  
-  /** `context.safePop()` */
-  function safePop() {
-    const previous = historyStack.pop();
-    return render(previous ?? '/', { info: null, push: false });
-  }
-  
-  function buildPath(name, queryParameters) {
-    const path = namedPaths.get(name);
-    if (!path) throw new Error(`unknown route: ${name}`);
-    const entries = Object.entries(queryParameters ?? {}).filter(([, v]) => v != null);
-    if (entries.length === 0) return path;
-    return `${path}?${new URLSearchParams(entries).toString()}`;
-  }
-  
-  /** initialLocation: '/' */
-  function startRouter() {
-    const initial = location.hash.slice(1) || '/';
-    render(initial, { info: null, push: false });
-  
-    window.addEventListener('hashchange', () => {
-      const path = location.hash.slice(1) || '/';
-      if (current && current.path === path) return;
-      render(path, { info: null, push: false });
-    });
-  }
-  
+    
+  const PageTransitionType = { fade: 'fade', scale: 'scale' };  
+    
+  const Alignment = {  
+    bottomCenter: [0, 1],  
+    center: [0, 0],  
+    topCenter: [0, -1],  
+  };  
+    
+  /** TransitionInfo from nav.dart. */  
+  class TransitionInfo {  
+    constructor({ hasTransition, transitionType = PageTransitionType.fade, duration = 300, alignment = null } = {}) {  
+      this.hasTransition = hasTransition;  
+      this.transitionType = transitionType;  
+      this.duration = duration;  
+      this.alignment = alignment;  
+    }  
+    
+    static appDefault() {  
+      return new TransitionInfo({ hasTransition: false });  
+    }  
+  }  
+    
+  const routes = new Map();  
+  /** name -> path, so goNamed/pushNamed can resolve like go_router does. */  
+  const namedPaths = new Map();  
+    
+  let current = null;  
+  let navigating = false;  
+    
+  function defineRoute({ name, path, builder }) {  
+    routes.set(path, { name, path, builder });  
+    namedPaths.set(name, path);  
+  }  
+    
+  function resolve(path) {  
+    const [bare] = path.split('?');  
+    return routes.get(bare) ?? null;  
+  }  
+    
+  function parseQuery(path) {  
+    const index = path.indexOf('?');  
+    if (index < 0) return {};  
+    return Object.fromEntries(new URLSearchParams(path.slice(index + 1)).entries());  
+  }  
+    
+  /** deserializeParam(value, ParamType.int) for the one int param in the app. */  
+  const ParamType = { int: 'int', String: 'String', double: 'double', bool: 'bool' };  
+    
+  function deserializeParam(raw, type) {  
+    if (raw == null) return null;  
+    switch (type) {  
+      case ParamType.int:  
+        return Number.parseInt(raw, 10);  
+      case ParamType.double:  
+        return Number.parseFloat(raw);  
+      case ParamType.bool:  
+        return raw === 'true';  
+      default:  
+        return raw;  
+    }  
+  }  
+    
+  const serializeParam = (value) => (value == null ? null : String(value));  
+    
+  /* --------------------------------------------------------- transitions ---- */  
+    
+  function transitionIn(node, info) {  
+    if (!info || !info.hasTransition || info.duration === 0) return Promise.resolve();  
+    const duration = info.duration;  
+    if (info.transitionType === PageTransitionType.scale) {  
+      const [ax, ay] = info.alignment ?? Alignment.center;  
+      node.style.transformOrigin = `${((ax + 1) / 2) * 100}% ${((ay + 1) / 2) * 100}%`;  
+      return node  
+        .animate([{ transform: 'scale(0)' }, { transform: 'scale(1)' }], {  
+          duration,  
+          easing: 'linear',  
+          fill: 'both',  
+        })  
+        .finished.catch(() => {});  
+    }  
+    return node  
+      .animate([{ opacity: 0 }, { opacity: 1 }], { duration, easing: 'linear', fill: 'both' })  
+      .finished.catch(() => {});  
+  }  
+    
+  function transitionOut(node, info) {  
+    if (!info || !info.hasTransition || info.duration === 0) return Promise.resolve();  
+    const duration = info.duration;  
+    if (info.transitionType === PageTransitionType.scale) {  
+      return node  
+        .animate([{ transform: 'scale(1)' }, { transform: 'scale(0)' }], { duration, easing: 'linear', fill: 'both' })  
+        .finished.catch(() => {});  
+    }  
+    return node  
+      .animate([{ opacity: 1 }, { opacity: 0 }], { duration, easing: 'linear', fill: 'both' })  
+      .finished.catch(() => {});  
+  }  
+    
+  /* -------------------------------------------------------------- navigate -- */  
+    
+  async function render(path, { info }) {  
+    if (navigating) return;  
+    navigating = true;  
+    try {  
+      const route = resolve(path) ?? resolve('/cadastro');  
+      const params = { ...parseQuery(path) };  
+    
+      popAllDialogs();  
+      unfocus();  
+    
+      const container = document.getElementById('pages');  
+      const previous = current;  
+    
+      if (previous) {  
+        // dispose() on the outgoing page's state.  
+        previous.dispose?.();  
+        await transitionOut(previous.node, info);  
+      }  
+    
+      const node = document.createElement('div');  
+      node.className = 'ff-page';  
+      node.dataset.route = route.name;  
+    
+      const page = route.builder({ params, node });  
+      if (page && page !== node) node.appendChild(page);  
+    
+      if (previous) previous.node.remove();  
+      container.appendChild(node);  
+    
+      current = { route, node, dispose: page?.__dispose ?? node.__dispose ?? null, path };  
+    
+      if (location.hash.slice(1) !== path) {  
+        history.replaceState({ path }, '', `#${path}`);  
+      }  
+    
+      await transitionIn(node, info);  
+    } finally {  
+      navigating = false;  
+    }  
+  }  
+    
+  /** `context.goNamed(name, queryParameters: ..., extra: {__transition_info__})` */  
+  function goNamed(name, { queryParameters = null, extra = null } = {}) {  
+    const path = buildPath(name, queryParameters);  
+    return render(path, { info: extra?.__transition_info__ });  
+  }  
+    
+  /**  
+   * `context.pushNamed(...)`.  
+   *  
+   * No go_router isto empilha a rota. Aqui nao existe pilha propria: o unico  
+   * consumidor era `safePop()`, que nenhuma tela chamava (o Dart tambem nao), e  
+   * o botao Voltar do navegador ja e tratado pelo listener de `hashchange`. Fica  
+   * como sinonimo de goNamed para os call sites continuarem legiveis ao lado do  
+   * Dart.  
+   */  
+  function pushNamed(name, { queryParameters = null, extra = null } = {}) {  
+    const path = buildPath(name, queryParameters);  
+    return render(path, { info: extra?.__transition_info__ });  
+  }  
+    
+  /** `context.go(path)` */  
+  function go(path) {  
+    return render(path, { info: null });  
+  }  
+    
+  function buildPath(name, queryParameters) {  
+    const path = namedPaths.get(name);  
+    if (!path) throw new Error(`unknown route: ${name}`);  
+    const entries = Object.entries(queryParameters ?? {}).filter(([, v]) => v != null);  
+    if (entries.length === 0) return path;  
+    return `${path}?${new URLSearchParams(entries).toString()}`;  
+  }  
+    
+  /** initialLocation: '/' */  
+  function startRouter() {  
+    const initial = location.hash.slice(1) || '/';  
+    render(initial, { info: null });  
+    
+    window.addEventListener('hashchange', () => {  
+      const path = location.hash.slice(1) || '/';  
+      if (current && current.path === path) return;  
+      render(path, { info: null });  
+    });  
+  }  
+    
   const currentRoute = () => current?.route?.name ?? null;
   Object.defineProperty(__exports, "PageTransitionType", { get: () => PageTransitionType, enumerable: true });
   Object.defineProperty(__exports, "Alignment", { get: () => Alignment, enumerable: true });
@@ -1844,7 +1948,6 @@
   Object.defineProperty(__exports, "goNamed", { get: () => goNamed, enumerable: true });
   Object.defineProperty(__exports, "pushNamed", { get: () => pushNamed, enumerable: true });
   Object.defineProperty(__exports, "go", { get: () => go, enumerable: true });
-  Object.defineProperty(__exports, "safePop", { get: () => safePop, enumerable: true });
   Object.defineProperty(__exports, "startRouter", { get: () => startRouter, enumerable: true });
   Object.defineProperty(__exports, "currentRoute", { get: () => currentRoute, enumerable: true });
   });
@@ -2310,81 +2413,72 @@
 
   /* ===== i18n.js ===== */
   __define("i18n.js", function (__exports, __require) {
-  // Port of lib/flutter_flow/internationalization.dart.
-  
+  // Port of lib/flutter_flow/internationalization.dart.  
+    
   const { TRANSLATIONS } = __require("translations.js");
-  
-  const LOCALE_KEY = '__locale_key__';
-  
-  /** FFLocalizations.languages() */
-  const LANGUAGES = ['pt', 'es', 'en'];
-  
-  /** Display names come from _defaultLanguagesList, in that list's order:
-   *  English, Português, Español. */
-  const LANGUAGE_NAMES = [
-    { isoCode: 'en', name: 'English' },
-    { isoCode: 'pt', name: 'Português' },
-    { isoCode: 'es', name: 'Español' },
-  ];
-  
-  const listeners = new Set();
-  
-  let locale = readStoredLocale() ?? defaultLocale();
-  
-  function readStoredLocale() {
-    try {
-      const stored = localStorage.getItem(LOCALE_KEY);
-      return stored && stored.length ? stored : null;
-    } catch (_) {
-      return null;
-    }
-  }
-  
-  function defaultLocale() {
-    // MaterialApp with a null locale falls back to the platform locale when it is
-    // in supportedLocales, otherwise to the first supported one ('pt').
-    const nav = (navigator.language || 'pt').toLowerCase().split('-')[0];
-    return LANGUAGES.includes(nav) ? nav : 'pt';
-  }
-  
-  const FFLocalizations = {
-    get languageCode() {
-      return locale;
-    },
-  
-    get languageIndex() {
-      return LANGUAGES.includes(locale) ? LANGUAGES.indexOf(locale) : 0;
-    },
-  
-    /** getText(key) - falls back to '' just like the Dart. */
-    getText(key) {
-      return (TRANSLATIONS[key] ?? {})[locale] ?? '';
-    },
-  
-    /** getVariableText({ptText, esText, enText}) indexes by languageIndex. */
-    getVariableText({ ptText = '', esText = '', enText = '' } = {}) {
-      return [ptText, esText, enText][this.languageIndex] ?? '';
-    },
-  };
-  
-  /** `setAppLanguage(context, lang)` */
-  function setAppLanguage(lang) {
-    locale = lang;
-    try {
-      localStorage.setItem(LOCALE_KEY, lang);
-    } catch (_) {
-      /* private mode */
-    }
-    document.documentElement.lang = lang === 'pt' ? 'pt-BR' : lang;
-    for (const fn of listeners) fn(lang);
-  }
-  
-  function onLanguageChange(fn) {
-    listeners.add(fn);
-    return () => listeners.delete(fn);
-  }
-  
-  /** Convenience alias used all over the pages, mirroring `L('key' /* text *​/)`. */
+  const { readRaw, writeRaw } = __require("storage.js");
+    
+  /** FFLocalizations.languages() */  
+  const LANGUAGES = ['pt', 'es', 'en'];  
+    
+  /** Display names come from _defaultLanguagesList, in that list's order:  
+   *  English, Português, Español. */  
+  const LANGUAGE_NAMES = [  
+    { isoCode: 'en', name: 'English' },  
+    { isoCode: 'pt', name: 'Português' },  
+    { isoCode: 'es', name: 'Español' },  
+  ];  
+    
+  const listeners = new Set();  
+    
+  let locale = readStoredLocale() ?? defaultLocale();  
+    
+  function readStoredLocale() {  
+    const stored = readRaw('locale');  
+    return stored && stored.length ? stored : null;  
+  }  
+    
+  function defaultLocale() {  
+    // MaterialApp with a null locale falls back to the platform locale when it is  
+    // in supportedLocales, otherwise to the first supported one ('pt').  
+    const nav = (navigator.language || 'pt').toLowerCase().split('-')[0];  
+    return LANGUAGES.includes(nav) ? nav : 'pt';  
+  }  
+    
+  const FFLocalizations = {  
+    get languageCode() {  
+      return locale;  
+    },  
+    
+    get languageIndex() {  
+      return LANGUAGES.includes(locale) ? LANGUAGES.indexOf(locale) : 0;  
+    },  
+    
+    /** getText(key) - falls back to '' just like the Dart. */  
+    getText(key) {  
+      return (TRANSLATIONS[key] ?? {})[locale] ?? '';  
+    },  
+    
+    /** getVariableText({ptText, esText, enText}) indexes by languageIndex. */  
+    getVariableText({ ptText = '', esText = '', enText = '' } = {}) {  
+      return [ptText, esText, enText][this.languageIndex] ?? '';  
+    },  
+  };  
+    
+  /** `setAppLanguage(context, lang)` */  
+  function setAppLanguage(lang) {  
+    locale = lang;  
+    writeRaw('locale', lang);  
+    document.documentElement.lang = lang === 'pt' ? 'pt-BR' : lang;  
+    for (const fn of listeners) fn(lang);  
+  }  
+    
+  function onLanguageChange(fn) {  
+    listeners.add(fn);  
+    return () => listeners.delete(fn);  
+  }  
+    
+  /** Convenience alias used all over the pages, mirroring `L('key' /* text *​/)`. */  
   const L = (key) => FFLocalizations.getText(key);
   Object.defineProperty(__exports, "LANGUAGES", { get: () => LANGUAGES, enumerable: true });
   Object.defineProperty(__exports, "LANGUAGE_NAMES", { get: () => LANGUAGE_NAMES, enumerable: true });
@@ -3102,213 +3196,198 @@
 
   /* ===== backend.js ===== */
   __define("backend.js", function (__exports, __require) {
-  // Port of the Firestore layer (lib/backend/backend.dart, usuarios_record.dart)
-  // and the two HTTP calls in lib/backend/api_requests/api_calls.dart.
-  //
-  // The Dart app talks to the Firebase project `projeto-assis-3qcf6v` and to
-  // z-api.io for the WhatsApp message. Both are kept here with their original
-  // configuration but are OFF by default, so running this port does not write
-  // into the live collection or send messages from the production WhatsApp
-  // instance. Flip the flags in config.js to switch them on; with Firestore off,
-  // the ranking is stored in this browser instead and every query keeps the same
-  // semantics (`where venceu == true`, `orderBy tempo desc`, `limit n`).
-  
+  // Port of the Firestore layer (lib/backend/backend.dart, usuarios_record.dart)  
+  // and the two HTTP calls in lib/backend/api_requests/api_calls.dart.  
+  //  
+  // The Dart app talks to the Firebase project `projeto-assis-3qcf6v` and to  
+  // z-api.io for the WhatsApp message. Both are kept here with their original  
+  // configuration but are OFF by default, so running this port does not write  
+  // into the live collection or send messages from the production WhatsApp  
+  // instance. Flip the flags in config.js to switch them on; with Firestore off,  
+  // the ranking is stored in this browser instead and every query keeps the same  
+  // semantics (`where venceu == true`, `orderBy tempo desc`, `limit n`).  
+    
   const { CONFIG } = __require("config.js");
-  
-  const LOCAL_KEY = 'tecgame_usuarios';
-  
-  /* -------------------------------------------------------- UsuariosRecord -- */
-  
-  /** createUsuariosRecordData(...) - fields with a null value are omitted, which
-   *  is what FlutterFlow's `createUsuariosRecordData` does. */
-  function createUsuariosRecordData({
-    nome = null,
-    telefone = null,
-    atuacao = null,
-    venceu = null,
-    tempo = null,
-    equipamento = null,
-    data = null,
-    invalido = null,
-  } = {}) {
-    const record = { nome, telefone, atuacao, venceu, tempo, equipamento, data, invalido };
-    for (const key of Object.keys(record)) {
-      if (record[key] == null) delete record[key];
-    }
-    return record;
-  }
-  
-  function readLocal() {
-    try {
-      const raw = localStorage.getItem(LOCAL_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch (_) {
-      return [];
-    }
-  }
-  
-  function writeLocal(list) {
-    try {
-      localStorage.setItem(LOCAL_KEY, JSON.stringify(list));
-    } catch (_) {
-      /* storage unavailable */
-    }
-  }
-  
-  /* ------------------------------------------------------------- Firestore -- */
-  
-  let firestore = null;
-  
-  async function ensureFirestore() {
-    if (!CONFIG.useFirestore) return null;
-    if (firestore) return firestore;
-    const [{ initializeApp }, fs] = await Promise.all([
-      import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js'),
-      import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'),
-    ]);
-    const app = initializeApp(CONFIG.firebaseOptions);
-    firestore = { db: fs.getFirestore(app), fs };
-    return firestore;
-  }
-  
-  /* ------------------------------------------------------------------ API --- */
-  
-  /**
-   * `await UsuariosRecord.collection.doc().set(createUsuariosRecordData(...))`
-   * The `data` field is a server timestamp in the Dart; here it is the client
-   * clock, which is only ever used for ordering the ranking.
-   */
-  async function addUsuario(record, { serverTimestamp = false } = {}) {
-    const row = { ...record };
-    if (serverTimestamp) row.data = new Date().toISOString();
-  
-    if (CONFIG.useFirestore) {
-      try {
-        const { db, fs } = await ensureFirestore();
-        const payload = { ...row };
-        if (serverTimestamp) payload.data = fs.serverTimestamp();
-        await fs.addDoc(fs.collection(db, 'usuarios'), payload);
-        return;
-      } catch (error) {
-        console.warn('Firestore write failed, falling back to local storage.', error);
-      }
-    }
-  
-    const list = readLocal();
-    list.push(row);
-    writeLocal(list);
-  }
-  
-  /**
-   * `queryUsuariosRecord(queryBuilder: ...where('venceu', isEqualTo: true)
-   *   .orderBy('tempo', descending: true), limit: n)`
-   *
-   * `tempo` holds the milliseconds *left on the clock*, so descending order puts
-   * the fastest players first - the ranking is sorted exactly as in the Dart.
-   */
-  async function queryUsuariosVencedores({ limit = 15 } = {}) {
-    if (CONFIG.useFirestore) {
-      try {
-        const { db, fs } = await ensureFirestore();
-        const snapshot = await fs.getDocs(
-          fs.query(
-            fs.collection(db, 'usuarios'),
-            fs.where('venceu', '==', true),
-            fs.orderBy('tempo', 'desc'),
-            fs.limit(limit)
-          )
-        );
-        return snapshot.docs.map((doc) => normalize(doc.data()));
-      } catch (error) {
-        console.warn('Firestore read failed, falling back to local storage.', error);
-      }
-    }
-  
-    return readLocal()
-      .filter((row) => row.venceu === true)
-      .sort((a, b) => (b.tempo ?? 0) - (a.tempo ?? 0))
-      .slice(0, limit)
-      .map(normalize);
-  }
-  
-  /** `queryUsuariosRecordCount()` */
-  async function queryUsuariosRecordCount() {
-    if (CONFIG.useFirestore) {
-      try {
-        const { db, fs } = await ensureFirestore();
-        const snapshot = await fs.getCountFromServer(fs.collection(db, 'usuarios'));
-        return snapshot.data().count;
-      } catch (error) {
-        console.warn('Firestore count failed, falling back to local storage.', error);
-      }
-    }
-    return readLocal().length;
-  }
-  
-  /** UsuariosRecord's getters all default a missing field. */
-  function normalize(row) {
-    return {
-      nome: row.nome ?? '',
-      telefone: row.telefone ?? '',
-      atuacao: row.atuacao ?? '',
-      venceu: row.venceu ?? false,
-      tempo: row.tempo ?? 0.0,
-      equipamento: row.equipamento ?? '',
-      data: row.data ?? null,
-      invalido: row.invalido ?? 0,
-    };
-  }
-  
-  /* ------------------------------------------------------------ API calls --- */
-  
-  /** EnviarMensagemZapCall.call({numero, resultado}) */
-  async function enviarMensagemZap({ numero = '', resultado = '' } = {}) {
-    const body = {
-      phone: numero,
-      message:
-        '🏁 Você finalizou o *TECNOGAME* 🎮🚀\n\nObrigado por visitar nosso estande!\n\n👉 Fale com um representante ou acesse nosso site:\nhttps://tecnomotor.com.br',
-      image: 'https://cambioautomaticodobrasil.com.br/app/uploads/2023/01/tecnomotor.jpg',
-      linkUrl: 'https://tecnomotor.com.br',
-      title: 'Clique aqui',
-      linkDescription: 'Site da Tecnomotor',
-    };
-  
-    if (!CONFIG.useWhatsApp) {
-      console.info('[enviarMensagemZap] disabled in config.js', { numero, resultado, body });
-      return { succeeded: false, skipped: true };
-    }
-  
-    try {
-      const response = await fetch(CONFIG.zapApiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Client-Token': CONFIG.zapClientToken },
-        body: JSON.stringify(body),
-      });
-      return { succeeded: response.ok, statusCode: response.status, jsonBody: await response.json().catch(() => null) };
-    } catch (error) {
-      console.warn('enviarMensagemZap failed', error);
-      return { succeeded: false };
-    }
-  }
-  
-  /** EnviarMensagemAgenteCall.call({nome, telefone, venceu}) - defined in the
-   *  Dart but never called from a widget; kept for parity. */
-  async function enviarMensagemAgente({ nome = '', telefone = '', venceu = null } = {}) {
-    if (!CONFIG.useAgentWebhook) {
-      console.info('[enviarMensagemAgente] disabled in config.js', { nome, telefone, venceu });
-      return { succeeded: false, skipped: true };
-    }
-    try {
-      const response = await fetch(CONFIG.agentWebhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome, telefone, venceu }),
-      });
-      return { succeeded: response.ok, statusCode: response.status };
-    } catch (error) {
-      console.warn('enviarMensagemAgente failed', error);
-      return { succeeded: false };
-    }
+  const { getRecords, putRecord } = __require("storage.js");
+    
+  const LOCAL_KEY = 'usuarios';  
+    
+  /* -------------------------------------------------------- UsuariosRecord -- */  
+    
+  /** createUsuariosRecordData(...) - fields with a null value are omitted, which  
+   *  is what FlutterFlow's `createUsuariosRecordData` does. */  
+  function createUsuariosRecordData({  
+    nome = null,  
+    telefone = null,  
+    atuacao = null,  
+    venceu = null,  
+    tempo = null,  
+    equipamento = null,  
+    data = null,  
+    invalido = null,  
+  } = {}) {  
+    const record = { nome, telefone, atuacao, venceu, tempo, equipamento, data, invalido };  
+    for (const key of Object.keys(record)) {  
+      if (record[key] == null) delete record[key];  
+    }  
+    return record;  
+  }  
+    
+  /** Ranking local, já com a retenção de um ano aplicada (ver storage.js). */  
+  const readLocal = () => getRecords(LOCAL_KEY);  
+    
+  /* ------------------------------------------------------------- Firestore -- */  
+    
+  let firestore = null;  
+    
+  async function ensureFirestore() {  
+    if (!CONFIG.useFirestore) return null;  
+    if (firestore) return firestore;  
+    const [{ initializeApp }, fs] = await Promise.all([  
+      import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js'),  
+      import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'),  
+    ]);  
+    const app = initializeApp(CONFIG.firebaseOptions);  
+    firestore = { db: fs.getFirestore(app), fs };  
+    return firestore;  
+  }  
+    
+  /* ------------------------------------------------------------------ API --- */  
+    
+  /**  
+   * `await UsuariosRecord.collection.doc().set(createUsuariosRecordData(...))`  
+   * The `data` field is a server timestamp in the Dart; here it is the client  
+   * clock, which is only ever used for ordering the ranking.  
+   */  
+  async function addUsuario(record, { serverTimestamp = false } = {}) {  
+    const row = { ...record };  
+    if (serverTimestamp) row.data = new Date().toISOString();  
+    
+    if (CONFIG.useFirestore) {  
+      try {  
+        const { db, fs } = await ensureFirestore();  
+        const payload = { ...row };  
+        if (serverTimestamp) payload.data = fs.serverTimestamp();  
+        await fs.addDoc(fs.collection(db, 'usuarios'), payload);  
+        return;  
+      } catch (error) {  
+        console.warn('Firestore write failed, falling back to local storage.', error);  
+      }  
+    }  
+    
+    putRecord(LOCAL_KEY, row);  
+  }  
+    
+  /**  
+   * `queryUsuariosRecord(queryBuilder: ...where('venceu', isEqualTo: true)  
+   *   .orderBy('tempo', descending: true), limit: n)`  
+   *  
+   * `tempo` holds the milliseconds *left on the clock*, so descending order puts  
+   * the fastest players first - the ranking is sorted exactly as in the Dart.  
+   */  
+  async function queryUsuariosVencedores({ limit = 15 } = {}) {  
+    if (CONFIG.useFirestore) {  
+      try {  
+        const { db, fs } = await ensureFirestore();  
+        const snapshot = await fs.getDocs(  
+          fs.query(  
+            fs.collection(db, 'usuarios'),  
+            fs.where('venceu', '==', true),  
+            fs.orderBy('tempo', 'desc'),  
+            fs.limit(limit)  
+          )  
+        );  
+        return snapshot.docs.map((doc) => normalize(doc.data()));  
+      } catch (error) {  
+        console.warn('Firestore read failed, falling back to local storage.', error);  
+      }  
+    }  
+    
+    return readLocal()  
+      .filter((row) => row.venceu === true)  
+      .sort((a, b) => (b.tempo ?? 0) - (a.tempo ?? 0))  
+      .slice(0, limit)  
+      .map(normalize);  
+  }  
+    
+  /** `queryUsuariosRecordCount()` */  
+  async function queryUsuariosRecordCount() {  
+    if (CONFIG.useFirestore) {  
+      try {  
+        const { db, fs } = await ensureFirestore();  
+        const snapshot = await fs.getCountFromServer(fs.collection(db, 'usuarios'));  
+        return snapshot.data().count;  
+      } catch (error) {  
+        console.warn('Firestore count failed, falling back to local storage.', error);  
+      }  
+    }  
+    return readLocal().length;  
+  }  
+    
+  /** UsuariosRecord's getters all default a missing field. */  
+  function normalize(row) {  
+    return {  
+      nome: row.nome ?? '',  
+      telefone: row.telefone ?? '',  
+      atuacao: row.atuacao ?? '',  
+      venceu: row.venceu ?? false,  
+      tempo: row.tempo ?? 0.0,  
+      equipamento: row.equipamento ?? '',  
+      data: row.data ?? null,  
+      invalido: row.invalido ?? 0,  
+    };  
+  }  
+    
+  /* ------------------------------------------------------------ API calls --- */  
+    
+  /** EnviarMensagemZapCall.call({numero, resultado}) */  
+  async function enviarMensagemZap({ numero = '', resultado = '' } = {}) {  
+    const body = {  
+      phone: numero,  
+      message:  
+        '🏁 Você finalizou o *TECNOGAME* 🎮🚀\n\nObrigado por visitar nosso estande!\n\n👉 Fale com um representante ou acesse nosso site:\nhttps://tecnomotor.com.br',  
+      image: 'https://cambioautomaticodobrasil.com.br/app/uploads/2023/01/tecnomotor.jpg',  
+      linkUrl: 'https://tecnomotor.com.br',  
+      title: 'Clique aqui',  
+      linkDescription: 'Site da Tecnomotor',  
+    };  
+    
+    if (!CONFIG.useWhatsApp) {  
+      console.info('[enviarMensagemZap] disabled in config.js', { numero, resultado, body });  
+      return { succeeded: false, skipped: true };  
+    }  
+    
+    try {  
+      const response = await fetch(CONFIG.zapApiUrl, {  
+        method: 'POST',  
+        headers: { 'Content-Type': 'application/json', 'Client-Token': CONFIG.zapClientToken },  
+        body: JSON.stringify(body),  
+      });  
+      return { succeeded: response.ok, statusCode: response.status, jsonBody: await response.json().catch(() => null) };  
+    } catch (error) {  
+      console.warn('enviarMensagemZap failed', error);  
+      return { succeeded: false };  
+    }  
+  }  
+    
+  /** EnviarMensagemAgenteCall.call({nome, telefone, venceu}) - defined in the  
+   *  Dart but never called from a widget; kept for parity. */  
+  async function enviarMensagemAgente({ nome = '', telefone = '', venceu = null } = {}) {  
+    if (!CONFIG.useAgentWebhook) {  
+      console.info('[enviarMensagemAgente] disabled in config.js', { nome, telefone, venceu });  
+      return { succeeded: false, skipped: true };  
+    }  
+    try {  
+      const response = await fetch(CONFIG.agentWebhookUrl, {  
+        method: 'POST',  
+        headers: { 'Content-Type': 'application/json' },  
+        body: JSON.stringify({ nome, telefone, venceu }),  
+      });  
+      return { succeeded: response.ok, statusCode: response.status };  
+    } catch (error) {  
+      console.warn('enviarMensagemAgente failed', error);  
+      return { succeeded: false };  
+    }  
   }
   Object.defineProperty(__exports, "createUsuariosRecordData", { get: () => createUsuariosRecordData, enumerable: true });
   Object.defineProperty(__exports, "addUsuario", { get: () => addUsuario, enumerable: true });
@@ -4046,7 +4125,9 @@
         controller.value = option;  
         label.textContent = labelFor(option, index);  
         close();  
-        onChanged?.(option);  
+        // O índice vai junto porque quem chama às vezes precisa saber QUAL opção  
+        // foi escolhida, e não só o rótulo já traduzido (ver cadastro.js).  
+        onChanged?.(option, index);  
       });  
       menu.appendChild(item);  
     });  
@@ -4191,6 +4272,28 @@
     return node;  
   }  
     
+  /**  
+   * Curves.ease = cubic-bezier(0.25, 0.1, 0.25, 1), avaliada por bisseccao em x.  
+   * Antes aqui havia uma curva inventada que so acertava os extremos.  
+   */  
+  function curveEase(t) {  
+    if (t <= 0) return 0;  
+    if (t >= 1) return 1;  
+    const bez = (a, b, u) => {  
+      const v = 1 - u;  
+      return 3 * v * v * u * a + 3 * v * u * u * b + u * u * u;  
+    };  
+    let lo = 0;  
+    let hi = 1;  
+    let u = t;  
+    for (let i = 0; i < 20; i++) {  
+      u = (lo + hi) / 2;  
+      if (bez(0.25, 0.25, u) < t) lo = u;  
+      else hi = u;  
+    }  
+    return bez(0.1, 1, u);  
+  }  
+    
   /** ScrollController, used by the ranking dialog's auto-scroll. */  
   class ScrollController {  
     constructor() {  
@@ -4222,9 +4325,7 @@
         const step = (now) => {  
           if (cancelled || !node.isConnected) return resolve();  
           const t = duration === 0 ? 1 : Math.min(1, (now - start) / duration);  
-          // Curves.ease  
-          const eased = 1 - Math.pow(1 - t, 3) * 0.9 - (1 - t) * 0.1 * (1 - t);  
-          node.scrollTop = from + (to - from) * (t === 1 ? 1 : eased);  
+          node.scrollTop = from + (to - from) * curveEase(t);  
           if (t < 1) requestAnimationFrame(step);  
           else resolve();  
         };  
@@ -4453,15 +4554,51 @@
     'o3hsgf10', // - Outros..
   ];
   
+  /**
+   * O que o visitante já digitou, guardado fora da função de build.
+   *
+   * No Flutter isto sai de graça: `createModel(context, () => CadastroModel())`
+   * devolve o mesmo model enquanto a página vive, então os TextEditingController
+   * sobrevivem ao rebuild que o `setLocale` dispara no MaterialApp. Aqui a troca
+   * de idioma reconstrói a página, e sem isto o nome e o telefone digitados eram
+   * apagados — justo no gesto que um visitante estrangeiro faz primeiro.
+   *
+   * A oficina é guardada pela CHAVE de tradução, não pelo texto: assim a escolha
+   * sobrevive à troca de idioma e reaparece já traduzida.
+   */
+  const formState = {
+    nome: new TextEditingController(),
+    whats: new TextEditingController(),
+    oficinaKey: null,
+    invalido: 0,
+  };
+  
+  /** Chamado quando a partida realmente começa: o próximo jogador entra limpo. */
+  function resetFormState() {
+    formState.nome = new TextEditingController();
+    formState.whats = new TextEditingController();
+    formState.oficinaKey = null;
+    formState.invalido = 0;
+  }
+  
   function CadastroWidget() {
     const model = {
-      invalido: 0,
+      // `invalido` conta as tentativas com nome ofensivo e também precisa
+      // sobreviver ao rebuild, senão a contagem zera na troca de idioma.
+      get invalido() {
+        return formState.invalido;
+      },
+      set invalido(v) {
+        formState.invalido = v;
+      },
       formKey: new FormState(),
-      textFieldNomeTextController: new TextEditingController(),
-      textFieldWhatsTextController: new TextEditingController(),
+      textFieldNomeTextController: formState.nome,
+      textFieldWhatsTextController: formState.whats,
       textFieldWhatsMask: new MaskTextInputFormatter({ mask: '(##) #####-####' }),
-      dropDownOficinaValue: null,
-      dropDownOficinaValueController: new FormFieldController(null),
+      dropDownOficinaValue: formState.oficinaKey ? L(formState.oficinaKey) : null,
+      dropDownOficinaValueController: new FormFieldController(
+        formState.oficinaKey ? L(formState.oficinaKey) : null
+      ),
       timerController: new FlutterFlowTimerController({ mode: StopWatchMode.countUp }),
       timerMilliseconds: 0,
       timerValue: StopWatchTimer.getDisplayTime(0, { hours: false, milliSecond: false }),
@@ -4574,8 +4711,11 @@
     const oficinaDropdown = FlutterFlowDropDown({
       controller: model.dropDownOficinaValueController,
       options: OFICINA_KEYS.map((key) => L(key)),
-      onChanged: (value) => {
+      onChanged: (value, index) => {
         model.dropDownOficinaValue = value;
+        // Guarda a chave, não o rótulo traduzido, para a escolha atravessar a
+        // troca de idioma (ver formState no topo).
+        formState.oficinaKey = OFICINA_KEYS[index] ?? null;
         playSound(model, 'soundPlayer5', 'assets/audios/adriantnt_u_click.mp3', 1.0);
         restartIdleTimer();
       },
@@ -4623,6 +4763,9 @@
               invalido: model.invalido,
             });
             model.invalido = 0;
+            // A partida começou: o formulário guardado já foi consumido, então o
+            // próximo jogador encontra a tela em branco.
+            resetFormState();
   
             goNamed('instrucoes', {
               extra: {
@@ -6086,15 +6229,15 @@
 
   /* ===== components/perguntas_erespostas.js ===== */
   __define("components/perguntas_erespostas.js", function (__exports, __require) {
-  // Port of lib/pages/components/perguntas_erespostas/perguntas_erespostas_widget.dart
-  //
-  // The right half of the action screen: the scanner skin, the four shuffled
-  // answers, the five support hints (two allowed per game) and the 60s countdown.
-  //
-  // The Dart writes the same block out four times for the answers and five times
-  // for the hints; the only differences are which slot of `ordemNumeros` an
-  // answer maps to and which help field a hint reads, so those are tables here.
-  
+  // Port of lib/pages/components/perguntas_erespostas/perguntas_erespostas_widget.dart  
+  //  
+  // The right half of the action screen: the scanner skin, the four shuffled  
+  // answers, the five support hints (two allowed per game) and the 60s countdown.  
+  //  
+  // The Dart writes the same block out four times for the answers and five times  
+  // for the hints; the only differences are which slot of `ordemNumeros` an  
+  // answer maps to and which help field a hint reads, so those are tables here.  
+    
   const { Align, ClipRRect, Column, Container, Img, InkWell, Opacity, Padding, Row, Stack, StackAlign, Txt, boxShadow, color, decorationImage, linearGradient, valueOrDefault, SW } = __require("widgets.js");
   const { TH, style } = __require("theme.js");
   const { FFLocalizations, L } = __require("i18n.js");
@@ -6108,730 +6251,731 @@
   const { addUsuario, createUsuariosRecordData } = __require("backend.js");
   const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
   const { FlutterFlowTimer, FlutterFlowTimerController, InstantTimer, StopWatchMode, StopWatchTimer } = __require("timer.js");
-  
-  /* ------------------------------------------------------- scanner skinning -- */
-  // Every colour in this panel is chosen by `scannerEscolhido`; the Dart spells
-  // each switch out inline. Same values, one table per switch.
-  
-  const skin = (map, fallback) => (key) => (key in map ? map[key] : fallback);
-  
-  const bodyColor = skin(
-    {
-      'Rasther 3': color(0xFFE7E7E2),
-      RB: color(0xFFE7E7E2),
-      Td90: color(0xFF5A9BF9),
-      Td80: color(0xFF5A9BF9),
-      'Rasther 4': color(0xFFB7C9E5),
-      RST: color(0xFFB7C9E5),
-    },
-    color(0xFFBCBEC0)
-  );
-  
-  const headerTop = skin(
-    {
-      'Rasther 3': color(0xFFE3E3E3),
-      RB: color(0xFFE3E3E3),
-      Td90: color(0xFFD4D9DF),
-      Td80: color(0xFFD4D9DF),
-      'Rasther 4': color(0xFFB7C9E5),
-      RST: color(0xFFB7C9E5),
-    },
-    color(0xFFF6F6F6)
-  );
-  
-  const headerBottom = skin(
-    {
-      'Rasther 3': color(0xFF686868),
-      RB: color(0xFF686868),
-      Td90: color(0xFFD4D9DF),
-      Td80: color(0xFFD4D9DF),
-      'Rasther 4': color(0xFFB7C9E5),
-      RST: color(0xFFB7C9E5),
-    },
-    TH.secondaryText
-  );
-  
-  const cardColor = skin(
-    {
-      'Rasther 3': color(0xFFBCBEC0),
-      RB: color(0xFFBCBEC0),
-      Td90: color(0xFFA9CCFF),
-      Td80: color(0xFFA9CCFF),
-      'Rasther 4': color(0xFFD4D9DF),
-      RST: color(0xFFD4D9DF),
-    },
-    color(0xFFBCBEC0)
-  );
-  
-  // Note: the Dart tests 'Xtool' here, a value `scannerEscolhido` is never set
-  // to, so that branch is dead - the numbers are black for the Rasther 3 / RB
-  // skins and 0xFF001C43 for everything else.
-  const numberColor = skin(
-    {
-      'Rasther 3': '#000000',
-      RB: '#000000',
-      Xtool: color(0xFF001C43),
-      Td80: color(0xFF001C43),
-      'Rasther 4': color(0xFF001C43),
-      RST: color(0xFF001C43),
-    },
-    color(0xFF001C43)
-  );
-  
-  /** The scanner photo shown in the header, with the size from the Dart. */
-  const HEADER_PHOTOS = {
-    RST: { src: 'assets/images/Rasther_ST_+_VCI.png', width: 313.39, height: 171.8 },
-    'Rasther 3': { src: 'assets/images/Rasther_CANFD_(1).png', width: 162.67, height: 157.9 },
-    RB: { src: 'assets/images/Rasther---box,-3s---mensal-box---android.png', width: 325.9, height: 176.0 },
-    Td80: { src: 'assets/images/TD_80__Final_(1).png', width: 200.0, height: 200.0 },
-    Td90: { src: 'assets/images/TD_90_(2).png', width: 200.0, height: 200.0 },
-  };
-  
-  /** answer slot -> the question field the shuffled number points at. */
-  const RESPOSTA_FIELD = { 1: 'respostaUm', 2: 'respostaDois', 3: 'respostaTres', 4: 'respostaQuatro' };
-  
-  /** The five support hints, in the order the Dart lays them out. */
-  const HINTS = [
-    {
-      key: 'apoio',
-      field: 'ajudaApoio',
-      tipo: 'Apoio Tecnico',
-      image: 'assets/images/Apoio_.png',
-      width: 170.0,
-      height: 90.0,
-      fit: 'cover',
-      padding: [0.0, 16.0, 0.0, 16.0],
-      sound: 'soundPlayer6',
-    },
-    {
-      key: 'treinamento',
-      field: 'ajudaTreinamentoEad',
-      tipo: 'Cursos EAD',
-      image: 'assets/images/Cursos.png',
-      width: 170.0,
-      height: 95.0,
-      fit: 'contain',
-      padding: [0.0, 0.0, 0.0, 16.0],
-      sound: 'soundPlayer7',
-    },
-    {
-      key: 'youtube',
-      field: 'ajudaTecnomotorTv',
-      tipo: 'TecnomotorTV',
-      image: 'assets/images/Youtube.png',
-      width: 170.0,
-      height: 95.0,
-      fit: 'contain',
-      padding: [0.0, 0.0, 0.0, 16.0],
-      sound: 'soundPlayer8',
-    },
-    {
-      key: 'comunidade',
-      field: 'ajudaComunidade',
-      tipo: 'Comunidade',
-      image: 'assets/images/Comunidade_1.png',
-      width: 170.0,
-      height: 95.0,
-      fit: 'contain',
-      padding: [0.0, 0.0, 0.0, 16.0],
-      sound: 'soundPlayer9',
-    },
-    {
-      key: 'representante',
-      field: 'ajudaRepresentanteComercial',
-      tipo: 'Representante',
-      image: 'assets/images/Representante.png',
-      width: 170.0,
-      height: 95.0,
-      fit: 'contain',
-      padding: [0.0, 0.0, 0.0, 16.0],
-      sound: 'soundPlayer10',
-    },
-  ];
-  
-  const tapFeedback = () =>
-    new AnimationInfo({
-      trigger: AnimationTrigger.onActionTrigger,
-      applyInitialState: true,
-      effectsBuilder: () => [
-        ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 200.0, begin: [1.0, 1.0], end: [0.9, 0.9] }),
-        ScaleEffect({ curve: Curves.easeInOut, delay: 200.0, duration: 200.0, begin: [0.9, 0.9], end: [1.0, 1.0] }),
-      ],
-    });
-  
-  const hintPulse = () =>
-    new AnimationInfo({
-      loop: true,
-      reverse: true,
-      trigger: AnimationTrigger.onPageLoad,
-      applyInitialState: true,
-      effectsBuilder: () => [
-        ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [1.0, 1.0], end: [1.05, 1.05] }),
-      ],
-    });
-  
-  /** The question in the active language, with the pt list as the fallback. */
-  function pergunta(field, { enField = field } = {}) {
-    const index = transformaAleatorio(FFAppState.escolha);
-    return FFLocalizations.getVariableText({
-      ptText: valueOrDefault(FFAppState.questoesBrasil[index]?.[field], 'Pergunta um'),
-      esText: FFAppState.questoesSpanish[index]?.[field],
-      enText: FFAppState.questoesEnglish[index]?.[enField],
-    });
-  }
-  
-  /**
-   * The answer text for one slot.
-   *
-   * NOTE - faithful bug: in the first answer's builder the Dart reads
-   * `respostaQuatro` from the English list when the shuffled number is 3
-   * (pt and es correctly read `respostaTres`), so answer 1 shows answer 4's text
-   * in English whenever the shuffle puts option 3 first. The other three slots
-   * are written correctly. Reproduced here so the port behaves like the original;
-   * drop the `enField` override to fix it.
-   */
-  function respostaText(slot, numero) {
-    const field = RESPOSTA_FIELD[numero];
-    if (!field) return `Pergunta ${slot + 1}`;
-    const enField = slot === 0 && numero === 3 ? 'respostaQuatro' : field;
-    return pergunta(field, { enField });
-  }
-  
-  function PerguntasErespostasWidget() {
-    const model = {
-      apoio: false,
-      youtube: false,
-      comunidade: false,
-      treinamento: false,
-      representante: false,
-      numeroDicas: 0,
-      apertou: false,
-      timerMilliseconds: 60000,
-      timerValue: StopWatchTimer.getDisplayTime(60000, { hours: false }),
-      timerController: new FlutterFlowTimerController({ mode: StopWatchMode.countDown }),
-      instantTimer: null,
-      soundPlayer1: null,
-    };
-  
-    const animationsMap = {
-      stackOnActionTriggerAnimation1: tapFeedback(),
-      stackOnActionTriggerAnimation2: tapFeedback(),
-      stackOnActionTriggerAnimation3: tapFeedback(),
-      stackOnActionTriggerAnimation4: tapFeedback(),
-      imageOnActionTriggerAnimation1: tapFeedback(),
-      imageOnPageLoadAnimation1: hintPulse(),
-      imageOnActionTriggerAnimation2: tapFeedback(),
-      imageOnPageLoadAnimation2: hintPulse(),
-      imageOnActionTriggerAnimation3: tapFeedback(),
-      imageOnPageLoadAnimation3: hintPulse(),
-      imageOnActionTriggerAnimation4: tapFeedback(),
-      imageOnPageLoadAnimation4: hintPulse(),
-      imageOnActionTriggerAnimation5: tapFeedback(),
-      imageOnPageLoadAnimation5: hintPulse(),
-    };
-  
-    const scanner = () => FFAppState.scannerEscolhido;
-  
-    /* -------------------------------------------------------- answer cards -- */
-  
-    /**
-     * One answer. `slot` is the index into ordemNumeros; the visible number is
-     * always slot + 1, and the answer text comes from the question field that
-     * ordemNumeros[slot] points at.
-     */
-    function answer(slot, { numberKey, animation, sound }) {
-      const numero = FFAppState.ordemNumeros[slot];
-      const text = respostaText(slot, numero);
-  
-      const card = InkWell({
-        onTap: async () => {
-          // Slots 0, 1 and 3 guard on `_model.apertou`; slot 2 guards on
-          // FFAppState().finalizou instead - kept exactly as written.
-          if (slot === 2 ? FFAppState.finalizou : model.apertou) return;
-  
-          model.apertou = true;
-          playSound(model, sound, 'assets/audios/undertale-select-sound.mp3', 0.53);
-          await animation.controller.forward();
-          await showDialog({ builder: () => ConfirmacaoWidget() });
-  
-          if (FFAppState.finalizou) {
-            model.soundPlayer1?.stop();
-            model.timerController.onStopTimer();
-  
-            const gabarito = valueOrDefault(
-              FFAppState.questoesBrasil[transformaAleatorio(FFAppState.escolha)]?.gabarito,
-              'Pergunta um'
-            );
-            const acertou = gabarito === String(FFAppState.ordemNumeros[slot]);
-  
-            const record = createUsuariosRecordData({
-              nome: FFAppState.cadastro.nome,
-              telefone: FFAppState.cadastro.telefone,
-              atuacao: FFAppState.cadastro.atuacao,
-              venceu: acertou,
-              tempo: model.timerMilliseconds,
-              equipamento: FFAppState.scannerEscolhido,
-              invalido: FFAppState.cadastro.invalido,
-            });
-  
-            pushNamed(acertou ? 'Ganhou' : 'Perdeu', {
-              extra: {
-                __transition_info__: new TransitionInfo({
-                  hasTransition: true,
-                  transitionType: PageTransitionType.fade,
-                }),
-              },
-            });
-            await addUsuario(record, { serverTimestamp: true });
-  
-            model.apoio = false;
-            model.youtube = false;
-            model.comunidade = false;
-            model.treinamento = false;
-            model.representante = false;
-            model.timerController.onResetTimer();
-            // Only the first answer cancels the tick timer in the Dart.
-            if (slot === 0) model.instantTimer?.cancel();
-            FFAppState.finalizou = false;
-          }
-          model.apertou = false;
-        },
-        child: Container({
-          width: 550.0,
-          height: 125.0,
-          color: cardColor(scanner()),
-          boxShadow: boxShadow({ blurRadius: 10.0, color: color(0x5D000000), offset: [-10.0, 10.0], spreadRadius: 1.0 }),
-          borderRadius: 12.0,
-          child: Padding({
-            padding: [72.0, 16.0, 32.0, 16.0],
-            child: Column({
-              mainAxisSize: 'max',
-              mainAxisAlignment: 'center',
-              crossAxisAlignment: 'start',
-              children: [
-                Padding({
-                  padding: [10.0, 0.0, 0.0, 0.0],
-                  child: Txt(
-                    valueOrDefault(text, 'yr'),
-                    style('bodyMedium', { fontWeight: 400, color: color(0xFF001C43), fontSize: 24.0 })
-                  ),
-                }),
-              ],
-            }),
-          }),
-        }),
-      });
-  
-      const stack = Stack({
-        alignment: [-1.0, 0.0],
-        children: [
-          // Slot 0 wraps the card in an Align(0, 0); the others don't.
-          slot === 0 ? StackAlign({ alignment: [0.0, 0.0], child: card }) : card,
-          StackAlign({
-            alignment: [-1.0, 0.0],
-            child: Padding({
-              padding: [24.0, 0.0, 0.0, 0.0],
-              child: Txt(
-                L(numberKey),
-                style('bodyMedium', { fontWeight: 900, color: numberColor(scanner()), fontSize: 55.0 })
-              ),
-            }),
-          }),
-        ],
-      });
-  
-      return animateOnActionTrigger(stack, animation);
-    }
-  
-    /* -------------------------------------------------------- support hints -- */
-  
-    function hint(spec, { actionAnimation, pageLoadAnimation }) {
-      const image = InkWell({
-        onTap: async () => {
-          playSound(model, spec.sound, 'assets/audios/adriantnt_u_click.mp3', 0.5);
-          if (model[spec.key]) return;
-  
-          await actionAnimation.controller.forward();
-          model[spec.key] = true;
-          refreshHints();
-  
-          await showDialog({
-            builder: () => PopUpWidget({ texto: pergunta(spec.field), tipo: spec.tipo }),
-          });
-  
-          model.numeroDicas += 1;
-          refreshDicas();
-          if (model.numeroDicas >= 2) {
-            // Two hints used: every button is spent.
-            for (const other of HINTS) model[other.key] = true;
-            refreshHints();
-          }
-        },
-        child: ClipRRect({
-          borderRadius: 8.0,
-          child: Img(spec.image, { width: spec.width, height: spec.height, fit: spec.fit }),
-        }),
-      });
-      animateOnPageLoad(image, pageLoadAnimation);
-      animateOnActionTrigger(image, actionAnimation);
-  
-      const opacity = Opacity({
-        opacity: model[spec.key] ? 0.3 : 1.0,
-        child: Padding({ padding: spec.padding, child: image }),
-      });
-      opacity.dataset.hint = spec.key;
-  
-      // The Dart wraps the first hint in an extra Align(0, 0).
-      const inner = spec.key === 'apoio' ? Align({ alignment: [0.0, 0.0], child: opacity }) : opacity;
-      return Stack({ alignment: [0.0, 0.0], children: [inner] });
-    }
-  
-    const hintNodes = HINTS.map((spec, index) =>
-      hint(spec, {
-        actionAnimation: animationsMap[`imageOnActionTriggerAnimation${index + 1}`],
-        pageLoadAnimation: animationsMap[`imageOnPageLoadAnimation${index + 1}`],
-      })
-    );
-  
-    function refreshHints() {
-      for (const spec of HINTS) {
-        const node = root.querySelector(`[data-hint="${spec.key}"]`);
-        if (node) node.style.opacity = model[spec.key] ? '0.3' : '1';
-      }
-    }
-  
-    const dicasLabel = Txt(`${2 - model.numeroDicas}X`, {
-      ...style('bodyMedium', {
-        fontFamily: 'pirulen',
-        color: color(0xFF001B54),
-        fontSize: 23.0,
-        fontWeight: 400,
-        textAlign: 'right',
-      }),
-    });
-  
-    function refreshDicas() {
-      dicasLabel.textContent = `${2 - model.numeroDicas}X`;
-    }
-  
-    /* --------------------------------------------------------------- header -- */
-  
-    const headerBand = (() => {
-      const current = scanner();
-      if (current === 'Rasther 3' || current === 'RB') {
-        return Container({
-          width: Infinity,
-          height: 65.31,
-          color: color(0xFFDAD2D2),
-          image: decorationImage('assets/images/Prancheta_64_cpia_2.png', 'none'),
-        });
-      }
-      if (current === 'Td90' || current === 'Td80') {
-        return Container({
-          width: Infinity,
-          height: 65.3,
-          color: color(0xFFE3E3E3),
-          image: decorationImage('assets/images/Prancheta_64_cpia.png', 'none'),
-        });
-      }
-      if (current === 'Rasther 4' || current === 'RST') {
-        return Container({
-          width: Infinity,
-          height: 90.6,
-          image: decorationImage('assets/images/Prancheta_64.png', 'none'),
-          gradient: linearGradient({
-            colors: [color(0xFFD47008), '#000000'],
-            stops: [0.0, 1.0],
-            begin: [-0.64, 1.0],
-            end: [0.64, -1.0],
-          }),
-        });
-      }
-      return null;
-    })();
-  
-    const headerPhoto = HEADER_PHOTOS[scanner()];
-  
-    /* ----------------------------------------------------------- the timer -- */
-  
-    const timer = FlutterFlowTimer({
-      initialTime: 60000,
-      controller: model.timerController,
-      getDisplayTime: (value) => StopWatchTimer.getDisplayTime(value, { hours: false }),
-      updateStateInterval: 1000,
-      onChanged: (value, displayTime) => {
-        model.timerMilliseconds = value;
-        model.timerValue = displayTime;
-      },
-      textAlign: 'justify',
-      style: style('headlineSmall', {
-        fontFamily: 'pirulen',
-        color: color(0xFFFF0000),
-        fontSize: 62.0,
-        fontWeight: 400,
-      }),
-    });
-  
-    /* ------------------------------------------------------------- the tree -- */
-  
-    // The panel's Stack is sized by its `double.infinity` container in Flutter;
-    // stating it here gives the CSS grid a definite box to lay the rest against.
-    const root = Stack({
-      width: Infinity,
-      height: Infinity,
-      children: [
-        StackAlign({
-          alignment: [1.0, 1.0],
-          child: Container({
-            width: SW * 0.5,
-            height: Infinity,
-            color: bodyColor(scanner()),
-            boxShadow: boxShadow({ blurRadius: 40.0, color: '#000000', offset: [-10.0, 5.0], spreadRadius: 3.0 }),
-            child: Column({
-              mainAxisSize: 'max',
-              mainAxisAlignment: 'start',
-              children: [
-                Container({
-                  width: Infinity,
-                  height: 258.35,
-                  gradient: linearGradient({
-                    colors: [headerTop(scanner()), headerBottom(scanner())],
-                    stops: [0.0, 1.0],
-                    begin: [0.0, -1.0],
-                    end: [0, 1.0],
-                  }),
-                  child: Column({
-                    mainAxisSize: 'max',
-                    crossAxisAlignment: 'start',
-                    children: [
-                      headerBand,
-                      Padding({
-                        padding: [0.0, 24.0, 0.0, 10.0],
-                        child: Row({
-                          mainAxisSize: 'max',
-                          mainAxisAlignment: 'spaceEvenly',
-                          children: [
-                            Txt(
-                              L('navhbcsm') /* Você está \nUsando */,
-                              style('bodyMedium', {
-                                fontFamily: 'pirulen',
-                                color: color(0xFF222222),
-                                fontSize: 40.0,
-                                fontWeight: 400,
-                              })
-                            ),
-                            Column({
-                              mainAxisSize: 'max',
-                              children: [
-                                headerPhoto &&
-                                  ClipRRect({
-                                    borderRadius: 8.0,
-                                    child: Img(headerPhoto.src, {
-                                      width: headerPhoto.width,
-                                      height: headerPhoto.height,
-                                      fit: 'cover',
-                                    }),
-                                  }),
-                              ],
-                            }),
-                          ],
-                        }),
-                      }),
-                    ],
-                  }),
-                }),
-                // The red divider only belongs to the Rasther 3 / RB skins.
-                Opacity({
-                  opacity: scanner() === 'Rasther 3' || scanner() === 'RB' ? 1.0 : 0.0,
-                  child: Container({ width: Infinity, height: 8.0, color: color(0xFFC10816) }),
-                }),
-                Padding({
-                  padding: [32.0, 10.0, 32.0, 0.0],
-                  child: Row({
-                    mainAxisSize: 'max',
-                    mainAxisAlignment: 'spaceBetween',
-                    crossAxisAlignment: 'start',
-                    children: [
-                      Column({
-                        mainAxisSize: 'max',
-                        crossAxisAlignment: 'start',
-                        children: [
-                          Padding({
-                            padding: [56.0, 16.0, 0.0, 16.0],
-                            child: Txt(
-                              L('x5fvgf80') /* O problema do veículo */,
-                              style('bodyMedium', {
-                                fontFamily: 'pirulen',
-                                color: color(0xFF222222),
-                                fontSize: 25.0,
-                                fontWeight: 400,
-                              })
-                            ),
-                          }),
-                          Padding({
-                            padding: [32.0, 16.0, 32.0, 32.0],
-                            child: Column({
-                              mainAxisSize: 'max',
-                              mainAxisAlignment: 'center',
-                              crossAxisAlignment: 'end',
-                              children: [
-                                answer(0, {
-                                  numberKey: 'bvcy0hg2',
-                                  animation: animationsMap.stackOnActionTriggerAnimation1,
-                                  sound: 'soundPlayer2',
-                                }),
-                                Padding({
-                                  padding: [0.0, 24.0, 0.0, 0.0],
-                                  child: answer(1, {
-                                    numberKey: 'fvk3pjqg',
-                                    animation: animationsMap.stackOnActionTriggerAnimation2,
-                                    sound: 'soundPlayer3',
-                                  }),
-                                }),
-                                Padding({
-                                  padding: [0.0, 24.0, 0.0, 0.0],
-                                  child: answer(2, {
-                                    numberKey: 'u3qmdqw7',
-                                    animation: animationsMap.stackOnActionTriggerAnimation3,
-                                    sound: 'soundPlayer4',
-                                  }),
-                                }),
-                                Padding({
-                                  padding: [0.0, 24.0, 0.0, 0.0],
-                                  child: answer(3, {
-                                    numberKey: 'ai7wwgfu',
-                                    animation: animationsMap.stackOnActionTriggerAnimation4,
-                                    sound: 'soundPlayer5',
-                                  }),
-                                }),
-                              ],
-                            }),
-                          }),
-                        ],
-                      }),
-                      Column({
-                        mainAxisSize: 'max',
-                        children: [
-                          Padding({
-                            padding: [16.0, 0.0, 16.0, 0.0],
-                            child: Column({
-                              mainAxisSize: 'max',
-                              children: [
-                                Row({
-                                  mainAxisSize: 'max',
-                                  mainAxisAlignment: 'start',
-                                  children: [
-                                    Padding({ padding: [0.0, 16.0, 4.0, 4.0], child: dicasLabel }),
-                                    Padding({
-                                      padding: [0.0, 16.0, 0.0, 4.0],
-                                      child: Txt(
-                                        L('k0xz8bjz') /* Suporte\nDisponível! */,
-                                        style('bodyMedium', {
-                                          fontFamily: 'pirulen',
-                                          color: '#000000',
-                                          fontSize: 18.0,
-                                          fontWeight: 400,
-                                          textAlign: 'left',
-                                        })
-                                      ),
-                                    }),
-                                  ],
-                                }),
-                                Padding({
-                                  padding: [0.0, 0.0, 0.0, 12.0],
-                                  child: Container({ width: 190.0, height: 2.0, color: TH.secondaryBackground }),
-                                }),
-                                Container({
-                                  color: cardColor(scanner()),
-                                  boxShadow: boxShadow({
-                                    blurRadius: 10.0,
-                                    color: color(0x5D000000),
-                                    offset: [-5.0, 5.0],
-                                    spreadRadius: 1.0,
-                                  }),
-                                  borderRadius: 24.0,
-                                  child: Padding({
-                                    padding: [16.0, 16.0, 16.0, 16.0],
-                                    child: Column({ mainAxisSize: 'max', children: hintNodes }),
-                                  }),
-                                }),
-                              ],
-                            }),
-                          }),
-                        ],
-                      }),
-                    ],
-                  }),
-                }),
-              ],
-            }),
-          }),
-        }),
-        StackAlign({
-          alignment: [1.0, 1.0],
-          child: Padding({
-            padding: [0.0, 0.0, 52.0, 32.0],
-            child: Container({
-              width: 385.0,
-              height: 90.0,
-              color: '#FFFFFF',
-              boxShadow: boxShadow({ blurRadius: 10.0, color: color(0x5D000000), offset: [-5.0, 5.0], spreadRadius: 1.0 }),
-              borderRadius: 8.0,
-              child: Padding({ padding: [8.0, 8.0, 8.0, 8.0], child: timer }),
-            }),
-          }),
-        }),
-      ],
-    });
-  
-    /* --------------------------------------------------------- on page load -- */
-    // Background music, then a 1Hz tick that sends the player to Perdeu when the
-    // clock runs out.
-    playSound(
-      model,
-      'soundPlayer1',
-      'assets/audios/Eric_Skiff_-_A_Night_Of_Dizzy_Spells_NO_COPYRIGHT_8-bit_Music_Background.mp3',
-      0.2
-    );
-    model.soundPlayer1.el.loop = true;
-    model.timerController.onStartTimer();
-    model.instantTimer = InstantTimer.periodic({
-      duration: 1000,
-      startImmediately: true,
-      callback: async () => {
-        if (model.timerMilliseconds > 0) return;
-        model.timerController.onStopTimer();
-        model.timerController.onResetTimer();
-        model.soundPlayer1?.stop();
-        model.instantTimer?.cancel();
-        pushNamed('Perdeu', {
-          extra: {
-            __transition_info__: new TransitionInfo({
-              hasTransition: true,
-              transitionType: PageTransitionType.scale,
-              alignment: [0, 1],
-            }),
-          },
-        });
-        await addUsuario(
-          createUsuariosRecordData({
-            nome: FFAppState.cadastro.nome,
-            telefone: FFAppState.cadastro.telefone,
-            atuacao: FFAppState.cadastro.atuacao,
-            venceu: false,
-            equipamento: FFAppState.scannerEscolhido,
-          })
-        );
-      },
-    });
-  
-    root.__dispose = () => {
-      model.instantTimer?.cancel();
-      model.timerController.dispose();
-      model.soundPlayer1?.stop();
-    };
-  
-    return root;
+    
+  /* ------------------------------------------------------- scanner skinning -- */  
+  // Every colour in this panel is chosen by `scannerEscolhido`; the Dart spells  
+  // each switch out inline. Same values, one table per switch.  
+    
+  const skin = (map, fallback) => (key) => (key in map ? map[key] : fallback);  
+    
+  const bodyColor = skin(  
+    {  
+      'Rasther 3': color(0xFFE7E7E2),  
+      RB: color(0xFFE7E7E2),  
+      Td90: color(0xFF5A9BF9),  
+      Td80: color(0xFF5A9BF9),  
+      'Rasther 4': color(0xFFB7C9E5),  
+      RST: color(0xFFB7C9E5),  
+    },  
+    color(0xFFBCBEC0)  
+  );  
+    
+  const headerTop = skin(  
+    {  
+      'Rasther 3': color(0xFFE3E3E3),  
+      RB: color(0xFFE3E3E3),  
+      Td90: color(0xFFD4D9DF),  
+      Td80: color(0xFFD4D9DF),  
+      'Rasther 4': color(0xFFB7C9E5),  
+      RST: color(0xFFB7C9E5),  
+    },  
+    color(0xFFF6F6F6)  
+  );  
+    
+  const headerBottom = skin(  
+    {  
+      'Rasther 3': color(0xFF686868),  
+      RB: color(0xFF686868),  
+      Td90: color(0xFFD4D9DF),  
+      Td80: color(0xFFD4D9DF),  
+      'Rasther 4': color(0xFFB7C9E5),  
+      RST: color(0xFFB7C9E5),  
+    },  
+    TH.secondaryText  
+  );  
+    
+  const cardColor = skin(  
+    {  
+      'Rasther 3': color(0xFFBCBEC0),  
+      RB: color(0xFFBCBEC0),  
+      Td90: color(0xFFA9CCFF),  
+      Td80: color(0xFFA9CCFF),  
+      'Rasther 4': color(0xFFD4D9DF),  
+      RST: color(0xFFD4D9DF),  
+    },  
+    color(0xFFBCBEC0)  
+  );  
+    
+  // Note: the Dart tests 'Xtool' here, a value `scannerEscolhido` is never set  
+  // to, so that branch is dead - the numbers are black for the Rasther 3 / RB  
+  // skins and 0xFF001C43 for everything else.  
+  const numberColor = skin(  
+    {  
+      'Rasther 3': '#000000',  
+      RB: '#000000',  
+      Xtool: color(0xFF001C43),  
+      Td80: color(0xFF001C43),  
+      'Rasther 4': color(0xFF001C43),  
+      RST: color(0xFF001C43),  
+    },  
+    color(0xFF001C43)  
+  );  
+    
+  /** The scanner photo shown in the header, with the size from the Dart. */  
+  const HEADER_PHOTOS = {  
+    RST: { src: 'assets/images/Rasther_ST_+_VCI.png', width: 313.39, height: 171.8 },  
+    'Rasther 3': { src: 'assets/images/Rasther_CANFD_(1).png', width: 162.67, height: 157.9 },  
+    RB: { src: 'assets/images/Rasther---box,-3s---mensal-box---android.png', width: 325.9, height: 176.0 },  
+    Td80: { src: 'assets/images/TD_80__Final_(1).png', width: 200.0, height: 200.0 },  
+    Td90: { src: 'assets/images/TD_90_(2).png', width: 200.0, height: 200.0 },  
+  };  
+    
+  /** answer slot -> the question field the shuffled number points at. */  
+  const RESPOSTA_FIELD = { 1: 'respostaUm', 2: 'respostaDois', 3: 'respostaTres', 4: 'respostaQuatro' };  
+    
+  /** The five support hints, in the order the Dart lays them out. */  
+  const HINTS = [  
+    {  
+      key: 'apoio',  
+      field: 'ajudaApoio',  
+      tipo: 'Apoio Tecnico',  
+      image: 'assets/images/Apoio_.png',  
+      width: 170.0,  
+      height: 90.0,  
+      fit: 'cover',  
+      padding: [0.0, 16.0, 0.0, 16.0],  
+      sound: 'soundPlayer6',  
+    },  
+    {  
+      key: 'treinamento',  
+      field: 'ajudaTreinamentoEad',  
+      tipo: 'Cursos EAD',  
+      image: 'assets/images/Cursos.png',  
+      width: 170.0,  
+      height: 95.0,  
+      fit: 'contain',  
+      padding: [0.0, 0.0, 0.0, 16.0],  
+      sound: 'soundPlayer7',  
+    },  
+    {  
+      key: 'youtube',  
+      field: 'ajudaTecnomotorTv',  
+      tipo: 'TecnomotorTV',  
+      image: 'assets/images/Youtube.png',  
+      width: 170.0,  
+      height: 95.0,  
+      fit: 'contain',  
+      padding: [0.0, 0.0, 0.0, 16.0],  
+      sound: 'soundPlayer8',  
+    },  
+    {  
+      key: 'comunidade',  
+      field: 'ajudaComunidade',  
+      tipo: 'Comunidade',  
+      image: 'assets/images/Comunidade_1.png',  
+      width: 170.0,  
+      height: 95.0,  
+      fit: 'contain',  
+      padding: [0.0, 0.0, 0.0, 16.0],  
+      sound: 'soundPlayer9',  
+    },  
+    {  
+      key: 'representante',  
+      field: 'ajudaRepresentanteComercial',  
+      tipo: 'Representante',  
+      image: 'assets/images/Representante.png',  
+      width: 170.0,  
+      height: 95.0,  
+      fit: 'contain',  
+      padding: [0.0, 0.0, 0.0, 16.0],  
+      sound: 'soundPlayer10',  
+    },  
+  ];  
+    
+  const tapFeedback = () =>  
+    new AnimationInfo({  
+      trigger: AnimationTrigger.onActionTrigger,  
+      applyInitialState: true,  
+      effectsBuilder: () => [  
+        ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 200.0, begin: [1.0, 1.0], end: [0.9, 0.9] }),  
+        ScaleEffect({ curve: Curves.easeInOut, delay: 200.0, duration: 200.0, begin: [0.9, 0.9], end: [1.0, 1.0] }),  
+      ],  
+    });  
+    
+  const hintPulse = () =>  
+    new AnimationInfo({  
+      loop: true,  
+      reverse: true,  
+      trigger: AnimationTrigger.onPageLoad,  
+      applyInitialState: true,  
+      effectsBuilder: () => [  
+        ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [1.0, 1.0], end: [1.05, 1.05] }),  
+      ],  
+    });  
+    
+  /** The question in the active language, with the pt list as the fallback. */  
+  function pergunta(field, { enField = field } = {}) {  
+    const index = transformaAleatorio(FFAppState.escolha);  
+    return FFLocalizations.getVariableText({  
+      ptText: valueOrDefault(FFAppState.questoesBrasil[index]?.[field], 'Pergunta um'),  
+      esText: FFAppState.questoesSpanish[index]?.[field],  
+      enText: FFAppState.questoesEnglish[index]?.[enField],  
+    });  
+  }  
+    
+  /**  
+   * The answer text for one slot.  
+   *  
+   * NOTE - faithful bug: in the first answer's builder the Dart reads  
+   * `respostaQuatro` from the English list when the shuffled number is 3  
+   * (pt and es correctly read `respostaTres`), so answer 1 shows answer 4's text  
+   * in English whenever the shuffle puts option 3 first. The other three slots  
+   * are written correctly. Reproduced here so the port behaves like the original;  
+   * drop the `enField` override to fix it.  
+   */  
+  function respostaText(slot, numero) {  
+    const field = RESPOSTA_FIELD[numero];  
+    if (!field) return `Pergunta ${slot + 1}`;  
+    const enField = slot === 0 && numero === 3 ? 'respostaQuatro' : field;  
+    return pergunta(field, { enField });  
+  }  
+    
+  function PerguntasErespostasWidget() {  
+    const model = {  
+      apoio: false,  
+      youtube: false,  
+      comunidade: false,  
+      treinamento: false,  
+      representante: false,  
+      numeroDicas: 0,  
+      apertou: false,  
+      timerMilliseconds: 60000,  
+      timerValue: StopWatchTimer.getDisplayTime(60000, { hours: false }),  
+      timerController: new FlutterFlowTimerController({ mode: StopWatchMode.countDown }),  
+      instantTimer: null,  
+      soundPlayer1: null,  
+    };  
+    
+    const animationsMap = {  
+      stackOnActionTriggerAnimation1: tapFeedback(),  
+      stackOnActionTriggerAnimation2: tapFeedback(),  
+      stackOnActionTriggerAnimation3: tapFeedback(),  
+      stackOnActionTriggerAnimation4: tapFeedback(),  
+      imageOnActionTriggerAnimation1: tapFeedback(),  
+      imageOnPageLoadAnimation1: hintPulse(),  
+      imageOnActionTriggerAnimation2: tapFeedback(),  
+      imageOnPageLoadAnimation2: hintPulse(),  
+      imageOnActionTriggerAnimation3: tapFeedback(),  
+      imageOnPageLoadAnimation3: hintPulse(),  
+      imageOnActionTriggerAnimation4: tapFeedback(),  
+      imageOnPageLoadAnimation4: hintPulse(),  
+      imageOnActionTriggerAnimation5: tapFeedback(),  
+      imageOnPageLoadAnimation5: hintPulse(),  
+    };  
+    
+    const scanner = () => FFAppState.scannerEscolhido;  
+    
+    /* -------------------------------------------------------- answer cards -- */  
+    
+    /**  
+     * One answer. `slot` is the index into ordemNumeros; the visible number is  
+     * always slot + 1, and the answer text comes from the question field that  
+     * ordemNumeros[slot] points at.  
+     */  
+    function answer(slot, { numberKey, animation, sound }) {  
+      const numero = FFAppState.ordemNumeros[slot];  
+      const text = respostaText(slot, numero);  
+    
+      const card = InkWell({  
+        onTap: async () => {  
+          // Slots 0, 1 and 3 guard on `_model.apertou`; slot 2 guards on  
+          // FFAppState().finalizou instead - kept exactly as written.  
+          if (slot === 2 ? FFAppState.finalizou : model.apertou) return;  
+    
+          model.apertou = true;  
+          playSound(model, sound, 'assets/audios/undertale-select-sound.mp3', 0.53);  
+          await animation.controller.forward();  
+          await showDialog({ builder: () => ConfirmacaoWidget() });  
+    
+          if (FFAppState.finalizou) {  
+            model.soundPlayer1?.stop();  
+            model.timerController.onStopTimer();  
+    
+            const gabarito = valueOrDefault(  
+              FFAppState.questoesBrasil[transformaAleatorio(FFAppState.escolha)]?.gabarito,  
+              'Pergunta um'  
+            );  
+            const acertou = gabarito === String(FFAppState.ordemNumeros[slot]);  
+    
+            const record = createUsuariosRecordData({  
+              nome: FFAppState.cadastro.nome,  
+              telefone: FFAppState.cadastro.telefone,  
+              atuacao: FFAppState.cadastro.atuacao,  
+              venceu: acertou,  
+              tempo: model.timerMilliseconds,  
+              equipamento: FFAppState.scannerEscolhido,  
+              invalido: FFAppState.cadastro.invalido,  
+            });  
+    
+            pushNamed(acertou ? 'Ganhou' : 'Perdeu', {  
+              extra: {  
+                __transition_info__: new TransitionInfo({  
+                  hasTransition: true,  
+                  transitionType: PageTransitionType.fade,  
+                }),  
+              },  
+            });  
+            await addUsuario(record, { serverTimestamp: true });  
+    
+            model.apoio = false;  
+            model.youtube = false;  
+            model.comunidade = false;  
+            model.treinamento = false;  
+            model.representante = false;  
+            model.timerController.onResetTimer();  
+            // Only the first answer cancels the tick timer in the Dart.  
+            if (slot === 0) model.instantTimer?.cancel();  
+            FFAppState.finalizou = false;  
+          }  
+          model.apertou = false;  
+        },  
+        child: Container({  
+          width: 550.0,  
+          height: 125.0,  
+          color: cardColor(scanner()),  
+          boxShadow: boxShadow({ blurRadius: 10.0, color: color(0x5D000000), offset: [-10.0, 10.0], spreadRadius: 1.0 }),  
+          borderRadius: 12.0,  
+          child: Padding({  
+            padding: [72.0, 16.0, 32.0, 16.0],  
+            child: Column({  
+              mainAxisSize: 'max',  
+              mainAxisAlignment: 'center',  
+              crossAxisAlignment: 'start',  
+              children: [  
+                Padding({  
+                  padding: [10.0, 0.0, 0.0, 0.0],  
+                  child: Txt(  
+                    valueOrDefault(text, 'yr'),  
+                    style('bodyMedium', { fontWeight: 400, color: color(0xFF001C43), fontSize: 24.0 })  
+                  ),  
+                }),  
+              ],  
+            }),  
+          }),  
+        }),  
+      });  
+    
+      const stack = Stack({  
+        alignment: [-1.0, 0.0],  
+        children: [  
+          // Slot 0 wraps the card in an Align(0, 0); the others don't.  
+          slot === 0 ? StackAlign({ alignment: [0.0, 0.0], child: card }) : card,  
+          StackAlign({  
+            alignment: [-1.0, 0.0],  
+            child: Padding({  
+              padding: [24.0, 0.0, 0.0, 0.0],  
+              child: Txt(  
+                L(numberKey),  
+                style('bodyMedium', { fontWeight: 900, color: numberColor(scanner()), fontSize: 55.0 })  
+              ),  
+            }),  
+          }),  
+        ],  
+      });  
+    
+      return animateOnActionTrigger(stack, animation);  
+    }  
+    
+    /* -------------------------------------------------------- support hints -- */  
+    
+    function hint(spec, { actionAnimation, pageLoadAnimation }) {  
+      const image = InkWell({  
+        onTap: async () => {  
+          playSound(model, spec.sound, 'assets/audios/adriantnt_u_click.mp3', 0.5);  
+          if (model[spec.key]) return;  
+    
+          await actionAnimation.controller.forward();  
+          model[spec.key] = true;  
+          refreshHints();  
+    
+          await showDialog({  
+            builder: () => PopUpWidget({ texto: pergunta(spec.field), tipo: spec.tipo }),  
+          });  
+    
+          model.numeroDicas += 1;  
+          refreshDicas();  
+          if (model.numeroDicas >= 2) {  
+            // Two hints used: every button is spent.  
+            for (const other of HINTS) model[other.key] = true;  
+            refreshHints();  
+          }  
+        },  
+        child: ClipRRect({  
+          borderRadius: 8.0,  
+          child: Img(spec.image, { width: spec.width, height: spec.height, fit: spec.fit }),  
+        }),  
+      });  
+      animateOnPageLoad(image, pageLoadAnimation);  
+      animateOnActionTrigger(image, actionAnimation);  
+    
+      const opacity = Opacity({  
+        opacity: model[spec.key] ? 0.3 : 1.0,  
+        child: Padding({ padding: spec.padding, child: image }),  
+      });  
+      opacity.dataset.hint = spec.key;  
+    
+      // The Dart wraps the first hint in an extra Align(0, 0).  
+      const inner = spec.key === 'apoio' ? Align({ alignment: [0.0, 0.0], child: opacity }) : opacity;  
+      return Stack({ alignment: [0.0, 0.0], children: [inner] });  
+    }  
+    
+    const hintNodes = HINTS.map((spec, index) =>  
+      hint(spec, {  
+        actionAnimation: animationsMap[`imageOnActionTriggerAnimation${index + 1}`],  
+        pageLoadAnimation: animationsMap[`imageOnPageLoadAnimation${index + 1}`],  
+      })  
+    );  
+    
+    function refreshHints() {  
+      for (const spec of HINTS) {  
+        const node = root.querySelector(`[data-hint="${spec.key}"]`);  
+        if (node) node.style.opacity = model[spec.key] ? '0.3' : '1';  
+      }  
+    }  
+    
+    const dicasLabel = Txt(`${2 - model.numeroDicas}X`, {  
+      ...style('bodyMedium', {  
+        fontFamily: 'pirulen',  
+        color: color(0xFF001B54),  
+        fontSize: 23.0,  
+        fontWeight: 400,  
+        textAlign: 'right',  
+      }),  
+    });  
+    
+    function refreshDicas() {  
+      dicasLabel.textContent = `${2 - model.numeroDicas}X`;  
+    }  
+    
+    /* --------------------------------------------------------------- header -- */  
+    
+    const headerBand = (() => {  
+      const current = scanner();  
+      if (current === 'Rasther 3' || current === 'RB') {  
+        return Container({  
+          width: Infinity,  
+          height: 65.31,  
+          color: color(0xFFDAD2D2),  
+          image: decorationImage('assets/images/Prancheta_64_cpia_2.png', 'none'),  
+        });  
+      }  
+      if (current === 'Td90' || current === 'Td80') {  
+        return Container({  
+          width: Infinity,  
+          height: 65.3,  
+          color: color(0xFFE3E3E3),  
+          image: decorationImage('assets/images/Prancheta_64_cpia.png', 'none'),  
+        });  
+      }  
+      if (current === 'Rasther 4' || current === 'RST') {  
+        return Container({  
+          width: Infinity,  
+          height: 90.6,  
+          image: decorationImage('assets/images/Prancheta_64.png', 'none'),  
+          gradient: linearGradient({  
+            colors: [color(0xFFD47008), '#000000'],  
+            stops: [0.0, 1.0],  
+            begin: [-0.64, 1.0],  
+            end: [0.64, -1.0],  
+          }),  
+        });  
+      }  
+      return null;  
+    })();  
+    
+    const headerPhoto = HEADER_PHOTOS[scanner()];  
+    
+    /* ----------------------------------------------------------- the timer -- */  
+    
+    const timer = FlutterFlowTimer({  
+      initialTime: 60000,  
+      controller: model.timerController,  
+      getDisplayTime: (value) => StopWatchTimer.getDisplayTime(value, { hours: false }),  
+      updateStateInterval: 1000,  
+      onChanged: (value, displayTime) => {  
+        model.timerMilliseconds = value;  
+        model.timerValue = displayTime;  
+      },  
+      textAlign: 'justify',  
+      style: style('headlineSmall', {  
+        fontFamily: 'pirulen',  
+        color: color(0xFFFF0000),  
+        fontSize: 62.0,  
+        fontWeight: 400,  
+      }),  
+    });  
+    
+    /* ------------------------------------------------------------- the tree -- */  
+    
+    // The panel's Stack is sized by its `double.infinity` container in Flutter;  
+    // stating it here gives the CSS grid a definite box to lay the rest against.  
+    const root = Stack({  
+      width: Infinity,  
+      height: Infinity,  
+      children: [  
+        StackAlign({  
+          alignment: [1.0, 1.0],  
+          child: Container({  
+            width: SW * 0.5,  
+            height: Infinity,  
+            color: bodyColor(scanner()),  
+            boxShadow: boxShadow({ blurRadius: 40.0, color: '#000000', offset: [-10.0, 5.0], spreadRadius: 3.0 }),  
+            child: Column({  
+              mainAxisSize: 'max',  
+              mainAxisAlignment: 'start',  
+              children: [  
+                Container({  
+                  width: Infinity,  
+                  height: 258.35,  
+                  gradient: linearGradient({  
+                    colors: [headerTop(scanner()), headerBottom(scanner())],  
+                    stops: [0.0, 1.0],  
+                    begin: [0.0, -1.0],  
+                    end: [0, 1.0],  
+                  }),  
+                  child: Column({  
+                    mainAxisSize: 'max',  
+                    crossAxisAlignment: 'start',  
+                    children: [  
+                      headerBand,  
+                      Padding({  
+                        padding: [0.0, 24.0, 0.0, 10.0],  
+                        child: Row({  
+                          mainAxisSize: 'max',  
+                          mainAxisAlignment: 'spaceEvenly',  
+                          children: [  
+                            Txt(  
+                              L('navhbcsm') /* Você está \nUsando */,  
+                              style('bodyMedium', {  
+                                fontFamily: 'pirulen',  
+                                color: color(0xFF222222),  
+                                fontSize: 40.0,  
+                                fontWeight: 400,  
+                              })  
+                            ),  
+                            Column({  
+                              mainAxisSize: 'max',  
+                              children: [  
+                                headerPhoto &&  
+                                  ClipRRect({  
+                                    borderRadius: 8.0,  
+                                    child: Img(headerPhoto.src, {  
+                                      width: headerPhoto.width,  
+                                      height: headerPhoto.height,  
+                                      fit: 'cover',  
+                                    }),  
+                                  }),  
+                              ],  
+                            }),  
+                          ],  
+                        }),  
+                      }),  
+                    ],  
+                  }),  
+                }),  
+                // The red divider only belongs to the Rasther 3 / RB skins.  
+                Opacity({  
+                  opacity: scanner() === 'Rasther 3' || scanner() === 'RB' ? 1.0 : 0.0,  
+                  child: Container({ width: Infinity, height: 8.0, color: color(0xFFC10816) }),  
+                }),  
+                Padding({  
+                  padding: [32.0, 10.0, 32.0, 0.0],  
+                  child: Row({  
+                    mainAxisSize: 'max',  
+                    mainAxisAlignment: 'spaceBetween',  
+                    crossAxisAlignment: 'start',  
+                    children: [  
+                      Column({  
+                        mainAxisSize: 'max',  
+                        crossAxisAlignment: 'start',  
+                        children: [  
+                          Padding({  
+                            padding: [56.0, 16.0, 0.0, 16.0],  
+                            child: Txt(  
+                              L('x5fvgf80') /* O problema do veículo */,  
+                              style('bodyMedium', {  
+                                fontFamily: 'pirulen',  
+                                color: color(0xFF222222),  
+                                fontSize: 25.0,  
+                                fontWeight: 400,  
+                              })  
+                            ),  
+                          }),  
+                          Padding({  
+                            padding: [32.0, 16.0, 32.0, 32.0],  
+                            child: Column({  
+                              mainAxisSize: 'max',  
+                              mainAxisAlignment: 'center',  
+                              crossAxisAlignment: 'end',  
+                              children: [  
+                                answer(0, {  
+                                  numberKey: 'bvcy0hg2',  
+                                  animation: animationsMap.stackOnActionTriggerAnimation1,  
+                                  sound: 'soundPlayer2',  
+                                }),  
+                                Padding({  
+                                  padding: [0.0, 24.0, 0.0, 0.0],  
+                                  child: answer(1, {  
+                                    numberKey: 'fvk3pjqg',  
+                                    animation: animationsMap.stackOnActionTriggerAnimation2,  
+                                    sound: 'soundPlayer3',  
+                                  }),  
+                                }),  
+                                Padding({  
+                                  padding: [0.0, 24.0, 0.0, 0.0],  
+                                  child: answer(2, {  
+                                    numberKey: 'u3qmdqw7',  
+                                    animation: animationsMap.stackOnActionTriggerAnimation3,  
+                                    sound: 'soundPlayer4',  
+                                  }),  
+                                }),  
+                                Padding({  
+                                  padding: [0.0, 24.0, 0.0, 0.0],  
+                                  child: answer(3, {  
+                                    numberKey: 'ai7wwgfu',  
+                                    animation: animationsMap.stackOnActionTriggerAnimation4,  
+                                    sound: 'soundPlayer5',  
+                                  }),  
+                                }),  
+                              ],  
+                            }),  
+                          }),  
+                        ],  
+                      }),  
+                      Column({  
+                        mainAxisSize: 'max',  
+                        children: [  
+                          Padding({  
+                            padding: [16.0, 0.0, 16.0, 0.0],  
+                            child: Column({  
+                              mainAxisSize: 'max',  
+                              children: [  
+                                Row({  
+                                  mainAxisSize: 'max',  
+                                  mainAxisAlignment: 'start',  
+                                  children: [  
+                                    Padding({ padding: [0.0, 16.0, 4.0, 4.0], child: dicasLabel }),  
+                                    Padding({  
+                                      padding: [0.0, 16.0, 0.0, 4.0],  
+                                      child: Txt(  
+                                        L('k0xz8bjz') /* Suporte\nDisponível! */,  
+                                        style('bodyMedium', {  
+                                          fontFamily: 'pirulen',  
+                                          color: '#000000',  
+                                          fontSize: 18.0,  
+                                          fontWeight: 400,  
+                                          textAlign: 'left',  
+                                        })  
+                                      ),  
+                                    }),  
+                                  ],  
+                                }),  
+                                Padding({  
+                                  padding: [0.0, 0.0, 0.0, 12.0],  
+                                  child: Container({ width: 190.0, height: 2.0, color: TH.secondaryBackground }),  
+                                }),  
+                                Container({  
+                                  color: cardColor(scanner()),  
+                                  boxShadow: boxShadow({  
+                                    blurRadius: 10.0,  
+                                    color: color(0x5D000000),  
+                                    offset: [-5.0, 5.0],  
+                                    spreadRadius: 1.0,  
+                                  }),  
+                                  borderRadius: 24.0,  
+                                  child: Padding({  
+                                    padding: [16.0, 16.0, 16.0, 16.0],  
+                                    child: Column({ mainAxisSize: 'max', children: hintNodes }),  
+                                  }),  
+                                }),  
+                              ],  
+                            }),  
+                          }),  
+                        ],  
+                      }),  
+                    ],  
+                  }),  
+                }),  
+              ],  
+            }),  
+          }),  
+        }),  
+        StackAlign({  
+          alignment: [1.0, 1.0],  
+          child: Padding({  
+            padding: [0.0, 0.0, 52.0, 32.0],  
+            child: Container({  
+              width: 385.0,  
+              height: 90.0,  
+              color: '#FFFFFF',  
+              boxShadow: boxShadow({ blurRadius: 10.0, color: color(0x5D000000), offset: [-5.0, 5.0], spreadRadius: 1.0 }),  
+              borderRadius: 8.0,  
+              child: Padding({ padding: [8.0, 8.0, 8.0, 8.0], child: timer }),  
+            }),  
+          }),  
+        }),  
+      ],  
+    });  
+    
+    /* --------------------------------------------------------- on page load -- */  
+    // Background music, then a 1Hz tick that sends the player to Perdeu when the  
+    // clock runs out.  
+    // Sem loop: o Dart chama setAsset().then(play()) e nunca setLoopMode, e a  
+    // faixa (~2min48) cobre a rodada de 60s de sobra.  
+    playSound(  
+      model,  
+      'soundPlayer1',  
+      'assets/audios/Eric_Skiff_-_A_Night_Of_Dizzy_Spells_NO_COPYRIGHT_8-bit_Music_Background.mp3',  
+      0.2  
+    );  
+    model.timerController.onStartTimer();  
+    model.instantTimer = InstantTimer.periodic({  
+      duration: 1000,  
+      startImmediately: true,  
+      callback: async () => {  
+        if (model.timerMilliseconds > 0) return;  
+        model.timerController.onStopTimer();  
+        model.timerController.onResetTimer();  
+        model.soundPlayer1?.stop();  
+        model.instantTimer?.cancel();  
+        pushNamed('Perdeu', {  
+          extra: {  
+            __transition_info__: new TransitionInfo({  
+              hasTransition: true,  
+              transitionType: PageTransitionType.scale,  
+              alignment: [0, 1],  
+            }),  
+          },  
+        });  
+        await addUsuario(  
+          createUsuariosRecordData({  
+            nome: FFAppState.cadastro.nome,  
+            telefone: FFAppState.cadastro.telefone,  
+            atuacao: FFAppState.cadastro.atuacao,  
+            venceu: false,  
+            equipamento: FFAppState.scannerEscolhido,  
+          })  
+        );  
+      },  
+    });  
+    
+    root.__dispose = () => {  
+      model.instantTimer?.cancel();  
+      model.timerController.dispose();  
+      model.soundPlayer1?.stop();  
+    };  
+    
+    return root;  
   }
   Object.defineProperty(__exports, "PerguntasErespostasWidget", { get: () => PerguntasErespostasWidget, enumerable: true });
   });

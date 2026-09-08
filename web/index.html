@@ -51,7 +51,12 @@
       <div id="pages"></div>
       <div id="overlays"></div>
     </div>
-    <noscript id="boot-message">Este jogo precisa de JavaScript.</noscript>
+    <noscript>
+      <div class="boot-message">
+        <strong>Este jogo precisa de JavaScript.</strong>
+        Habilite o JavaScript no navegador e recarregue a página.
+      </div>
+    </noscript>
   </div>
 
   <script>
@@ -75,14 +80,11 @@
       function showFailure() {
         if (window.__tecgameBooted) return;
         var el = document.createElement('div');
-        el.style.cssText =
-          'position:fixed;inset:0;display:grid;place-items:center;padding:5vw;' +
-          'font:16px/1.6 system-ui,sans-serif;color:#fff;background:#000B18;text-align:center';
+        el.className = 'boot-message';
         el.innerHTML =
-          '<div><strong style="font-size:1.3em">O jogo nao carregou.</strong><br><br>' +
-          'Sirva a pasta <code>web/</code> por HTTP:<br>' +
-          '<code style="display:inline-block;margin-top:8px;padding:8px 12px;background:#0053B6;border-radius:6px">' +
-          'npm start</code><br><br>e abra <code>http://localhost:8099</code>.</div>';
+          '<div><strong>O jogo não carregou.</strong>' +
+          'Sirva a pasta <code>web/</code> por HTTP com <code>npm start</code><br>' +
+          'e abra <code>http://localhost:8099</code>.</div>';
         document.body.appendChild(el);
       }
 

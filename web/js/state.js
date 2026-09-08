@@ -5,6 +5,7 @@
 // falls back to the values compiled into the app.
 
 import { QUESTIONS } from './questions.js';
+import { readJson } from './storage.js';
 
 const listeners = new Set();
 
@@ -50,25 +51,14 @@ export class CadastroStruct {
   }
 }
 
-function loadQuestions(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    const list = JSON.parse(raw);
-    if (!Array.isArray(list) || list.length === 0) return fallback;
-    return list;
-  } catch (error) {
-    console.warn(`Can't decode persisted data type. Error: ${error}.`);
-    return fallback;
-  }
-}
-
-function saveQuestions(key, list) {
-  try {
-    localStorage.setItem(key, JSON.stringify(list));
-  } catch (_) {
-    /* storage unavailable */
-  }
+/**
+ * As três listas de questões vinham persistidas pelo Dart. Nada no jogo grava
+ * essas chaves — só o admin publica baralho — mas a leitura fica para não
+ * descartar o que um totem já tenha guardado.
+ */
+function loadQuestions(name, fallback) {
+  const list = readJson(name, null);
+  return Array.isArray(list) && list.length > 0 ? list : fallback;
 }
 
 class FFAppStateClass {
@@ -94,25 +84,15 @@ class FFAppStateClass {
 
   /** initializePersistedState() */
   initializePersistedState() {
-    this.questoesBrasil = loadQuestions('ff_questoesBrasil', QUESTIONS.pt);
-    this.questoesEnglish = loadQuestions('ff_questoesEnglish', QUESTIONS.en);
-    this.questoesSpanish = loadQuestions('ff_questoesSpanish', QUESTIONS.es);
-  }
-
-  persistQuestions() {
-    saveQuestions('ff_questoesBrasil', this.questoesBrasil);
-    saveQuestions('ff_questoesEnglish', this.questoesEnglish);
-    saveQuestions('ff_questoesSpanish', this.questoesSpanish);
+    this.questoesBrasil = loadQuestions('questoes.pt', QUESTIONS.pt);
+    this.questoesEnglish = loadQuestions('questoes.en', QUESTIONS.en);
+    this.questoesSpanish = loadQuestions('questoes.es', QUESTIONS.es);
   }
 
   /** update(callback) - runs the mutation then notifies listeners. */
   update(callback) {
     if (callback) callback();
     this.notifyListeners();
-  }
-
-  updateCadastroStruct(updateFn) {
-    updateFn(this.cadastro);
   }
 
   addToListaEscolhas(value) {
@@ -131,15 +111,14 @@ class FFAppStateClass {
 
 export const FFAppState = new FFAppStateClass();
 
+/**
+ * Contraparte de `notifyListeners()`. Hoje nenhuma tela assina — o porte
+ * re-renderiza por navegação, não por observação — mas é o seam que dá sentido
+ * ao `update()` espalhado pelo código, que existe por paridade com o
+ * ChangeNotifier do Dart.
+ */
 export function onAppStateChange(fn) {
   listeners.add(fn);
   return () => listeners.delete(fn);
 }
 
-/** The question for the currently selected wheel value, in a given language. */
-export function questaoAtual(lang = 'pt') {
-  const list =
-    lang === 'en' ? FFAppState.questoesEnglish : lang === 'es' ? FFAppState.questoesSpanish : FFAppState.questoesBrasil;
-  const index = Math.trunc(FFAppState.escolha * 10) % 10;
-  return list[index] ?? null;
-}

@@ -157,6 +157,28 @@ body {
   pointer-events: auto;
 }
 
+/* Mensagem de boot (<noscript> e a falha do fallback em index.html). Sem isto
+   herdava a cor padrao do texto e ficava preto sobre preto — invisivel, que era
+   exatamente o problema que a mensagem existe para evitar. */
+.boot-message {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 5vw;
+  gap: 12px;
+  text-align: center;
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #fff;
+  background: #000B18;
+}
+
+.boot-message strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 1.3em;
+}
+
 /* ------------------------------------------------------- flutter atoms --- */
 /* Scaffold */
 .ff-scaffold {
@@ -426,7 +448,8 @@ body {
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgba(0, 0, 0, 0.5401);
+  /* Colors.black54, o barrierColor padrao do showDialog: 0x8A / 255. */
+  background: rgba(0, 0, 0, 0.5412);
   animation: ff-barrier-in 150ms linear both;
 }
 

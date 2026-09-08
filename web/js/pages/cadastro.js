@@ -83,15 +83,51 @@ const OFICINA_KEYS = [
   'o3hsgf10', // - Outros..
 ];
 
+/**
+ * O que o visitante já digitou, guardado fora da função de build.
+ *
+ * No Flutter isto sai de graça: `createModel(context, () => CadastroModel())`
+ * devolve o mesmo model enquanto a página vive, então os TextEditingController
+ * sobrevivem ao rebuild que o `setLocale` dispara no MaterialApp. Aqui a troca
+ * de idioma reconstrói a página, e sem isto o nome e o telefone digitados eram
+ * apagados — justo no gesto que um visitante estrangeiro faz primeiro.
+ *
+ * A oficina é guardada pela CHAVE de tradução, não pelo texto: assim a escolha
+ * sobrevive à troca de idioma e reaparece já traduzida.
+ */
+const formState = {
+  nome: new TextEditingController(),
+  whats: new TextEditingController(),
+  oficinaKey: null,
+  invalido: 0,
+};
+
+/** Chamado quando a partida realmente começa: o próximo jogador entra limpo. */
+function resetFormState() {
+  formState.nome = new TextEditingController();
+  formState.whats = new TextEditingController();
+  formState.oficinaKey = null;
+  formState.invalido = 0;
+}
+
 export function CadastroWidget() {
   const model = {
-    invalido: 0,
+    // `invalido` conta as tentativas com nome ofensivo e também precisa
+    // sobreviver ao rebuild, senão a contagem zera na troca de idioma.
+    get invalido() {
+      return formState.invalido;
+    },
+    set invalido(v) {
+      formState.invalido = v;
+    },
     formKey: new FormState(),
-    textFieldNomeTextController: new TextEditingController(),
-    textFieldWhatsTextController: new TextEditingController(),
+    textFieldNomeTextController: formState.nome,
+    textFieldWhatsTextController: formState.whats,
     textFieldWhatsMask: new MaskTextInputFormatter({ mask: '(##) #####-####' }),
-    dropDownOficinaValue: null,
-    dropDownOficinaValueController: new FormFieldController(null),
+    dropDownOficinaValue: formState.oficinaKey ? L(formState.oficinaKey) : null,
+    dropDownOficinaValueController: new FormFieldController(
+      formState.oficinaKey ? L(formState.oficinaKey) : null
+    ),
     timerController: new FlutterFlowTimerController({ mode: StopWatchMode.countUp }),
     timerMilliseconds: 0,
     timerValue: StopWatchTimer.getDisplayTime(0, { hours: false, milliSecond: false }),
@@ -204,8 +240,11 @@ export function CadastroWidget() {
   const oficinaDropdown = FlutterFlowDropDown({
     controller: model.dropDownOficinaValueController,
     options: OFICINA_KEYS.map((key) => L(key)),
-    onChanged: (value) => {
+    onChanged: (value, index) => {
       model.dropDownOficinaValue = value;
+      // Guarda a chave, não o rótulo traduzido, para a escolha atravessar a
+      // troca de idioma (ver formState no topo).
+      formState.oficinaKey = OFICINA_KEYS[index] ?? null;
       playSound(model, 'soundPlayer5', 'assets/audios/adriantnt_u_click.mp3', 1.0);
       restartIdleTimer();
     },
@@ -253,6 +292,9 @@ export function CadastroWidget() {
             invalido: model.invalido,
           });
           model.invalido = 0;
+          // A partida começou: o formulário guardado já foi consumido, então o
+          // próximo jogador encontra a tela em branco.
+          resetFormState();
 
           goNamed('instrucoes', {
             extra: {

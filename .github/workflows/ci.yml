@@ -69,6 +69,9 @@ jobs:
       - name: Escala do palco em várias resoluções
         run: npm run verify:sizes
 
+      - name: Troca de idioma preserva o formulário
+        run: npm run verify:idioma
+
       # O mesmo jogo tem de funcionar aberto direto do disco, pelo bundle clássico.
       - name: Rotas (file://, bundle clássico)
         env:
