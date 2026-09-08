@@ -1514,128 +1514,128 @@
 
   /* ===== state.js ===== */
   __define("state.js", function (__exports, __require) {
-  // Port of lib/app_state.dart (FFAppState) and the CadastroStruct it holds.  
-  //  
-  // The three question lists are persisted under the same SharedPreferences keys  
-  // the Dart used, so a browser that already has them keeps them; anything else  
-  // falls back to the values compiled into the app.  
-    
+  // Port of lib/app_state.dart (FFAppState) and the CadastroStruct it holds.
+  //
+  // The three question lists are persisted under the same SharedPreferences keys
+  // the Dart used, so a browser that already has them keeps them; anything else
+  // falls back to the values compiled into the app.
+  
   const { QUESTIONS } = __require("questions.js");
   const { readJson } = __require("storage.js");
-    
-  const listeners = new Set();  
-    
-  /** CadastroStruct */  
-  class CadastroStruct {  
-    constructor({ nome, telefone, atuacao, invalido } = {}) {  
-      this._nome = nome;  
-      this._telefone = telefone;  
-      this._atuacao = atuacao;  
-      this._invalido = invalido;  
-    }  
-    
-    get nome() {  
-      return this._nome ?? '';  
-    }  
-    
-    set nome(v) {  
-      this._nome = v;  
-    }  
-    
-    get telefone() {  
-      return this._telefone ?? '';  
-    }  
-    
-    set telefone(v) {  
-      this._telefone = v;  
-    }  
-    
-    get atuacao() {  
-      return this._atuacao ?? '';  
-    }  
-    
-    set atuacao(v) {  
-      this._atuacao = v;  
-    }  
-    
-    get invalido() {  
-      return this._invalido ?? 0;  
-    }  
-    
-    set invalido(v) {  
-      this._invalido = v;  
-    }  
-  }  
-    
-  /**  
-   * As três listas de questões vinham persistidas pelo Dart. Nada no jogo grava  
-   * essas chaves — só o admin publica baralho — mas a leitura fica para não  
-   * descartar o que um totem já tenha guardado.  
-   */  
-  function loadQuestions(name, fallback) {  
-    const list = readJson(name, null);  
-    return Array.isArray(list) && list.length > 0 ? list : fallback;  
-  }  
-    
-  class FFAppStateClass {  
-    constructor() {  
-      this.questoesBrasil = QUESTIONS.pt;  
-      this.questoesEnglish = QUESTIONS.en;  
-      this.questoesSpanish = QUESTIONS.es;  
-    
-      this.scannerEscolhido = '';  
-      this.tempoAcabando = false;  
-      this.escolha = 1.5;  
-    
-      /// Essa variável serve para controlar qual popUp estará aberto quando o  
-      /// user clicar.  0 = fechado, 1 = Apoio, Etc...  
-      this.ajuda = 0;  
-    
-      this.cadastro = new CadastroStruct();  
-      this.ordemNumeros = [4, 2, 3, 1];  
-      this.listaEscolhas = [];  
-      this.linguagem = '';  
-      this.finalizou = false;  
-    }  
-    
-    /** initializePersistedState() */  
-    initializePersistedState() {  
-      this.questoesBrasil = loadQuestions('questoes.pt', QUESTIONS.pt);  
-      this.questoesEnglish = loadQuestions('questoes.en', QUESTIONS.en);  
-      this.questoesSpanish = loadQuestions('questoes.es', QUESTIONS.es);  
-    }  
-    
-    /** update(callback) - runs the mutation then notifies listeners. */  
-    update(callback) {  
-      if (callback) callback();  
-      this.notifyListeners();  
-    }  
-    
-    addToListaEscolhas(value) {  
-      this.listaEscolhas.push(value);  
-    }  
-    
-    removeFromListaEscolhas(value) {  
-      const index = this.listaEscolhas.indexOf(value);  
-      if (index >= 0) this.listaEscolhas.splice(index, 1);  
-    }  
-    
-    notifyListeners() {  
-      for (const fn of listeners) fn(this);  
-    }  
-  }  
-    
-  const FFAppState = new FFAppStateClass();  
-    
-  /**  
-   * Contraparte de `notifyListeners()`. Hoje nenhuma tela assina — o porte  
-   * re-renderiza por navegação, não por observação — mas é o seam que dá sentido  
-   * ao `update()` espalhado pelo código, que existe por paridade com o  
-   * ChangeNotifier do Dart.  
-   */  
-  function onAppStateChange(fn) {  
-    listeners.add(fn);  
-    return () => listeners.delete(fn);  
+  
+  const listeners = new Set();
+  
+  /** CadastroStruct */
+  class CadastroStruct {
+    constructor({ nome, telefone, atuacao, invalido } = {}) {
+      this._nome = nome;
+      this._telefone = telefone;
+      this._atuacao = atuacao;
+      this._invalido = invalido;
+    }
+  
+    get nome() {
+      return this._nome ?? '';
+    }
+  
+    set nome(v) {
+      this._nome = v;
+    }
+  
+    get telefone() {
+      return this._telefone ?? '';
+    }
+  
+    set telefone(v) {
+      this._telefone = v;
+    }
+  
+    get atuacao() {
+      return this._atuacao ?? '';
+    }
+  
+    set atuacao(v) {
+      this._atuacao = v;
+    }
+  
+    get invalido() {
+      return this._invalido ?? 0;
+    }
+  
+    set invalido(v) {
+      this._invalido = v;
+    }
+  }
+  
+  /**
+   * As três listas de questões vinham persistidas pelo Dart. Nada no jogo grava
+   * essas chaves — só o admin publica baralho — mas a leitura fica para não
+   * descartar o que um totem já tenha guardado.
+   */
+  function loadQuestions(name, fallback) {
+    const list = readJson(name, null);
+    return Array.isArray(list) && list.length > 0 ? list : fallback;
+  }
+  
+  class FFAppStateClass {
+    constructor() {
+      this.questoesBrasil = QUESTIONS.pt;
+      this.questoesEnglish = QUESTIONS.en;
+      this.questoesSpanish = QUESTIONS.es;
+  
+      this.scannerEscolhido = '';
+      this.tempoAcabando = false;
+      this.escolha = 1.5;
+  
+      /// Essa variável serve para controlar qual popUp estará aberto quando o
+      /// user clicar.  0 = fechado, 1 = Apoio, Etc...
+      this.ajuda = 0;
+  
+      this.cadastro = new CadastroStruct();
+      this.ordemNumeros = [4, 2, 3, 1];
+      this.listaEscolhas = [];
+      this.linguagem = '';
+      this.finalizou = false;
+    }
+  
+    /** initializePersistedState() */
+    initializePersistedState() {
+      this.questoesBrasil = loadQuestions('questoes.pt', QUESTIONS.pt);
+      this.questoesEnglish = loadQuestions('questoes.en', QUESTIONS.en);
+      this.questoesSpanish = loadQuestions('questoes.es', QUESTIONS.es);
+    }
+  
+    /** update(callback) - runs the mutation then notifies listeners. */
+    update(callback) {
+      if (callback) callback();
+      this.notifyListeners();
+    }
+  
+    addToListaEscolhas(value) {
+      this.listaEscolhas.push(value);
+    }
+  
+    removeFromListaEscolhas(value) {
+      const index = this.listaEscolhas.indexOf(value);
+      if (index >= 0) this.listaEscolhas.splice(index, 1);
+    }
+  
+    notifyListeners() {
+      for (const fn of listeners) fn(this);
+    }
+  }
+  
+  const FFAppState = new FFAppStateClass();
+  
+  /**
+   * Contraparte de `notifyListeners()`. Hoje nenhuma tela assina — o porte
+   * re-renderiza por navegação, não por observação — mas é o seam que dá sentido
+   * ao `update()` espalhado pelo código, que existe por paridade com o
+   * ChangeNotifier do Dart.
+   */
+  function onAppStateChange(fn) {
+    listeners.add(fn);
+    return () => listeners.delete(fn);
   }
   Object.defineProperty(__exports, "CadastroStruct", { get: () => CadastroStruct, enumerable: true });
   Object.defineProperty(__exports, "FFAppState", { get: () => FFAppState, enumerable: true });
@@ -1741,202 +1741,202 @@
 
   /* ===== router.js ===== */
   __define("router.js", function (__exports, __require) {
-  // Port of lib/flutter_flow/nav/nav.dart - the go_router setup plus the  
-  // page_transition animations it hands to CustomTransitionPage.  
-  //  
-  // Routes keep the paths from the Dart, moved behind the hash so the app runs  
-  // from any static host (and from file://) without server rewrites:  
-  //   /cadastro -> #/cadastro  
-    
+  // Port of lib/flutter_flow/nav/nav.dart - the go_router setup plus the
+  // page_transition animations it hands to CustomTransitionPage.
+  //
+  // Routes keep the paths from the Dart, moved behind the hash so the app runs
+  // from any static host (and from file://) without server rewrites:
+  //   /cadastro -> #/cadastro
+  
   const { popAllDialogs } = __require("dialog.js");
   const { unfocus } = __require("widgets.js");
-    
-  const PageTransitionType = { fade: 'fade', scale: 'scale' };  
-    
-  const Alignment = {  
-    bottomCenter: [0, 1],  
-    center: [0, 0],  
-    topCenter: [0, -1],  
-  };  
-    
-  /** TransitionInfo from nav.dart. */  
-  class TransitionInfo {  
-    constructor({ hasTransition, transitionType = PageTransitionType.fade, duration = 300, alignment = null } = {}) {  
-      this.hasTransition = hasTransition;  
-      this.transitionType = transitionType;  
-      this.duration = duration;  
-      this.alignment = alignment;  
-    }  
-    
-    static appDefault() {  
-      return new TransitionInfo({ hasTransition: false });  
-    }  
-  }  
-    
-  const routes = new Map();  
-  /** name -> path, so goNamed/pushNamed can resolve like go_router does. */  
-  const namedPaths = new Map();  
-    
-  let current = null;  
-  let navigating = false;  
-    
-  function defineRoute({ name, path, builder }) {  
-    routes.set(path, { name, path, builder });  
-    namedPaths.set(name, path);  
-  }  
-    
-  function resolve(path) {  
-    const [bare] = path.split('?');  
-    return routes.get(bare) ?? null;  
-  }  
-    
-  function parseQuery(path) {  
-    const index = path.indexOf('?');  
-    if (index < 0) return {};  
-    return Object.fromEntries(new URLSearchParams(path.slice(index + 1)).entries());  
-  }  
-    
-  /** deserializeParam(value, ParamType.int) for the one int param in the app. */  
-  const ParamType = { int: 'int', String: 'String', double: 'double', bool: 'bool' };  
-    
-  function deserializeParam(raw, type) {  
-    if (raw == null) return null;  
-    switch (type) {  
-      case ParamType.int:  
-        return Number.parseInt(raw, 10);  
-      case ParamType.double:  
-        return Number.parseFloat(raw);  
-      case ParamType.bool:  
-        return raw === 'true';  
-      default:  
-        return raw;  
-    }  
-  }  
-    
-  const serializeParam = (value) => (value == null ? null : String(value));  
-    
-  /* --------------------------------------------------------- transitions ---- */  
-    
-  function transitionIn(node, info) {  
-    if (!info || !info.hasTransition || info.duration === 0) return Promise.resolve();  
-    const duration = info.duration;  
-    if (info.transitionType === PageTransitionType.scale) {  
-      const [ax, ay] = info.alignment ?? Alignment.center;  
-      node.style.transformOrigin = `${((ax + 1) / 2) * 100}% ${((ay + 1) / 2) * 100}%`;  
-      return node  
-        .animate([{ transform: 'scale(0)' }, { transform: 'scale(1)' }], {  
-          duration,  
-          easing: 'linear',  
-          fill: 'both',  
-        })  
-        .finished.catch(() => {});  
-    }  
-    return node  
-      .animate([{ opacity: 0 }, { opacity: 1 }], { duration, easing: 'linear', fill: 'both' })  
-      .finished.catch(() => {});  
-  }  
-    
-  function transitionOut(node, info) {  
-    if (!info || !info.hasTransition || info.duration === 0) return Promise.resolve();  
-    const duration = info.duration;  
-    if (info.transitionType === PageTransitionType.scale) {  
-      return node  
-        .animate([{ transform: 'scale(1)' }, { transform: 'scale(0)' }], { duration, easing: 'linear', fill: 'both' })  
-        .finished.catch(() => {});  
-    }  
-    return node  
-      .animate([{ opacity: 1 }, { opacity: 0 }], { duration, easing: 'linear', fill: 'both' })  
-      .finished.catch(() => {});  
-  }  
-    
-  /* -------------------------------------------------------------- navigate -- */  
-    
-  async function render(path, { info }) {  
-    if (navigating) return;  
-    navigating = true;  
-    try {  
-      const route = resolve(path) ?? resolve('/cadastro');  
-      const params = { ...parseQuery(path) };  
-    
-      popAllDialogs();  
-      unfocus();  
-    
-      const container = document.getElementById('pages');  
-      const previous = current;  
-    
-      if (previous) {  
-        // dispose() on the outgoing page's state.  
-        previous.dispose?.();  
-        await transitionOut(previous.node, info);  
-      }  
-    
-      const node = document.createElement('div');  
-      node.className = 'ff-page';  
-      node.dataset.route = route.name;  
-    
-      const page = route.builder({ params, node });  
-      if (page && page !== node) node.appendChild(page);  
-    
-      if (previous) previous.node.remove();  
-      container.appendChild(node);  
-    
-      current = { route, node, dispose: page?.__dispose ?? node.__dispose ?? null, path };  
-    
-      if (location.hash.slice(1) !== path) {  
-        history.replaceState({ path }, '', `#${path}`);  
-      }  
-    
-      await transitionIn(node, info);  
-    } finally {  
-      navigating = false;  
-    }  
-  }  
-    
-  /** `context.goNamed(name, queryParameters: ..., extra: {__transition_info__})` */  
-  function goNamed(name, { queryParameters = null, extra = null } = {}) {  
-    const path = buildPath(name, queryParameters);  
-    return render(path, { info: extra?.__transition_info__ });  
-  }  
-    
-  /**  
-   * `context.pushNamed(...)`.  
-   *  
-   * No go_router isto empilha a rota. Aqui nao existe pilha propria: o unico  
-   * consumidor era `safePop()`, que nenhuma tela chamava (o Dart tambem nao), e  
-   * o botao Voltar do navegador ja e tratado pelo listener de `hashchange`. Fica  
-   * como sinonimo de goNamed para os call sites continuarem legiveis ao lado do  
-   * Dart.  
-   */  
-  function pushNamed(name, { queryParameters = null, extra = null } = {}) {  
-    const path = buildPath(name, queryParameters);  
-    return render(path, { info: extra?.__transition_info__ });  
-  }  
-    
-  /** `context.go(path)` */  
-  function go(path) {  
-    return render(path, { info: null });  
-  }  
-    
-  function buildPath(name, queryParameters) {  
-    const path = namedPaths.get(name);  
-    if (!path) throw new Error(`unknown route: ${name}`);  
-    const entries = Object.entries(queryParameters ?? {}).filter(([, v]) => v != null);  
-    if (entries.length === 0) return path;  
-    return `${path}?${new URLSearchParams(entries).toString()}`;  
-  }  
-    
-  /** initialLocation: '/' */  
-  function startRouter() {  
-    const initial = location.hash.slice(1) || '/';  
-    render(initial, { info: null });  
-    
-    window.addEventListener('hashchange', () => {  
-      const path = location.hash.slice(1) || '/';  
-      if (current && current.path === path) return;  
-      render(path, { info: null });  
-    });  
-  }  
-    
+  
+  const PageTransitionType = { fade: 'fade', scale: 'scale' };
+  
+  const Alignment = {
+    bottomCenter: [0, 1],
+    center: [0, 0],
+    topCenter: [0, -1],
+  };
+  
+  /** TransitionInfo from nav.dart. */
+  class TransitionInfo {
+    constructor({ hasTransition, transitionType = PageTransitionType.fade, duration = 300, alignment = null } = {}) {
+      this.hasTransition = hasTransition;
+      this.transitionType = transitionType;
+      this.duration = duration;
+      this.alignment = alignment;
+    }
+  
+    static appDefault() {
+      return new TransitionInfo({ hasTransition: false });
+    }
+  }
+  
+  const routes = new Map();
+  /** name -> path, so goNamed/pushNamed can resolve like go_router does. */
+  const namedPaths = new Map();
+  
+  let current = null;
+  let navigating = false;
+  
+  function defineRoute({ name, path, builder }) {
+    routes.set(path, { name, path, builder });
+    namedPaths.set(name, path);
+  }
+  
+  function resolve(path) {
+    const [bare] = path.split('?');
+    return routes.get(bare) ?? null;
+  }
+  
+  function parseQuery(path) {
+    const index = path.indexOf('?');
+    if (index < 0) return {};
+    return Object.fromEntries(new URLSearchParams(path.slice(index + 1)).entries());
+  }
+  
+  /** deserializeParam(value, ParamType.int) for the one int param in the app. */
+  const ParamType = { int: 'int', String: 'String', double: 'double', bool: 'bool' };
+  
+  function deserializeParam(raw, type) {
+    if (raw == null) return null;
+    switch (type) {
+      case ParamType.int:
+        return Number.parseInt(raw, 10);
+      case ParamType.double:
+        return Number.parseFloat(raw);
+      case ParamType.bool:
+        return raw === 'true';
+      default:
+        return raw;
+    }
+  }
+  
+  const serializeParam = (value) => (value == null ? null : String(value));
+  
+  /* --------------------------------------------------------- transitions ---- */
+  
+  function transitionIn(node, info) {
+    if (!info || !info.hasTransition || info.duration === 0) return Promise.resolve();
+    const duration = info.duration;
+    if (info.transitionType === PageTransitionType.scale) {
+      const [ax, ay] = info.alignment ?? Alignment.center;
+      node.style.transformOrigin = `${((ax + 1) / 2) * 100}% ${((ay + 1) / 2) * 100}%`;
+      return node
+        .animate([{ transform: 'scale(0)' }, { transform: 'scale(1)' }], {
+          duration,
+          easing: 'linear',
+          fill: 'both',
+        })
+        .finished.catch(() => {});
+    }
+    return node
+      .animate([{ opacity: 0 }, { opacity: 1 }], { duration, easing: 'linear', fill: 'both' })
+      .finished.catch(() => {});
+  }
+  
+  function transitionOut(node, info) {
+    if (!info || !info.hasTransition || info.duration === 0) return Promise.resolve();
+    const duration = info.duration;
+    if (info.transitionType === PageTransitionType.scale) {
+      return node
+        .animate([{ transform: 'scale(1)' }, { transform: 'scale(0)' }], { duration, easing: 'linear', fill: 'both' })
+        .finished.catch(() => {});
+    }
+    return node
+      .animate([{ opacity: 1 }, { opacity: 0 }], { duration, easing: 'linear', fill: 'both' })
+      .finished.catch(() => {});
+  }
+  
+  /* -------------------------------------------------------------- navigate -- */
+  
+  async function render(path, { info }) {
+    if (navigating) return;
+    navigating = true;
+    try {
+      const route = resolve(path) ?? resolve('/cadastro');
+      const params = { ...parseQuery(path) };
+  
+      popAllDialogs();
+      unfocus();
+  
+      const container = document.getElementById('pages');
+      const previous = current;
+  
+      if (previous) {
+        // dispose() on the outgoing page's state.
+        previous.dispose?.();
+        await transitionOut(previous.node, info);
+      }
+  
+      const node = document.createElement('div');
+      node.className = 'ff-page';
+      node.dataset.route = route.name;
+  
+      const page = route.builder({ params, node });
+      if (page && page !== node) node.appendChild(page);
+  
+      if (previous) previous.node.remove();
+      container.appendChild(node);
+  
+      current = { route, node, dispose: page?.__dispose ?? node.__dispose ?? null, path };
+  
+      if (location.hash.slice(1) !== path) {
+        history.replaceState({ path }, '', `#${path}`);
+      }
+  
+      await transitionIn(node, info);
+    } finally {
+      navigating = false;
+    }
+  }
+  
+  /** `context.goNamed(name, queryParameters: ..., extra: {__transition_info__})` */
+  function goNamed(name, { queryParameters = null, extra = null } = {}) {
+    const path = buildPath(name, queryParameters);
+    return render(path, { info: extra?.__transition_info__ });
+  }
+  
+  /**
+   * `context.pushNamed(...)`.
+   *
+   * No go_router isto empilha a rota. Aqui nao existe pilha propria: o unico
+   * consumidor era `safePop()`, que nenhuma tela chamava (o Dart tambem nao), e
+   * o botao Voltar do navegador ja e tratado pelo listener de `hashchange`. Fica
+   * como sinonimo de goNamed para os call sites continuarem legiveis ao lado do
+   * Dart.
+   */
+  function pushNamed(name, { queryParameters = null, extra = null } = {}) {
+    const path = buildPath(name, queryParameters);
+    return render(path, { info: extra?.__transition_info__ });
+  }
+  
+  /** `context.go(path)` */
+  function go(path) {
+    return render(path, { info: null });
+  }
+  
+  function buildPath(name, queryParameters) {
+    const path = namedPaths.get(name);
+    if (!path) throw new Error(`unknown route: ${name}`);
+    const entries = Object.entries(queryParameters ?? {}).filter(([, v]) => v != null);
+    if (entries.length === 0) return path;
+    return `${path}?${new URLSearchParams(entries).toString()}`;
+  }
+  
+  /** initialLocation: '/' */
+  function startRouter() {
+    const initial = location.hash.slice(1) || '/';
+    render(initial, { info: null });
+  
+    window.addEventListener('hashchange', () => {
+      const path = location.hash.slice(1) || '/';
+      if (current && current.path === path) return;
+      render(path, { info: null });
+    });
+  }
+  
   const currentRoute = () => current?.route?.name ?? null;
   Object.defineProperty(__exports, "PageTransitionType", { get: () => PageTransitionType, enumerable: true });
   Object.defineProperty(__exports, "Alignment", { get: () => Alignment, enumerable: true });
@@ -2413,72 +2413,72 @@
 
   /* ===== i18n.js ===== */
   __define("i18n.js", function (__exports, __require) {
-  // Port of lib/flutter_flow/internationalization.dart.  
-    
+  // Port of lib/flutter_flow/internationalization.dart.
+  
   const { TRANSLATIONS } = __require("translations.js");
   const { readRaw, writeRaw } = __require("storage.js");
-    
-  /** FFLocalizations.languages() */  
-  const LANGUAGES = ['pt', 'es', 'en'];  
-    
-  /** Display names come from _defaultLanguagesList, in that list's order:  
-   *  English, Português, Español. */  
-  const LANGUAGE_NAMES = [  
-    { isoCode: 'en', name: 'English' },  
-    { isoCode: 'pt', name: 'Português' },  
-    { isoCode: 'es', name: 'Español' },  
-  ];  
-    
-  const listeners = new Set();  
-    
-  let locale = readStoredLocale() ?? defaultLocale();  
-    
-  function readStoredLocale() {  
-    const stored = readRaw('locale');  
-    return stored && stored.length ? stored : null;  
-  }  
-    
-  function defaultLocale() {  
-    // MaterialApp with a null locale falls back to the platform locale when it is  
-    // in supportedLocales, otherwise to the first supported one ('pt').  
-    const nav = (navigator.language || 'pt').toLowerCase().split('-')[0];  
-    return LANGUAGES.includes(nav) ? nav : 'pt';  
-  }  
-    
-  const FFLocalizations = {  
-    get languageCode() {  
-      return locale;  
-    },  
-    
-    get languageIndex() {  
-      return LANGUAGES.includes(locale) ? LANGUAGES.indexOf(locale) : 0;  
-    },  
-    
-    /** getText(key) - falls back to '' just like the Dart. */  
-    getText(key) {  
-      return (TRANSLATIONS[key] ?? {})[locale] ?? '';  
-    },  
-    
-    /** getVariableText({ptText, esText, enText}) indexes by languageIndex. */  
-    getVariableText({ ptText = '', esText = '', enText = '' } = {}) {  
-      return [ptText, esText, enText][this.languageIndex] ?? '';  
-    },  
-  };  
-    
-  /** `setAppLanguage(context, lang)` */  
-  function setAppLanguage(lang) {  
-    locale = lang;  
-    writeRaw('locale', lang);  
-    document.documentElement.lang = lang === 'pt' ? 'pt-BR' : lang;  
-    for (const fn of listeners) fn(lang);  
-  }  
-    
-  function onLanguageChange(fn) {  
-    listeners.add(fn);  
-    return () => listeners.delete(fn);  
-  }  
-    
-  /** Convenience alias used all over the pages, mirroring `L('key' /* text *​/)`. */  
+  
+  /** FFLocalizations.languages() */
+  const LANGUAGES = ['pt', 'es', 'en'];
+  
+  /** Display names come from _defaultLanguagesList, in that list's order:
+   *  English, Português, Español. */
+  const LANGUAGE_NAMES = [
+    { isoCode: 'en', name: 'English' },
+    { isoCode: 'pt', name: 'Português' },
+    { isoCode: 'es', name: 'Español' },
+  ];
+  
+  const listeners = new Set();
+  
+  let locale = readStoredLocale() ?? defaultLocale();
+  
+  function readStoredLocale() {
+    const stored = readRaw('locale');
+    return stored && stored.length ? stored : null;
+  }
+  
+  function defaultLocale() {
+    // MaterialApp with a null locale falls back to the platform locale when it is
+    // in supportedLocales, otherwise to the first supported one ('pt').
+    const nav = (navigator.language || 'pt').toLowerCase().split('-')[0];
+    return LANGUAGES.includes(nav) ? nav : 'pt';
+  }
+  
+  const FFLocalizations = {
+    get languageCode() {
+      return locale;
+    },
+  
+    get languageIndex() {
+      return LANGUAGES.includes(locale) ? LANGUAGES.indexOf(locale) : 0;
+    },
+  
+    /** getText(key) - falls back to '' just like the Dart. */
+    getText(key) {
+      return (TRANSLATIONS[key] ?? {})[locale] ?? '';
+    },
+  
+    /** getVariableText({ptText, esText, enText}) indexes by languageIndex. */
+    getVariableText({ ptText = '', esText = '', enText = '' } = {}) {
+      return [ptText, esText, enText][this.languageIndex] ?? '';
+    },
+  };
+  
+  /** `setAppLanguage(context, lang)` */
+  function setAppLanguage(lang) {
+    locale = lang;
+    writeRaw('locale', lang);
+    document.documentElement.lang = lang === 'pt' ? 'pt-BR' : lang;
+    for (const fn of listeners) fn(lang);
+  }
+  
+  function onLanguageChange(fn) {
+    listeners.add(fn);
+    return () => listeners.delete(fn);
+  }
+  
+  /** Convenience alias used all over the pages, mirroring `L('key' /* text *​/)`. */
   const L = (key) => FFLocalizations.getText(key);
   Object.defineProperty(__exports, "LANGUAGES", { get: () => LANGUAGES, enumerable: true });
   Object.defineProperty(__exports, "LANGUAGE_NAMES", { get: () => LANGUAGE_NAMES, enumerable: true });
@@ -3211,6 +3211,8 @@
   const { getRecords, putRecord } = __require("storage.js");
     
   const LOCAL_KEY = 'usuarios';  
+  /** Telefone fica separado do ranking; ver addUsuario e firebase/firestore.rules. */  
+  const CONTACT_KEY = 'contatos';  
     
   /* -------------------------------------------------------- UsuariosRecord -- */  
     
@@ -3256,12 +3258,25 @@
     
   /**  
    * `await UsuariosRecord.collection.doc().set(createUsuariosRecordData(...))`  
-   * The `data` field is a server timestamp in the Dart; here it is the client  
-   * clock, which is only ever used for ordering the ranking.  
+   *  
+   * O Dart gravava tudo — inclusive o TELEFONE — numa unica colecao `usuarios`,  
+   * cujas regras liberavam leitura para qualquer um. Como o ranking do jogo le  
+   * essa colecao no cliente, sem servidor, a leitura tem de continuar publica; o  
+   * que muda e o que vai la dentro. O registro e partido em dois:  
+   *  
+   *   usuarios  o resultado da partida, SEM telefone  -> e o que o ranking le  
+   *   contatos  nome + telefone                       -> escrita cega, leitura autenticada  
+   *  
+   * Ver firebase/firestore.rules. O `data` e server timestamp no Dart; aqui, com  
+   * Firestore desligado, e o relogio do cliente, usado so para ordenar e para a  
+   * retencao de um ano.  
    */  
   async function addUsuario(record, { serverTimestamp = false } = {}) {  
-    const row = { ...record };  
+    const { telefone, ...partida } = record;  
+    const row = { ...partida };  
     if (serverTimestamp) row.data = new Date().toISOString();  
+    
+    const contato = telefone ? { nome: partida.nome ?? '', telefone, ...(row.data ? { data: row.data } : {}) } : null;  
     
     if (CONFIG.useFirestore) {  
       try {  
@@ -3269,6 +3284,11 @@
         const payload = { ...row };  
         if (serverTimestamp) payload.data = fs.serverTimestamp();  
         await fs.addDoc(fs.collection(db, 'usuarios'), payload);  
+        if (contato) {  
+          const c = { ...contato };  
+          if (serverTimestamp) c.data = fs.serverTimestamp();  
+          await fs.addDoc(fs.collection(db, 'contatos'), c);  
+        }  
         return;  
       } catch (error) {  
         console.warn('Firestore write failed, falling back to local storage.', error);  
@@ -3276,6 +3296,7 @@
     }  
     
     putRecord(LOCAL_KEY, row);  
+    if (contato) putRecord(CONTACT_KEY, contato);  
   }  
     
   /**  
@@ -3324,11 +3345,13 @@
     return readLocal().length;  
   }  
     
-  /** UsuariosRecord's getters all default a missing field. */  
+  /**  
+   * UsuariosRecord's getters all default a missing field. `telefone` saiu de  
+   * proposito: o ranking nao o le mais (ver addUsuario).  
+   */  
   function normalize(row) {  
     return {  
       nome: row.nome ?? '',  
-      telefone: row.telefone ?? '',  
       atuacao: row.atuacao ?? '',  
       venceu: row.venceu ?? false,  
       tempo: row.tempo ?? 0.0,  
@@ -3353,7 +3376,9 @@
     };  
     
     if (!CONFIG.useWhatsApp) {  
-      console.info('[enviarMensagemZap] disabled in config.js', { numero, resultado, body });  
+      // Sem despejar numero nem corpo: o console do totem fica visivel a quem  
+      // abrir o inspetor, e isto e dado pessoal.  
+      console.info('[enviarMensagemZap] desligado em config.js (useWhatsApp)');  
       return { succeeded: false, skipped: true };  
     }  
     
@@ -3374,7 +3399,7 @@
    *  Dart but never called from a widget; kept for parity. */  
   async function enviarMensagemAgente({ nome = '', telefone = '', venceu = null } = {}) {  
     if (!CONFIG.useAgentWebhook) {  
-      console.info('[enviarMensagemAgente] disabled in config.js', { nome, telefone, venceu });  
+      console.info('[enviarMensagemAgente] desligado em config.js (useAgentWebhook)');  
       return { succeeded: false, skipped: true };  
     }  
     try {  
@@ -3842,496 +3867,496 @@
 
   /* ===== forms.js ===== */
   __define("forms.js", function (__exports, __require) {
-  // Ports of the FlutterFlow form widgets the project uses:  
-  // TextFormField + InputDecoration, FlutterFlowDropDown (dropdown_button2),  
-  // FlutterFlowLanguageSelector, FFButtonWidget and MaskTextInputFormatter.  
-    
+  // Ports of the FlutterFlow form widgets the project uses:
+  // TextFormField + InputDecoration, FlutterFlowDropDown (dropdown_button2),
+  // FlutterFlowLanguageSelector, FFButtonWidget and MaskTextInputFormatter.
+  
   const { el, px, Icon, Txt, Colors } = __require("widgets.js");
   const { LANGUAGE_NAMES } = __require("i18n.js");
-    
-  /* --------------------------------------------------- MaskTextInputFormatter */  
-    
-  /**  
-   * mask_text_input_formatter with the single mask this app uses,  
-   * '(##) #####-####': '#' takes one digit, everything else is a literal that is  
-   * inserted automatically.  
-   */  
-  class MaskTextInputFormatter {  
-    constructor({ mask }) {  
-      this.mask = mask;  
-    }  
-    
-    format(raw) {  
-      const digits = (raw ?? '').replace(/\D/g, '');  
-      let out = '';  
-      let index = 0;  
-      for (const ch of this.mask) {  
-        if (index >= digits.length) break;  
-        if (ch === '#') {  
-          out += digits[index++];  
-        } else {  
-          out += ch;  
-        }  
-      }  
-      return out;  
-    }  
-  }  
-    
-  /* -------------------------------------------------------- TextFormField --- */  
-    
-  const styleToCss = (style = {}) => ({  
-    fontFamily: style.fontFamily ? `'${style.fontFamily}', sans-serif` : null,  
-    fontSize: style.fontSize != null ? `${style.fontSize}px` : null,  
-    fontWeight: style.fontWeight != null ? String(style.fontWeight) : null,  
-    fontStyle: style.fontStyle || null,  
-    color: style.color || null,  
-    letterSpacing: style.letterSpacing != null ? `${style.letterSpacing}px` : null,  
-  });  
-    
-  /**  
-   * TextFormField wrapped in its InputDecoration.  
-   *  
-   * Flutter's non-dense outline InputDecoration uses  
-   * `EdgeInsets.symmetric(horizontal: 12, vertical: 20)` for content padding,  
-   * which is what sets the field's height here.  
-   *  
-   * @returns {HTMLElement} the decorated field, with `.controller` attached  
-   */  
-  function TextFormField({  
-    controller,  
-    hintText,  
-    hintStyle,  
-    errorStyle,  
-    style,  
-    fillColor,  
-    borderRadius = 8,  
-    borderColor = 'rgba(0,0,0,0)',  
-    errorColor,  
-    borderWidth = 1,  
-    maxLength,  
-    keyboardType,  
-    inputFormatter,  
-    cursorColor,  
-    validator,  
-    width,  
-    onSubmitted,  
-  } = {}) {  
-    const input = el('input', {  
-      class: 'ff-input',  
-      type: keyboardType === 'number' ? 'tel' : 'text',  
-      inputmode: keyboardType === 'number' ? 'numeric' : null,  
-      autocomplete: 'off',  
-      autocapitalize: 'off',  
-      spellcheck: 'false',  
-      style: { ...styleToCss(style), caretColor: cursorColor || null },  
-    });  
-    if (maxLength != null) input.maxLength = maxLength;  
-    
-    // hintText/hintStyle -> a ::placeholder that can be styled per field.  
-    input.placeholder = hintText ?? '';  
-    const hintCss = styleToCss(hintStyle ?? {});  
-    const uid = `ff-f${Math.random().toString(36).slice(2, 8)}`;  
-    input.classList.add(uid);  
-    const sheet = el('style', {  
-      text: `.${uid}::placeholder{${Object.entries(hintCss)  
-        .filter(([, v]) => v)  
-        .map(([k, v]) => `${k.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)}:${v}`)  
-        .join(';')};opacity:1}`,  
-    });  
-    
-    const field = el('div', {  
-      class: 'ff-field',  
-      style: {  
-        background: fillColor || null,  
-        borderRadius: `${borderRadius}px`,  
-        borderColor,  
-        borderWidth: `${borderWidth}px`,  
-        minHeight: `${(style?.fontSize ?? 14) * 1.2109 + 40 + borderWidth * 2}px`,  
-      },  
-    }, input);  
-    
-    const error = el('div', { class: 'ff-text ff-field-error', style: styleToCss(errorStyle ?? {}) });  
-    error.hidden = true;  
-    
-    const wrapper = el(  
-      'div',  
-      { style: { width: px(width ?? Infinity), maxWidth: '100%', display: 'flex', flexDirection: 'column' } },  
-      [sheet, field, error]  
-    );  
-    
-    if (inputFormatter) {  
-      input.addEventListener('input', () => {  
-        const caretAtEnd = input.selectionStart === input.value.length;  
-        const formatted = inputFormatter.format(input.value);  
-        if (formatted !== input.value) {  
-          input.value = formatted;  
-          if (caretAtEnd) input.setSelectionRange(formatted.length, formatted.length);  
-        }  
-        controller.text = input.value;  
-      });  
-    } else {  
-      input.addEventListener('input', () => {  
-        controller.text = input.value;  
-      });  
-    }  
-    
-    if (onSubmitted) {  
-      input.addEventListener('keydown', (event) => {  
-        if (event.key === 'Enter') {  
-          event.preventDefault();  
-          onSubmitted(input.value);  
-        }  
-      });  
-    }  
-    
-    controller.attach(input);  
-    
-    const setBorder = (c) => {  
-      field.style.borderColor = c;  
-    };  
-    
-    wrapper.validate = () => {  
-      const message = validator ? validator(input.value) : null;  
-      if (message) {  
-        error.textContent = message;  
-        error.hidden = false;  
-        setBorder(errorColor ?? borderColor);  
-        return false;  
-      }  
-      error.hidden = true;  
-      error.textContent = '';  
-      setBorder(borderColor);  
-      return true;  
-    };  
-    
-    wrapper.input = input;  
-    return wrapper;  
-  }  
-    
-  /** TextEditingController */  
-  class TextEditingController {  
-    constructor(text = '') {  
-      this._text = text;  
-      this._node = null;  
-    }  
-    
-    attach(node) {  
-      this._node = node;  
-      node.value = this._text;  
-    }  
-    
-    get text() {  
-      return this._node ? this._node.value : this._text;  
-    }  
-    
-    set text(value) {  
-      this._text = value;  
-      if (this._node) this._node.value = value;  
-    }  
-  }  
-    
-  /** GlobalKey<FormState> + Form: validate() runs every field's validator. */  
-  class FormState {  
-    constructor() {  
-      this.fields = [];  
-    }  
-    
-    register(field) {  
-      this.fields.push(field);  
-    }  
-    
-    validate() {  
-      // Validate all of them so every message shows at once, like Flutter does.  
-      return this.fields.map((f) => f.validate()).every(Boolean);  
-    }  
-  }  
-    
-  /* ------------------------------------------------- FlutterFlowDropDown ---- */  
-    
-  /** FormFieldController<T> */  
-  class FormFieldController {  
-    constructor(value = null) {  
-      this.value = value;  
-    }  
-  }  
-    
-  /**  
-   * FlutterFlowDropDown. Renders the dropdown_button2 shape the Dart configures:  
-   * a rounded, filled button with the value or hint on the left and the icon on  
-   * the right, and a menu the same width as the button (radius 4, fillColor).  
-   */  
-  function FlutterFlowDropDown({  
-    controller,  
-    options,  
-    optionLabels = null,  
-    onChanged,  
-    width,  
-    height,  
-    textStyle,  
-    hintText,  
-    icon,  
-    fillColor,  
-    borderColor = Colors.transparent,  
-    borderWidth = 0,  
-    borderRadius = 8,  
-    margin = [0, 0, 0, 0],  
-    maxHeight = null,  
-    /** dropdownStyleData's colour; the FF dropdown reuses fillColor, the  
-     *  language selector passes its own `dropdownColor`. */  
-    menuColor = null,  
-  } = {}) {  
-    const labelFor = (option, index) =>  
-      optionLabels && optionLabels.length > index ? optionLabels[index] : String(option);  
-    
-    const label = el('div', {  
-      class: 'ff-text',  
-      style: {  
-        ...styleToCss(textStyle),  
-        flex: '1 1 0',  
-        minWidth: 0,  
-        whiteSpace: 'nowrap',  
-        overflow: 'hidden',  
-        textOverflow: 'ellipsis',  
-        textAlign: 'left',  
-      },  
-      text: controller.value != null ? labelFor(controller.value, options.indexOf(controller.value)) : hintText ?? '',  
-    });  
-    if (textStyle?.fontFamily) label.dataset.family = textStyle.fontFamily;  
-    
-    const [ml, , mr] = margin;  
-    
-    const menu = el('div', {  
-      class: 'ff-dropdown-menu',  
-      style: {  
-        background: menuColor || fillColor || null,  
-        borderRadius: '4px',  
-        left: '0',  
-        right: '0',  
-        top: '100%',  
-        maxHeight: maxHeight != null ? `${maxHeight}px` : '420px',  
-      },  
-    });  
-    menu.hidden = true;  
-    
-    options.forEach((option, index) => {  
-      const item = el('div', {  
-        class: 'ff-dropdown-item ff-text',  
-        style: { ...styleToCss(textStyle), padding: `${(height ?? 48) / 4}px ${mr}px ${(height ?? 48) / 4}px ${ml}px` },  
-        text: labelFor(option, index),  
-      });  
-      if (textStyle?.fontFamily) item.dataset.family = textStyle.fontFamily;  
-      item.addEventListener('click', (event) => {  
-        event.stopPropagation();  
-        controller.value = option;  
-        label.textContent = labelFor(option, index);  
-        close();  
-        // O índice vai junto porque quem chama às vezes precisa saber QUAL opção  
-        // foi escolhida, e não só o rótulo já traduzido (ver cadastro.js).  
-        onChanged?.(option, index);  
-      });  
-      menu.appendChild(item);  
-    });  
-    
-    const button = el(  
-      'div',  
-      {  
-        class: 'ff-dropdown',  
-        style: {  
-          height: '100%',  
-          padding: `0 ${mr}px 0 ${ml}px`,  
-          gap: '4px',  
-        },  
-      },  
-      [label, icon]  
-    );  
-    
-    const root = el(  
-      'div',  
-      {  
-        style: {  
-          position: 'relative',  
-          width: px(width ?? Infinity),  
-          height: px(height),  
-          flex: 'none',  
-          background: fillColor || null,  
-          borderRadius: `${borderRadius}px`,  
-          border: `${borderWidth}px solid ${borderColor}`,  
-        },  
-      },  
-      [button, menu]  
-    );  
-    
-    const close = () => {  
-      menu.hidden = true;  
-      document.removeEventListener('click', onDocumentClick, true);  
-    };  
-    const onDocumentClick = (event) => {  
-      if (!root.contains(event.target)) close();  
-    };  
-    
-    button.addEventListener('click', (event) => {  
-      event.stopPropagation();  
-      if (menu.hidden) {  
-        menu.hidden = false;  
-        document.addEventListener('click', onDocumentClick, true);  
-      } else {  
-        close();  
-      }  
-    });  
-    
-    return root;  
-  }  
-    
-  /* --------------------------------------------- FlutterFlowLanguageSelector */  
-    
-  /** The Dart passes hideFlags: true, so only the language names show. */  
-  function FlutterFlowLanguageSelector({  
-    width,  
-    height,  
-    backgroundColor,  
-    borderColor = Colors.transparent,  
-    dropdownColor,  
-    dropdownIconColor,  
-    borderRadius = 8,  
-    textStyle,  
-    currentLanguage,  
-    languages,  
-    onChanged,  
-  } = {}) {  
-    const available = LANGUAGE_NAMES.filter((entry) => languages.includes(entry.isoCode));  
-    const controller = new FormFieldController(currentLanguage);  
-    
-    return FlutterFlowDropDown({  
-      controller,  
-      options: available.map((entry) => entry.isoCode),  
-      optionLabels: available.map((entry) => entry.name),  
-      onChanged,  
-      width,  
-      height,  
-      textStyle,  
-      hintText: available.find((entry) => entry.isoCode === currentLanguage)?.name ?? '',  
-      // DropdownButton's default icon at its default 24px, tinted by  
-      // dropdownIconColor, and the picker's own 15px horizontal padding.  
-      icon: Icon('arrow_drop_down', { color: dropdownIconColor, size: 24 }),  
-      fillColor: backgroundColor,  
-      borderColor,  
-      borderWidth: 1,  
-      borderRadius,  
-      margin: [15, 0, 15, 0],  
-      menuColor: dropdownColor,  
-    });  
-  }  
-    
-  /* ------------------------------------------------------- FFButtonWidget --- */  
-    
-  /** FFButtonWidget + FFButtonOptions. */  
-  function FFButtonWidget({ text, onPressed, options = {} } = {}) {  
-    const {  
-      width,  
-      height,  
-      padding = [0, 0, 0, 0],  
-      color,  
-      textStyle,  
-      elevation = 0,  
-      borderSide = null,  
-      borderRadius = 8,  
-    } = options;  
-    const [l, t, r, b] = padding;  
-    
-    const label = Txt(text, textStyle ?? {});  
-    label.style.whiteSpace = 'nowrap';  
-    
-    const node = el(  
-      'button',  
-      {  
-        class: 'ff-btn',  
-        type: 'button',  
-        style: {  
-          width: px(width),  
-          height: px(height),  
-          flex: 'none',  
-          background: color || null,  
-          borderRadius: `${borderRadius}px`,  
-          border: borderSide ? `${borderSide.width ?? 1}px solid ${borderSide.color}` : 'none',  
-          padding: `${t}px ${r}px ${b}px ${l}px`,  
-          display: 'flex',  
-          alignItems: 'center',  
-          justifyContent: 'center',  
-          boxShadow: elevation ? `0 ${elevation}px ${elevation * 2}px rgba(0,0,0,0.24)` : null,  
-        },  
-      },  
-      label  
-    );  
-    
-    if (onPressed) {  
-      node.addEventListener('click', (event) => {  
-        event.stopPropagation();  
-        onPressed(event);  
-      });  
-    }  
-    return node;  
-  }  
-    
-  /**  
-   * Curves.ease = cubic-bezier(0.25, 0.1, 0.25, 1), avaliada por bisseccao em x.  
-   * Antes aqui havia uma curva inventada que so acertava os extremos.  
-   */  
-  function curveEase(t) {  
-    if (t <= 0) return 0;  
-    if (t >= 1) return 1;  
-    const bez = (a, b, u) => {  
-      const v = 1 - u;  
-      return 3 * v * v * u * a + 3 * v * u * u * b + u * u * u;  
-    };  
-    let lo = 0;  
-    let hi = 1;  
-    let u = t;  
-    for (let i = 0; i < 20; i++) {  
-      u = (lo + hi) / 2;  
-      if (bez(0.25, 0.25, u) < t) lo = u;  
-      else hi = u;  
-    }  
-    return bez(0.1, 1, u);  
-  }  
-    
-  /** ScrollController, used by the ranking dialog's auto-scroll. */  
-  class ScrollController {  
-    constructor() {  
-      this.node = null;  
-      this._animation = null;  
-    }  
-    
-    attach(node) {  
-      this.node = node;  
-    }  
-    
-    get maxScrollExtent() {  
-      if (!this.node) return 0;  
-      return Math.max(0, this.node.scrollHeight - this.node.clientHeight);  
-    }  
-    
-    /** animateTo(offset, duration, curve) */  
-    animateTo(offset, { duration = 0 } = {}) {  
-      const node = this.node;  
-      if (!node) return Promise.resolve();  
-      const from = node.scrollTop;  
-      const to = typeof offset === 'number' ? offset : this.maxScrollExtent;  
-      const start = performance.now();  
-      this._animation?.cancel?.();  
-    
-      return new Promise((resolve) => {  
-        let cancelled = false;  
-        this._animation = { cancel: () => (cancelled = true) };  
-        const step = (now) => {  
-          if (cancelled || !node.isConnected) return resolve();  
-          const t = duration === 0 ? 1 : Math.min(1, (now - start) / duration);  
-          node.scrollTop = from + (to - from) * curveEase(t);  
-          if (t < 1) requestAnimationFrame(step);  
-          else resolve();  
-        };  
-        requestAnimationFrame(step);  
-      });  
-    }  
+  
+  /* --------------------------------------------------- MaskTextInputFormatter */
+  
+  /**
+   * mask_text_input_formatter with the single mask this app uses,
+   * '(##) #####-####': '#' takes one digit, everything else is a literal that is
+   * inserted automatically.
+   */
+  class MaskTextInputFormatter {
+    constructor({ mask }) {
+      this.mask = mask;
+    }
+  
+    format(raw) {
+      const digits = (raw ?? '').replace(/\D/g, '');
+      let out = '';
+      let index = 0;
+      for (const ch of this.mask) {
+        if (index >= digits.length) break;
+        if (ch === '#') {
+          out += digits[index++];
+        } else {
+          out += ch;
+        }
+      }
+      return out;
+    }
+  }
+  
+  /* -------------------------------------------------------- TextFormField --- */
+  
+  const styleToCss = (style = {}) => ({
+    fontFamily: style.fontFamily ? `'${style.fontFamily}', sans-serif` : null,
+    fontSize: style.fontSize != null ? `${style.fontSize}px` : null,
+    fontWeight: style.fontWeight != null ? String(style.fontWeight) : null,
+    fontStyle: style.fontStyle || null,
+    color: style.color || null,
+    letterSpacing: style.letterSpacing != null ? `${style.letterSpacing}px` : null,
+  });
+  
+  /**
+   * TextFormField wrapped in its InputDecoration.
+   *
+   * Flutter's non-dense outline InputDecoration uses
+   * `EdgeInsets.symmetric(horizontal: 12, vertical: 20)` for content padding,
+   * which is what sets the field's height here.
+   *
+   * @returns {HTMLElement} the decorated field, with `.controller` attached
+   */
+  function TextFormField({
+    controller,
+    hintText,
+    hintStyle,
+    errorStyle,
+    style,
+    fillColor,
+    borderRadius = 8,
+    borderColor = 'rgba(0,0,0,0)',
+    errorColor,
+    borderWidth = 1,
+    maxLength,
+    keyboardType,
+    inputFormatter,
+    cursorColor,
+    validator,
+    width,
+    onSubmitted,
+  } = {}) {
+    const input = el('input', {
+      class: 'ff-input',
+      type: keyboardType === 'number' ? 'tel' : 'text',
+      inputmode: keyboardType === 'number' ? 'numeric' : null,
+      autocomplete: 'off',
+      autocapitalize: 'off',
+      spellcheck: 'false',
+      style: { ...styleToCss(style), caretColor: cursorColor || null },
+    });
+    if (maxLength != null) input.maxLength = maxLength;
+  
+    // hintText/hintStyle -> a ::placeholder that can be styled per field.
+    input.placeholder = hintText ?? '';
+    const hintCss = styleToCss(hintStyle ?? {});
+    const uid = `ff-f${Math.random().toString(36).slice(2, 8)}`;
+    input.classList.add(uid);
+    const sheet = el('style', {
+      text: `.${uid}::placeholder{${Object.entries(hintCss)
+        .filter(([, v]) => v)
+        .map(([k, v]) => `${k.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)}:${v}`)
+        .join(';')};opacity:1}`,
+    });
+  
+    const field = el('div', {
+      class: 'ff-field',
+      style: {
+        background: fillColor || null,
+        borderRadius: `${borderRadius}px`,
+        borderColor,
+        borderWidth: `${borderWidth}px`,
+        minHeight: `${(style?.fontSize ?? 14) * 1.2109 + 40 + borderWidth * 2}px`,
+      },
+    }, input);
+  
+    const error = el('div', { class: 'ff-text ff-field-error', style: styleToCss(errorStyle ?? {}) });
+    error.hidden = true;
+  
+    const wrapper = el(
+      'div',
+      { style: { width: px(width ?? Infinity), maxWidth: '100%', display: 'flex', flexDirection: 'column' } },
+      [sheet, field, error]
+    );
+  
+    if (inputFormatter) {
+      input.addEventListener('input', () => {
+        const caretAtEnd = input.selectionStart === input.value.length;
+        const formatted = inputFormatter.format(input.value);
+        if (formatted !== input.value) {
+          input.value = formatted;
+          if (caretAtEnd) input.setSelectionRange(formatted.length, formatted.length);
+        }
+        controller.text = input.value;
+      });
+    } else {
+      input.addEventListener('input', () => {
+        controller.text = input.value;
+      });
+    }
+  
+    if (onSubmitted) {
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          onSubmitted(input.value);
+        }
+      });
+    }
+  
+    controller.attach(input);
+  
+    const setBorder = (c) => {
+      field.style.borderColor = c;
+    };
+  
+    wrapper.validate = () => {
+      const message = validator ? validator(input.value) : null;
+      if (message) {
+        error.textContent = message;
+        error.hidden = false;
+        setBorder(errorColor ?? borderColor);
+        return false;
+      }
+      error.hidden = true;
+      error.textContent = '';
+      setBorder(borderColor);
+      return true;
+    };
+  
+    wrapper.input = input;
+    return wrapper;
+  }
+  
+  /** TextEditingController */
+  class TextEditingController {
+    constructor(text = '') {
+      this._text = text;
+      this._node = null;
+    }
+  
+    attach(node) {
+      this._node = node;
+      node.value = this._text;
+    }
+  
+    get text() {
+      return this._node ? this._node.value : this._text;
+    }
+  
+    set text(value) {
+      this._text = value;
+      if (this._node) this._node.value = value;
+    }
+  }
+  
+  /** GlobalKey<FormState> + Form: validate() runs every field's validator. */
+  class FormState {
+    constructor() {
+      this.fields = [];
+    }
+  
+    register(field) {
+      this.fields.push(field);
+    }
+  
+    validate() {
+      // Validate all of them so every message shows at once, like Flutter does.
+      return this.fields.map((f) => f.validate()).every(Boolean);
+    }
+  }
+  
+  /* ------------------------------------------------- FlutterFlowDropDown ---- */
+  
+  /** FormFieldController<T> */
+  class FormFieldController {
+    constructor(value = null) {
+      this.value = value;
+    }
+  }
+  
+  /**
+   * FlutterFlowDropDown. Renders the dropdown_button2 shape the Dart configures:
+   * a rounded, filled button with the value or hint on the left and the icon on
+   * the right, and a menu the same width as the button (radius 4, fillColor).
+   */
+  function FlutterFlowDropDown({
+    controller,
+    options,
+    optionLabels = null,
+    onChanged,
+    width,
+    height,
+    textStyle,
+    hintText,
+    icon,
+    fillColor,
+    borderColor = Colors.transparent,
+    borderWidth = 0,
+    borderRadius = 8,
+    margin = [0, 0, 0, 0],
+    maxHeight = null,
+    /** dropdownStyleData's colour; the FF dropdown reuses fillColor, the
+     *  language selector passes its own `dropdownColor`. */
+    menuColor = null,
+  } = {}) {
+    const labelFor = (option, index) =>
+      optionLabels && optionLabels.length > index ? optionLabels[index] : String(option);
+  
+    const label = el('div', {
+      class: 'ff-text',
+      style: {
+        ...styleToCss(textStyle),
+        flex: '1 1 0',
+        minWidth: 0,
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        textAlign: 'left',
+      },
+      text: controller.value != null ? labelFor(controller.value, options.indexOf(controller.value)) : hintText ?? '',
+    });
+    if (textStyle?.fontFamily) label.dataset.family = textStyle.fontFamily;
+  
+    const [ml, , mr] = margin;
+  
+    const menu = el('div', {
+      class: 'ff-dropdown-menu',
+      style: {
+        background: menuColor || fillColor || null,
+        borderRadius: '4px',
+        left: '0',
+        right: '0',
+        top: '100%',
+        maxHeight: maxHeight != null ? `${maxHeight}px` : '420px',
+      },
+    });
+    menu.hidden = true;
+  
+    options.forEach((option, index) => {
+      const item = el('div', {
+        class: 'ff-dropdown-item ff-text',
+        style: { ...styleToCss(textStyle), padding: `${(height ?? 48) / 4}px ${mr}px ${(height ?? 48) / 4}px ${ml}px` },
+        text: labelFor(option, index),
+      });
+      if (textStyle?.fontFamily) item.dataset.family = textStyle.fontFamily;
+      item.addEventListener('click', (event) => {
+        event.stopPropagation();
+        controller.value = option;
+        label.textContent = labelFor(option, index);
+        close();
+        // O índice vai junto porque quem chama às vezes precisa saber QUAL opção
+        // foi escolhida, e não só o rótulo já traduzido (ver cadastro.js).
+        onChanged?.(option, index);
+      });
+      menu.appendChild(item);
+    });
+  
+    const button = el(
+      'div',
+      {
+        class: 'ff-dropdown',
+        style: {
+          height: '100%',
+          padding: `0 ${mr}px 0 ${ml}px`,
+          gap: '4px',
+        },
+      },
+      [label, icon]
+    );
+  
+    const root = el(
+      'div',
+      {
+        style: {
+          position: 'relative',
+          width: px(width ?? Infinity),
+          height: px(height),
+          flex: 'none',
+          background: fillColor || null,
+          borderRadius: `${borderRadius}px`,
+          border: `${borderWidth}px solid ${borderColor}`,
+        },
+      },
+      [button, menu]
+    );
+  
+    const close = () => {
+      menu.hidden = true;
+      document.removeEventListener('click', onDocumentClick, true);
+    };
+    const onDocumentClick = (event) => {
+      if (!root.contains(event.target)) close();
+    };
+  
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (menu.hidden) {
+        menu.hidden = false;
+        document.addEventListener('click', onDocumentClick, true);
+      } else {
+        close();
+      }
+    });
+  
+    return root;
+  }
+  
+  /* --------------------------------------------- FlutterFlowLanguageSelector */
+  
+  /** The Dart passes hideFlags: true, so only the language names show. */
+  function FlutterFlowLanguageSelector({
+    width,
+    height,
+    backgroundColor,
+    borderColor = Colors.transparent,
+    dropdownColor,
+    dropdownIconColor,
+    borderRadius = 8,
+    textStyle,
+    currentLanguage,
+    languages,
+    onChanged,
+  } = {}) {
+    const available = LANGUAGE_NAMES.filter((entry) => languages.includes(entry.isoCode));
+    const controller = new FormFieldController(currentLanguage);
+  
+    return FlutterFlowDropDown({
+      controller,
+      options: available.map((entry) => entry.isoCode),
+      optionLabels: available.map((entry) => entry.name),
+      onChanged,
+      width,
+      height,
+      textStyle,
+      hintText: available.find((entry) => entry.isoCode === currentLanguage)?.name ?? '',
+      // DropdownButton's default icon at its default 24px, tinted by
+      // dropdownIconColor, and the picker's own 15px horizontal padding.
+      icon: Icon('arrow_drop_down', { color: dropdownIconColor, size: 24 }),
+      fillColor: backgroundColor,
+      borderColor,
+      borderWidth: 1,
+      borderRadius,
+      margin: [15, 0, 15, 0],
+      menuColor: dropdownColor,
+    });
+  }
+  
+  /* ------------------------------------------------------- FFButtonWidget --- */
+  
+  /** FFButtonWidget + FFButtonOptions. */
+  function FFButtonWidget({ text, onPressed, options = {} } = {}) {
+    const {
+      width,
+      height,
+      padding = [0, 0, 0, 0],
+      color,
+      textStyle,
+      elevation = 0,
+      borderSide = null,
+      borderRadius = 8,
+    } = options;
+    const [l, t, r, b] = padding;
+  
+    const label = Txt(text, textStyle ?? {});
+    label.style.whiteSpace = 'nowrap';
+  
+    const node = el(
+      'button',
+      {
+        class: 'ff-btn',
+        type: 'button',
+        style: {
+          width: px(width),
+          height: px(height),
+          flex: 'none',
+          background: color || null,
+          borderRadius: `${borderRadius}px`,
+          border: borderSide ? `${borderSide.width ?? 1}px solid ${borderSide.color}` : 'none',
+          padding: `${t}px ${r}px ${b}px ${l}px`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: elevation ? `0 ${elevation}px ${elevation * 2}px rgba(0,0,0,0.24)` : null,
+        },
+      },
+      label
+    );
+  
+    if (onPressed) {
+      node.addEventListener('click', (event) => {
+        event.stopPropagation();
+        onPressed(event);
+      });
+    }
+    return node;
+  }
+  
+  /**
+   * Curves.ease = cubic-bezier(0.25, 0.1, 0.25, 1), avaliada por bisseccao em x.
+   * Antes aqui havia uma curva inventada que so acertava os extremos.
+   */
+  function curveEase(t) {
+    if (t <= 0) return 0;
+    if (t >= 1) return 1;
+    const bez = (a, b, u) => {
+      const v = 1 - u;
+      return 3 * v * v * u * a + 3 * v * u * u * b + u * u * u;
+    };
+    let lo = 0;
+    let hi = 1;
+    let u = t;
+    for (let i = 0; i < 20; i++) {
+      u = (lo + hi) / 2;
+      if (bez(0.25, 0.25, u) < t) lo = u;
+      else hi = u;
+    }
+    return bez(0.1, 1, u);
+  }
+  
+  /** ScrollController, used by the ranking dialog's auto-scroll. */
+  class ScrollController {
+    constructor() {
+      this.node = null;
+      this._animation = null;
+    }
+  
+    attach(node) {
+      this.node = node;
+    }
+  
+    get maxScrollExtent() {
+      if (!this.node) return 0;
+      return Math.max(0, this.node.scrollHeight - this.node.clientHeight);
+    }
+  
+    /** animateTo(offset, duration, curve) */
+    animateTo(offset, { duration = 0 } = {}) {
+      const node = this.node;
+      if (!node) return Promise.resolve();
+      const from = node.scrollTop;
+      const to = typeof offset === 'number' ? offset : this.maxScrollExtent;
+      const start = performance.now();
+      this._animation?.cancel?.();
+  
+      return new Promise((resolve) => {
+        let cancelled = false;
+        this._animation = { cancel: () => (cancelled = true) };
+        const step = (now) => {
+          if (cancelled || !node.isConnected) return resolve();
+          const t = duration === 0 ? 1 : Math.min(1, (now - start) / duration);
+          node.scrollTop = from + (to - from) * curveEase(t);
+          if (t < 1) requestAnimationFrame(step);
+          else resolve();
+        };
+        requestAnimationFrame(step);
+      });
+    }
   }
   Object.defineProperty(__exports, "MaskTextInputFormatter", { get: () => MaskTextInputFormatter, enumerable: true });
   Object.defineProperty(__exports, "TextFormField", { get: () => TextFormField, enumerable: true });
@@ -6229,15 +6254,15 @@
 
   /* ===== components/perguntas_erespostas.js ===== */
   __define("components/perguntas_erespostas.js", function (__exports, __require) {
-  // Port of lib/pages/components/perguntas_erespostas/perguntas_erespostas_widget.dart  
-  //  
-  // The right half of the action screen: the scanner skin, the four shuffled  
-  // answers, the five support hints (two allowed per game) and the 60s countdown.  
-  //  
-  // The Dart writes the same block out four times for the answers and five times  
-  // for the hints; the only differences are which slot of `ordemNumeros` an  
-  // answer maps to and which help field a hint reads, so those are tables here.  
-    
+  // Port of lib/pages/components/perguntas_erespostas/perguntas_erespostas_widget.dart
+  //
+  // The right half of the action screen: the scanner skin, the four shuffled
+  // answers, the five support hints (two allowed per game) and the 60s countdown.
+  //
+  // The Dart writes the same block out four times for the answers and five times
+  // for the hints; the only differences are which slot of `ordemNumeros` an
+  // answer maps to and which help field a hint reads, so those are tables here.
+  
   const { Align, ClipRRect, Column, Container, Img, InkWell, Opacity, Padding, Row, Stack, StackAlign, Txt, boxShadow, color, decorationImage, linearGradient, valueOrDefault, SW } = __require("widgets.js");
   const { TH, style } = __require("theme.js");
   const { FFLocalizations, L } = __require("i18n.js");
@@ -6251,731 +6276,731 @@
   const { addUsuario, createUsuariosRecordData } = __require("backend.js");
   const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
   const { FlutterFlowTimer, FlutterFlowTimerController, InstantTimer, StopWatchMode, StopWatchTimer } = __require("timer.js");
-    
-  /* ------------------------------------------------------- scanner skinning -- */  
-  // Every colour in this panel is chosen by `scannerEscolhido`; the Dart spells  
-  // each switch out inline. Same values, one table per switch.  
-    
-  const skin = (map, fallback) => (key) => (key in map ? map[key] : fallback);  
-    
-  const bodyColor = skin(  
-    {  
-      'Rasther 3': color(0xFFE7E7E2),  
-      RB: color(0xFFE7E7E2),  
-      Td90: color(0xFF5A9BF9),  
-      Td80: color(0xFF5A9BF9),  
-      'Rasther 4': color(0xFFB7C9E5),  
-      RST: color(0xFFB7C9E5),  
-    },  
-    color(0xFFBCBEC0)  
-  );  
-    
-  const headerTop = skin(  
-    {  
-      'Rasther 3': color(0xFFE3E3E3),  
-      RB: color(0xFFE3E3E3),  
-      Td90: color(0xFFD4D9DF),  
-      Td80: color(0xFFD4D9DF),  
-      'Rasther 4': color(0xFFB7C9E5),  
-      RST: color(0xFFB7C9E5),  
-    },  
-    color(0xFFF6F6F6)  
-  );  
-    
-  const headerBottom = skin(  
-    {  
-      'Rasther 3': color(0xFF686868),  
-      RB: color(0xFF686868),  
-      Td90: color(0xFFD4D9DF),  
-      Td80: color(0xFFD4D9DF),  
-      'Rasther 4': color(0xFFB7C9E5),  
-      RST: color(0xFFB7C9E5),  
-    },  
-    TH.secondaryText  
-  );  
-    
-  const cardColor = skin(  
-    {  
-      'Rasther 3': color(0xFFBCBEC0),  
-      RB: color(0xFFBCBEC0),  
-      Td90: color(0xFFA9CCFF),  
-      Td80: color(0xFFA9CCFF),  
-      'Rasther 4': color(0xFFD4D9DF),  
-      RST: color(0xFFD4D9DF),  
-    },  
-    color(0xFFBCBEC0)  
-  );  
-    
-  // Note: the Dart tests 'Xtool' here, a value `scannerEscolhido` is never set  
-  // to, so that branch is dead - the numbers are black for the Rasther 3 / RB  
-  // skins and 0xFF001C43 for everything else.  
-  const numberColor = skin(  
-    {  
-      'Rasther 3': '#000000',  
-      RB: '#000000',  
-      Xtool: color(0xFF001C43),  
-      Td80: color(0xFF001C43),  
-      'Rasther 4': color(0xFF001C43),  
-      RST: color(0xFF001C43),  
-    },  
-    color(0xFF001C43)  
-  );  
-    
-  /** The scanner photo shown in the header, with the size from the Dart. */  
-  const HEADER_PHOTOS = {  
-    RST: { src: 'assets/images/Rasther_ST_+_VCI.png', width: 313.39, height: 171.8 },  
-    'Rasther 3': { src: 'assets/images/Rasther_CANFD_(1).png', width: 162.67, height: 157.9 },  
-    RB: { src: 'assets/images/Rasther---box,-3s---mensal-box---android.png', width: 325.9, height: 176.0 },  
-    Td80: { src: 'assets/images/TD_80__Final_(1).png', width: 200.0, height: 200.0 },  
-    Td90: { src: 'assets/images/TD_90_(2).png', width: 200.0, height: 200.0 },  
-  };  
-    
-  /** answer slot -> the question field the shuffled number points at. */  
-  const RESPOSTA_FIELD = { 1: 'respostaUm', 2: 'respostaDois', 3: 'respostaTres', 4: 'respostaQuatro' };  
-    
-  /** The five support hints, in the order the Dart lays them out. */  
-  const HINTS = [  
-    {  
-      key: 'apoio',  
-      field: 'ajudaApoio',  
-      tipo: 'Apoio Tecnico',  
-      image: 'assets/images/Apoio_.png',  
-      width: 170.0,  
-      height: 90.0,  
-      fit: 'cover',  
-      padding: [0.0, 16.0, 0.0, 16.0],  
-      sound: 'soundPlayer6',  
-    },  
-    {  
-      key: 'treinamento',  
-      field: 'ajudaTreinamentoEad',  
-      tipo: 'Cursos EAD',  
-      image: 'assets/images/Cursos.png',  
-      width: 170.0,  
-      height: 95.0,  
-      fit: 'contain',  
-      padding: [0.0, 0.0, 0.0, 16.0],  
-      sound: 'soundPlayer7',  
-    },  
-    {  
-      key: 'youtube',  
-      field: 'ajudaTecnomotorTv',  
-      tipo: 'TecnomotorTV',  
-      image: 'assets/images/Youtube.png',  
-      width: 170.0,  
-      height: 95.0,  
-      fit: 'contain',  
-      padding: [0.0, 0.0, 0.0, 16.0],  
-      sound: 'soundPlayer8',  
-    },  
-    {  
-      key: 'comunidade',  
-      field: 'ajudaComunidade',  
-      tipo: 'Comunidade',  
-      image: 'assets/images/Comunidade_1.png',  
-      width: 170.0,  
-      height: 95.0,  
-      fit: 'contain',  
-      padding: [0.0, 0.0, 0.0, 16.0],  
-      sound: 'soundPlayer9',  
-    },  
-    {  
-      key: 'representante',  
-      field: 'ajudaRepresentanteComercial',  
-      tipo: 'Representante',  
-      image: 'assets/images/Representante.png',  
-      width: 170.0,  
-      height: 95.0,  
-      fit: 'contain',  
-      padding: [0.0, 0.0, 0.0, 16.0],  
-      sound: 'soundPlayer10',  
-    },  
-  ];  
-    
-  const tapFeedback = () =>  
-    new AnimationInfo({  
-      trigger: AnimationTrigger.onActionTrigger,  
-      applyInitialState: true,  
-      effectsBuilder: () => [  
-        ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 200.0, begin: [1.0, 1.0], end: [0.9, 0.9] }),  
-        ScaleEffect({ curve: Curves.easeInOut, delay: 200.0, duration: 200.0, begin: [0.9, 0.9], end: [1.0, 1.0] }),  
-      ],  
-    });  
-    
-  const hintPulse = () =>  
-    new AnimationInfo({  
-      loop: true,  
-      reverse: true,  
-      trigger: AnimationTrigger.onPageLoad,  
-      applyInitialState: true,  
-      effectsBuilder: () => [  
-        ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [1.0, 1.0], end: [1.05, 1.05] }),  
-      ],  
-    });  
-    
-  /** The question in the active language, with the pt list as the fallback. */  
-  function pergunta(field, { enField = field } = {}) {  
-    const index = transformaAleatorio(FFAppState.escolha);  
-    return FFLocalizations.getVariableText({  
-      ptText: valueOrDefault(FFAppState.questoesBrasil[index]?.[field], 'Pergunta um'),  
-      esText: FFAppState.questoesSpanish[index]?.[field],  
-      enText: FFAppState.questoesEnglish[index]?.[enField],  
-    });  
-  }  
-    
-  /**  
-   * The answer text for one slot.  
-   *  
-   * NOTE - faithful bug: in the first answer's builder the Dart reads  
-   * `respostaQuatro` from the English list when the shuffled number is 3  
-   * (pt and es correctly read `respostaTres`), so answer 1 shows answer 4's text  
-   * in English whenever the shuffle puts option 3 first. The other three slots  
-   * are written correctly. Reproduced here so the port behaves like the original;  
-   * drop the `enField` override to fix it.  
-   */  
-  function respostaText(slot, numero) {  
-    const field = RESPOSTA_FIELD[numero];  
-    if (!field) return `Pergunta ${slot + 1}`;  
-    const enField = slot === 0 && numero === 3 ? 'respostaQuatro' : field;  
-    return pergunta(field, { enField });  
-  }  
-    
-  function PerguntasErespostasWidget() {  
-    const model = {  
-      apoio: false,  
-      youtube: false,  
-      comunidade: false,  
-      treinamento: false,  
-      representante: false,  
-      numeroDicas: 0,  
-      apertou: false,  
-      timerMilliseconds: 60000,  
-      timerValue: StopWatchTimer.getDisplayTime(60000, { hours: false }),  
-      timerController: new FlutterFlowTimerController({ mode: StopWatchMode.countDown }),  
-      instantTimer: null,  
-      soundPlayer1: null,  
-    };  
-    
-    const animationsMap = {  
-      stackOnActionTriggerAnimation1: tapFeedback(),  
-      stackOnActionTriggerAnimation2: tapFeedback(),  
-      stackOnActionTriggerAnimation3: tapFeedback(),  
-      stackOnActionTriggerAnimation4: tapFeedback(),  
-      imageOnActionTriggerAnimation1: tapFeedback(),  
-      imageOnPageLoadAnimation1: hintPulse(),  
-      imageOnActionTriggerAnimation2: tapFeedback(),  
-      imageOnPageLoadAnimation2: hintPulse(),  
-      imageOnActionTriggerAnimation3: tapFeedback(),  
-      imageOnPageLoadAnimation3: hintPulse(),  
-      imageOnActionTriggerAnimation4: tapFeedback(),  
-      imageOnPageLoadAnimation4: hintPulse(),  
-      imageOnActionTriggerAnimation5: tapFeedback(),  
-      imageOnPageLoadAnimation5: hintPulse(),  
-    };  
-    
-    const scanner = () => FFAppState.scannerEscolhido;  
-    
-    /* -------------------------------------------------------- answer cards -- */  
-    
-    /**  
-     * One answer. `slot` is the index into ordemNumeros; the visible number is  
-     * always slot + 1, and the answer text comes from the question field that  
-     * ordemNumeros[slot] points at.  
-     */  
-    function answer(slot, { numberKey, animation, sound }) {  
-      const numero = FFAppState.ordemNumeros[slot];  
-      const text = respostaText(slot, numero);  
-    
-      const card = InkWell({  
-        onTap: async () => {  
-          // Slots 0, 1 and 3 guard on `_model.apertou`; slot 2 guards on  
-          // FFAppState().finalizou instead - kept exactly as written.  
-          if (slot === 2 ? FFAppState.finalizou : model.apertou) return;  
-    
-          model.apertou = true;  
-          playSound(model, sound, 'assets/audios/undertale-select-sound.mp3', 0.53);  
-          await animation.controller.forward();  
-          await showDialog({ builder: () => ConfirmacaoWidget() });  
-    
-          if (FFAppState.finalizou) {  
-            model.soundPlayer1?.stop();  
-            model.timerController.onStopTimer();  
-    
-            const gabarito = valueOrDefault(  
-              FFAppState.questoesBrasil[transformaAleatorio(FFAppState.escolha)]?.gabarito,  
-              'Pergunta um'  
-            );  
-            const acertou = gabarito === String(FFAppState.ordemNumeros[slot]);  
-    
-            const record = createUsuariosRecordData({  
-              nome: FFAppState.cadastro.nome,  
-              telefone: FFAppState.cadastro.telefone,  
-              atuacao: FFAppState.cadastro.atuacao,  
-              venceu: acertou,  
-              tempo: model.timerMilliseconds,  
-              equipamento: FFAppState.scannerEscolhido,  
-              invalido: FFAppState.cadastro.invalido,  
-            });  
-    
-            pushNamed(acertou ? 'Ganhou' : 'Perdeu', {  
-              extra: {  
-                __transition_info__: new TransitionInfo({  
-                  hasTransition: true,  
-                  transitionType: PageTransitionType.fade,  
-                }),  
-              },  
-            });  
-            await addUsuario(record, { serverTimestamp: true });  
-    
-            model.apoio = false;  
-            model.youtube = false;  
-            model.comunidade = false;  
-            model.treinamento = false;  
-            model.representante = false;  
-            model.timerController.onResetTimer();  
-            // Only the first answer cancels the tick timer in the Dart.  
-            if (slot === 0) model.instantTimer?.cancel();  
-            FFAppState.finalizou = false;  
-          }  
-          model.apertou = false;  
-        },  
-        child: Container({  
-          width: 550.0,  
-          height: 125.0,  
-          color: cardColor(scanner()),  
-          boxShadow: boxShadow({ blurRadius: 10.0, color: color(0x5D000000), offset: [-10.0, 10.0], spreadRadius: 1.0 }),  
-          borderRadius: 12.0,  
-          child: Padding({  
-            padding: [72.0, 16.0, 32.0, 16.0],  
-            child: Column({  
-              mainAxisSize: 'max',  
-              mainAxisAlignment: 'center',  
-              crossAxisAlignment: 'start',  
-              children: [  
-                Padding({  
-                  padding: [10.0, 0.0, 0.0, 0.0],  
-                  child: Txt(  
-                    valueOrDefault(text, 'yr'),  
-                    style('bodyMedium', { fontWeight: 400, color: color(0xFF001C43), fontSize: 24.0 })  
-                  ),  
-                }),  
-              ],  
-            }),  
-          }),  
-        }),  
-      });  
-    
-      const stack = Stack({  
-        alignment: [-1.0, 0.0],  
-        children: [  
-          // Slot 0 wraps the card in an Align(0, 0); the others don't.  
-          slot === 0 ? StackAlign({ alignment: [0.0, 0.0], child: card }) : card,  
-          StackAlign({  
-            alignment: [-1.0, 0.0],  
-            child: Padding({  
-              padding: [24.0, 0.0, 0.0, 0.0],  
-              child: Txt(  
-                L(numberKey),  
-                style('bodyMedium', { fontWeight: 900, color: numberColor(scanner()), fontSize: 55.0 })  
-              ),  
-            }),  
-          }),  
-        ],  
-      });  
-    
-      return animateOnActionTrigger(stack, animation);  
-    }  
-    
-    /* -------------------------------------------------------- support hints -- */  
-    
-    function hint(spec, { actionAnimation, pageLoadAnimation }) {  
-      const image = InkWell({  
-        onTap: async () => {  
-          playSound(model, spec.sound, 'assets/audios/adriantnt_u_click.mp3', 0.5);  
-          if (model[spec.key]) return;  
-    
-          await actionAnimation.controller.forward();  
-          model[spec.key] = true;  
-          refreshHints();  
-    
-          await showDialog({  
-            builder: () => PopUpWidget({ texto: pergunta(spec.field), tipo: spec.tipo }),  
-          });  
-    
-          model.numeroDicas += 1;  
-          refreshDicas();  
-          if (model.numeroDicas >= 2) {  
-            // Two hints used: every button is spent.  
-            for (const other of HINTS) model[other.key] = true;  
-            refreshHints();  
-          }  
-        },  
-        child: ClipRRect({  
-          borderRadius: 8.0,  
-          child: Img(spec.image, { width: spec.width, height: spec.height, fit: spec.fit }),  
-        }),  
-      });  
-      animateOnPageLoad(image, pageLoadAnimation);  
-      animateOnActionTrigger(image, actionAnimation);  
-    
-      const opacity = Opacity({  
-        opacity: model[spec.key] ? 0.3 : 1.0,  
-        child: Padding({ padding: spec.padding, child: image }),  
-      });  
-      opacity.dataset.hint = spec.key;  
-    
-      // The Dart wraps the first hint in an extra Align(0, 0).  
-      const inner = spec.key === 'apoio' ? Align({ alignment: [0.0, 0.0], child: opacity }) : opacity;  
-      return Stack({ alignment: [0.0, 0.0], children: [inner] });  
-    }  
-    
-    const hintNodes = HINTS.map((spec, index) =>  
-      hint(spec, {  
-        actionAnimation: animationsMap[`imageOnActionTriggerAnimation${index + 1}`],  
-        pageLoadAnimation: animationsMap[`imageOnPageLoadAnimation${index + 1}`],  
-      })  
-    );  
-    
-    function refreshHints() {  
-      for (const spec of HINTS) {  
-        const node = root.querySelector(`[data-hint="${spec.key}"]`);  
-        if (node) node.style.opacity = model[spec.key] ? '0.3' : '1';  
-      }  
-    }  
-    
-    const dicasLabel = Txt(`${2 - model.numeroDicas}X`, {  
-      ...style('bodyMedium', {  
-        fontFamily: 'pirulen',  
-        color: color(0xFF001B54),  
-        fontSize: 23.0,  
-        fontWeight: 400,  
-        textAlign: 'right',  
-      }),  
-    });  
-    
-    function refreshDicas() {  
-      dicasLabel.textContent = `${2 - model.numeroDicas}X`;  
-    }  
-    
-    /* --------------------------------------------------------------- header -- */  
-    
-    const headerBand = (() => {  
-      const current = scanner();  
-      if (current === 'Rasther 3' || current === 'RB') {  
-        return Container({  
-          width: Infinity,  
-          height: 65.31,  
-          color: color(0xFFDAD2D2),  
-          image: decorationImage('assets/images/Prancheta_64_cpia_2.png', 'none'),  
-        });  
-      }  
-      if (current === 'Td90' || current === 'Td80') {  
-        return Container({  
-          width: Infinity,  
-          height: 65.3,  
-          color: color(0xFFE3E3E3),  
-          image: decorationImage('assets/images/Prancheta_64_cpia.png', 'none'),  
-        });  
-      }  
-      if (current === 'Rasther 4' || current === 'RST') {  
-        return Container({  
-          width: Infinity,  
-          height: 90.6,  
-          image: decorationImage('assets/images/Prancheta_64.png', 'none'),  
-          gradient: linearGradient({  
-            colors: [color(0xFFD47008), '#000000'],  
-            stops: [0.0, 1.0],  
-            begin: [-0.64, 1.0],  
-            end: [0.64, -1.0],  
-          }),  
-        });  
-      }  
-      return null;  
-    })();  
-    
-    const headerPhoto = HEADER_PHOTOS[scanner()];  
-    
-    /* ----------------------------------------------------------- the timer -- */  
-    
-    const timer = FlutterFlowTimer({  
-      initialTime: 60000,  
-      controller: model.timerController,  
-      getDisplayTime: (value) => StopWatchTimer.getDisplayTime(value, { hours: false }),  
-      updateStateInterval: 1000,  
-      onChanged: (value, displayTime) => {  
-        model.timerMilliseconds = value;  
-        model.timerValue = displayTime;  
-      },  
-      textAlign: 'justify',  
-      style: style('headlineSmall', {  
-        fontFamily: 'pirulen',  
-        color: color(0xFFFF0000),  
-        fontSize: 62.0,  
-        fontWeight: 400,  
-      }),  
-    });  
-    
-    /* ------------------------------------------------------------- the tree -- */  
-    
-    // The panel's Stack is sized by its `double.infinity` container in Flutter;  
-    // stating it here gives the CSS grid a definite box to lay the rest against.  
-    const root = Stack({  
-      width: Infinity,  
-      height: Infinity,  
-      children: [  
-        StackAlign({  
-          alignment: [1.0, 1.0],  
-          child: Container({  
-            width: SW * 0.5,  
-            height: Infinity,  
-            color: bodyColor(scanner()),  
-            boxShadow: boxShadow({ blurRadius: 40.0, color: '#000000', offset: [-10.0, 5.0], spreadRadius: 3.0 }),  
-            child: Column({  
-              mainAxisSize: 'max',  
-              mainAxisAlignment: 'start',  
-              children: [  
-                Container({  
-                  width: Infinity,  
-                  height: 258.35,  
-                  gradient: linearGradient({  
-                    colors: [headerTop(scanner()), headerBottom(scanner())],  
-                    stops: [0.0, 1.0],  
-                    begin: [0.0, -1.0],  
-                    end: [0, 1.0],  
-                  }),  
-                  child: Column({  
-                    mainAxisSize: 'max',  
-                    crossAxisAlignment: 'start',  
-                    children: [  
-                      headerBand,  
-                      Padding({  
-                        padding: [0.0, 24.0, 0.0, 10.0],  
-                        child: Row({  
-                          mainAxisSize: 'max',  
-                          mainAxisAlignment: 'spaceEvenly',  
-                          children: [  
-                            Txt(  
-                              L('navhbcsm') /* Você está \nUsando */,  
-                              style('bodyMedium', {  
-                                fontFamily: 'pirulen',  
-                                color: color(0xFF222222),  
-                                fontSize: 40.0,  
-                                fontWeight: 400,  
-                              })  
-                            ),  
-                            Column({  
-                              mainAxisSize: 'max',  
-                              children: [  
-                                headerPhoto &&  
-                                  ClipRRect({  
-                                    borderRadius: 8.0,  
-                                    child: Img(headerPhoto.src, {  
-                                      width: headerPhoto.width,  
-                                      height: headerPhoto.height,  
-                                      fit: 'cover',  
-                                    }),  
-                                  }),  
-                              ],  
-                            }),  
-                          ],  
-                        }),  
-                      }),  
-                    ],  
-                  }),  
-                }),  
-                // The red divider only belongs to the Rasther 3 / RB skins.  
-                Opacity({  
-                  opacity: scanner() === 'Rasther 3' || scanner() === 'RB' ? 1.0 : 0.0,  
-                  child: Container({ width: Infinity, height: 8.0, color: color(0xFFC10816) }),  
-                }),  
-                Padding({  
-                  padding: [32.0, 10.0, 32.0, 0.0],  
-                  child: Row({  
-                    mainAxisSize: 'max',  
-                    mainAxisAlignment: 'spaceBetween',  
-                    crossAxisAlignment: 'start',  
-                    children: [  
-                      Column({  
-                        mainAxisSize: 'max',  
-                        crossAxisAlignment: 'start',  
-                        children: [  
-                          Padding({  
-                            padding: [56.0, 16.0, 0.0, 16.0],  
-                            child: Txt(  
-                              L('x5fvgf80') /* O problema do veículo */,  
-                              style('bodyMedium', {  
-                                fontFamily: 'pirulen',  
-                                color: color(0xFF222222),  
-                                fontSize: 25.0,  
-                                fontWeight: 400,  
-                              })  
-                            ),  
-                          }),  
-                          Padding({  
-                            padding: [32.0, 16.0, 32.0, 32.0],  
-                            child: Column({  
-                              mainAxisSize: 'max',  
-                              mainAxisAlignment: 'center',  
-                              crossAxisAlignment: 'end',  
-                              children: [  
-                                answer(0, {  
-                                  numberKey: 'bvcy0hg2',  
-                                  animation: animationsMap.stackOnActionTriggerAnimation1,  
-                                  sound: 'soundPlayer2',  
-                                }),  
-                                Padding({  
-                                  padding: [0.0, 24.0, 0.0, 0.0],  
-                                  child: answer(1, {  
-                                    numberKey: 'fvk3pjqg',  
-                                    animation: animationsMap.stackOnActionTriggerAnimation2,  
-                                    sound: 'soundPlayer3',  
-                                  }),  
-                                }),  
-                                Padding({  
-                                  padding: [0.0, 24.0, 0.0, 0.0],  
-                                  child: answer(2, {  
-                                    numberKey: 'u3qmdqw7',  
-                                    animation: animationsMap.stackOnActionTriggerAnimation3,  
-                                    sound: 'soundPlayer4',  
-                                  }),  
-                                }),  
-                                Padding({  
-                                  padding: [0.0, 24.0, 0.0, 0.0],  
-                                  child: answer(3, {  
-                                    numberKey: 'ai7wwgfu',  
-                                    animation: animationsMap.stackOnActionTriggerAnimation4,  
-                                    sound: 'soundPlayer5',  
-                                  }),  
-                                }),  
-                              ],  
-                            }),  
-                          }),  
-                        ],  
-                      }),  
-                      Column({  
-                        mainAxisSize: 'max',  
-                        children: [  
-                          Padding({  
-                            padding: [16.0, 0.0, 16.0, 0.0],  
-                            child: Column({  
-                              mainAxisSize: 'max',  
-                              children: [  
-                                Row({  
-                                  mainAxisSize: 'max',  
-                                  mainAxisAlignment: 'start',  
-                                  children: [  
-                                    Padding({ padding: [0.0, 16.0, 4.0, 4.0], child: dicasLabel }),  
-                                    Padding({  
-                                      padding: [0.0, 16.0, 0.0, 4.0],  
-                                      child: Txt(  
-                                        L('k0xz8bjz') /* Suporte\nDisponível! */,  
-                                        style('bodyMedium', {  
-                                          fontFamily: 'pirulen',  
-                                          color: '#000000',  
-                                          fontSize: 18.0,  
-                                          fontWeight: 400,  
-                                          textAlign: 'left',  
-                                        })  
-                                      ),  
-                                    }),  
-                                  ],  
-                                }),  
-                                Padding({  
-                                  padding: [0.0, 0.0, 0.0, 12.0],  
-                                  child: Container({ width: 190.0, height: 2.0, color: TH.secondaryBackground }),  
-                                }),  
-                                Container({  
-                                  color: cardColor(scanner()),  
-                                  boxShadow: boxShadow({  
-                                    blurRadius: 10.0,  
-                                    color: color(0x5D000000),  
-                                    offset: [-5.0, 5.0],  
-                                    spreadRadius: 1.0,  
-                                  }),  
-                                  borderRadius: 24.0,  
-                                  child: Padding({  
-                                    padding: [16.0, 16.0, 16.0, 16.0],  
-                                    child: Column({ mainAxisSize: 'max', children: hintNodes }),  
-                                  }),  
-                                }),  
-                              ],  
-                            }),  
-                          }),  
-                        ],  
-                      }),  
-                    ],  
-                  }),  
-                }),  
-              ],  
-            }),  
-          }),  
-        }),  
-        StackAlign({  
-          alignment: [1.0, 1.0],  
-          child: Padding({  
-            padding: [0.0, 0.0, 52.0, 32.0],  
-            child: Container({  
-              width: 385.0,  
-              height: 90.0,  
-              color: '#FFFFFF',  
-              boxShadow: boxShadow({ blurRadius: 10.0, color: color(0x5D000000), offset: [-5.0, 5.0], spreadRadius: 1.0 }),  
-              borderRadius: 8.0,  
-              child: Padding({ padding: [8.0, 8.0, 8.0, 8.0], child: timer }),  
-            }),  
-          }),  
-        }),  
-      ],  
-    });  
-    
-    /* --------------------------------------------------------- on page load -- */  
-    // Background music, then a 1Hz tick that sends the player to Perdeu when the  
-    // clock runs out.  
-    // Sem loop: o Dart chama setAsset().then(play()) e nunca setLoopMode, e a  
-    // faixa (~2min48) cobre a rodada de 60s de sobra.  
-    playSound(  
-      model,  
-      'soundPlayer1',  
-      'assets/audios/Eric_Skiff_-_A_Night_Of_Dizzy_Spells_NO_COPYRIGHT_8-bit_Music_Background.mp3',  
-      0.2  
-    );  
-    model.timerController.onStartTimer();  
-    model.instantTimer = InstantTimer.periodic({  
-      duration: 1000,  
-      startImmediately: true,  
-      callback: async () => {  
-        if (model.timerMilliseconds > 0) return;  
-        model.timerController.onStopTimer();  
-        model.timerController.onResetTimer();  
-        model.soundPlayer1?.stop();  
-        model.instantTimer?.cancel();  
-        pushNamed('Perdeu', {  
-          extra: {  
-            __transition_info__: new TransitionInfo({  
-              hasTransition: true,  
-              transitionType: PageTransitionType.scale,  
-              alignment: [0, 1],  
-            }),  
-          },  
-        });  
-        await addUsuario(  
-          createUsuariosRecordData({  
-            nome: FFAppState.cadastro.nome,  
-            telefone: FFAppState.cadastro.telefone,  
-            atuacao: FFAppState.cadastro.atuacao,  
-            venceu: false,  
-            equipamento: FFAppState.scannerEscolhido,  
-          })  
-        );  
-      },  
-    });  
-    
-    root.__dispose = () => {  
-      model.instantTimer?.cancel();  
-      model.timerController.dispose();  
-      model.soundPlayer1?.stop();  
-    };  
-    
-    return root;  
+  
+  /* ------------------------------------------------------- scanner skinning -- */
+  // Every colour in this panel is chosen by `scannerEscolhido`; the Dart spells
+  // each switch out inline. Same values, one table per switch.
+  
+  const skin = (map, fallback) => (key) => (key in map ? map[key] : fallback);
+  
+  const bodyColor = skin(
+    {
+      'Rasther 3': color(0xFFE7E7E2),
+      RB: color(0xFFE7E7E2),
+      Td90: color(0xFF5A9BF9),
+      Td80: color(0xFF5A9BF9),
+      'Rasther 4': color(0xFFB7C9E5),
+      RST: color(0xFFB7C9E5),
+    },
+    color(0xFFBCBEC0)
+  );
+  
+  const headerTop = skin(
+    {
+      'Rasther 3': color(0xFFE3E3E3),
+      RB: color(0xFFE3E3E3),
+      Td90: color(0xFFD4D9DF),
+      Td80: color(0xFFD4D9DF),
+      'Rasther 4': color(0xFFB7C9E5),
+      RST: color(0xFFB7C9E5),
+    },
+    color(0xFFF6F6F6)
+  );
+  
+  const headerBottom = skin(
+    {
+      'Rasther 3': color(0xFF686868),
+      RB: color(0xFF686868),
+      Td90: color(0xFFD4D9DF),
+      Td80: color(0xFFD4D9DF),
+      'Rasther 4': color(0xFFB7C9E5),
+      RST: color(0xFFB7C9E5),
+    },
+    TH.secondaryText
+  );
+  
+  const cardColor = skin(
+    {
+      'Rasther 3': color(0xFFBCBEC0),
+      RB: color(0xFFBCBEC0),
+      Td90: color(0xFFA9CCFF),
+      Td80: color(0xFFA9CCFF),
+      'Rasther 4': color(0xFFD4D9DF),
+      RST: color(0xFFD4D9DF),
+    },
+    color(0xFFBCBEC0)
+  );
+  
+  // Note: the Dart tests 'Xtool' here, a value `scannerEscolhido` is never set
+  // to, so that branch is dead - the numbers are black for the Rasther 3 / RB
+  // skins and 0xFF001C43 for everything else.
+  const numberColor = skin(
+    {
+      'Rasther 3': '#000000',
+      RB: '#000000',
+      Xtool: color(0xFF001C43),
+      Td80: color(0xFF001C43),
+      'Rasther 4': color(0xFF001C43),
+      RST: color(0xFF001C43),
+    },
+    color(0xFF001C43)
+  );
+  
+  /** The scanner photo shown in the header, with the size from the Dart. */
+  const HEADER_PHOTOS = {
+    RST: { src: 'assets/images/Rasther_ST_+_VCI.png', width: 313.39, height: 171.8 },
+    'Rasther 3': { src: 'assets/images/Rasther_CANFD_(1).png', width: 162.67, height: 157.9 },
+    RB: { src: 'assets/images/Rasther---box,-3s---mensal-box---android.png', width: 325.9, height: 176.0 },
+    Td80: { src: 'assets/images/TD_80__Final_(1).png', width: 200.0, height: 200.0 },
+    Td90: { src: 'assets/images/TD_90_(2).png', width: 200.0, height: 200.0 },
+  };
+  
+  /** answer slot -> the question field the shuffled number points at. */
+  const RESPOSTA_FIELD = { 1: 'respostaUm', 2: 'respostaDois', 3: 'respostaTres', 4: 'respostaQuatro' };
+  
+  /** The five support hints, in the order the Dart lays them out. */
+  const HINTS = [
+    {
+      key: 'apoio',
+      field: 'ajudaApoio',
+      tipo: 'Apoio Tecnico',
+      image: 'assets/images/Apoio_.png',
+      width: 170.0,
+      height: 90.0,
+      fit: 'cover',
+      padding: [0.0, 16.0, 0.0, 16.0],
+      sound: 'soundPlayer6',
+    },
+    {
+      key: 'treinamento',
+      field: 'ajudaTreinamentoEad',
+      tipo: 'Cursos EAD',
+      image: 'assets/images/Cursos.png',
+      width: 170.0,
+      height: 95.0,
+      fit: 'contain',
+      padding: [0.0, 0.0, 0.0, 16.0],
+      sound: 'soundPlayer7',
+    },
+    {
+      key: 'youtube',
+      field: 'ajudaTecnomotorTv',
+      tipo: 'TecnomotorTV',
+      image: 'assets/images/Youtube.png',
+      width: 170.0,
+      height: 95.0,
+      fit: 'contain',
+      padding: [0.0, 0.0, 0.0, 16.0],
+      sound: 'soundPlayer8',
+    },
+    {
+      key: 'comunidade',
+      field: 'ajudaComunidade',
+      tipo: 'Comunidade',
+      image: 'assets/images/Comunidade_1.png',
+      width: 170.0,
+      height: 95.0,
+      fit: 'contain',
+      padding: [0.0, 0.0, 0.0, 16.0],
+      sound: 'soundPlayer9',
+    },
+    {
+      key: 'representante',
+      field: 'ajudaRepresentanteComercial',
+      tipo: 'Representante',
+      image: 'assets/images/Representante.png',
+      width: 170.0,
+      height: 95.0,
+      fit: 'contain',
+      padding: [0.0, 0.0, 0.0, 16.0],
+      sound: 'soundPlayer10',
+    },
+  ];
+  
+  const tapFeedback = () =>
+    new AnimationInfo({
+      trigger: AnimationTrigger.onActionTrigger,
+      applyInitialState: true,
+      effectsBuilder: () => [
+        ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 200.0, begin: [1.0, 1.0], end: [0.9, 0.9] }),
+        ScaleEffect({ curve: Curves.easeInOut, delay: 200.0, duration: 200.0, begin: [0.9, 0.9], end: [1.0, 1.0] }),
+      ],
+    });
+  
+  const hintPulse = () =>
+    new AnimationInfo({
+      loop: true,
+      reverse: true,
+      trigger: AnimationTrigger.onPageLoad,
+      applyInitialState: true,
+      effectsBuilder: () => [
+        ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [1.0, 1.0], end: [1.05, 1.05] }),
+      ],
+    });
+  
+  /** The question in the active language, with the pt list as the fallback. */
+  function pergunta(field, { enField = field } = {}) {
+    const index = transformaAleatorio(FFAppState.escolha);
+    return FFLocalizations.getVariableText({
+      ptText: valueOrDefault(FFAppState.questoesBrasil[index]?.[field], 'Pergunta um'),
+      esText: FFAppState.questoesSpanish[index]?.[field],
+      enText: FFAppState.questoesEnglish[index]?.[enField],
+    });
+  }
+  
+  /**
+   * The answer text for one slot.
+   *
+   * NOTE - faithful bug: in the first answer's builder the Dart reads
+   * `respostaQuatro` from the English list when the shuffled number is 3
+   * (pt and es correctly read `respostaTres`), so answer 1 shows answer 4's text
+   * in English whenever the shuffle puts option 3 first. The other three slots
+   * are written correctly. Reproduced here so the port behaves like the original;
+   * drop the `enField` override to fix it.
+   */
+  function respostaText(slot, numero) {
+    const field = RESPOSTA_FIELD[numero];
+    if (!field) return `Pergunta ${slot + 1}`;
+    const enField = slot === 0 && numero === 3 ? 'respostaQuatro' : field;
+    return pergunta(field, { enField });
+  }
+  
+  function PerguntasErespostasWidget() {
+    const model = {
+      apoio: false,
+      youtube: false,
+      comunidade: false,
+      treinamento: false,
+      representante: false,
+      numeroDicas: 0,
+      apertou: false,
+      timerMilliseconds: 60000,
+      timerValue: StopWatchTimer.getDisplayTime(60000, { hours: false }),
+      timerController: new FlutterFlowTimerController({ mode: StopWatchMode.countDown }),
+      instantTimer: null,
+      soundPlayer1: null,
+    };
+  
+    const animationsMap = {
+      stackOnActionTriggerAnimation1: tapFeedback(),
+      stackOnActionTriggerAnimation2: tapFeedback(),
+      stackOnActionTriggerAnimation3: tapFeedback(),
+      stackOnActionTriggerAnimation4: tapFeedback(),
+      imageOnActionTriggerAnimation1: tapFeedback(),
+      imageOnPageLoadAnimation1: hintPulse(),
+      imageOnActionTriggerAnimation2: tapFeedback(),
+      imageOnPageLoadAnimation2: hintPulse(),
+      imageOnActionTriggerAnimation3: tapFeedback(),
+      imageOnPageLoadAnimation3: hintPulse(),
+      imageOnActionTriggerAnimation4: tapFeedback(),
+      imageOnPageLoadAnimation4: hintPulse(),
+      imageOnActionTriggerAnimation5: tapFeedback(),
+      imageOnPageLoadAnimation5: hintPulse(),
+    };
+  
+    const scanner = () => FFAppState.scannerEscolhido;
+  
+    /* -------------------------------------------------------- answer cards -- */
+  
+    /**
+     * One answer. `slot` is the index into ordemNumeros; the visible number is
+     * always slot + 1, and the answer text comes from the question field that
+     * ordemNumeros[slot] points at.
+     */
+    function answer(slot, { numberKey, animation, sound }) {
+      const numero = FFAppState.ordemNumeros[slot];
+      const text = respostaText(slot, numero);
+  
+      const card = InkWell({
+        onTap: async () => {
+          // Slots 0, 1 and 3 guard on `_model.apertou`; slot 2 guards on
+          // FFAppState().finalizou instead - kept exactly as written.
+          if (slot === 2 ? FFAppState.finalizou : model.apertou) return;
+  
+          model.apertou = true;
+          playSound(model, sound, 'assets/audios/undertale-select-sound.mp3', 0.53);
+          await animation.controller.forward();
+          await showDialog({ builder: () => ConfirmacaoWidget() });
+  
+          if (FFAppState.finalizou) {
+            model.soundPlayer1?.stop();
+            model.timerController.onStopTimer();
+  
+            const gabarito = valueOrDefault(
+              FFAppState.questoesBrasil[transformaAleatorio(FFAppState.escolha)]?.gabarito,
+              'Pergunta um'
+            );
+            const acertou = gabarito === String(FFAppState.ordemNumeros[slot]);
+  
+            const record = createUsuariosRecordData({
+              nome: FFAppState.cadastro.nome,
+              telefone: FFAppState.cadastro.telefone,
+              atuacao: FFAppState.cadastro.atuacao,
+              venceu: acertou,
+              tempo: model.timerMilliseconds,
+              equipamento: FFAppState.scannerEscolhido,
+              invalido: FFAppState.cadastro.invalido,
+            });
+  
+            pushNamed(acertou ? 'Ganhou' : 'Perdeu', {
+              extra: {
+                __transition_info__: new TransitionInfo({
+                  hasTransition: true,
+                  transitionType: PageTransitionType.fade,
+                }),
+              },
+            });
+            await addUsuario(record, { serverTimestamp: true });
+  
+            model.apoio = false;
+            model.youtube = false;
+            model.comunidade = false;
+            model.treinamento = false;
+            model.representante = false;
+            model.timerController.onResetTimer();
+            // Only the first answer cancels the tick timer in the Dart.
+            if (slot === 0) model.instantTimer?.cancel();
+            FFAppState.finalizou = false;
+          }
+          model.apertou = false;
+        },
+        child: Container({
+          width: 550.0,
+          height: 125.0,
+          color: cardColor(scanner()),
+          boxShadow: boxShadow({ blurRadius: 10.0, color: color(0x5D000000), offset: [-10.0, 10.0], spreadRadius: 1.0 }),
+          borderRadius: 12.0,
+          child: Padding({
+            padding: [72.0, 16.0, 32.0, 16.0],
+            child: Column({
+              mainAxisSize: 'max',
+              mainAxisAlignment: 'center',
+              crossAxisAlignment: 'start',
+              children: [
+                Padding({
+                  padding: [10.0, 0.0, 0.0, 0.0],
+                  child: Txt(
+                    valueOrDefault(text, 'yr'),
+                    style('bodyMedium', { fontWeight: 400, color: color(0xFF001C43), fontSize: 24.0 })
+                  ),
+                }),
+              ],
+            }),
+          }),
+        }),
+      });
+  
+      const stack = Stack({
+        alignment: [-1.0, 0.0],
+        children: [
+          // Slot 0 wraps the card in an Align(0, 0); the others don't.
+          slot === 0 ? StackAlign({ alignment: [0.0, 0.0], child: card }) : card,
+          StackAlign({
+            alignment: [-1.0, 0.0],
+            child: Padding({
+              padding: [24.0, 0.0, 0.0, 0.0],
+              child: Txt(
+                L(numberKey),
+                style('bodyMedium', { fontWeight: 900, color: numberColor(scanner()), fontSize: 55.0 })
+              ),
+            }),
+          }),
+        ],
+      });
+  
+      return animateOnActionTrigger(stack, animation);
+    }
+  
+    /* -------------------------------------------------------- support hints -- */
+  
+    function hint(spec, { actionAnimation, pageLoadAnimation }) {
+      const image = InkWell({
+        onTap: async () => {
+          playSound(model, spec.sound, 'assets/audios/adriantnt_u_click.mp3', 0.5);
+          if (model[spec.key]) return;
+  
+          await actionAnimation.controller.forward();
+          model[spec.key] = true;
+          refreshHints();
+  
+          await showDialog({
+            builder: () => PopUpWidget({ texto: pergunta(spec.field), tipo: spec.tipo }),
+          });
+  
+          model.numeroDicas += 1;
+          refreshDicas();
+          if (model.numeroDicas >= 2) {
+            // Two hints used: every button is spent.
+            for (const other of HINTS) model[other.key] = true;
+            refreshHints();
+          }
+        },
+        child: ClipRRect({
+          borderRadius: 8.0,
+          child: Img(spec.image, { width: spec.width, height: spec.height, fit: spec.fit }),
+        }),
+      });
+      animateOnPageLoad(image, pageLoadAnimation);
+      animateOnActionTrigger(image, actionAnimation);
+  
+      const opacity = Opacity({
+        opacity: model[spec.key] ? 0.3 : 1.0,
+        child: Padding({ padding: spec.padding, child: image }),
+      });
+      opacity.dataset.hint = spec.key;
+  
+      // The Dart wraps the first hint in an extra Align(0, 0).
+      const inner = spec.key === 'apoio' ? Align({ alignment: [0.0, 0.0], child: opacity }) : opacity;
+      return Stack({ alignment: [0.0, 0.0], children: [inner] });
+    }
+  
+    const hintNodes = HINTS.map((spec, index) =>
+      hint(spec, {
+        actionAnimation: animationsMap[`imageOnActionTriggerAnimation${index + 1}`],
+        pageLoadAnimation: animationsMap[`imageOnPageLoadAnimation${index + 1}`],
+      })
+    );
+  
+    function refreshHints() {
+      for (const spec of HINTS) {
+        const node = root.querySelector(`[data-hint="${spec.key}"]`);
+        if (node) node.style.opacity = model[spec.key] ? '0.3' : '1';
+      }
+    }
+  
+    const dicasLabel = Txt(`${2 - model.numeroDicas}X`, {
+      ...style('bodyMedium', {
+        fontFamily: 'pirulen',
+        color: color(0xFF001B54),
+        fontSize: 23.0,
+        fontWeight: 400,
+        textAlign: 'right',
+      }),
+    });
+  
+    function refreshDicas() {
+      dicasLabel.textContent = `${2 - model.numeroDicas}X`;
+    }
+  
+    /* --------------------------------------------------------------- header -- */
+  
+    const headerBand = (() => {
+      const current = scanner();
+      if (current === 'Rasther 3' || current === 'RB') {
+        return Container({
+          width: Infinity,
+          height: 65.31,
+          color: color(0xFFDAD2D2),
+          image: decorationImage('assets/images/Prancheta_64_cpia_2.png', 'none'),
+        });
+      }
+      if (current === 'Td90' || current === 'Td80') {
+        return Container({
+          width: Infinity,
+          height: 65.3,
+          color: color(0xFFE3E3E3),
+          image: decorationImage('assets/images/Prancheta_64_cpia.png', 'none'),
+        });
+      }
+      if (current === 'Rasther 4' || current === 'RST') {
+        return Container({
+          width: Infinity,
+          height: 90.6,
+          image: decorationImage('assets/images/Prancheta_64.png', 'none'),
+          gradient: linearGradient({
+            colors: [color(0xFFD47008), '#000000'],
+            stops: [0.0, 1.0],
+            begin: [-0.64, 1.0],
+            end: [0.64, -1.0],
+          }),
+        });
+      }
+      return null;
+    })();
+  
+    const headerPhoto = HEADER_PHOTOS[scanner()];
+  
+    /* ----------------------------------------------------------- the timer -- */
+  
+    const timer = FlutterFlowTimer({
+      initialTime: 60000,
+      controller: model.timerController,
+      getDisplayTime: (value) => StopWatchTimer.getDisplayTime(value, { hours: false }),
+      updateStateInterval: 1000,
+      onChanged: (value, displayTime) => {
+        model.timerMilliseconds = value;
+        model.timerValue = displayTime;
+      },
+      textAlign: 'justify',
+      style: style('headlineSmall', {
+        fontFamily: 'pirulen',
+        color: color(0xFFFF0000),
+        fontSize: 62.0,
+        fontWeight: 400,
+      }),
+    });
+  
+    /* ------------------------------------------------------------- the tree -- */
+  
+    // The panel's Stack is sized by its `double.infinity` container in Flutter;
+    // stating it here gives the CSS grid a definite box to lay the rest against.
+    const root = Stack({
+      width: Infinity,
+      height: Infinity,
+      children: [
+        StackAlign({
+          alignment: [1.0, 1.0],
+          child: Container({
+            width: SW * 0.5,
+            height: Infinity,
+            color: bodyColor(scanner()),
+            boxShadow: boxShadow({ blurRadius: 40.0, color: '#000000', offset: [-10.0, 5.0], spreadRadius: 3.0 }),
+            child: Column({
+              mainAxisSize: 'max',
+              mainAxisAlignment: 'start',
+              children: [
+                Container({
+                  width: Infinity,
+                  height: 258.35,
+                  gradient: linearGradient({
+                    colors: [headerTop(scanner()), headerBottom(scanner())],
+                    stops: [0.0, 1.0],
+                    begin: [0.0, -1.0],
+                    end: [0, 1.0],
+                  }),
+                  child: Column({
+                    mainAxisSize: 'max',
+                    crossAxisAlignment: 'start',
+                    children: [
+                      headerBand,
+                      Padding({
+                        padding: [0.0, 24.0, 0.0, 10.0],
+                        child: Row({
+                          mainAxisSize: 'max',
+                          mainAxisAlignment: 'spaceEvenly',
+                          children: [
+                            Txt(
+                              L('navhbcsm') /* Você está \nUsando */,
+                              style('bodyMedium', {
+                                fontFamily: 'pirulen',
+                                color: color(0xFF222222),
+                                fontSize: 40.0,
+                                fontWeight: 400,
+                              })
+                            ),
+                            Column({
+                              mainAxisSize: 'max',
+                              children: [
+                                headerPhoto &&
+                                  ClipRRect({
+                                    borderRadius: 8.0,
+                                    child: Img(headerPhoto.src, {
+                                      width: headerPhoto.width,
+                                      height: headerPhoto.height,
+                                      fit: 'cover',
+                                    }),
+                                  }),
+                              ],
+                            }),
+                          ],
+                        }),
+                      }),
+                    ],
+                  }),
+                }),
+                // The red divider only belongs to the Rasther 3 / RB skins.
+                Opacity({
+                  opacity: scanner() === 'Rasther 3' || scanner() === 'RB' ? 1.0 : 0.0,
+                  child: Container({ width: Infinity, height: 8.0, color: color(0xFFC10816) }),
+                }),
+                Padding({
+                  padding: [32.0, 10.0, 32.0, 0.0],
+                  child: Row({
+                    mainAxisSize: 'max',
+                    mainAxisAlignment: 'spaceBetween',
+                    crossAxisAlignment: 'start',
+                    children: [
+                      Column({
+                        mainAxisSize: 'max',
+                        crossAxisAlignment: 'start',
+                        children: [
+                          Padding({
+                            padding: [56.0, 16.0, 0.0, 16.0],
+                            child: Txt(
+                              L('x5fvgf80') /* O problema do veículo */,
+                              style('bodyMedium', {
+                                fontFamily: 'pirulen',
+                                color: color(0xFF222222),
+                                fontSize: 25.0,
+                                fontWeight: 400,
+                              })
+                            ),
+                          }),
+                          Padding({
+                            padding: [32.0, 16.0, 32.0, 32.0],
+                            child: Column({
+                              mainAxisSize: 'max',
+                              mainAxisAlignment: 'center',
+                              crossAxisAlignment: 'end',
+                              children: [
+                                answer(0, {
+                                  numberKey: 'bvcy0hg2',
+                                  animation: animationsMap.stackOnActionTriggerAnimation1,
+                                  sound: 'soundPlayer2',
+                                }),
+                                Padding({
+                                  padding: [0.0, 24.0, 0.0, 0.0],
+                                  child: answer(1, {
+                                    numberKey: 'fvk3pjqg',
+                                    animation: animationsMap.stackOnActionTriggerAnimation2,
+                                    sound: 'soundPlayer3',
+                                  }),
+                                }),
+                                Padding({
+                                  padding: [0.0, 24.0, 0.0, 0.0],
+                                  child: answer(2, {
+                                    numberKey: 'u3qmdqw7',
+                                    animation: animationsMap.stackOnActionTriggerAnimation3,
+                                    sound: 'soundPlayer4',
+                                  }),
+                                }),
+                                Padding({
+                                  padding: [0.0, 24.0, 0.0, 0.0],
+                                  child: answer(3, {
+                                    numberKey: 'ai7wwgfu',
+                                    animation: animationsMap.stackOnActionTriggerAnimation4,
+                                    sound: 'soundPlayer5',
+                                  }),
+                                }),
+                              ],
+                            }),
+                          }),
+                        ],
+                      }),
+                      Column({
+                        mainAxisSize: 'max',
+                        children: [
+                          Padding({
+                            padding: [16.0, 0.0, 16.0, 0.0],
+                            child: Column({
+                              mainAxisSize: 'max',
+                              children: [
+                                Row({
+                                  mainAxisSize: 'max',
+                                  mainAxisAlignment: 'start',
+                                  children: [
+                                    Padding({ padding: [0.0, 16.0, 4.0, 4.0], child: dicasLabel }),
+                                    Padding({
+                                      padding: [0.0, 16.0, 0.0, 4.0],
+                                      child: Txt(
+                                        L('k0xz8bjz') /* Suporte\nDisponível! */,
+                                        style('bodyMedium', {
+                                          fontFamily: 'pirulen',
+                                          color: '#000000',
+                                          fontSize: 18.0,
+                                          fontWeight: 400,
+                                          textAlign: 'left',
+                                        })
+                                      ),
+                                    }),
+                                  ],
+                                }),
+                                Padding({
+                                  padding: [0.0, 0.0, 0.0, 12.0],
+                                  child: Container({ width: 190.0, height: 2.0, color: TH.secondaryBackground }),
+                                }),
+                                Container({
+                                  color: cardColor(scanner()),
+                                  boxShadow: boxShadow({
+                                    blurRadius: 10.0,
+                                    color: color(0x5D000000),
+                                    offset: [-5.0, 5.0],
+                                    spreadRadius: 1.0,
+                                  }),
+                                  borderRadius: 24.0,
+                                  child: Padding({
+                                    padding: [16.0, 16.0, 16.0, 16.0],
+                                    child: Column({ mainAxisSize: 'max', children: hintNodes }),
+                                  }),
+                                }),
+                              ],
+                            }),
+                          }),
+                        ],
+                      }),
+                    ],
+                  }),
+                }),
+              ],
+            }),
+          }),
+        }),
+        StackAlign({
+          alignment: [1.0, 1.0],
+          child: Padding({
+            padding: [0.0, 0.0, 52.0, 32.0],
+            child: Container({
+              width: 385.0,
+              height: 90.0,
+              color: '#FFFFFF',
+              boxShadow: boxShadow({ blurRadius: 10.0, color: color(0x5D000000), offset: [-5.0, 5.0], spreadRadius: 1.0 }),
+              borderRadius: 8.0,
+              child: Padding({ padding: [8.0, 8.0, 8.0, 8.0], child: timer }),
+            }),
+          }),
+        }),
+      ],
+    });
+  
+    /* --------------------------------------------------------- on page load -- */
+    // Background music, then a 1Hz tick that sends the player to Perdeu when the
+    // clock runs out.
+    // Sem loop: o Dart chama setAsset().then(play()) e nunca setLoopMode, e a
+    // faixa (~2min48) cobre a rodada de 60s de sobra.
+    playSound(
+      model,
+      'soundPlayer1',
+      'assets/audios/Eric_Skiff_-_A_Night_Of_Dizzy_Spells_NO_COPYRIGHT_8-bit_Music_Background.mp3',
+      0.2
+    );
+    model.timerController.onStartTimer();
+    model.instantTimer = InstantTimer.periodic({
+      duration: 1000,
+      startImmediately: true,
+      callback: async () => {
+        if (model.timerMilliseconds > 0) return;
+        model.timerController.onStopTimer();
+        model.timerController.onResetTimer();
+        model.soundPlayer1?.stop();
+        model.instantTimer?.cancel();
+        pushNamed('Perdeu', {
+          extra: {
+            __transition_info__: new TransitionInfo({
+              hasTransition: true,
+              transitionType: PageTransitionType.scale,
+              alignment: [0, 1],
+            }),
+          },
+        });
+        await addUsuario(
+          createUsuariosRecordData({
+            nome: FFAppState.cadastro.nome,
+            telefone: FFAppState.cadastro.telefone,
+            atuacao: FFAppState.cadastro.atuacao,
+            venceu: false,
+            equipamento: FFAppState.scannerEscolhido,
+          })
+        );
+      },
+    });
+  
+    root.__dispose = () => {
+      model.instantTimer?.cancel();
+      model.timerController.dispose();
+      model.soundPlayer1?.stop();
+    };
+  
+    return root;
   }
   Object.defineProperty(__exports, "PerguntasErespostasWidget", { get: () => PerguntasErespostasWidget, enumerable: true });
   });
