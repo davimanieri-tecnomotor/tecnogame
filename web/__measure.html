@@ -1,0 +1,66 @@
+<!doctype html><html data-theme="dark"><head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/app.css">
+</head><body>
+<div id="stage" style="transform:none"></div>
+<script type="module">
+import { Column, Container, InkWell, Padding, Stack, StackAlign, Txt, boxShadow, color, valueOrDefault } from './js/widgets.js';
+import { style } from './js/theme.js';
+import { QUESTIONS } from './js/questions.js';
+
+// exact copy of the card subtree from components/perguntas_erespostas.js
+function card(text) {
+  const c = InkWell({ onTap: () => {},
+    child: Container({
+      width: 550.0, height: 125.0, color: color(0xFFBCBEC0),
+      boxShadow: boxShadow({ blurRadius: 10.0, color: color(0x5D000000), offset: [-10.0, 10.0], spreadRadius: 1.0 }),
+      borderRadius: 12.0,
+      child: Padding({ padding: [72.0, 16.0, 32.0, 16.0],
+        child: Column({ mainAxisSize: 'max', mainAxisAlignment: 'center', crossAxisAlignment: 'start',
+          children: [ Padding({ padding: [10.0, 0.0, 0.0, 0.0],
+            child: Txt(valueOrDefault(text, 'yr'), style('bodyMedium', { fontWeight: 400, color: color(0xFF001C43), fontSize: 24.0 })) }) ] }) }) }) });
+  return Stack({ alignment: [-1.0, 0.0], children: [
+    StackAlign({ alignment: [0.0, 0.0], child: c }),
+    StackAlign({ alignment: [-1.0, 0.0], child: Padding({ padding: [24.0, 0.0, 0.0, 0.0],
+      child: Txt('1', style('bodyMedium', { fontWeight: 900, color: color(0xFF001C43), fontSize: 55.0 })) }) }) ] });
+}
+
+const host = document.getElementById('stage');
+// mimic the real ancestry width: Column(crossAxis end) inside Padding[32,16,32,32]
+host.style.width = '960px';
+host.style.display = 'flex'; host.style.flexDirection = 'column'; host.style.alignItems = 'flex-end';
+
+const FIELDS = ['respostaUm','respostaDois','respostaTres','respostaQuatro'];
+window.__run = async () => {
+  await document.fonts.ready;
+  const out = [];
+  for (const lang of ['pt','es','en']) {
+    QUESTIONS[lang].forEach((q, qi) => {
+      FIELDS.forEach((f) => {
+        host.textContent = '';
+        const node = card(q[f]);
+        host.appendChild(node);
+        const stack = node;
+        const txt = node.querySelector('.ff-text');
+        const inner = txt.parentElement;      // Padding[10,0,0,0]
+        const colEl = inner.parentElement;    // Column
+        const sr = stack.getBoundingClientRect();
+        const tr = txt.getBoundingClientRect();
+        const cr = colEl.getBoundingClientRect();
+        out.push({ lang, q: qi + 1, f,
+          textW: +tr.width.toFixed(1), textH: +tr.height.toFixed(1),
+          lines: +(tr.height / parseFloat(getComputedStyle(txt).lineHeight)).toFixed(2),
+          lineH: +parseFloat(getComputedStyle(txt).lineHeight).toFixed(2),
+          colH: +cr.height.toFixed(1),
+          stackTop: +sr.top.toFixed(1), stackH: +sr.height.toFixed(1),
+          clipTop: +(sr.top - tr.top).toFixed(1),          // >0 = clipped at top
+          clipBottom: +(tr.bottom - sr.bottom).toFixed(1), // >0 = clipped at bottom
+        });
+      });
+    });
+  }
+  return out;
+};
+window.__ready = true;
+</script></body></html>

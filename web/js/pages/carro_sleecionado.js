@@ -6,7 +6,6 @@
 import { Align, Column, Container, Padding, Txt, decorationImage, el, color, unfocus } from '../widgets.js';
 import { style } from '../theme.js';
 import { FFAppState } from '../state.js';
-import { transformaAleatorio } from '../functions.js';
 import { CarroFotoWidget } from '../components/carro_foto.js';
 import { goNamed, TransitionInfo, PageTransitionType } from '../router.js';
 import {
@@ -21,19 +20,6 @@ import {
   delayed,
 } from '../anim.js';
 
-/** index -> the name printed under the photo, exactly as spelled in the Dart. */
-const CARRO_NOMES = {
-  0: 'FIAT TORO - 10GF',
-  1: 'Volvo XC-60',
-  2: 'BMW 118i',
-  3: 'BYD',
-  4: 'Fiat Gran Sienna',
-  5: 'VW 24-280',
-  6: 'VW Delivery',
-  7: 'Valtra',
-  8: 'Renaut Master',
-  9: 'Mercedes Accelo 917',
-};
 
 export function CarroSleecionadoWidget() {
   let left = false;
@@ -57,15 +43,16 @@ export function CarroSleecionadoWidget() {
     }),
   };
 
-  const index = transformaAleatorio(FFAppState.escolha);
-
   const content = Column({
     mainAxisSize: 'max',
     children: [
       CarroFotoWidget(),
       Padding({
         padding: [0.0, 52.0, 0.0, 0.0],
-        child: Txt(CARRO_NOMES[String(index)] ?? 'SEM CARRO SELECIONADO', {
+                // O nome vinha de uma tabela fixa por indice no Dart (que, aliás, nao
+        // era o campo `nome` da questao — esse o jogo nunca exibia). Agora e o
+        // nome do veiculo da rodada.
+        child: Txt(FFAppState.slotAtual?.veiculo?.nome || 'SEM CARRO SELECIONADO', {
           ...style('bodyMedium', {
             fontFamily: 'Roboto',
             fontWeight: 700,

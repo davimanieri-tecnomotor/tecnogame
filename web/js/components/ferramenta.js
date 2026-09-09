@@ -18,7 +18,6 @@
 
 import { ClipRRect, Column, Container, Img, InkWell, Opacity, Stack, StackAlign, color, SW, SH } from '../widgets.js';
 import { FFAppState } from '../state.js';
-import { transformaAleatorio } from '../functions.js';
 import { playSound } from '../audio.js';
 import { showDialog } from '../dialog.js';
 import { EquipamentoInvalidoWidget } from './equipamento_invalido.js';
@@ -62,7 +61,7 @@ export function FerramentaWidget({ ferramenta, util } = {}) {
   };
 
   const tool = TOOLS[ferramenta];
-  const questao = FFAppState.questoesBrasil[transformaAleatorio(FFAppState.escolha)];
+  const questao = FFAppState.questoesBrasil[FFAppState.indiceAtual];
   const enabled = Boolean(questao?.[tool.flag]);
 
   const onTap = async () => {

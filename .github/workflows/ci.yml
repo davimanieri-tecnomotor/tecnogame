@@ -75,6 +75,12 @@ jobs:
       - name: Alvos alcançáveis por teclado
         run: npm run verify:teclado
 
+      - name: Nada cortado dentro do palco
+        run: npm run verify:corte
+
+      - name: Baralho — fidelidade do original e tamanho livre
+        run: npm run verify:baralho
+
       # O mesmo jogo tem de funcionar aberto direto do disco, pelo bundle clássico.
       - name: Rotas (file://, bundle clássico)
         env:

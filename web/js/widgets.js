@@ -192,6 +192,18 @@ export function Row({
 } = {}) {
   const gap = gapOf(children);
   const kids = childrenOf(children);
+  // Align encolhe até o filho quando está no eixo PRINCIPAL de um Row: no
+  // Flutter ele recebe restrição solta ali. A classe .ff-align vale width:100%
+  // porque o caso comum é Align dentro de Column (eixo cruzado), então aqui a
+  // regra é desfeita — sem isto a fileira de scanners saía espalhada, com dois
+  // cards cortados e um metade fora da tela.
+  for (const kid of kids) {
+    if (kid instanceof HTMLElement && kid.classList.contains('ff-align')) {
+      kid.style.width = 'auto';
+      delete kid.dataset.fillWidth;
+    }
+  }
+
   const fillsMain = (mainAxisSize === 'max' || hasFlexChild(kids)) && width == null;
   const node = el(
     'div',
@@ -337,7 +349,11 @@ export function Container({
     minHeight: 0,
     // A Flutter child can never exceed its parent's constraints - a
     // `Container(width: 1920)` inside a 1102px-wide parent lays out at 1102.
+    // O mesmo vale na vertical: a roleta declara 946px de altura dentro de uma
+    // caixa de 839.8, e o Flutter a comprime; sem isto ela era recortada em
+    // cima e embaixo em vez de encolher.
     maxWidth: '100%',
+    maxHeight: '100%',
   };
   if (bg) css.background = bg;
   if (gradient) css.backgroundImage = gradient;
