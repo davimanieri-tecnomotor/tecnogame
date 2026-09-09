@@ -285,8 +285,8 @@ mas **o token da z-api é** — se este repositório virar público, gire o toke
 npm run verify        # tudo: HTTP e file://, subindo o servidor sozinho
 ```
 
-Isso roda a checagem estática, regera os bundles e passa os oito testes de
-navegador nos **dois transportes** — 16 execuções. Sobe o `http-server` se a
+Isso roda a checagem estática, regera os bundles e passa os nove testes de
+navegador nos **dois transportes** — 18 execuções. Sobe o `http-server` se a
 porta 8099 estiver livre e reaproveita o que já estiver de pé. Para recortar:
 
 ```bash
