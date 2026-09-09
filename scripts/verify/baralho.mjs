@@ -5,7 +5,8 @@
 //  1. o baralho embutido reproduz questions.js campo por campo;
 //  2. as dez voltas da roleta são os mesmos números do Dart;
 //  3. a arte original é usada enquanto os veículos são os originais;
-//  4. um baralho de tamanho diferente sorteia, gera a roda e joga até o fim.
+//  4. um baralho de tamanho diferente sorteia, gera a roda e joga até o fim;
+//  5. a fatia que para sob a seta é a mesma rodada que o jogo abre em seguida.
 import puppeteer from 'puppeteer';
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8099';
@@ -248,6 +249,66 @@ const jogo = await page.evaluate(() => {
 console.log('   tela de jogo ->', JSON.stringify(jogo));
 if (jogo.alternativas !== 4) falhas.push(`a tela de jogo mostrou ${jogo.alternativas} alternativas`);
 if (!jogo.enunciado) falhas.push('o enunciado nao veio do baralho publicado');
+
+/* ---- 5: a fatia que para sob a seta e a rodada que o jogo abre em seguida --
+ * A roda gerada desenha as fatias e o `escolha` sorteado gira a roda; se os
+ * dois discordarem, a seta mostra um carro e o jogo abre outro. Ja aconteceu:
+ * as fatias corriam no sentido horario, o giro tambem, e a roda parava na
+ * fatia -k. Isto confere as duas pontas para todo N e todo k. */
+
+const alinhamento = await page.evaluate(async () => {
+  const carregar = async (nome) =>
+    window.__tecgameRequire ? window.__tecgameRequire(nome) : await import(`./js/${nome}`);
+  const { rodaGerada } = await carregar('roda.js');
+  const fns = await carregar('functions.js');
+
+  // O angulo do meio de cada fatia, lido do proprio `d` que a roda gerou:
+  // "M cx cy L x1 y1 A r r 0 f 1 x2 y2 Z".
+  const anguloDoMeio = (d, c) => {
+    // "M cx cy L x1 y1 A r r 0 f 1 x2 y2 Z" -> so os numeros, na ordem.
+    const n = d.split(' ').map(Number).filter((v) => !Number.isNaN(v));
+    const grau = (x, y) => ((Math.atan2(y - c, x - c) * 180) / Math.PI + 360) % 360;
+    const a = grau(n[2], n[3]);
+    let b = grau(n[9], n[10]);
+    if (b <= a) b += 360; // a fatia sempre varre no sentido horario
+    return ((a + b) / 2) % 360;
+  };
+
+  const problemas = [];
+  for (const N of [3, 7, 9, 10, 12, 20]) {
+    const svgEl = rodaGerada(Array.from({ length: N }, () => ({ veiculo: { imagem: '' } })));
+    const c = Number(svgEl.getAttribute('viewBox').split(' ')[2]) / 2;
+    const fatias = [...svgEl.querySelectorAll('path')]
+      .filter((p) => !p.closest('clipPath'))
+      .map((p) => anguloDoMeio(p.getAttribute('d'), c));
+    if (fatias.length !== N) {
+      problemas.push(`N=${N}: a roda tem ${fatias.length} fatias`);
+      continue;
+    }
+    for (let k = 0; k < N; k++) {
+      const escolha = fns.voltaDoIndice(k, N);
+      const giro = escolha * 360; // rotate() e horario
+      // 90 graus e para BAIXO no SVG, que e onde a seta aponta.
+      const perto = fatias.map((ang) => {
+        const d = ((((ang + giro - 90) % 360) + 360) % 360);
+        return Math.min(d, 360 - d);
+      });
+      const naSeta = perto.indexOf(Math.min(...perto));
+      const abre = fns.escolhaParaIndice(escolha, N);
+      if (naSeta !== abre) {
+        problemas.push(`N=${N} k=${k}: a seta para na fatia ${naSeta}, mas o jogo abre a ${abre}`);
+      }
+    }
+  }
+  return problemas;
+});
+console.log(
+  alinhamento.length
+    ? '5. ALINHAMENTO FALHOU:'
+    : '5. a fatia sob a seta e a rodada que o jogo abre, para todo N e todo k'
+);
+alinhamento.slice(0, 10).forEach((p) => console.log('   - ' + p));
+falhas.push(...alinhamento);
 
 await browser.close();
 if (falhas.length) {

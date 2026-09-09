@@ -5702,16 +5702,18 @@
     root.appendChild(svg('circle', { cx: c, cy: c, r: rAro, fill: ARO }));
   
     const passo = 360 / n;
-    // A fatia 0 tem de ficar centrada para BAIXO, onde a seta aponta: a rotação
-    // de `escolha` voltas termina num múltiplo inteiro de volta mais k/N, então a
-    // fatia k para onde a fatia 0 começou.
+    // A fatia 0 fica centrada para BAIXO, onde a seta aponta, e as demais correm
+    // no sentido ANTI-HORÁRIO — que é como o PNG original as dispõe. A rotação de
+    // `escolha` = 1 + k/N voltas é horária, então quem sobra sob a seta é a
+    // fatia k. Desenhar no sentido horário espelhava a roda e a fazia parar na
+    // fatia -k: a seta mostrava um carro e o jogo abria outro.
     const base = 90 - passo / 2;
   
     const grupo = svg('g');
     root.appendChild(grupo);
   
     slots.forEach((slot, i) => {
-      const de = base + i * passo;
+      const de = base - i * passo;
       const ate = de + passo;
       grupo.appendChild(
         svg('path', {
@@ -5731,7 +5733,7 @@
       const imagem = slot?.veiculo?.imagem;
       if (!imagem) return;
   
-      const de = base + i * passo;
+      const de = base - i * passo;
       const meio = de + passo / 2;
       const rad = (meio * Math.PI) / 180;
   
