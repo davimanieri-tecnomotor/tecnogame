@@ -9,16 +9,17 @@
     "bundle": "node scripts/bundle.mjs",
     "check": "node scripts/check_imports.mjs",
     "gen": "python scripts/gen_data.py",
+    "fonts": "python scripts/fetch_fonts.py",
+    "verify": "node scripts/verify/all.mjs",
     "verify:routes": "node scripts/verify/routes.mjs",
+    "verify:corte": "node scripts/verify/corte.mjs",
     "verify:play": "node scripts/verify/playthrough.mjs",
     "verify:dialogs": "node scripts/verify/dialogs.mjs",
-    "verify:sizes": "node scripts/verify/sizes.mjs",
     "verify:idioma": "node scripts/verify/idioma.mjs",
-    "fonts": "python scripts/fetch_fonts.py",
     "verify:teclado": "node scripts/verify/teclado.mjs",
-    "verify:corte": "node scripts/verify/corte.mjs",
     "verify:baralho": "node scripts/verify/baralho.mjs",
-    "verify:admin": "node scripts/verify/admin.mjs"
+    "verify:admin": "node scripts/verify/admin.mjs",
+    "verify:sizes": "node scripts/verify/sizes.mjs"
   },
   "devDependencies": {
     "http-server": "^14.1.1",

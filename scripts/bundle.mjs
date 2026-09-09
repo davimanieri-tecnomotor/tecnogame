@@ -166,6 +166,10 @@ function emit({ entry, out }) {
     '    if (!mod.exports) { mod.exports = {}; mod.factory(mod.exports, __require); }',
     '    return mod.exports;',
     '  }',
+    // Gancho para os testes: por file:// o import() dinamico e recusado (origem
+    // null), entao scripts/verify/* alcanca os modulos por aqui. E o MESMO
+    // grafo que a pagina usa, nao uma segunda copia.
+    '  if (typeof window !== "undefined") window.__tecgameRequire = __require;',
     '',
   ];
 

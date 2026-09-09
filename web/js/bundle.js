@@ -13,768 +13,769 @@
     if (!mod.exports) { mod.exports = {}; mod.factory(mod.exports, __require); }
     return mod.exports;
   }
+  if (typeof window !== "undefined") window.__tecgameRequire = __require;
 
   /* ===== widgets.js ===== */
   __define("widgets.js", function (__exports, __require) {
-  // Thin DOM builders that mirror the Flutter widgets used by the project, so the  
-  // page code below reads like the Dart it was ported from.  
-  //  
-  // Layout notes that matter for fidelity:  
-  //  * Column/Row default to MainAxisAlignment.start + CrossAxisAlignment.center.  
-  //  * MainAxisSize.max fills the parent along the main axis.  
-  //  * Stack sizes to its largest non-positioned child (one shared grid cell).  
-  //  * Align(alignment: Alignment(x, y)) puts the child at  
-  //      (x + 1) / 2 * (parentSize - childSize)  
-  //    which in CSS is `left: f%` + `translateX(-f%)` with f = (x + 1) / 2.  
-    
-  const SW = 1920;  
-  const SH = 1080;  
-    
-  /* --------------------------------------------------------------- helpers -- */  
-    
-  function px(v) {  
-    if (v == null) return null;  
-    if (typeof v === 'string') return v;  
-    if (v === Infinity) return '100%';  
-    return `${v}px`;  
-  }  
-    
-  /** Flutter's `Color(0xAARRGGBB)` -> css. */  
-  function color(argb) {  
-    if (typeof argb === 'string') return argb;  
-    const a = (argb >>> 24) & 0xff;  
-    const r = (argb >>> 16) & 0xff;  
-    const g = (argb >>> 8) & 0xff;  
-    const b = argb & 0xff;  
-    if (a === 0xff) return `#${[r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('')}`;  
-    return `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(4)})`;  
-  }  
-    
-  const Colors = {  
-    transparent: 'transparent',  
-    white: '#FFFFFF',  
-    black: '#000000',  
-  };  
-    
-  function el(tag, props = {}, children = []) {  
-    const node = document.createElement(tag);  
-    applyProps(node, props);  
-    append(node, children);  
-    return node;  
-  }  
-    
-  function applyProps(node, props) {  
-    for (const [key, value] of Object.entries(props)) {  
-      if (value == null || value === false) continue;  
-      if (key === 'style') {  
-        Object.assign(node.style, value);  
-      } else if (key === 'class' || key === 'className') {  
-        node.className = Array.isArray(value) ? value.filter(Boolean).join(' ') : value;  
-      } else if (key === 'text') {  
-        node.textContent = value;  
-      } else if (key === 'html') {  
-        node.innerHTML = value;  
-      } else if (key.startsWith('on') && typeof value === 'function') {  
-        node.addEventListener(key.slice(2).toLowerCase(), value);  
-      } else if (key.startsWith('data') || key === 'aria-label' || key === 'role') {  
-        node.setAttribute(key.replace(/([A-Z])/g, '-$1').toLowerCase(), value);  
-      } else {  
-        node.setAttribute(key, value);  
-      }  
-    }  
-  }  
-    
-  function append(node, children) {  
-    const list = Array.isArray(children) ? children : [children];  
-    for (const child of list) {  
-      if (child == null || child === false) continue;  
-      if (Array.isArray(child)) {  
-        append(node, child);  
-      } else if (child instanceof Node) {  
-        node.appendChild(child);  
-      } else {  
-        node.appendChild(document.createTextNode(String(child)));  
-      }  
-    }  
-  }  
-    
-  /** Flutter's `[...].divide(SizedBox(...))` - drops nulls first, like `if (...)`  
-   *  children that evaluate to nothing. */  
-  function divide(children, gap) {  
-    return { __divided: children.filter((c) => c != null && c !== false), gap };  
-  }  
-    
-  function childrenOf(children) {  
-    if (children && children.__divided) return children.__divided;  
-    return (Array.isArray(children) ? children : [children]).filter((c) => c != null && c !== false);  
-  }  
-    
-  function gapOf(children) {  
-    return children && children.__divided ? children.gap : null;  
-  }  
-    
-  /**  
-   * Single-child wrappers (Padding, Align, Opacity, ClipRRect, ...) size to their  
-   * child in Flutter, so a child that asks for `double.infinity` makes the  
-   * wrapper fill too. CSS percentages can't resolve against a shrink-wrapped  
-   * parent, so the request is propagated up explicitly.  
-   */  
-  function inheritFill(wrapper, child) {  
-    if (!(wrapper instanceof HTMLElement) || !(child instanceof HTMLElement)) return wrapper;  
-    if (child.style.width === '100%' || child.dataset.fillWidth) {  
-      wrapper.style.width = '100%';  
-      wrapper.dataset.fillWidth = '1';  
-    }  
-    if (child.style.height === '100%' || child.dataset.fillHeight) {  
-      wrapper.style.height = '100%';  
-      wrapper.dataset.fillHeight = '1';  
-    }  
-    return wrapper;  
-  }  
-    
-  const MAIN = {  
-    start: 'flex-start',  
-    end: 'flex-end',  
-    center: 'center',  
-    spaceBetween: 'space-between',  
-    spaceAround: 'space-around',  
-    spaceEvenly: 'space-evenly',  
-  };  
-    
-  const CROSS = {  
-    start: 'flex-start',  
-    end: 'flex-end',  
-    center: 'center',  
-    stretch: 'stretch',  
-    baseline: 'baseline',  
-  };  
-    
-    
-  /** A flex child (Expanded/Flexible) soaks up the free space, which makes the  
-   *  Row/Column fill its bounded main axis even with MainAxisSize.min. */  
-  function hasFlexChild(kids) {  
-    return kids.some((kid) => kid instanceof HTMLElement && kid.classList.contains('ff-expanded'));  
-  }  
-    
-  /* ----------------------------------------------------------- containers -- */  
-    
-  function Column({  
-    mainAxisSize = 'min',  
-    mainAxisAlignment = 'start',  
-    crossAxisAlignment = 'center',  
-    width,  
-    height,  
-    style,  
-    children = [],  
-    ...rest  
-  } = {}) {  
-    const gap = gapOf(children);  
-    const kids = childrenOf(children);  
-    const fillsMain = (mainAxisSize === 'max' || hasFlexChild(kids)) && height == null;  
-    const node = el(  
-      'div',  
-      {  
-        class: ['ff-col', fillsMain ? 'ff-main-max' : null],  
-        style: {  
-          justifyContent: MAIN[mainAxisAlignment],  
-          alignItems: CROSS[crossAxisAlignment],  
-          rowGap: gap != null ? px(gap) : null,  
-          width: px(width),  
-          height: px(height),  
-          ...style,  
-        },  
-        ...rest,  
-      },  
-      kids  
-    );  
-    if (fillsMain || height === Infinity) node.dataset.fillHeight = '1';  
-    // A Column's cross size is the widest child, so a child that wants to fill  
-    // the width makes the Column want to as well.  
-    if (width == null && kids.some((k) => k instanceof HTMLElement && k.dataset.fillWidth)) {  
-      node.style.width = '100%';  
-      node.dataset.fillWidth = '1';  
-    }  
-    if (width === Infinity) node.dataset.fillWidth = '1';  
-    return node;  
-  }  
-    
-  function Row({  
-    mainAxisSize = 'min',  
-    mainAxisAlignment = 'start',  
-    crossAxisAlignment = 'center',  
-    width,  
-    height,  
-    style,  
-    children = [],  
-    ...rest  
-  } = {}) {  
-    const gap = gapOf(children);  
-    const kids = childrenOf(children);  
-    // Align encolhe até o filho quando está no eixo PRINCIPAL de um Row: no  
-    // Flutter ele recebe restrição solta ali. A classe .ff-align vale width:100%  
-    // porque o caso comum é Align dentro de Column (eixo cruzado), então aqui a  
-    // regra é desfeita — sem isto a fileira de scanners saía espalhada, com dois  
-    // cards cortados e um metade fora da tela.  
-    for (const kid of kids) {  
-      if (kid instanceof HTMLElement && kid.classList.contains('ff-align')) {  
-        kid.style.width = 'auto';  
-        delete kid.dataset.fillWidth;  
-      }  
-    }  
-    
-    const fillsMain = (mainAxisSize === 'max' || hasFlexChild(kids)) && width == null;  
-    const node = el(  
-      'div',  
-      {  
-        class: ['ff-row', fillsMain ? 'ff-main-max' : null],  
-        style: {  
-          justifyContent: MAIN[mainAxisAlignment],  
-          alignItems: CROSS[crossAxisAlignment],  
-          columnGap: gap != null ? px(gap) : null,  
-          width: px(width),  
-          height: px(height),  
-          ...style,  
-        },  
-        ...rest,  
-      },  
-      kids  
-    );  
-    if (fillsMain || width === Infinity) node.dataset.fillWidth = '1';  
-    // Mirror image of the Column rule, on the Row's cross axis.  
-    if (height == null && kids.some((k) => k instanceof HTMLElement && k.dataset.fillHeight)) {  
-      node.style.height = '100%';  
-      node.dataset.fillHeight = '1';  
-    }  
-    if (height === Infinity) node.dataset.fillHeight = '1';  
-    return node;  
-  }  
-    
-  /**  
-   * Stack. `alignment` applies to children that don't carry their own Align;  
-   * Flutter's default is AlignmentDirectional.topStart, not center.  
-   */  
-  function Stack({ alignment = [-1, -1], width, height, style, children = [] } = {}) {  
-    const kids = childrenOf(children);  
-    for (const kid of kids) {  
-      if (kid instanceof HTMLElement && !kid.dataset.aligned) placeInStack(kid, alignment);  
-    }  
-    const node = el('div', { class: 'ff-stack', style: { width: px(width), height: px(height), ...style } }, kids);  
-    // The Stack is as big as its biggest child, so a child that wants to fill  
-    // makes the Stack want to fill.  
-    for (const kid of kids) inheritFill(node, kid);  
-    return node;  
-  }  
-    
-  const CARDINAL = { '-1': 'start', 0: 'center', 1: 'end' };  
-    
-  /** Position a stack child: place-self for cardinal alignments (keeps the child  
-   *  in the grid, so it still contributes to the Stack's size), absolute  
-   *  percentages for fractional ones. */  
-  function placeInStack(node, [x, y]) {  
-    node.dataset.aligned = '1';  
-    const cx = CARDINAL[String(x)];  
-    const cy = CARDINAL[String(y)];  
-    if (cx && cy) {  
-      node.style.justifySelf = cx;  
-      node.style.alignSelf = cy;  
-      return;  
-    }  
-    const fx = (x + 1) / 2;  
-    const fy = (y + 1) / 2;  
-    node.classList.add('ff-abs');  
-    node.style.left = `${fx * 100}%`;  
-    node.style.top = `${fy * 100}%`;  
-    node.style.transform = `translate(${-fx * 100}%, ${-fy * 100}%)`;  
-    node.dataset.baseTransform = node.style.transform;  
-  }  
-    
-  function Align({ alignment = [0, 0], width, height, style, child } = {}) {  
-    const [x, y] = alignment;  
-    const node = el(  
-      'div',  
-      {  
-        class: 'ff-align',  
-        style: {  
-          justifyContent: x < 0 ? 'flex-start' : x > 0 ? 'flex-end' : 'center',  
-          alignItems: y < 0 ? 'flex-start' : y > 0 ? 'flex-end' : 'center',  
-          width: px(width),  
-          height: px(height),  
-          ...style,  
-        },  
-      },  
-      child  
-    );  
-    node.dataset.alignX = x;  
-    node.dataset.alignY = y;  
-    // .ff-align is width:100% by class, which inheritFill can't see inline.  
-    node.dataset.fillWidth = '1';  
-    return inheritFill(node, child);  
-  }  
-    
-  /** An Align that is a direct Stack child: hand the alignment to the Stack. */  
-  function StackAlign({ alignment = [0, 0], child, style } = {}) {  
-    const node = el('div', { style: { display: 'flex', ...style } }, child);  
-    inheritFill(node, child);  
-    placeInStack(node, alignment);  
-    return node;  
-  }  
-    
-  function Padding({ padding = [0, 0, 0, 0], style, child } = {}) {  
-    const [l, t, r, b] = padding;  
-    const node = el(  
-      'div',  
-      {  
-        style: {  
-          padding: `${t}px ${r}px ${b}px ${l}px`,  
-          display: 'flex',  
-          flexDirection: 'column',  
-          minWidth: 0,  
-          maxWidth: '100%',  
-          ...style,  
-        },  
-      },  
-      child  
-    );  
-    return inheritFill(node, child);  
-  }  
-    
-  /**  
-   * Container. Supports the decoration features the project actually uses:  
-   * color, gradient, borderRadius, border, boxShadow, image and alignment.  
-   */  
-  function Container({  
-    width,  
-    height,  
-    color: bg,  
-    gradient,  
-    borderRadius,  
-    border,  
-    boxShadow,  
-    image,  
-    alignment,  
-    padding,  
-    constraints,  
-    style,  
-    child,  
-    children,  
-    ...rest  
-  } = {}) {  
-    const css = {  
-      width: px(width),  
-      height: px(height),  
-      flex: 'none',  
-      minWidth: 0,  
-      minHeight: 0,  
-      // A Flutter child can never exceed its parent's constraints - a  
-      // `Container(width: 1920)` inside a 1102px-wide parent lays out at 1102.  
-      // O mesmo vale na vertical: a roleta declara 946px de altura dentro de uma  
-      // caixa de 839.8, e o Flutter a comprime; sem isto ela era recortada em  
-      // cima e embaixo em vez de encolher.  
-      maxWidth: '100%',  
-      maxHeight: '100%',  
-    };  
-    if (bg) css.background = bg;  
-    if (gradient) css.backgroundImage = gradient;  
-    if (image) {  
-      css.backgroundImage = [image.css, gradient].filter(Boolean).join(', ');  
-      css.backgroundSize = image.size;  
-      css.backgroundPosition = image.position || 'center';  
-      css.backgroundRepeat = image.repeat || 'no-repeat';  
-    }  
-    if (borderRadius != null) css.borderRadius = typeof borderRadius === 'number' ? `${borderRadius}px` : borderRadius;  
-    if (border) css.border = border;  
-    if (boxShadow) css.boxShadow = boxShadow;  
-    if (padding) {  
-      const [l, t, r, b] = padding;  
-      css.padding = `${t}px ${r}px ${b}px ${l}px`;  
-    }  
-    if (constraints) Object.assign(css, constraints);  
-    let tight = false;  
-    if (alignment) {  
-      css.display = 'flex';  
-      css.justifyContent = alignment[0] < 0 ? 'flex-start' : alignment[0] > 0 ? 'flex-end' : 'center';  
-      css.alignItems = alignment[1] < 0 ? 'flex-start' : alignment[1] > 0 ? 'flex-end' : 'center';  
-    } else {  
-      css.display = 'flex';  
-      css.flexDirection = 'column';  
-      css.alignItems = 'stretch';  
-      css.justifyContent = 'flex-start';  
-      // An explicitly sized Container hands its child tight constraints, so the  
-      // child fills the box rather than shrink-wrapping (see .ff-tight).  
-      tight = height != null;  
-    }  
-    const node = el(  
-      'div',  
-      { class: tight ? 'ff-tight' : null, style: { ...css, ...style }, ...rest },  
-      child ?? children ?? []  
-    );  
-    if (width === Infinity) node.dataset.fillWidth = '1';  
-    if (height === Infinity) node.dataset.fillHeight = '1';  
-    return node;  
-  }  
-    
-  /** BoxDecoration.image -> a css background layer. */  
-  function decorationImage(path, fit = 'cover', alignment) {  
-    const size = fit === 'cover' ? 'cover' : fit === 'contain' ? 'contain' : fit === 'none' ? 'auto' : 'cover';  
-    let position = 'center';  
-    if (alignment) {  
-      position = `${((alignment[0] + 1) / 2) * 100}% ${((alignment[1] + 1) / 2) * 100}%`;  
-    }  
-    return { css: `url("${path}")`, size, position };  
-  }  
-    
-  /** LinearGradient(colors, stops, begin, end) -> css linear-gradient.  
-   *  Flutter's begin/end are Alignment vectors; the css angle is derived from  
-   *  the vector so diagonal gradients keep their direction. */  
-  function linearGradient({ colors, stops, begin = [0, -1], end = [0, 1] }) {  
-    const dx = end[0] - begin[0];  
-    const dy = end[1] - begin[1];  
-    const angle = (Math.atan2(dx, -dy) * 180) / Math.PI;  
-    const parts = colors.map((c, i) => (stops ? `${c} ${stops[i] * 100}%` : c));  
-    return `linear-gradient(${angle.toFixed(2)}deg, ${parts.join(', ')})`;  
-  }  
-    
-  function boxShadow({ blurRadius = 0, color: c = '#000', offset = [0, 0], spreadRadius = 0 }) {  
-    return `${offset[0]}px ${offset[1]}px ${blurRadius}px ${spreadRadius}px ${c}`;  
-  }  
-    
-  function Opacity({ opacity = 1, child, style } = {}) {  
-    const node = el(  
-      'div',  
-      { style: { opacity: String(opacity), display: 'flex', flexDirection: 'column', ...style } },  
-      child  
-    );  
-    return inheritFill(node, child);  
-  }  
-    
-  function ClipRRect({ borderRadius = 0, child, style } = {}) {  
-    const node = el(  
-      'div',  
-      {  
-        style: {  
-          borderRadius: `${borderRadius}px`,  
-          overflow: 'hidden',  
-          display: 'flex',  
-          flex: 'none',  
-          ...style,  
-        },  
-      },  
-      child  
-    );  
-    return inheritFill(node, child);  
-  }  
-    
-  function SizedBox({ width, height } = {}) {  
-    return el('div', { style: { width: px(width), height: px(height), flex: 'none' } });  
-  }  
-    
-  /**  
-   * Expanded / Flexible.  
-   *  
-   * Flutter hands a flex child a loose cross-axis constraint (for the default  
-   * centre alignment), so a child asking for `double.infinity` fills the cross  
-   * axis while a short child stays centred. `align-self: stretch` plus  
-   * `justify-content: center` reproduces both halves of that.  
-   */  
-  const flexChild = (flex, child, style) =>  
-    el(  
-      'div',  
-      {  
-        class: 'ff-expanded',  
-        style: {  
-          flex: `${flex} 1 0`,  
-          minWidth: 0,  
-          minHeight: 0,  
-          display: 'flex',  
-          flexDirection: 'column',  
-          alignSelf: 'stretch',  
-          justifyContent: 'center',  
-          ...style,  
-        },  
-      },  
-      child  
-    );  
-    
-  function Expanded({ flex = 1, child, style } = {}) {  
-    return flexChild(flex, child, style);  
-  }  
-    
-  function Flexible({ flex = 1, child, style } = {}) {  
-    return flexChild(flex, child, style);  
-  }  
-    
-  function SingleChildScrollView({ child, controller, style, ...rest } = {}) {  
-    // The scroll axis is unbounded inside a scroll view, so a MainAxisSize.max  
-    // Column shrink-wraps there - drop the fill-the-parent class from the child.  
-    if (child instanceof HTMLElement) child.classList.remove('ff-main-max');  
-    const node = el('div', { class: 'ff-scroll', style: { width: '100%', ...style }, ...rest }, child);  
-    if (controller) controller.attach(node);  
-    return node;  
-  }  
-    
-  /**  
-   * Transform(transform: Matrix4.skew(ax, ay)). Flutter's Matrix4.skew takes  
-   * radians and writes tan(ax) into the x-shear slot, tan(ay) into the y-shear.  
-   * The transform is recorded as `baseTransform` so animations compose with it  
-   * instead of replacing it.  
-   */  
-  function TransformSkew({ ax = 0, ay = 0, child, style } = {}) {  
-    const transform = `matrix(1, ${Math.tan(ay)}, ${Math.tan(ax)}, 1, 0, 0)`;  
-    const node = el('div', { style: { transform, display: 'flex', flex: 'none', ...style } }, child);  
-    node.dataset.baseTransform = transform;  
-    return node;  
-  }  
-    
-  function TransformRotate({ angle = 0, child, style } = {}) {  
-    const transform = `rotate(${angle}rad)`;  
-    const node = el('div', { style: { transform, display: 'flex', flex: 'none', ...style } }, child);  
-    node.dataset.baseTransform = transform;  
-    return node;  
-  }  
-    
-  /* ---------------------------------------------------------------- leaves -- */  
-    
-  /**  
-   * Text. `style` mirrors the fields the Dart actually sets.  
-   * Passing `fontFamily` swaps the family and keeps everything else, like  
-   * FlutterFlow's `TextStyle.override(fontFamily: ...)`.  
-   */  
-  function Txt(text, style = {}) {  
-    const {  
-      fontFamily,  
-      fontSize,  
-      fontWeight,  
-      fontStyle,  
-      color: c,  
-      letterSpacing,  
-      textAlign,  
-      lineHeight,  
-      decoration,  
-      width,  
-      style: extra,  
-    } = style;  
-    const node = el('div', {  
-      class: 'ff-text',  
-      style: {  
-        fontFamily: fontFamily ? `'${fontFamily}', sans-serif` : null,  
-        fontSize: fontSize != null ? `${fontSize}px` : null,  
-        fontWeight: fontWeight != null ? String(fontWeight) : null,  
-        fontStyle: fontStyle || null,  
-        color: c || null,  
-        letterSpacing: letterSpacing != null ? `${letterSpacing}px` : null,  
-        textAlign: textAlign || null,  
-        lineHeight: lineHeight != null ? String(lineHeight) : null,  
-        textDecoration: decoration || null,  
-        width: px(width),  
-        ...extra,  
-      },  
-      text: text == null ? '' : String(text),  
-    });  
-    if (fontFamily) node.dataset.family = fontFamily;  
-    return node;  
-  }  
-    
-  /** Image.asset(path, width, height, fit, alignment). */  
-  function Img(src, { width, height, fit = 'cover', alignment, style } = {}) {  
-    const node = el('img', {  
-      class: 'ff-img',  
-      src,  
-      alt: '',  
-      draggable: 'false',  
-      style: {  
-        width: px(width),  
-        height: px(height),  
-        objectFit: fit,  
-        objectPosition: alignment  
-          ? `${((alignment[0] + 1) / 2) * 100}% ${((alignment[1] + 1) / 2) * 100}%`  
-          : 'center',  
-        ...style,  
-      },  
-    });  
-    return node;  
-  }  
-    
-  /** InkWell with all the splash/focus/hover/highlight colours set to  
-   *  transparent, which is how every tap target in this project is written. */  
-  function InkWell({ onTap, child, style, disabled = false, label } = {}) {  
-    const interactive = Boolean(onTap) && !disabled;  
-    const node = inheritFill(  
-      el(  
-        'div',  
-        {  
-          class: 'ff-inkwell',  
-          role: 'button',  
-          // Um <div role="button"> nao entra na ordem de tabulacao por conta  
-          // propria, e sem isto o teclado nao alcanca nada no jogo.  
-          tabindex: interactive ? '0' : null,  
-          'aria-label': label ?? null,  
-          'aria-disabled': disabled ? 'true' : null,  
-          style: { display: 'flex', flexDirection: 'column', ...style },  
-        },  
-        child  
-      ),  
-      child  
-    );  
-    if (interactive) {  
-      node.addEventListener('click', (event) => {  
-        event.stopPropagation();  
-        onTap(event);  
-      });  
-      // Enter e Espaco, o contrato de um botao. Espaco tem de ter o rolar da  
-      // pagina cancelado no keydown, mas dispara no keyup, como um <button>.  
-      node.addEventListener('keydown', (event) => {  
-        if (event.key === 'Enter') {  
-          event.preventDefault();  
-          event.stopPropagation();  
-          onTap(event);  
-        } else if (event.key === ' ' || event.key === 'Spacebar') {  
-          event.preventDefault();  
-        }  
-      });  
-      node.addEventListener('keyup', (event) => {  
-        if (event.key === ' ' || event.key === 'Spacebar') {  
-          event.preventDefault();  
-          event.stopPropagation();  
-          onTap(event);  
-        }  
-      });  
-    }  
-    return node;  
-  }  
-    
-  /** GestureDetector(onTap: unfocus) wrappers in the Dart just drop keyboard  
-   *  focus; the web equivalent is blurring the active element. */  
-  function unfocus() {  
-    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();  
-  }  
-    
-  /* ----------------------------------------------------------------- icons -- */  
-  // Material icons drawn inline so the app has no icon-font dependency.  
-  const ICON_PATHS = {  
-    close:  
-      'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',  
-    keyboard_arrow_down_rounded:  
-      'M8.12 9.29L12 13.17l3.88-3.88a.996.996 0 111.41 1.41l-4.59 4.59a.996.996 0 01-1.41 0L6.7 10.7a.996.996 0 010-1.41c.39-.38 1.03-.39 1.42 0z',  
-    warning_amber_rounded:  
-      'M12 5.99L19.53 19H4.47L12 5.99M12 2L1 21h22L12 2zm1 14h-2v2h2v-2zm0-6h-2v4h2v-4z',  
-    // DropdownButton's default icon.  
-    arrow_drop_down: 'M7 10l5 5 5-5z',  
-  };  
-    
-  function Icon(name, { color: c = 'currentColor', size = 24 } = {}) {  
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');  
-    svg.setAttribute('viewBox', '0 0 24 24');  
-    svg.setAttribute('width', String(size));  
-    svg.setAttribute('height', String(size));  
-    svg.setAttribute('fill', c);  
-    svg.setAttribute('class', 'ff-icon');  
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');  
-    path.setAttribute('d', ICON_PATHS[name] || '');  
-    svg.appendChild(path);  
-    return svg;  
-  }  
-    
-  /* ----------------------------------------------------------------- video -- */  
-    
-  function VideoPlayer({  
-    path,  
-    width,  
-    height,  
-    autoPlay = true,  
-    looping = false,  
-    showControls = false,  
-    muted = false,  
-    style,  
-    onEnded,  
-  } = {}) {  
-    const node = el('video', {  
-      class: 'ff-video',  
-      src: path,  
-      playsinline: '',  
-      preload: 'auto',  
-      style: { width: px(width ?? Infinity), height: px(height ?? Infinity), objectFit: 'contain', ...style },  
-    });  
-    if (looping) node.loop = true;  
-    if (showControls) node.controls = true;  
-    node.muted = muted;  
-    if (onEnded) node.addEventListener('ended', onEnded);  
-    if (autoPlay) {  
-      const start = () => {  
-        node.play().catch(() => {  
-          // Autoplay with sound is blocked until the first gesture; fall back to  
-          // a muted start so the video still runs, then unmute on interaction.  
-          node.muted = true;  
-          node.play().catch(() => {});  
-        });  
-      };  
-      if (node.readyState >= 2) start();  
-      else node.addEventListener('loadeddata', start, { once: true });  
-    }  
-    return node;  
-  }  
-    
-  /**  
-   * FutureBuilder / StreamBuilder: renders `loading` until the promise settles,  
-   * then swaps in `builder(data)`. Every call site in this project shows an  
-   * invisible 50x50 CircularProgressIndicator while it waits, because the Dart  
-   * passes `Color(0x004B39EF)` - fully transparent.  
-   */  
-  function FutureBuilder({ future, builder, loading = null, fill = false }) {  
-    const host = el('div', {  
-      style: {  
-        display: 'flex',  
-        flexDirection: 'column',  
-        flex: 'none',  
-        // `fill` is for the call sites whose builder returns a whole page.  
-        width: fill ? '100%' : null,  
-        height: fill ? '100%' : null,  
-      },  
-    });  
-    append(host, loading ?? CircularProgressIndicator());  
-    Promise.resolve(future).then(  
-      (data) => {  
-        host.textContent = '';  
-        append(host, builder(data));  
-      },  
-      (error) => {  
-        console.warn('FutureBuilder failed', error);  
-        host.textContent = '';  
-      }  
-    );  
-    return host;  
-  }  
-    
-  /** Center(child: SizedBox(50x50, child: CircularProgressIndicator(...))) */  
-  function CircularProgressIndicator({ color: c = 'transparent', size = 50 } = {}) {  
-    return el('div', {  
-      style: {  
-        width: `${size}px`,  
-        height: `${size}px`,  
-        flex: 'none',  
-        alignSelf: 'center',  
-        margin: 'auto',  
-        border: `4px solid ${c}`,  
-        borderTopColor: 'transparent',  
-        borderRadius: '50%',  
-        animation: 'ff-spin 1.2s linear infinite',  
-      },  
-    });  
-  }  
-    
-  /* --------------------------------------------------------- misc helpers --- */  
-    
-  /** `valueOrDefault<String>(value, fallback)` */  
-  function valueOrDefault(value, fallback) {  
-    return value == null || value === '' ? fallback : value;  
-  }  
-    
-  /** `String.maybeHandleOverflow({maxChars, replacement})` */  
-  function maybeHandleOverflow(value, { maxChars, replacement = '' }) {  
-    const text = value ?? '';  
-    if (maxChars == null || text.length <= maxChars) return text;  
-    return text.substring(0, maxChars) + replacement;  
-  }  
-    
+  // Thin DOM builders that mirror the Flutter widgets used by the project, so the
+  // page code below reads like the Dart it was ported from.
+  //
+  // Layout notes that matter for fidelity:
+  //  * Column/Row default to MainAxisAlignment.start + CrossAxisAlignment.center.
+  //  * MainAxisSize.max fills the parent along the main axis.
+  //  * Stack sizes to its largest non-positioned child (one shared grid cell).
+  //  * Align(alignment: Alignment(x, y)) puts the child at
+  //      (x + 1) / 2 * (parentSize - childSize)
+  //    which in CSS is `left: f%` + `translateX(-f%)` with f = (x + 1) / 2.
+  
+  const SW = 1920;
+  const SH = 1080;
+  
+  /* --------------------------------------------------------------- helpers -- */
+  
+  function px(v) {
+    if (v == null) return null;
+    if (typeof v === 'string') return v;
+    if (v === Infinity) return '100%';
+    return `${v}px`;
+  }
+  
+  /** Flutter's `Color(0xAARRGGBB)` -> css. */
+  function color(argb) {
+    if (typeof argb === 'string') return argb;
+    const a = (argb >>> 24) & 0xff;
+    const r = (argb >>> 16) & 0xff;
+    const g = (argb >>> 8) & 0xff;
+    const b = argb & 0xff;
+    if (a === 0xff) return `#${[r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('')}`;
+    return `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(4)})`;
+  }
+  
+  const Colors = {
+    transparent: 'transparent',
+    white: '#FFFFFF',
+    black: '#000000',
+  };
+  
+  function el(tag, props = {}, children = []) {
+    const node = document.createElement(tag);
+    applyProps(node, props);
+    append(node, children);
+    return node;
+  }
+  
+  function applyProps(node, props) {
+    for (const [key, value] of Object.entries(props)) {
+      if (value == null || value === false) continue;
+      if (key === 'style') {
+        Object.assign(node.style, value);
+      } else if (key === 'class' || key === 'className') {
+        node.className = Array.isArray(value) ? value.filter(Boolean).join(' ') : value;
+      } else if (key === 'text') {
+        node.textContent = value;
+      } else if (key === 'html') {
+        node.innerHTML = value;
+      } else if (key.startsWith('on') && typeof value === 'function') {
+        node.addEventListener(key.slice(2).toLowerCase(), value);
+      } else if (key.startsWith('data') || key === 'aria-label' || key === 'role') {
+        node.setAttribute(key.replace(/([A-Z])/g, '-$1').toLowerCase(), value);
+      } else {
+        node.setAttribute(key, value);
+      }
+    }
+  }
+  
+  function append(node, children) {
+    const list = Array.isArray(children) ? children : [children];
+    for (const child of list) {
+      if (child == null || child === false) continue;
+      if (Array.isArray(child)) {
+        append(node, child);
+      } else if (child instanceof Node) {
+        node.appendChild(child);
+      } else {
+        node.appendChild(document.createTextNode(String(child)));
+      }
+    }
+  }
+  
+  /** Flutter's `[...].divide(SizedBox(...))` - drops nulls first, like `if (...)`
+   *  children that evaluate to nothing. */
+  function divide(children, gap) {
+    return { __divided: children.filter((c) => c != null && c !== false), gap };
+  }
+  
+  function childrenOf(children) {
+    if (children && children.__divided) return children.__divided;
+    return (Array.isArray(children) ? children : [children]).filter((c) => c != null && c !== false);
+  }
+  
+  function gapOf(children) {
+    return children && children.__divided ? children.gap : null;
+  }
+  
+  /**
+   * Single-child wrappers (Padding, Align, Opacity, ClipRRect, ...) size to their
+   * child in Flutter, so a child that asks for `double.infinity` makes the
+   * wrapper fill too. CSS percentages can't resolve against a shrink-wrapped
+   * parent, so the request is propagated up explicitly.
+   */
+  function inheritFill(wrapper, child) {
+    if (!(wrapper instanceof HTMLElement) || !(child instanceof HTMLElement)) return wrapper;
+    if (child.style.width === '100%' || child.dataset.fillWidth) {
+      wrapper.style.width = '100%';
+      wrapper.dataset.fillWidth = '1';
+    }
+    if (child.style.height === '100%' || child.dataset.fillHeight) {
+      wrapper.style.height = '100%';
+      wrapper.dataset.fillHeight = '1';
+    }
+    return wrapper;
+  }
+  
+  const MAIN = {
+    start: 'flex-start',
+    end: 'flex-end',
+    center: 'center',
+    spaceBetween: 'space-between',
+    spaceAround: 'space-around',
+    spaceEvenly: 'space-evenly',
+  };
+  
+  const CROSS = {
+    start: 'flex-start',
+    end: 'flex-end',
+    center: 'center',
+    stretch: 'stretch',
+    baseline: 'baseline',
+  };
+  
+  
+  /** A flex child (Expanded/Flexible) soaks up the free space, which makes the
+   *  Row/Column fill its bounded main axis even with MainAxisSize.min. */
+  function hasFlexChild(kids) {
+    return kids.some((kid) => kid instanceof HTMLElement && kid.classList.contains('ff-expanded'));
+  }
+  
+  /* ----------------------------------------------------------- containers -- */
+  
+  function Column({
+    mainAxisSize = 'min',
+    mainAxisAlignment = 'start',
+    crossAxisAlignment = 'center',
+    width,
+    height,
+    style,
+    children = [],
+    ...rest
+  } = {}) {
+    const gap = gapOf(children);
+    const kids = childrenOf(children);
+    const fillsMain = (mainAxisSize === 'max' || hasFlexChild(kids)) && height == null;
+    const node = el(
+      'div',
+      {
+        class: ['ff-col', fillsMain ? 'ff-main-max' : null],
+        style: {
+          justifyContent: MAIN[mainAxisAlignment],
+          alignItems: CROSS[crossAxisAlignment],
+          rowGap: gap != null ? px(gap) : null,
+          width: px(width),
+          height: px(height),
+          ...style,
+        },
+        ...rest,
+      },
+      kids
+    );
+    if (fillsMain || height === Infinity) node.dataset.fillHeight = '1';
+    // A Column's cross size is the widest child, so a child that wants to fill
+    // the width makes the Column want to as well.
+    if (width == null && kids.some((k) => k instanceof HTMLElement && k.dataset.fillWidth)) {
+      node.style.width = '100%';
+      node.dataset.fillWidth = '1';
+    }
+    if (width === Infinity) node.dataset.fillWidth = '1';
+    return node;
+  }
+  
+  function Row({
+    mainAxisSize = 'min',
+    mainAxisAlignment = 'start',
+    crossAxisAlignment = 'center',
+    width,
+    height,
+    style,
+    children = [],
+    ...rest
+  } = {}) {
+    const gap = gapOf(children);
+    const kids = childrenOf(children);
+    // Align encolhe até o filho quando está no eixo PRINCIPAL de um Row: no
+    // Flutter ele recebe restrição solta ali. A classe .ff-align vale width:100%
+    // porque o caso comum é Align dentro de Column (eixo cruzado), então aqui a
+    // regra é desfeita — sem isto a fileira de scanners saía espalhada, com dois
+    // cards cortados e um metade fora da tela.
+    for (const kid of kids) {
+      if (kid instanceof HTMLElement && kid.classList.contains('ff-align')) {
+        kid.style.width = 'auto';
+        delete kid.dataset.fillWidth;
+      }
+    }
+  
+    const fillsMain = (mainAxisSize === 'max' || hasFlexChild(kids)) && width == null;
+    const node = el(
+      'div',
+      {
+        class: ['ff-row', fillsMain ? 'ff-main-max' : null],
+        style: {
+          justifyContent: MAIN[mainAxisAlignment],
+          alignItems: CROSS[crossAxisAlignment],
+          columnGap: gap != null ? px(gap) : null,
+          width: px(width),
+          height: px(height),
+          ...style,
+        },
+        ...rest,
+      },
+      kids
+    );
+    if (fillsMain || width === Infinity) node.dataset.fillWidth = '1';
+    // Mirror image of the Column rule, on the Row's cross axis.
+    if (height == null && kids.some((k) => k instanceof HTMLElement && k.dataset.fillHeight)) {
+      node.style.height = '100%';
+      node.dataset.fillHeight = '1';
+    }
+    if (height === Infinity) node.dataset.fillHeight = '1';
+    return node;
+  }
+  
+  /**
+   * Stack. `alignment` applies to children that don't carry their own Align;
+   * Flutter's default is AlignmentDirectional.topStart, not center.
+   */
+  function Stack({ alignment = [-1, -1], width, height, style, children = [] } = {}) {
+    const kids = childrenOf(children);
+    for (const kid of kids) {
+      if (kid instanceof HTMLElement && !kid.dataset.aligned) placeInStack(kid, alignment);
+    }
+    const node = el('div', { class: 'ff-stack', style: { width: px(width), height: px(height), ...style } }, kids);
+    // The Stack is as big as its biggest child, so a child that wants to fill
+    // makes the Stack want to fill.
+    for (const kid of kids) inheritFill(node, kid);
+    return node;
+  }
+  
+  const CARDINAL = { '-1': 'start', 0: 'center', 1: 'end' };
+  
+  /** Position a stack child: place-self for cardinal alignments (keeps the child
+   *  in the grid, so it still contributes to the Stack's size), absolute
+   *  percentages for fractional ones. */
+  function placeInStack(node, [x, y]) {
+    node.dataset.aligned = '1';
+    const cx = CARDINAL[String(x)];
+    const cy = CARDINAL[String(y)];
+    if (cx && cy) {
+      node.style.justifySelf = cx;
+      node.style.alignSelf = cy;
+      return;
+    }
+    const fx = (x + 1) / 2;
+    const fy = (y + 1) / 2;
+    node.classList.add('ff-abs');
+    node.style.left = `${fx * 100}%`;
+    node.style.top = `${fy * 100}%`;
+    node.style.transform = `translate(${-fx * 100}%, ${-fy * 100}%)`;
+    node.dataset.baseTransform = node.style.transform;
+  }
+  
+  function Align({ alignment = [0, 0], width, height, style, child } = {}) {
+    const [x, y] = alignment;
+    const node = el(
+      'div',
+      {
+        class: 'ff-align',
+        style: {
+          justifyContent: x < 0 ? 'flex-start' : x > 0 ? 'flex-end' : 'center',
+          alignItems: y < 0 ? 'flex-start' : y > 0 ? 'flex-end' : 'center',
+          width: px(width),
+          height: px(height),
+          ...style,
+        },
+      },
+      child
+    );
+    node.dataset.alignX = x;
+    node.dataset.alignY = y;
+    // .ff-align is width:100% by class, which inheritFill can't see inline.
+    node.dataset.fillWidth = '1';
+    return inheritFill(node, child);
+  }
+  
+  /** An Align that is a direct Stack child: hand the alignment to the Stack. */
+  function StackAlign({ alignment = [0, 0], child, style } = {}) {
+    const node = el('div', { style: { display: 'flex', ...style } }, child);
+    inheritFill(node, child);
+    placeInStack(node, alignment);
+    return node;
+  }
+  
+  function Padding({ padding = [0, 0, 0, 0], style, child } = {}) {
+    const [l, t, r, b] = padding;
+    const node = el(
+      'div',
+      {
+        style: {
+          padding: `${t}px ${r}px ${b}px ${l}px`,
+          display: 'flex',
+          flexDirection: 'column',
+          minWidth: 0,
+          maxWidth: '100%',
+          ...style,
+        },
+      },
+      child
+    );
+    return inheritFill(node, child);
+  }
+  
+  /**
+   * Container. Supports the decoration features the project actually uses:
+   * color, gradient, borderRadius, border, boxShadow, image and alignment.
+   */
+  function Container({
+    width,
+    height,
+    color: bg,
+    gradient,
+    borderRadius,
+    border,
+    boxShadow,
+    image,
+    alignment,
+    padding,
+    constraints,
+    style,
+    child,
+    children,
+    ...rest
+  } = {}) {
+    const css = {
+      width: px(width),
+      height: px(height),
+      flex: 'none',
+      minWidth: 0,
+      minHeight: 0,
+      // A Flutter child can never exceed its parent's constraints - a
+      // `Container(width: 1920)` inside a 1102px-wide parent lays out at 1102.
+      // O mesmo vale na vertical: a roleta declara 946px de altura dentro de uma
+      // caixa de 839.8, e o Flutter a comprime; sem isto ela era recortada em
+      // cima e embaixo em vez de encolher.
+      maxWidth: '100%',
+      maxHeight: '100%',
+    };
+    if (bg) css.background = bg;
+    if (gradient) css.backgroundImage = gradient;
+    if (image) {
+      css.backgroundImage = [image.css, gradient].filter(Boolean).join(', ');
+      css.backgroundSize = image.size;
+      css.backgroundPosition = image.position || 'center';
+      css.backgroundRepeat = image.repeat || 'no-repeat';
+    }
+    if (borderRadius != null) css.borderRadius = typeof borderRadius === 'number' ? `${borderRadius}px` : borderRadius;
+    if (border) css.border = border;
+    if (boxShadow) css.boxShadow = boxShadow;
+    if (padding) {
+      const [l, t, r, b] = padding;
+      css.padding = `${t}px ${r}px ${b}px ${l}px`;
+    }
+    if (constraints) Object.assign(css, constraints);
+    let tight = false;
+    if (alignment) {
+      css.display = 'flex';
+      css.justifyContent = alignment[0] < 0 ? 'flex-start' : alignment[0] > 0 ? 'flex-end' : 'center';
+      css.alignItems = alignment[1] < 0 ? 'flex-start' : alignment[1] > 0 ? 'flex-end' : 'center';
+    } else {
+      css.display = 'flex';
+      css.flexDirection = 'column';
+      css.alignItems = 'stretch';
+      css.justifyContent = 'flex-start';
+      // An explicitly sized Container hands its child tight constraints, so the
+      // child fills the box rather than shrink-wrapping (see .ff-tight).
+      tight = height != null;
+    }
+    const node = el(
+      'div',
+      { class: tight ? 'ff-tight' : null, style: { ...css, ...style }, ...rest },
+      child ?? children ?? []
+    );
+    if (width === Infinity) node.dataset.fillWidth = '1';
+    if (height === Infinity) node.dataset.fillHeight = '1';
+    return node;
+  }
+  
+  /** BoxDecoration.image -> a css background layer. */
+  function decorationImage(path, fit = 'cover', alignment) {
+    const size = fit === 'cover' ? 'cover' : fit === 'contain' ? 'contain' : fit === 'none' ? 'auto' : 'cover';
+    let position = 'center';
+    if (alignment) {
+      position = `${((alignment[0] + 1) / 2) * 100}% ${((alignment[1] + 1) / 2) * 100}%`;
+    }
+    return { css: `url("${path}")`, size, position };
+  }
+  
+  /** LinearGradient(colors, stops, begin, end) -> css linear-gradient.
+   *  Flutter's begin/end are Alignment vectors; the css angle is derived from
+   *  the vector so diagonal gradients keep their direction. */
+  function linearGradient({ colors, stops, begin = [0, -1], end = [0, 1] }) {
+    const dx = end[0] - begin[0];
+    const dy = end[1] - begin[1];
+    const angle = (Math.atan2(dx, -dy) * 180) / Math.PI;
+    const parts = colors.map((c, i) => (stops ? `${c} ${stops[i] * 100}%` : c));
+    return `linear-gradient(${angle.toFixed(2)}deg, ${parts.join(', ')})`;
+  }
+  
+  function boxShadow({ blurRadius = 0, color: c = '#000', offset = [0, 0], spreadRadius = 0 }) {
+    return `${offset[0]}px ${offset[1]}px ${blurRadius}px ${spreadRadius}px ${c}`;
+  }
+  
+  function Opacity({ opacity = 1, child, style } = {}) {
+    const node = el(
+      'div',
+      { style: { opacity: String(opacity), display: 'flex', flexDirection: 'column', ...style } },
+      child
+    );
+    return inheritFill(node, child);
+  }
+  
+  function ClipRRect({ borderRadius = 0, child, style } = {}) {
+    const node = el(
+      'div',
+      {
+        style: {
+          borderRadius: `${borderRadius}px`,
+          overflow: 'hidden',
+          display: 'flex',
+          flex: 'none',
+          ...style,
+        },
+      },
+      child
+    );
+    return inheritFill(node, child);
+  }
+  
+  function SizedBox({ width, height } = {}) {
+    return el('div', { style: { width: px(width), height: px(height), flex: 'none' } });
+  }
+  
+  /**
+   * Expanded / Flexible.
+   *
+   * Flutter hands a flex child a loose cross-axis constraint (for the default
+   * centre alignment), so a child asking for `double.infinity` fills the cross
+   * axis while a short child stays centred. `align-self: stretch` plus
+   * `justify-content: center` reproduces both halves of that.
+   */
+  const flexChild = (flex, child, style) =>
+    el(
+      'div',
+      {
+        class: 'ff-expanded',
+        style: {
+          flex: `${flex} 1 0`,
+          minWidth: 0,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignSelf: 'stretch',
+          justifyContent: 'center',
+          ...style,
+        },
+      },
+      child
+    );
+  
+  function Expanded({ flex = 1, child, style } = {}) {
+    return flexChild(flex, child, style);
+  }
+  
+  function Flexible({ flex = 1, child, style } = {}) {
+    return flexChild(flex, child, style);
+  }
+  
+  function SingleChildScrollView({ child, controller, style, ...rest } = {}) {
+    // The scroll axis is unbounded inside a scroll view, so a MainAxisSize.max
+    // Column shrink-wraps there - drop the fill-the-parent class from the child.
+    if (child instanceof HTMLElement) child.classList.remove('ff-main-max');
+    const node = el('div', { class: 'ff-scroll', style: { width: '100%', ...style }, ...rest }, child);
+    if (controller) controller.attach(node);
+    return node;
+  }
+  
+  /**
+   * Transform(transform: Matrix4.skew(ax, ay)). Flutter's Matrix4.skew takes
+   * radians and writes tan(ax) into the x-shear slot, tan(ay) into the y-shear.
+   * The transform is recorded as `baseTransform` so animations compose with it
+   * instead of replacing it.
+   */
+  function TransformSkew({ ax = 0, ay = 0, child, style } = {}) {
+    const transform = `matrix(1, ${Math.tan(ay)}, ${Math.tan(ax)}, 1, 0, 0)`;
+    const node = el('div', { style: { transform, display: 'flex', flex: 'none', ...style } }, child);
+    node.dataset.baseTransform = transform;
+    return node;
+  }
+  
+  function TransformRotate({ angle = 0, child, style } = {}) {
+    const transform = `rotate(${angle}rad)`;
+    const node = el('div', { style: { transform, display: 'flex', flex: 'none', ...style } }, child);
+    node.dataset.baseTransform = transform;
+    return node;
+  }
+  
+  /* ---------------------------------------------------------------- leaves -- */
+  
+  /**
+   * Text. `style` mirrors the fields the Dart actually sets.
+   * Passing `fontFamily` swaps the family and keeps everything else, like
+   * FlutterFlow's `TextStyle.override(fontFamily: ...)`.
+   */
+  function Txt(text, style = {}) {
+    const {
+      fontFamily,
+      fontSize,
+      fontWeight,
+      fontStyle,
+      color: c,
+      letterSpacing,
+      textAlign,
+      lineHeight,
+      decoration,
+      width,
+      style: extra,
+    } = style;
+    const node = el('div', {
+      class: 'ff-text',
+      style: {
+        fontFamily: fontFamily ? `'${fontFamily}', sans-serif` : null,
+        fontSize: fontSize != null ? `${fontSize}px` : null,
+        fontWeight: fontWeight != null ? String(fontWeight) : null,
+        fontStyle: fontStyle || null,
+        color: c || null,
+        letterSpacing: letterSpacing != null ? `${letterSpacing}px` : null,
+        textAlign: textAlign || null,
+        lineHeight: lineHeight != null ? String(lineHeight) : null,
+        textDecoration: decoration || null,
+        width: px(width),
+        ...extra,
+      },
+      text: text == null ? '' : String(text),
+    });
+    if (fontFamily) node.dataset.family = fontFamily;
+    return node;
+  }
+  
+  /** Image.asset(path, width, height, fit, alignment). */
+  function Img(src, { width, height, fit = 'cover', alignment, style } = {}) {
+    const node = el('img', {
+      class: 'ff-img',
+      src,
+      alt: '',
+      draggable: 'false',
+      style: {
+        width: px(width),
+        height: px(height),
+        objectFit: fit,
+        objectPosition: alignment
+          ? `${((alignment[0] + 1) / 2) * 100}% ${((alignment[1] + 1) / 2) * 100}%`
+          : 'center',
+        ...style,
+      },
+    });
+    return node;
+  }
+  
+  /** InkWell with all the splash/focus/hover/highlight colours set to
+   *  transparent, which is how every tap target in this project is written. */
+  function InkWell({ onTap, child, style, disabled = false, label } = {}) {
+    const interactive = Boolean(onTap) && !disabled;
+    const node = inheritFill(
+      el(
+        'div',
+        {
+          class: 'ff-inkwell',
+          role: 'button',
+          // Um <div role="button"> nao entra na ordem de tabulacao por conta
+          // propria, e sem isto o teclado nao alcanca nada no jogo.
+          tabindex: interactive ? '0' : null,
+          'aria-label': label ?? null,
+          'aria-disabled': disabled ? 'true' : null,
+          style: { display: 'flex', flexDirection: 'column', ...style },
+        },
+        child
+      ),
+      child
+    );
+    if (interactive) {
+      node.addEventListener('click', (event) => {
+        event.stopPropagation();
+        onTap(event);
+      });
+      // Enter e Espaco, o contrato de um botao. Espaco tem de ter o rolar da
+      // pagina cancelado no keydown, mas dispara no keyup, como um <button>.
+      node.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          event.stopPropagation();
+          onTap(event);
+        } else if (event.key === ' ' || event.key === 'Spacebar') {
+          event.preventDefault();
+        }
+      });
+      node.addEventListener('keyup', (event) => {
+        if (event.key === ' ' || event.key === 'Spacebar') {
+          event.preventDefault();
+          event.stopPropagation();
+          onTap(event);
+        }
+      });
+    }
+    return node;
+  }
+  
+  /** GestureDetector(onTap: unfocus) wrappers in the Dart just drop keyboard
+   *  focus; the web equivalent is blurring the active element. */
+  function unfocus() {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  }
+  
+  /* ----------------------------------------------------------------- icons -- */
+  // Material icons drawn inline so the app has no icon-font dependency.
+  const ICON_PATHS = {
+    close:
+      'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',
+    keyboard_arrow_down_rounded:
+      'M8.12 9.29L12 13.17l3.88-3.88a.996.996 0 111.41 1.41l-4.59 4.59a.996.996 0 01-1.41 0L6.7 10.7a.996.996 0 010-1.41c.39-.38 1.03-.39 1.42 0z',
+    warning_amber_rounded:
+      'M12 5.99L19.53 19H4.47L12 5.99M12 2L1 21h22L12 2zm1 14h-2v2h2v-2zm0-6h-2v4h2v-4z',
+    // DropdownButton's default icon.
+    arrow_drop_down: 'M7 10l5 5 5-5z',
+  };
+  
+  function Icon(name, { color: c = 'currentColor', size = 24 } = {}) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('width', String(size));
+    svg.setAttribute('height', String(size));
+    svg.setAttribute('fill', c);
+    svg.setAttribute('class', 'ff-icon');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', ICON_PATHS[name] || '');
+    svg.appendChild(path);
+    return svg;
+  }
+  
+  /* ----------------------------------------------------------------- video -- */
+  
+  function VideoPlayer({
+    path,
+    width,
+    height,
+    autoPlay = true,
+    looping = false,
+    showControls = false,
+    muted = false,
+    style,
+    onEnded,
+  } = {}) {
+    const node = el('video', {
+      class: 'ff-video',
+      src: path,
+      playsinline: '',
+      preload: 'auto',
+      style: { width: px(width ?? Infinity), height: px(height ?? Infinity), objectFit: 'contain', ...style },
+    });
+    if (looping) node.loop = true;
+    if (showControls) node.controls = true;
+    node.muted = muted;
+    if (onEnded) node.addEventListener('ended', onEnded);
+    if (autoPlay) {
+      const start = () => {
+        node.play().catch(() => {
+          // Autoplay with sound is blocked until the first gesture; fall back to
+          // a muted start so the video still runs, then unmute on interaction.
+          node.muted = true;
+          node.play().catch(() => {});
+        });
+      };
+      if (node.readyState >= 2) start();
+      else node.addEventListener('loadeddata', start, { once: true });
+    }
+    return node;
+  }
+  
+  /**
+   * FutureBuilder / StreamBuilder: renders `loading` until the promise settles,
+   * then swaps in `builder(data)`. Every call site in this project shows an
+   * invisible 50x50 CircularProgressIndicator while it waits, because the Dart
+   * passes `Color(0x004B39EF)` - fully transparent.
+   */
+  function FutureBuilder({ future, builder, loading = null, fill = false }) {
+    const host = el('div', {
+      style: {
+        display: 'flex',
+        flexDirection: 'column',
+        flex: 'none',
+        // `fill` is for the call sites whose builder returns a whole page.
+        width: fill ? '100%' : null,
+        height: fill ? '100%' : null,
+      },
+    });
+    append(host, loading ?? CircularProgressIndicator());
+    Promise.resolve(future).then(
+      (data) => {
+        host.textContent = '';
+        append(host, builder(data));
+      },
+      (error) => {
+        console.warn('FutureBuilder failed', error);
+        host.textContent = '';
+      }
+    );
+    return host;
+  }
+  
+  /** Center(child: SizedBox(50x50, child: CircularProgressIndicator(...))) */
+  function CircularProgressIndicator({ color: c = 'transparent', size = 50 } = {}) {
+    return el('div', {
+      style: {
+        width: `${size}px`,
+        height: `${size}px`,
+        flex: 'none',
+        alignSelf: 'center',
+        margin: 'auto',
+        border: `4px solid ${c}`,
+        borderTopColor: 'transparent',
+        borderRadius: '50%',
+        animation: 'ff-spin 1.2s linear infinite',
+      },
+    });
+  }
+  
+  /* --------------------------------------------------------- misc helpers --- */
+  
+  /** `valueOrDefault<String>(value, fallback)` */
+  function valueOrDefault(value, fallback) {
+    return value == null || value === '' ? fallback : value;
+  }
+  
+  /** `String.maybeHandleOverflow({maxChars, replacement})` */
+  function maybeHandleOverflow(value, { maxChars, replacement = '' }) {
+    const text = value ?? '';
+    if (maxChars == null || text.length <= maxChars) return text;
+    return text.substring(0, maxChars) + replacement;
+  }
+  
   const degrees = (d) => (d * Math.PI) / 180;
   Object.defineProperty(__exports, "SW", { get: () => SW, enumerable: true });
   Object.defineProperty(__exports, "SH", { get: () => SH, enumerable: true });
@@ -2082,115 +2083,115 @@
 
   /* ===== functions.js ===== */
   __define("functions.js", function (__exports, __require) {
-  // Port of lib/flutter_flow/custom_functions.dart.  
-    
+  // Port of lib/flutter_flow/custom_functions.dart.
+  
   const { OFFENSIVE_WORDS } = __require("offensive_words.js");
-    
-  /**  
-   * `escolha` é quantas VOLTAS a roleta gira. A seta fica embaixo, então a parte  
-   * fracionária da volta é a fatia que para na frente dela — e é assim que o Dart  
-   * codificava o índice sorteado dentro de um único número.  
-   *  
-   * O Dart cravava dez fatias: `numeroAleatorio` gerava 1.0, 1.1 ... 1.9 e  
-   * `transformaAleatorio` fazia `(n * 10).toInt() % 10`. Generalizando para N  
-   * rodadas, `escolha = 1 + k/N` e `k = round((escolha - 1) * N)`. Com N = 10 os  
-   * dez valores saem idênticos aos do Dart, então o baralho original se comporta  
-   * exatamente como antes (scripts/verify/baralho.mjs reafirma isso).  
-   */  
-  function escolhaParaIndice(escolha, total) {  
-    if (escolha == null || !total) return null;  
-    const k = Math.round((escolha - 1) * total);  
-    // Módulo positivo, para um `escolha` fora de faixa não devolver índice negativo.  
-    return ((k % total) + total) % total;  
-  }  
-    
-  /**  
-   * numeroAleatorio(recentes, total)  
-   * Sorteia uma volta cujo índice não esteja entre os `recentes`, para o mesmo  
-   * veículo não repetir logo em seguida. O Dart comparava os próprios números  
-   * arredondados a uma decimal; aqui a comparação é por índice, o que dá no mesmo  
-   * para N = 10 e passa a funcionar para qualquer N.  
-   */  
-  function numeroAleatorio(recentes, total = 10) {  
-    if (!total) return null;  
-    const opcoes = Array.from({ length: total }, (_, i) => voltaDoIndice(i, total));  
-    const excluidos = new Set(  
-      (recentes ?? []).map((v) => escolhaParaIndice(v, total)).filter((i) => i != null)  
-    );  
-    const disponiveis = opcoes.filter((v) => !excluidos.has(escolhaParaIndice(v, total)));  
-    // Se a janela de repetição engoliu tudo (baralho pequeno), sorteia de todas.  
-    const pool = disponiveis.length > 0 ? disponiveis : opcoes;  
-    return pool[Math.floor(Math.random() * pool.length)];  
-  }  
-    
-  /** A volta que faz a fatia `i` parar na seta. Com N = 10 dá 1.0 ... 1.9. */  
-  function voltaDoIndice(i, total) {  
-    if (!total) return 1;  
-    // Uma decimal quando N = 10, para bater byte a byte com o Dart.  
-    return total === 10 ? Number((1 + i / total).toFixed(1)) : 1 + i / total;  
-  }  
-    
-  /**  
-   * transformaAleatorio(double numeroSorteado) — assinatura do Dart, mantida para  
-   * os call sites continuarem legíveis ao lado dele. Assume as dez fatias do  
-   * baralho original; quem trabalha com baralho de tamanho livre chama  
-   * `escolhaParaIndice(escolha, total)`.  
-   */  
-  function transformaAleatorio(numeroSorteado, total = 10) {  
-    if (numeroSorteado == null) return null;  
-    return escolhaParaIndice(numeroSorteado, total);  
-  }  
-    
-  /**  
-   * formatMillisecondsToTime(double temp)  
-   * Turns a remaining-time value into `HH:MM:SS S`, counting down from 60000ms.  
-   */  
-  function formatMillisecondsToTime(temp) {  
-    if (temp == null) return null;  
-    const totalMilliseconds = 60000 - Math.trunc(temp);  
-    if (totalMilliseconds < 0) return '00:00:00 S';  
-    
-    let seconds = Math.floor(totalMilliseconds / 1000);  
-    const hours = Math.floor(seconds / 3600);  
-    seconds %= 3600;  
-    const minutes = Math.floor(seconds / 60);  
-    seconds %= 60;  
-    
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} S`;  
-  }  
-    
-  const OFFENSIVE_SET = new Set(OFFENSIVE_WORDS);  
-    
-  /**  
-   * nomeOfensivo(String nome)  
-   * Splits on whitespace, '-' and '_' and looks each token up in the block list.  
-   */  
-  function nomeOfensivo(nome) {  
-    if (nome == null || nome.trim().length === 0) return false;  
-    const texto = nome.toLowerCase();  
-    const palavras = texto.split(/\s+|[-_]/);  
-    for (const palavra of palavras) {  
-      if (OFFENSIVE_SET.has(palavra)) return true;  
-    }  
-    return false;  
-  }  
-    
-  /** embaralhaQuestoes() - [1,2,3,4] shuffled. */  
-  function embaralhaQuestoes() {  
-    const numeros = [1, 2, 3, 4];  
-    // Fisher-Yates, matching List.shuffle()'s uniform result.  
-    for (let i = numeros.length - 1; i > 0; i--) {  
-      const j = Math.floor(Math.random() * (i + 1));  
-      [numeros[i], numeros[j]] = [numeros[j], numeros[i]];  
-    }  
-    return numeros;  
-  }  
-    
-  /** transformaNumero('(16) 99703-7115') -> '5516997037115' (digits only, +55). */  
-  function transformaNumero(numero) {  
-    if (numero == null) return null;  
-    const digits = numero.replace(/\D/g, '');  
-    return `55${digits}`;  
+  
+  /**
+   * `escolha` é quantas VOLTAS a roleta gira. A seta fica embaixo, então a parte
+   * fracionária da volta é a fatia que para na frente dela — e é assim que o Dart
+   * codificava o índice sorteado dentro de um único número.
+   *
+   * O Dart cravava dez fatias: `numeroAleatorio` gerava 1.0, 1.1 ... 1.9 e
+   * `transformaAleatorio` fazia `(n * 10).toInt() % 10`. Generalizando para N
+   * rodadas, `escolha = 1 + k/N` e `k = round((escolha - 1) * N)`. Com N = 10 os
+   * dez valores saem idênticos aos do Dart, então o baralho original se comporta
+   * exatamente como antes (scripts/verify/baralho.mjs reafirma isso).
+   */
+  function escolhaParaIndice(escolha, total) {
+    if (escolha == null || !total) return null;
+    const k = Math.round((escolha - 1) * total);
+    // Módulo positivo, para um `escolha` fora de faixa não devolver índice negativo.
+    return ((k % total) + total) % total;
+  }
+  
+  /**
+   * numeroAleatorio(recentes, total)
+   * Sorteia uma volta cujo índice não esteja entre os `recentes`, para o mesmo
+   * veículo não repetir logo em seguida. O Dart comparava os próprios números
+   * arredondados a uma decimal; aqui a comparação é por índice, o que dá no mesmo
+   * para N = 10 e passa a funcionar para qualquer N.
+   */
+  function numeroAleatorio(recentes, total = 10) {
+    if (!total) return null;
+    const opcoes = Array.from({ length: total }, (_, i) => voltaDoIndice(i, total));
+    const excluidos = new Set(
+      (recentes ?? []).map((v) => escolhaParaIndice(v, total)).filter((i) => i != null)
+    );
+    const disponiveis = opcoes.filter((v) => !excluidos.has(escolhaParaIndice(v, total)));
+    // Se a janela de repetição engoliu tudo (baralho pequeno), sorteia de todas.
+    const pool = disponiveis.length > 0 ? disponiveis : opcoes;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+  
+  /** A volta que faz a fatia `i` parar na seta. Com N = 10 dá 1.0 ... 1.9. */
+  function voltaDoIndice(i, total) {
+    if (!total) return 1;
+    // Uma decimal quando N = 10, para bater byte a byte com o Dart.
+    return total === 10 ? Number((1 + i / total).toFixed(1)) : 1 + i / total;
+  }
+  
+  /**
+   * transformaAleatorio(double numeroSorteado) — assinatura do Dart, mantida para
+   * os call sites continuarem legíveis ao lado dele. Assume as dez fatias do
+   * baralho original; quem trabalha com baralho de tamanho livre chama
+   * `escolhaParaIndice(escolha, total)`.
+   */
+  function transformaAleatorio(numeroSorteado, total = 10) {
+    if (numeroSorteado == null) return null;
+    return escolhaParaIndice(numeroSorteado, total);
+  }
+  
+  /**
+   * formatMillisecondsToTime(double temp)
+   * Turns a remaining-time value into `HH:MM:SS S`, counting down from 60000ms.
+   */
+  function formatMillisecondsToTime(temp) {
+    if (temp == null) return null;
+    const totalMilliseconds = 60000 - Math.trunc(temp);
+    if (totalMilliseconds < 0) return '00:00:00 S';
+  
+    let seconds = Math.floor(totalMilliseconds / 1000);
+    const hours = Math.floor(seconds / 3600);
+    seconds %= 3600;
+    const minutes = Math.floor(seconds / 60);
+    seconds %= 60;
+  
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} S`;
+  }
+  
+  const OFFENSIVE_SET = new Set(OFFENSIVE_WORDS);
+  
+  /**
+   * nomeOfensivo(String nome)
+   * Splits on whitespace, '-' and '_' and looks each token up in the block list.
+   */
+  function nomeOfensivo(nome) {
+    if (nome == null || nome.trim().length === 0) return false;
+    const texto = nome.toLowerCase();
+    const palavras = texto.split(/\s+|[-_]/);
+    for (const palavra of palavras) {
+      if (OFFENSIVE_SET.has(palavra)) return true;
+    }
+    return false;
+  }
+  
+  /** embaralhaQuestoes() - [1,2,3,4] shuffled. */
+  function embaralhaQuestoes() {
+    const numeros = [1, 2, 3, 4];
+    // Fisher-Yates, matching List.shuffle()'s uniform result.
+    for (let i = numeros.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [numeros[i], numeros[j]] = [numeros[j], numeros[i]];
+    }
+    return numeros;
+  }
+  
+  /** transformaNumero('(16) 99703-7115') -> '5516997037115' (digits only, +55). */
+  function transformaNumero(numero) {
+    if (numero == null) return null;
+    const digits = numero.replace(/\D/g, '');
+    return `55${digits}`;
   }
   Object.defineProperty(__exports, "escolhaParaIndice", { get: () => escolhaParaIndice, enumerable: true });
   Object.defineProperty(__exports, "numeroAleatorio", { get: () => numeroAleatorio, enumerable: true });
@@ -2204,191 +2205,191 @@
 
   /* ===== state.js ===== */
   __define("state.js", function (__exports, __require) {
-  // Port of lib/app_state.dart (FFAppState) and the CadastroStruct it holds.  
-  //  
-  // The three question lists are persisted under the same SharedPreferences keys  
-  // the Dart used, so a browser that already has them keeps them; anything else  
-  // falls back to the values compiled into the app.  
-    
+  // Port of lib/app_state.dart (FFAppState) and the CadastroStruct it holds.
+  //
+  // The three question lists are persisted under the same SharedPreferences keys
+  // the Dart used, so a browser that already has them keeps them; anything else
+  // falls back to the values compiled into the app.
+  
   const { carregarBaralho, CAMPOS_QUESTAO } = __require("deck.js");
   const { escolhaParaIndice } = __require("functions.js");
-    
-  const listeners = new Set();  
-    
-  /** CadastroStruct */  
-  class CadastroStruct {  
-    constructor({ nome, telefone, atuacao, invalido } = {}) {  
-      this._nome = nome;  
-      this._telefone = telefone;  
-      this._atuacao = atuacao;  
-      this._invalido = invalido;  
-    }  
-    
-    get nome() {  
-      return this._nome ?? '';  
-    }  
-    
-    set nome(v) {  
-      this._nome = v;  
-    }  
-    
-    get telefone() {  
-      return this._telefone ?? '';  
-    }  
-    
-    set telefone(v) {  
-      this._telefone = v;  
-    }  
-    
-    get atuacao() {  
-      return this._atuacao ?? '';  
-    }  
-    
-    set atuacao(v) {  
-      this._atuacao = v;  
-    }  
-    
-    get invalido() {  
-      return this._invalido ?? 0;  
-    }  
-    
-    set invalido(v) {  
-      this._invalido = v;  
-    }  
-  }  
-    
-    
-  class FFAppStateClass {  
-    constructor() {  
-      /**  
-       * O baralho em vigor: a lista ordenada de rodadas. Sem nada publicado pela  
-       * área administrativa é o embutido, e aí o jogo roda idêntico ao original  
-       * (ver deck.js).  
-       */  
-      this.baralho = carregarBaralho();  
-    
-      this.scannerEscolhido = '';  
-      this.tempoAcabando = false;  
-      this.escolha = 1.5;  
-    
-      /// Essa variável serve para controlar qual popUp estará aberto quando o  
-      /// user clicar.  0 = fechado, 1 = Apoio, Etc...  
-      this.ajuda = 0;  
-    
-      this.cadastro = new CadastroStruct();  
-      this.ordemNumeros = [4, 2, 3, 1];  
-      this.listaEscolhas = [];  
-      this.linguagem = '';  
-      this.finalizou = false;  
-    }  
-    
-    /** initializePersistedState() */  
-    initializePersistedState() {  
-      this.baralho = carregarBaralho();  
-    }  
-    
-    /**  
-     * Relê o baralho publicado. Chamado quando a tela de cadastro abre, que é  
-     * quando um jogador novo começa: assim o operador publica na área  
-     * administrativa e a próxima partida já usa o conteúdo novo, sem precisar  
-     * reiniciar o navegador do totem.  
-     */  
-    recarregarBaralho() {  
-      this.baralho = carregarBaralho();  
-    }  
-    
-    /** Quantas rodadas o baralho tem — o número de fatias da roleta. */  
-    get totalSlots() {  
-      return this.baralho?.slots?.length ?? 0;  
-    }  
-    
-    /**  
-     * A rodada que a roleta sorteou. `escolha` guarda quantas voltas girar, e a  
-     * fração da volta é a fatia que parou na seta (ver functions.js).  
-     */  
-    get indiceAtual() {  
-      return escolhaParaIndice(this.escolha, this.totalSlots) ?? 0;  
-    }  
-    
-    get slotAtual() {  
-      return this.baralho?.slots?.[this.indiceAtual] ?? null;  
-    }  
-    
-    /**  
-     * As três listas de questões na forma que o Dart usava  
-     * (`{pergunta, respostaUm, ..., gabarito, raster3S, rasher4, xtool}`), agora  
-     * derivadas do baralho. Manter esta forma foi deliberado: as telas de jogo  
-     * continuam lendo os campos exatamente como liam, então a troca do modelo de  
-     * dados não tocou em nenhuma delas.  
-     */  
-    get questoesBrasil() {  
-      return vistaPorIdioma(this.baralho, 'pt');  
-    }  
-    
-    get questoesEnglish() {  
-      return vistaPorIdioma(this.baralho, 'en');  
-    }  
-    
-    get questoesSpanish() {  
-      return vistaPorIdioma(this.baralho, 'es');  
-    }  
-    
-    /** update(callback) - runs the mutation then notifies listeners. */  
-    update(callback) {  
-      if (callback) callback();  
-      this.notifyListeners();  
-    }  
-    
-    addToListaEscolhas(value) {  
-      this.listaEscolhas.push(value);  
-    }  
-    
-    removeFromListaEscolhas(value) {  
-      const index = this.listaEscolhas.indexOf(value);  
-      if (index >= 0) this.listaEscolhas.splice(index, 1);  
-    }  
-    
-    notifyListeners() {  
-      for (const fn of listeners) fn(this);  
-    }  
-  }  
-    
-  /** Cache da projeção: as telas leem estes getters muitas vezes por quadro. */  
-  const vistaCache = new WeakMap();  
-    
-  function vistaPorIdioma(deck, lang) {  
-    if (!deck) return [];  
-    let porIdioma = vistaCache.get(deck);  
-    if (!porIdioma) {  
-      porIdioma = {};  
-      vistaCache.set(deck, porIdioma);  
-    }  
-    if (!porIdioma[lang]) {  
-      porIdioma[lang] = (deck.slots ?? []).map((slot) => {  
-        const q = {};  
-        for (const campo of CAMPOS_QUESTAO) q[campo] = slot[lang]?.[campo] ?? '';  
-        q.gabarito = String(slot.gabarito ?? '');  
-        q.raster3S = Boolean(slot.scanners?.raster3S);  
-        q.rasher4 = Boolean(slot.scanners?.rasher4);  
-        q.xtool = Boolean(slot.scanners?.xtool);  
-        q.nome = slot.veiculo?.nome ?? '';  
-        return q;  
-      });  
-    }  
-    return porIdioma[lang];  
-  }  
-    
-  const FFAppState = new FFAppStateClass();  
-    
-  /**  
-   * Contraparte de `notifyListeners()`. Hoje nenhuma tela assina — o porte  
-   * re-renderiza por navegação, não por observação — mas é o seam que dá sentido  
-   * ao `update()` espalhado pelo código, que existe por paridade com o  
-   * ChangeNotifier do Dart.  
-   */  
-  function onAppStateChange(fn) {  
-    listeners.add(fn);  
-    return () => listeners.delete(fn);  
+  
+  const listeners = new Set();
+  
+  /** CadastroStruct */
+  class CadastroStruct {
+    constructor({ nome, telefone, atuacao, invalido } = {}) {
+      this._nome = nome;
+      this._telefone = telefone;
+      this._atuacao = atuacao;
+      this._invalido = invalido;
+    }
+  
+    get nome() {
+      return this._nome ?? '';
+    }
+  
+    set nome(v) {
+      this._nome = v;
+    }
+  
+    get telefone() {
+      return this._telefone ?? '';
+    }
+  
+    set telefone(v) {
+      this._telefone = v;
+    }
+  
+    get atuacao() {
+      return this._atuacao ?? '';
+    }
+  
+    set atuacao(v) {
+      this._atuacao = v;
+    }
+  
+    get invalido() {
+      return this._invalido ?? 0;
+    }
+  
+    set invalido(v) {
+      this._invalido = v;
+    }
+  }
+  
+  
+  class FFAppStateClass {
+    constructor() {
+      /**
+       * O baralho em vigor: a lista ordenada de rodadas. Sem nada publicado pela
+       * área administrativa é o embutido, e aí o jogo roda idêntico ao original
+       * (ver deck.js).
+       */
+      this.baralho = carregarBaralho();
+  
+      this.scannerEscolhido = '';
+      this.tempoAcabando = false;
+      this.escolha = 1.5;
+  
+      /// Essa variável serve para controlar qual popUp estará aberto quando o
+      /// user clicar.  0 = fechado, 1 = Apoio, Etc...
+      this.ajuda = 0;
+  
+      this.cadastro = new CadastroStruct();
+      this.ordemNumeros = [4, 2, 3, 1];
+      this.listaEscolhas = [];
+      this.linguagem = '';
+      this.finalizou = false;
+    }
+  
+    /** initializePersistedState() */
+    initializePersistedState() {
+      this.baralho = carregarBaralho();
+    }
+  
+    /**
+     * Relê o baralho publicado. Chamado quando a tela de cadastro abre, que é
+     * quando um jogador novo começa: assim o operador publica na área
+     * administrativa e a próxima partida já usa o conteúdo novo, sem precisar
+     * reiniciar o navegador do totem.
+     */
+    recarregarBaralho() {
+      this.baralho = carregarBaralho();
+    }
+  
+    /** Quantas rodadas o baralho tem — o número de fatias da roleta. */
+    get totalSlots() {
+      return this.baralho?.slots?.length ?? 0;
+    }
+  
+    /**
+     * A rodada que a roleta sorteou. `escolha` guarda quantas voltas girar, e a
+     * fração da volta é a fatia que parou na seta (ver functions.js).
+     */
+    get indiceAtual() {
+      return escolhaParaIndice(this.escolha, this.totalSlots) ?? 0;
+    }
+  
+    get slotAtual() {
+      return this.baralho?.slots?.[this.indiceAtual] ?? null;
+    }
+  
+    /**
+     * As três listas de questões na forma que o Dart usava
+     * (`{pergunta, respostaUm, ..., gabarito, raster3S, rasher4, xtool}`), agora
+     * derivadas do baralho. Manter esta forma foi deliberado: as telas de jogo
+     * continuam lendo os campos exatamente como liam, então a troca do modelo de
+     * dados não tocou em nenhuma delas.
+     */
+    get questoesBrasil() {
+      return vistaPorIdioma(this.baralho, 'pt');
+    }
+  
+    get questoesEnglish() {
+      return vistaPorIdioma(this.baralho, 'en');
+    }
+  
+    get questoesSpanish() {
+      return vistaPorIdioma(this.baralho, 'es');
+    }
+  
+    /** update(callback) - runs the mutation then notifies listeners. */
+    update(callback) {
+      if (callback) callback();
+      this.notifyListeners();
+    }
+  
+    addToListaEscolhas(value) {
+      this.listaEscolhas.push(value);
+    }
+  
+    removeFromListaEscolhas(value) {
+      const index = this.listaEscolhas.indexOf(value);
+      if (index >= 0) this.listaEscolhas.splice(index, 1);
+    }
+  
+    notifyListeners() {
+      for (const fn of listeners) fn(this);
+    }
+  }
+  
+  /** Cache da projeção: as telas leem estes getters muitas vezes por quadro. */
+  const vistaCache = new WeakMap();
+  
+  function vistaPorIdioma(deck, lang) {
+    if (!deck) return [];
+    let porIdioma = vistaCache.get(deck);
+    if (!porIdioma) {
+      porIdioma = {};
+      vistaCache.set(deck, porIdioma);
+    }
+    if (!porIdioma[lang]) {
+      porIdioma[lang] = (deck.slots ?? []).map((slot) => {
+        const q = {};
+        for (const campo of CAMPOS_QUESTAO) q[campo] = slot[lang]?.[campo] ?? '';
+        q.gabarito = String(slot.gabarito ?? '');
+        q.raster3S = Boolean(slot.scanners?.raster3S);
+        q.rasher4 = Boolean(slot.scanners?.rasher4);
+        q.xtool = Boolean(slot.scanners?.xtool);
+        q.nome = slot.veiculo?.nome ?? '';
+        return q;
+      });
+    }
+    return porIdioma[lang];
+  }
+  
+  const FFAppState = new FFAppStateClass();
+  
+  /**
+   * Contraparte de `notifyListeners()`. Hoje nenhuma tela assina — o porte
+   * re-renderiza por navegação, não por observação — mas é o seam que dá sentido
+   * ao `update()` espalhado pelo código, que existe por paridade com o
+   * ChangeNotifier do Dart.
+   */
+  function onAppStateChange(fn) {
+    listeners.add(fn);
+    return () => listeners.delete(fn);
   }
   Object.defineProperty(__exports, "CadastroStruct", { get: () => CadastroStruct, enumerable: true });
   Object.defineProperty(__exports, "FFAppState", { get: () => FFAppState, enumerable: true });
@@ -4920,12 +4921,12 @@
 
   /* ===== pages/cadastro.js ===== */
   __define("pages/cadastro.js", function (__exports, __require) {
-  // Port of lib/pages/escolha/cadastro/cadastro_widget.dart  
-  //  
-  // "Tela destinada ao cadasrto do usuário" - name, WhatsApp, workshop type.  
-  // A count-up timer runs in the background; after 45 idle seconds the ranking  
-  // takes over the screen. Any tap, submit or dropdown change resets it.  
-    
+  // Port of lib/pages/escolha/cadastro/cadastro_widget.dart
+  //
+  // "Tela destinada ao cadasrto do usuário" - name, WhatsApp, workshop type.
+  // A count-up timer runs in the background; after 45 idle seconds the ranking
+  // takes over the screen. Any tap, submit or dropdown change resets it.
+  
   const { Align, ClipRRect, Column, Container, FutureBuilder, Icon, Img, InkWell, Opacity, Padding, Stack, StackAlign, Txt, TransformSkew, color, decorationImage, divide, el, unfocus, SW, SH } = __require("widgets.js");
   const { TH, style } = __require("theme.js");
   const { L, FFLocalizations, LANGUAGES, setAppLanguage } = __require("i18n.js");
@@ -4941,478 +4942,478 @@
   const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
   const { FlutterFlowTimer, FlutterFlowTimerController, InstantTimer, StopWatchMode, StopWatchTimer } = __require("timer.js");
   const { FlutterFlowDropDown, FlutterFlowLanguageSelector, FormFieldController, FormState, MaskTextInputFormatter, TextEditingController, TextFormField } = __require("forms.js");
-    
-  /** The four staggered slide-ins; only the delay and duration differ. */  
-  const slideIn = (delay, duration) =>  
-    new AnimationInfo({  
-      trigger: AnimationTrigger.onPageLoad,  
-      effectsBuilder: () => [  
-        MoveEffect({ curve: Curves.easeInOut, delay, duration, begin: [-100.0, 0.0], end: [0.0, 0.0] }),  
-        FadeEffect({ curve: Curves.easeInOut, delay, duration, begin: 0.0, end: 1.0 }),  
-      ],  
-    });  
-    
-  /** The dropdown options, in the order the Dart lists them. */  
-  const OFICINA_KEYS = [  
-    'yr06bw5q', // - Oficina Diesel  
-    'u1togdyu', // - Centro-automotivo  
-    'zw8uhrit', // - Oficina-mecânica  
-    'n9va5c85', // - Auto-Elétrico  
-    'h3ss4zal', // - Transmissão automática  
-    '1xkz4x22', // - Ar-condicionado  
-    'uiyoqx6p', // - Borracharia  
-    '2i2l5ptm', // - Chaveiro  
-    'gnijwn15', // - Autonomo  
-    'o3hsgf10', // - Outros..  
-  ];  
-    
-  /**  
-   * O que o visitante já digitou, guardado fora da função de build.  
-   *  
-   * No Flutter isto sai de graça: `createModel(context, () => CadastroModel())`  
-   * devolve o mesmo model enquanto a página vive, então os TextEditingController  
-   * sobrevivem ao rebuild que o `setLocale` dispara no MaterialApp. Aqui a troca  
-   * de idioma reconstrói a página, e sem isto o nome e o telefone digitados eram  
-   * apagados — justo no gesto que um visitante estrangeiro faz primeiro.  
-   *  
-   * A oficina é guardada pela CHAVE de tradução, não pelo texto: assim a escolha  
-   * sobrevive à troca de idioma e reaparece já traduzida.  
-   */  
-  const formState = {  
-    nome: new TextEditingController(),  
-    whats: new TextEditingController(),  
-    oficinaKey: null,  
-    invalido: 0,  
-  };  
-    
-  /** Chamado quando a partida realmente começa: o próximo jogador entra limpo. */  
-  function resetFormState() {  
-    formState.nome = new TextEditingController();  
-    formState.whats = new TextEditingController();  
-    formState.oficinaKey = null;  
-    formState.invalido = 0;  
-  }  
-    
-  function CadastroWidget() {  
-    const model = {  
-      // `invalido` conta as tentativas com nome ofensivo e também precisa  
-      // sobreviver ao rebuild, senão a contagem zera na troca de idioma.  
-      get invalido() {  
-        return formState.invalido;  
-      },  
-      set invalido(v) {  
-        formState.invalido = v;  
-      },  
-      formKey: new FormState(),  
-      textFieldNomeTextController: formState.nome,  
-      textFieldWhatsTextController: formState.whats,  
-      textFieldWhatsMask: new MaskTextInputFormatter({ mask: '(##) #####-####' }),  
-      dropDownOficinaValue: formState.oficinaKey ? L(formState.oficinaKey) : null,  
-      dropDownOficinaValueController: new FormFieldController(  
-        formState.oficinaKey ? L(formState.oficinaKey) : null  
-      ),  
-      timerController: new FlutterFlowTimerController({ mode: StopWatchMode.countUp }),  
-      timerMilliseconds: 0,  
-      timerValue: StopWatchTimer.getDisplayTime(0, { hours: false, milliSecond: false }),  
-      instantTimer: null,  
-    };  
-    
-    const animationsMap = {  
-      imageOnPageLoadAnimation: new AnimationInfo({  
-        loop: true,  
-        reverse: true,  
-        trigger: AnimationTrigger.onPageLoad,  
-        effectsBuilder: () => [  
-          ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [0.98, 0.98], end: [1.0, 1.0] }),  
-        ],  
-      }),  
-      columnOnPageLoadAnimation1: slideIn(500.0, 1200.0),  
-      columnOnPageLoadAnimation2: slideIn(1000.0, 1200.0),  
-      columnOnPageLoadAnimation3: slideIn(1500.0, 1200.0),  
-      columnOnPageLoadAnimation4: slideIn(2000.0, 600.0),  
-      transformOnActionTriggerAnimation: new AnimationInfo({  
-        trigger: AnimationTrigger.onActionTrigger,  
-        applyInitialState: true,  
-        effectsBuilder: () => [  
-          ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 200.0, begin: [1.0, 1.0], end: [0.9, 0.9] }),  
-          ScaleEffect({ curve: Curves.easeInOut, delay: 200.0, duration: 200.0, begin: [0.9, 0.9], end: [1.0, 1.0] }),  
-        ],  
-      }),  
-      transformOnPageLoadAnimation: new AnimationInfo({  
-        loop: true,  
-        reverse: true,  
-        trigger: AnimationTrigger.onPageLoad,  
-        applyInitialState: true,  
-        effectsBuilder: () => [  
-          ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [1.0, 1.0], end: [1.01, 1.01] }),  
-        ],  
-      }),  
-      textOnPageLoadAnimation: slideIn(2000.0, 600.0),  
-    };  
-    
-    /** Every interaction on this page restarts the idle countdown. */  
-    const restartIdleTimer = () => {  
-      model.timerController.onResetTimer();  
-      model.timerController.onStartTimer();  
-    };  
-    
-    /* --------------------------------------------------------------- fields -- */  
-    
-    const fieldLabel = (key) =>  
-      Padding({  
-        padding: [0.0, 0.0, 0.0, 16.0],  
-        child: Txt(  
-          L(key),  
-          style('bodyMedium', {  
-            fontFamily: 'pirulen',  
-            color: '#FFFFFF',  
-            fontSize: 24.0,  
-            letterSpacing: 3.0,  
-            fontWeight: 400,  
-          })  
-        ),  
-      });  
-    
-    const nomeField = TextFormField({  
-      controller: model.textFieldNomeTextController,  
-      hintText: L('b4pv213k') /* Digite aqui seu nome */,  
-      hintStyle: style('labelMedium', { color: '#FFFFFF', fontSize: 23.0 }),  
-      errorStyle: style('bodyMedium', { color: TH.error, fontSize: 23.0 }),  
-      style: style('bodyMedium', { color: '#FFFFFF', fontSize: 32.0 }),  
-      fillColor: color(0xFF0053B6),  
-      borderRadius: 8.0,  
-      borderColor: color(0x00000000),  
-      errorColor: TH.error,  
-      maxLength: 30,  
-      cursorColor: TH.primaryText,  
-      validator: (value) => (value == null || value.length === 0 ? L('ra9dcpxq') /* Digite seu nome */ : null),  
-      onSubmitted: () => {  
-        playSound(model, 'soundPlayer3', 'assets/audios/adriantnt_u_click.mp3', 1.0);  
-        restartIdleTimer();  
-      },  
-    });  
-    
-    const whatsField = TextFormField({  
-      controller: model.textFieldWhatsTextController,  
-      hintText: L('559rlm5s') /* Digite o seu número */,  
-      hintStyle: style('labelMedium', { color: '#FFFFFF', fontSize: 23.0 }),  
-      errorStyle: style('bodyMedium', { color: TH.error, fontSize: 23.0 }),  
-      style: style('bodyMedium', { color: '#FFFFFF', fontSize: 32.0 }),  
-      fillColor: color(0xFF0053B6),  
-      borderRadius: 8.0,  
-      borderColor: color(0x00000000),  
-      errorColor: TH.error,  
-      maxLength: 20,  
-      keyboardType: 'number',  
-      inputFormatter: model.textFieldWhatsMask,  
-      cursorColor: TH.primaryText,  
-      validator: (value) => {  
-        if (value == null || value.length === 0) return L('xz37mrbb') /* Digite seu telefone */;  
-        if (value.length < 11) return 'Requires at least 11 characters.';  
-        return null;  
-      },  
-      onSubmitted: () => {  
-        playSound(model, 'soundPlayer4', 'assets/audios/adriantnt_u_click.mp3', 1.0);  
-        restartIdleTimer();  
-      },  
-    });  
-    
-    model.formKey.register(nomeField);  
-    model.formKey.register(whatsField);  
-    
-    const oficinaDropdown = FlutterFlowDropDown({  
-      controller: model.dropDownOficinaValueController,  
-      options: OFICINA_KEYS.map((key) => L(key)),  
-      onChanged: (value, index) => {  
-        model.dropDownOficinaValue = value;  
-        // Guarda a chave, não o rótulo traduzido, para a escolha atravessar a  
-        // troca de idioma (ver formState no topo).  
-        formState.oficinaKey = OFICINA_KEYS[index] ?? null;  
-        playSound(model, 'soundPlayer5', 'assets/audios/adriantnt_u_click.mp3', 1.0);  
-        restartIdleTimer();  
-      },  
-      height: 70.0,  
-      textStyle: style('bodyMedium', { fontSize: 23.0 }),  
-      hintText: L('6rvdt37x') /* Escolha o seu seguimento */,  
-      icon: Icon('keyboard_arrow_down_rounded', { color: TH.secondaryText, size: 62.0 }),  
-      fillColor: color(0xFF0053B6),  
-      borderColor: 'transparent',  
-      borderWidth: 0.0,  
-      borderRadius: 8.0,  
-      margin: [12.0, 0.0, 12.0, 0.0],  
-    });  
-    
-    /* ------------------------------------------------------ confirm button -- */  
-    
-    const confirmar = TransformSkew({  
-      ax: -0.5,  
-      child: Container({  
-        width: SW * 0.25,  
-        height: SH * 0.07,  
-        color: color(0xFF0053B6),  
-        borderRadius: 16.0,  
-        alignment: [0.0, 0.0],  
-        child: InkWell({  
-          onTap: async () => {  
-            playSound(model, 'soundPlayer6', 'assets/audios/undertale-select-sound.mp3', 0.6);  
-            await animationsMap.transformOnActionTriggerAnimation.controller.forward();  
-    
-            FFAppState.ordemNumeros = embaralhaQuestoes();  
-            FFAppState.update();  
-    
-            if (nomeOfensivo(model.textFieldNomeTextController.text)) {  
-              await showDialog({ builder: () => NomeOfensivoWidget() });  
-              model.invalido = model.invalido + 1;  
-              return;  
-            }  
-    
-            if (!model.formKey.validate()) return;  
-    
-            FFAppState.cadastro = new CadastroStruct({  
-              nome: model.textFieldNomeTextController.text,  
-              telefone: model.textFieldWhatsTextController.text,  
-              atuacao: model.dropDownOficinaValue,  
-              invalido: model.invalido,  
-            });  
-            model.invalido = 0;  
-            // A partida começou: o formulário guardado já foi consumido, então o  
-            // próximo jogador encontra a tela em branco.  
-            resetFormState();  
-    
-            goNamed('instrucoes', {  
-              extra: {  
-                __transition_info__: new TransitionInfo({  
-                  hasTransition: true,  
-                  transitionType: PageTransitionType.scale,  
-                  alignment: Alignment.bottomCenter,  
-                }),  
-              },  
-            });  
-          },  
-          child: TransformSkew({  
-            ax: 0.5,  
-            child: Align({  
-              alignment: [0.0, 0.0],  
-              child: Padding({  
-                padding: [0.0, 0.0, 16.0, 0.0],  
-                child: Txt(  
-                  L('kn0wcjje') /* CONFIRMAR */,  
-                  style('bodyMedium', {  
-                    fontFamily: 'pirulen',  
-                    color: '#FFFFFF',  
-                    fontSize: 24.0,  
-                    letterSpacing: 5.0,  
-                    fontWeight: 400,  
-                  })  
-                ),  
-              }),  
-            }),  
-          }),  
-        }),  
-      }),  
-    });  
-    animateOnPageLoad(confirmar, animationsMap.transformOnPageLoadAnimation);  
-    animateOnActionTrigger(confirmar, animationsMap.transformOnActionTriggerAnimation);  
-    
-    /* -------------------------------------------------------------- privacy -- */  
-    
-    const privacyText = InkWell({  
-      onTap: async () => {  
-        await showDialog({  
-          barrierColor: color(0x8C000000),  
-          builder: () => PoliticaPrivacidadeWidget(),  
-        });  
-      },  
-      child: Txt(  
-        L('hjove9jy') /* Ao clicar em continuar você concorda... */,  
-        style('bodyMedium', { fontStyle: 'italic', color: TH.secondaryText })  
-      ),  
-    });  
-    animateOnPageLoad(privacyText, animationsMap.textOnPageLoadAnimation);  
-    
-    /* ---------------------------------------------------------- hidden bits -- */  
-    // The Dart keeps the timer inside an Opacity(0) and prints the total number  
-    // of `usuarios` rows plus a stray "Hello World" - all invisible or leftover,  
-    // reproduced so the layout matches.  
-    
-    const timer = FlutterFlowTimer({  
-      initialTime: 0,  
-      controller: model.timerController,  
-      getDisplayTime: (value) => StopWatchTimer.getDisplayTime(value, { hours: false, milliSecond: false }),  
-      updateStateInterval: 1000,  
-      onChanged: (value, displayTime) => {  
-        model.timerMilliseconds = value;  
-        model.timerValue = displayTime;  
-      },  
-      textAlign: 'start',  
-      style: style('headlineSmall'),  
-    });  
-    
-    /* ------------------------------------------------------------- the tree -- */  
-    
-    // Each group is a Column(crossAxisAlignment.start) holding a label and a  
-    // field. Flutter's TextField and dropdown take all the width their parent  
-    // offers, which makes those Columns as wide as the 1101.8px container; CSS  
-    // would otherwise shrink-wrap them to the label, hence `width: Infinity`.  
-    const groups = [  
-      Padding({  
-        padding: [0.0, 16.0, 0.0, 0.0],  
-        style: { alignSelf: 'stretch' },  
-        child: animateOnPageLoad(  
-          Column({  
-            mainAxisSize: 'min',  
-            crossAxisAlignment: 'start',  
-            width: Infinity,  
-            children: [  
-              fieldLabel('05h1096o' /* Primeiro Nome ( Teclado ) */),  
-              Container({ width: SW * 1.0, child: nomeField }),  
-            ],  
-          }),  
-          animationsMap.columnOnPageLoadAnimation1  
-        ),  
-      }),  
-      Padding({  
-        padding: [0.0, 16.0, 0.0, 0.0],  
-        style: { alignSelf: 'stretch' },  
-        child: animateOnPageLoad(  
-          Column({  
-            mainAxisSize: 'min',  
-            crossAxisAlignment: 'start',  
-            width: Infinity,  
-            children: [fieldLabel('6vx2q4r4' /* Whatsapp ( teclado ) */), whatsField],  
-          }),  
-          animationsMap.columnOnPageLoadAnimation2  
-        ),  
-      }),  
-      Padding({  
-        padding: [0.0, 16.0, 0.0, 32.0],  
-        style: { alignSelf: 'stretch' },  
-        child: animateOnPageLoad(  
-          Column({  
-            mainAxisSize: 'min',  
-            crossAxisAlignment: 'start',  
-            width: Infinity,  
-            children: [fieldLabel('sfh76esp' /* Tipo da oficina ( Tela ) */), oficinaDropdown],  
-          }),  
-          animationsMap.columnOnPageLoadAnimation3  
-        ),  
-      }),  
-      animateOnPageLoad(  
-        Column({ mainAxisSize: 'max', children: [confirmar] }),  
-        animationsMap.columnOnPageLoadAnimation4  
-      ),  
-      privacyText,  
-    ];  
-    
-    const body = Stack({  
-      children: [  
-        InkWell({  
-          onTap: () => {  
-            playSound(model, 'soundPlayer2', 'assets/audios/adriantnt_u_click.mp3', 1.0);  
-            restartIdleTimer();  
-          },  
-          style: { width: '100%', height: '100%' },  
-          child: Container({  
-            width: Infinity,  
-            height: Infinity,  
-            image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),  
-            child: el(  
-              'form',  
-              {  
-                style: { display: 'flex', flexDirection: 'column', flex: '1 1 auto', minHeight: 0 },  
-                onsubmit: (event) => event.preventDefault(),  
-              },  
-              Column({  
-                mainAxisSize: 'max',  
-                mainAxisAlignment: 'center',  
-                children: [  
-                  Txt(L('sk6w3j28') /* Hello World */, style('bodyMedium')),  
-                  animateOnPageLoad(  
-                    ClipRRect({  
-                      borderRadius: 8.0,  
-                      child: Img('assets/images/Selo_2.png', { width: SW * 0.23, height: SH * 0.25, fit: 'cover' }),  
-                    }),  
-                    animationsMap.imageOnPageLoadAnimation  
-                  ),  
-                  Container({  
-                    width: SW * 0.574,  
-                    child: Column({  
-                      mainAxisSize: 'max',  
-                      mainAxisAlignment: 'spaceBetween',  
-                      children: divide(groups, 16.0),  
-                    }),  
-                  }),  
-                  Opacity({ opacity: 0.0, child: timer }),  
-                  FutureBuilder({  
-                    future: queryUsuariosRecordCount(),  
-                    builder: (count) => Txt(String(count), style('bodyMedium')),  
-                  }),  
-                ],  
-              })  
-            ),  
-          }),  
-        }),  
-        StackAlign({  
-          alignment: [1.0, -1.0],  
-          child: Padding({  
-            padding: [0.0, 32.0, 32.0, 0.0],  
-            child: FlutterFlowLanguageSelector({  
-              width: 358.57,  
-              height: 61.2,  
-              backgroundColor: color(0xFF0053B6),  
-              borderColor: 'transparent',  
-              dropdownColor: color(0xFF171212),  
-              dropdownIconColor: TH.secondaryText,  
-              borderRadius: 23.0,  
-              textStyle: style('bodyMedium', { fontSize: 23.0 }),  
-              currentLanguage: FFLocalizations.languageCode,  
-              languages: LANGUAGES,  
-              onChanged: (lang) => setAppLanguage(lang),  
-            }),  
-          }),  
-        }),  
-      ],  
-    });  
-    
-    const root = el('div', { class: 'ff-scaffold', style: { background: color(0xFF000B18) } }, body);  
-    root.addEventListener('click', unfocus);  
-    
-    /* --------------------------------------------------------- on page load -- */  
-    // Um jogador novo comecando e o momento de pegar o que a area administrativa  
-    // publicou desde a ultima partida.  
-    FFAppState.recarregarBaralho();  
-    FFAppState.finalizou = false;  
-    playSound(model, 'soundPlayer1', 'assets/audios/adriantnt_u_click.mp3', 1.0);  
-    model.timerController.onStartTimer();  
-    
-    let showingRanking = false;  
-    model.instantTimer = InstantTimer.periodic({  
-      duration: 1000,  
-      startImmediately: true,  
-      callback: async () => {  
-        if (model.timerMilliseconds <= 45000 || showingRanking) return;  
-        model.timerController.onResetTimer();  
-        model.timerController.onStopTimer();  
-        showingRanking = true;  
-        await showDialog({  
-          builder: () =>  
-            RankingWidget({  
-              acao: async () => {  
-                model.timerController.onResetTimer();  
-                model.timerController.onStartTimer();  
-              },  
-            }),  
-        });  
-        showingRanking = false;  
-      },  
-    });  
-    
-    root.__dispose = () => {  
-      model.instantTimer?.cancel();  
-      model.timerController.dispose();  
-    };  
-    
-    return root;  
+  
+  /** The four staggered slide-ins; only the delay and duration differ. */
+  const slideIn = (delay, duration) =>
+    new AnimationInfo({
+      trigger: AnimationTrigger.onPageLoad,
+      effectsBuilder: () => [
+        MoveEffect({ curve: Curves.easeInOut, delay, duration, begin: [-100.0, 0.0], end: [0.0, 0.0] }),
+        FadeEffect({ curve: Curves.easeInOut, delay, duration, begin: 0.0, end: 1.0 }),
+      ],
+    });
+  
+  /** The dropdown options, in the order the Dart lists them. */
+  const OFICINA_KEYS = [
+    'yr06bw5q', // - Oficina Diesel
+    'u1togdyu', // - Centro-automotivo
+    'zw8uhrit', // - Oficina-mecânica
+    'n9va5c85', // - Auto-Elétrico
+    'h3ss4zal', // - Transmissão automática
+    '1xkz4x22', // - Ar-condicionado
+    'uiyoqx6p', // - Borracharia
+    '2i2l5ptm', // - Chaveiro
+    'gnijwn15', // - Autonomo
+    'o3hsgf10', // - Outros..
+  ];
+  
+  /**
+   * O que o visitante já digitou, guardado fora da função de build.
+   *
+   * No Flutter isto sai de graça: `createModel(context, () => CadastroModel())`
+   * devolve o mesmo model enquanto a página vive, então os TextEditingController
+   * sobrevivem ao rebuild que o `setLocale` dispara no MaterialApp. Aqui a troca
+   * de idioma reconstrói a página, e sem isto o nome e o telefone digitados eram
+   * apagados — justo no gesto que um visitante estrangeiro faz primeiro.
+   *
+   * A oficina é guardada pela CHAVE de tradução, não pelo texto: assim a escolha
+   * sobrevive à troca de idioma e reaparece já traduzida.
+   */
+  const formState = {
+    nome: new TextEditingController(),
+    whats: new TextEditingController(),
+    oficinaKey: null,
+    invalido: 0,
+  };
+  
+  /** Chamado quando a partida realmente começa: o próximo jogador entra limpo. */
+  function resetFormState() {
+    formState.nome = new TextEditingController();
+    formState.whats = new TextEditingController();
+    formState.oficinaKey = null;
+    formState.invalido = 0;
+  }
+  
+  function CadastroWidget() {
+    const model = {
+      // `invalido` conta as tentativas com nome ofensivo e também precisa
+      // sobreviver ao rebuild, senão a contagem zera na troca de idioma.
+      get invalido() {
+        return formState.invalido;
+      },
+      set invalido(v) {
+        formState.invalido = v;
+      },
+      formKey: new FormState(),
+      textFieldNomeTextController: formState.nome,
+      textFieldWhatsTextController: formState.whats,
+      textFieldWhatsMask: new MaskTextInputFormatter({ mask: '(##) #####-####' }),
+      dropDownOficinaValue: formState.oficinaKey ? L(formState.oficinaKey) : null,
+      dropDownOficinaValueController: new FormFieldController(
+        formState.oficinaKey ? L(formState.oficinaKey) : null
+      ),
+      timerController: new FlutterFlowTimerController({ mode: StopWatchMode.countUp }),
+      timerMilliseconds: 0,
+      timerValue: StopWatchTimer.getDisplayTime(0, { hours: false, milliSecond: false }),
+      instantTimer: null,
+    };
+  
+    const animationsMap = {
+      imageOnPageLoadAnimation: new AnimationInfo({
+        loop: true,
+        reverse: true,
+        trigger: AnimationTrigger.onPageLoad,
+        effectsBuilder: () => [
+          ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [0.98, 0.98], end: [1.0, 1.0] }),
+        ],
+      }),
+      columnOnPageLoadAnimation1: slideIn(500.0, 1200.0),
+      columnOnPageLoadAnimation2: slideIn(1000.0, 1200.0),
+      columnOnPageLoadAnimation3: slideIn(1500.0, 1200.0),
+      columnOnPageLoadAnimation4: slideIn(2000.0, 600.0),
+      transformOnActionTriggerAnimation: new AnimationInfo({
+        trigger: AnimationTrigger.onActionTrigger,
+        applyInitialState: true,
+        effectsBuilder: () => [
+          ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 200.0, begin: [1.0, 1.0], end: [0.9, 0.9] }),
+          ScaleEffect({ curve: Curves.easeInOut, delay: 200.0, duration: 200.0, begin: [0.9, 0.9], end: [1.0, 1.0] }),
+        ],
+      }),
+      transformOnPageLoadAnimation: new AnimationInfo({
+        loop: true,
+        reverse: true,
+        trigger: AnimationTrigger.onPageLoad,
+        applyInitialState: true,
+        effectsBuilder: () => [
+          ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [1.0, 1.0], end: [1.01, 1.01] }),
+        ],
+      }),
+      textOnPageLoadAnimation: slideIn(2000.0, 600.0),
+    };
+  
+    /** Every interaction on this page restarts the idle countdown. */
+    const restartIdleTimer = () => {
+      model.timerController.onResetTimer();
+      model.timerController.onStartTimer();
+    };
+  
+    /* --------------------------------------------------------------- fields -- */
+  
+    const fieldLabel = (key) =>
+      Padding({
+        padding: [0.0, 0.0, 0.0, 16.0],
+        child: Txt(
+          L(key),
+          style('bodyMedium', {
+            fontFamily: 'pirulen',
+            color: '#FFFFFF',
+            fontSize: 24.0,
+            letterSpacing: 3.0,
+            fontWeight: 400,
+          })
+        ),
+      });
+  
+    const nomeField = TextFormField({
+      controller: model.textFieldNomeTextController,
+      hintText: L('b4pv213k') /* Digite aqui seu nome */,
+      hintStyle: style('labelMedium', { color: '#FFFFFF', fontSize: 23.0 }),
+      errorStyle: style('bodyMedium', { color: TH.error, fontSize: 23.0 }),
+      style: style('bodyMedium', { color: '#FFFFFF', fontSize: 32.0 }),
+      fillColor: color(0xFF0053B6),
+      borderRadius: 8.0,
+      borderColor: color(0x00000000),
+      errorColor: TH.error,
+      maxLength: 30,
+      cursorColor: TH.primaryText,
+      validator: (value) => (value == null || value.length === 0 ? L('ra9dcpxq') /* Digite seu nome */ : null),
+      onSubmitted: () => {
+        playSound(model, 'soundPlayer3', 'assets/audios/adriantnt_u_click.mp3', 1.0);
+        restartIdleTimer();
+      },
+    });
+  
+    const whatsField = TextFormField({
+      controller: model.textFieldWhatsTextController,
+      hintText: L('559rlm5s') /* Digite o seu número */,
+      hintStyle: style('labelMedium', { color: '#FFFFFF', fontSize: 23.0 }),
+      errorStyle: style('bodyMedium', { color: TH.error, fontSize: 23.0 }),
+      style: style('bodyMedium', { color: '#FFFFFF', fontSize: 32.0 }),
+      fillColor: color(0xFF0053B6),
+      borderRadius: 8.0,
+      borderColor: color(0x00000000),
+      errorColor: TH.error,
+      maxLength: 20,
+      keyboardType: 'number',
+      inputFormatter: model.textFieldWhatsMask,
+      cursorColor: TH.primaryText,
+      validator: (value) => {
+        if (value == null || value.length === 0) return L('xz37mrbb') /* Digite seu telefone */;
+        if (value.length < 11) return 'Requires at least 11 characters.';
+        return null;
+      },
+      onSubmitted: () => {
+        playSound(model, 'soundPlayer4', 'assets/audios/adriantnt_u_click.mp3', 1.0);
+        restartIdleTimer();
+      },
+    });
+  
+    model.formKey.register(nomeField);
+    model.formKey.register(whatsField);
+  
+    const oficinaDropdown = FlutterFlowDropDown({
+      controller: model.dropDownOficinaValueController,
+      options: OFICINA_KEYS.map((key) => L(key)),
+      onChanged: (value, index) => {
+        model.dropDownOficinaValue = value;
+        // Guarda a chave, não o rótulo traduzido, para a escolha atravessar a
+        // troca de idioma (ver formState no topo).
+        formState.oficinaKey = OFICINA_KEYS[index] ?? null;
+        playSound(model, 'soundPlayer5', 'assets/audios/adriantnt_u_click.mp3', 1.0);
+        restartIdleTimer();
+      },
+      height: 70.0,
+      textStyle: style('bodyMedium', { fontSize: 23.0 }),
+      hintText: L('6rvdt37x') /* Escolha o seu seguimento */,
+      icon: Icon('keyboard_arrow_down_rounded', { color: TH.secondaryText, size: 62.0 }),
+      fillColor: color(0xFF0053B6),
+      borderColor: 'transparent',
+      borderWidth: 0.0,
+      borderRadius: 8.0,
+      margin: [12.0, 0.0, 12.0, 0.0],
+    });
+  
+    /* ------------------------------------------------------ confirm button -- */
+  
+    const confirmar = TransformSkew({
+      ax: -0.5,
+      child: Container({
+        width: SW * 0.25,
+        height: SH * 0.07,
+        color: color(0xFF0053B6),
+        borderRadius: 16.0,
+        alignment: [0.0, 0.0],
+        child: InkWell({
+          onTap: async () => {
+            playSound(model, 'soundPlayer6', 'assets/audios/undertale-select-sound.mp3', 0.6);
+            await animationsMap.transformOnActionTriggerAnimation.controller.forward();
+  
+            FFAppState.ordemNumeros = embaralhaQuestoes();
+            FFAppState.update();
+  
+            if (nomeOfensivo(model.textFieldNomeTextController.text)) {
+              await showDialog({ builder: () => NomeOfensivoWidget() });
+              model.invalido = model.invalido + 1;
+              return;
+            }
+  
+            if (!model.formKey.validate()) return;
+  
+            FFAppState.cadastro = new CadastroStruct({
+              nome: model.textFieldNomeTextController.text,
+              telefone: model.textFieldWhatsTextController.text,
+              atuacao: model.dropDownOficinaValue,
+              invalido: model.invalido,
+            });
+            model.invalido = 0;
+            // A partida começou: o formulário guardado já foi consumido, então o
+            // próximo jogador encontra a tela em branco.
+            resetFormState();
+  
+            goNamed('instrucoes', {
+              extra: {
+                __transition_info__: new TransitionInfo({
+                  hasTransition: true,
+                  transitionType: PageTransitionType.scale,
+                  alignment: Alignment.bottomCenter,
+                }),
+              },
+            });
+          },
+          child: TransformSkew({
+            ax: 0.5,
+            child: Align({
+              alignment: [0.0, 0.0],
+              child: Padding({
+                padding: [0.0, 0.0, 16.0, 0.0],
+                child: Txt(
+                  L('kn0wcjje') /* CONFIRMAR */,
+                  style('bodyMedium', {
+                    fontFamily: 'pirulen',
+                    color: '#FFFFFF',
+                    fontSize: 24.0,
+                    letterSpacing: 5.0,
+                    fontWeight: 400,
+                  })
+                ),
+              }),
+            }),
+          }),
+        }),
+      }),
+    });
+    animateOnPageLoad(confirmar, animationsMap.transformOnPageLoadAnimation);
+    animateOnActionTrigger(confirmar, animationsMap.transformOnActionTriggerAnimation);
+  
+    /* -------------------------------------------------------------- privacy -- */
+  
+    const privacyText = InkWell({
+      onTap: async () => {
+        await showDialog({
+          barrierColor: color(0x8C000000),
+          builder: () => PoliticaPrivacidadeWidget(),
+        });
+      },
+      child: Txt(
+        L('hjove9jy') /* Ao clicar em continuar você concorda... */,
+        style('bodyMedium', { fontStyle: 'italic', color: TH.secondaryText })
+      ),
+    });
+    animateOnPageLoad(privacyText, animationsMap.textOnPageLoadAnimation);
+  
+    /* ---------------------------------------------------------- hidden bits -- */
+    // The Dart keeps the timer inside an Opacity(0) and prints the total number
+    // of `usuarios` rows plus a stray "Hello World" - all invisible or leftover,
+    // reproduced so the layout matches.
+  
+    const timer = FlutterFlowTimer({
+      initialTime: 0,
+      controller: model.timerController,
+      getDisplayTime: (value) => StopWatchTimer.getDisplayTime(value, { hours: false, milliSecond: false }),
+      updateStateInterval: 1000,
+      onChanged: (value, displayTime) => {
+        model.timerMilliseconds = value;
+        model.timerValue = displayTime;
+      },
+      textAlign: 'start',
+      style: style('headlineSmall'),
+    });
+  
+    /* ------------------------------------------------------------- the tree -- */
+  
+    // Each group is a Column(crossAxisAlignment.start) holding a label and a
+    // field. Flutter's TextField and dropdown take all the width their parent
+    // offers, which makes those Columns as wide as the 1101.8px container; CSS
+    // would otherwise shrink-wrap them to the label, hence `width: Infinity`.
+    const groups = [
+      Padding({
+        padding: [0.0, 16.0, 0.0, 0.0],
+        style: { alignSelf: 'stretch' },
+        child: animateOnPageLoad(
+          Column({
+            mainAxisSize: 'min',
+            crossAxisAlignment: 'start',
+            width: Infinity,
+            children: [
+              fieldLabel('05h1096o' /* Primeiro Nome ( Teclado ) */),
+              Container({ width: SW * 1.0, child: nomeField }),
+            ],
+          }),
+          animationsMap.columnOnPageLoadAnimation1
+        ),
+      }),
+      Padding({
+        padding: [0.0, 16.0, 0.0, 0.0],
+        style: { alignSelf: 'stretch' },
+        child: animateOnPageLoad(
+          Column({
+            mainAxisSize: 'min',
+            crossAxisAlignment: 'start',
+            width: Infinity,
+            children: [fieldLabel('6vx2q4r4' /* Whatsapp ( teclado ) */), whatsField],
+          }),
+          animationsMap.columnOnPageLoadAnimation2
+        ),
+      }),
+      Padding({
+        padding: [0.0, 16.0, 0.0, 32.0],
+        style: { alignSelf: 'stretch' },
+        child: animateOnPageLoad(
+          Column({
+            mainAxisSize: 'min',
+            crossAxisAlignment: 'start',
+            width: Infinity,
+            children: [fieldLabel('sfh76esp' /* Tipo da oficina ( Tela ) */), oficinaDropdown],
+          }),
+          animationsMap.columnOnPageLoadAnimation3
+        ),
+      }),
+      animateOnPageLoad(
+        Column({ mainAxisSize: 'max', children: [confirmar] }),
+        animationsMap.columnOnPageLoadAnimation4
+      ),
+      privacyText,
+    ];
+  
+    const body = Stack({
+      children: [
+        InkWell({
+          onTap: () => {
+            playSound(model, 'soundPlayer2', 'assets/audios/adriantnt_u_click.mp3', 1.0);
+            restartIdleTimer();
+          },
+          style: { width: '100%', height: '100%' },
+          child: Container({
+            width: Infinity,
+            height: Infinity,
+            image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),
+            child: el(
+              'form',
+              {
+                style: { display: 'flex', flexDirection: 'column', flex: '1 1 auto', minHeight: 0 },
+                onsubmit: (event) => event.preventDefault(),
+              },
+              Column({
+                mainAxisSize: 'max',
+                mainAxisAlignment: 'center',
+                children: [
+                  Txt(L('sk6w3j28') /* Hello World */, style('bodyMedium')),
+                  animateOnPageLoad(
+                    ClipRRect({
+                      borderRadius: 8.0,
+                      child: Img('assets/images/Selo_2.png', { width: SW * 0.23, height: SH * 0.25, fit: 'cover' }),
+                    }),
+                    animationsMap.imageOnPageLoadAnimation
+                  ),
+                  Container({
+                    width: SW * 0.574,
+                    child: Column({
+                      mainAxisSize: 'max',
+                      mainAxisAlignment: 'spaceBetween',
+                      children: divide(groups, 16.0),
+                    }),
+                  }),
+                  Opacity({ opacity: 0.0, child: timer }),
+                  FutureBuilder({
+                    future: queryUsuariosRecordCount(),
+                    builder: (count) => Txt(String(count), style('bodyMedium')),
+                  }),
+                ],
+              })
+            ),
+          }),
+        }),
+        StackAlign({
+          alignment: [1.0, -1.0],
+          child: Padding({
+            padding: [0.0, 32.0, 32.0, 0.0],
+            child: FlutterFlowLanguageSelector({
+              width: 358.57,
+              height: 61.2,
+              backgroundColor: color(0xFF0053B6),
+              borderColor: 'transparent',
+              dropdownColor: color(0xFF171212),
+              dropdownIconColor: TH.secondaryText,
+              borderRadius: 23.0,
+              textStyle: style('bodyMedium', { fontSize: 23.0 }),
+              currentLanguage: FFLocalizations.languageCode,
+              languages: LANGUAGES,
+              onChanged: (lang) => setAppLanguage(lang),
+            }),
+          }),
+        }),
+      ],
+    });
+  
+    const root = el('div', { class: 'ff-scaffold', style: { background: color(0xFF000B18) } }, body);
+    root.addEventListener('click', unfocus);
+  
+    /* --------------------------------------------------------- on page load -- */
+    // Um jogador novo comecando e o momento de pegar o que a area administrativa
+    // publicou desde a ultima partida.
+    FFAppState.recarregarBaralho();
+    FFAppState.finalizou = false;
+    playSound(model, 'soundPlayer1', 'assets/audios/adriantnt_u_click.mp3', 1.0);
+    model.timerController.onStartTimer();
+  
+    let showingRanking = false;
+    model.instantTimer = InstantTimer.periodic({
+      duration: 1000,
+      startImmediately: true,
+      callback: async () => {
+        if (model.timerMilliseconds <= 45000 || showingRanking) return;
+        model.timerController.onResetTimer();
+        model.timerController.onStopTimer();
+        showingRanking = true;
+        await showDialog({
+          builder: () =>
+            RankingWidget({
+              acao: async () => {
+                model.timerController.onResetTimer();
+                model.timerController.onStartTimer();
+              },
+            }),
+        });
+        showingRanking = false;
+      },
+    });
+  
+    root.__dispose = () => {
+      model.instantTimer?.cancel();
+      model.timerController.dispose();
+    };
+  
+    return root;
   }
   Object.defineProperty(__exports, "CadastroWidget", { get: () => CadastroWidget, enumerable: true });
   });
@@ -5611,154 +5612,154 @@
 
   /* ===== roda.js ===== */
   __define("roda.js", function (__exports, __require) {
-  // A roleta desenhada em SVG, para baralhos que não são o original.  
-  //  
-  // A arte que vem do FlutterFlow é um PNG único com dez fatias de 36°, cada uma  
-  // com a foto de um veículo desenhada dentro. Enquanto a lista de veículos é  
-  // aquela, o PNG é usado — é pixel-idêntico ao jogo original. Quando a área  
-  // administrativa troca, adiciona ou remove um veículo, o PNG passaria a mostrar  
-  // carro que não está mais em jogo, e aí esta roda entra no lugar.  
-  //  
-  // O desenho segue a arte original de perto: alternância azul/dourado, aro com  
-  // lâmpadas, fatia 0 apontada para baixo (é onde fica a seta) e a foto de cada  
-  // veículo dentro da sua fatia.  
-    
-  const NS = 'http://www.w3.org/2000/svg';  
-    
-  /** As duas cores das fatias, amostradas da arte original. */  
-  const AZUL = '#0d8ce8';  
-  const DOURADO = '#e5a83c';  
-  const ARO = '#c8892c';  
-  const LAMPADA = '#ffd97a';  
-    
-  const svg = (tag, attrs = {}) => {  
-    const node = document.createElementNS(NS, tag);  
-    for (const [k, v] of Object.entries(attrs)) {  
-      if (v != null) node.setAttribute(k, String(v));  
-    }  
-    return node;  
-  };  
-    
-  /**  
-   * O caminho de uma fatia: do centro até a borda, arco, e volta.  
-   * Os ângulos estão em graus, medidos do eixo x, como no SVG.  
-   */  
-  function fatia(cx, cy, r, de, ate) {  
-    const rad = (g) => (g * Math.PI) / 180;  
-    const x1 = cx + r * Math.cos(rad(de));  
-    const y1 = cy + r * Math.sin(rad(de));  
-    const x2 = cx + r * Math.cos(rad(ate));  
-    const y2 = cy + r * Math.sin(rad(ate));  
-    const arcoGrande = ate - de > 180 ? 1 : 0;  
-    return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${arcoGrande} 1 ${x2} ${y2} Z`;  
-  }  
-    
-  /**  
-   * @param {Array} slots as rodadas do baralho, na ordem das fatias  
-   * @returns {SVGElement} uma roda do mesmo tamanho que o PNG original  
-   */  
-  function rodaGerada(slots) {  
-    const n = Math.max(slots.length, 1);  
-    const LADO = 893.2; // o mesmo tamanho do PNG original  
-    const c = LADO / 2;  
-    const rFatia = c * 0.94;  
-    const rAro = c * 0.985;  
-    
-    const root = svg('svg', {  
-      viewBox: `0 0 ${LADO} ${LADO}`,  
-      width: 864.3,  
-      height: LADO,  
-      role: 'img',  
-      'aria-label': `Roleta com ${n} veículo${n === 1 ? '' : 's'}`,  
-    });  
-    root.style.display = 'block';  
-    root.style.flex = 'none';  
-    
-    // Aro externo com as lâmpadas, como na arte original.  
-    root.appendChild(svg('circle', { cx: c, cy: c, r: rAro, fill: ARO }));  
-    
-    const passo = 360 / n;  
-    // A fatia 0 tem de ficar centrada para BAIXO, onde a seta aponta: a rotação  
-    // de `escolha` voltas termina num múltiplo inteiro de volta mais k/N, então a  
-    // fatia k para onde a fatia 0 começou.  
-    const base = 90 - passo / 2;  
-    
-    const grupo = svg('g');  
-    root.appendChild(grupo);  
-    
-    slots.forEach((slot, i) => {  
-      const de = base + i * passo;  
-      const ate = de + passo;  
-      grupo.appendChild(  
-        svg('path', {  
-          d: fatia(c, c, rFatia, de, ate),  
-          fill: i % 2 === 0 ? DOURADO : AZUL,  
-        })  
-      );  
-    });  
-    
-    // As fotos, uma por fatia. Cada uma é recortada pela própria fatia, para  
-    // nunca invadir a vizinha nem passar do aro — e o tamanho é limitado pela  
-    // corda da fatia naquele raio, que é o que aperta quando N cresce.  
-    const defs = svg('defs');  
-    root.appendChild(defs);  
-    
-    slots.forEach((slot, i) => {  
-      const imagem = slot?.veiculo?.imagem;  
-      if (!imagem) return;  
-    
-      const de = base + i * passo;  
-      const meio = de + passo / 2;  
-      const rad = (meio * Math.PI) / 180;  
-    
-      const clipId = `fatia-${i}`;  
-      const clip = svg('clipPath', { id: clipId });  
-      clip.appendChild(svg('path', { d: fatia(c, c, rFatia, de, de + passo) }));  
-      defs.appendChild(clip);  
-    
-      // Distância do centro em que a foto fica, e o maior quadrado que cabe ali:  
-      // a corda da fatia nesse raio, com folga, limitada pelo próprio raio.  
-      const dist = rFatia * 0.6;  
-      const corda = 2 * dist * Math.sin((passo * Math.PI) / 360);  
-      const lado = Math.max(24, Math.min(corda * 0.92, rFatia * 0.42));  
-      const px = c + dist * Math.cos(rad);  
-      const py = c + dist * Math.sin(rad);  
-    
-      const g = svg('g', { 'clip-path': `url(#${clipId})` });  
-      const img = svg('image', {  
-        href: imagem,  
-        x: px - lado / 2,  
-        y: py - lado / 2,  
-        width: lado,  
-        height: lado,  
-        preserveAspectRatio: 'xMidYMid meet',  
-      });  
-      // Como na arte original, o carro aponta para fora do centro.  
-      img.setAttribute('transform', `rotate(${meio - 90} ${px} ${py})`);  
-      g.appendChild(img);  
-      grupo.appendChild(g);  
-    });  
-    
-    // Lâmpadas do aro: uma em cada divisa de fatia.  
-    for (let i = 0; i < n; i++) {  
-      const rad = ((base + i * passo) * Math.PI) / 180;  
-      grupo.appendChild(  
-        svg('circle', {  
-          cx: c + rAro * 0.97 * Math.cos(rad),  
-          cy: c + rAro * 0.97 * Math.sin(rad),  
-          r: Math.max(6, (rAro * 0.5) / n),  
-          fill: LAMPADA,  
-          stroke: ARO,  
-          'stroke-width': 2,  
-        })  
-      );  
-    }  
-    
-    // Miolo, onde o logo da Tecnomotor é sobreposto pela roleta.js.  
-    root.appendChild(svg('circle', { cx: c, cy: c, r: c * 0.16, fill: ARO }));  
-    root.appendChild(svg('circle', { cx: c, cy: c, r: c * 0.125, fill: '#ffffff' }));  
-    
-    return root;  
+  // A roleta desenhada em SVG, para baralhos que não são o original.
+  //
+  // A arte que vem do FlutterFlow é um PNG único com dez fatias de 36°, cada uma
+  // com a foto de um veículo desenhada dentro. Enquanto a lista de veículos é
+  // aquela, o PNG é usado — é pixel-idêntico ao jogo original. Quando a área
+  // administrativa troca, adiciona ou remove um veículo, o PNG passaria a mostrar
+  // carro que não está mais em jogo, e aí esta roda entra no lugar.
+  //
+  // O desenho segue a arte original de perto: alternância azul/dourado, aro com
+  // lâmpadas, fatia 0 apontada para baixo (é onde fica a seta) e a foto de cada
+  // veículo dentro da sua fatia.
+  
+  const NS = 'http://www.w3.org/2000/svg';
+  
+  /** As duas cores das fatias, amostradas da arte original. */
+  const AZUL = '#0d8ce8';
+  const DOURADO = '#e5a83c';
+  const ARO = '#c8892c';
+  const LAMPADA = '#ffd97a';
+  
+  const svg = (tag, attrs = {}) => {
+    const node = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v != null) node.setAttribute(k, String(v));
+    }
+    return node;
+  };
+  
+  /**
+   * O caminho de uma fatia: do centro até a borda, arco, e volta.
+   * Os ângulos estão em graus, medidos do eixo x, como no SVG.
+   */
+  function fatia(cx, cy, r, de, ate) {
+    const rad = (g) => (g * Math.PI) / 180;
+    const x1 = cx + r * Math.cos(rad(de));
+    const y1 = cy + r * Math.sin(rad(de));
+    const x2 = cx + r * Math.cos(rad(ate));
+    const y2 = cy + r * Math.sin(rad(ate));
+    const arcoGrande = ate - de > 180 ? 1 : 0;
+    return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${arcoGrande} 1 ${x2} ${y2} Z`;
+  }
+  
+  /**
+   * @param {Array} slots as rodadas do baralho, na ordem das fatias
+   * @returns {SVGElement} uma roda do mesmo tamanho que o PNG original
+   */
+  function rodaGerada(slots) {
+    const n = Math.max(slots.length, 1);
+    const LADO = 893.2; // o mesmo tamanho do PNG original
+    const c = LADO / 2;
+    const rFatia = c * 0.94;
+    const rAro = c * 0.985;
+  
+    const root = svg('svg', {
+      viewBox: `0 0 ${LADO} ${LADO}`,
+      width: 864.3,
+      height: LADO,
+      role: 'img',
+      'aria-label': `Roleta com ${n} veículo${n === 1 ? '' : 's'}`,
+    });
+    root.style.display = 'block';
+    root.style.flex = 'none';
+  
+    // Aro externo com as lâmpadas, como na arte original.
+    root.appendChild(svg('circle', { cx: c, cy: c, r: rAro, fill: ARO }));
+  
+    const passo = 360 / n;
+    // A fatia 0 tem de ficar centrada para BAIXO, onde a seta aponta: a rotação
+    // de `escolha` voltas termina num múltiplo inteiro de volta mais k/N, então a
+    // fatia k para onde a fatia 0 começou.
+    const base = 90 - passo / 2;
+  
+    const grupo = svg('g');
+    root.appendChild(grupo);
+  
+    slots.forEach((slot, i) => {
+      const de = base + i * passo;
+      const ate = de + passo;
+      grupo.appendChild(
+        svg('path', {
+          d: fatia(c, c, rFatia, de, ate),
+          fill: i % 2 === 0 ? DOURADO : AZUL,
+        })
+      );
+    });
+  
+    // As fotos, uma por fatia. Cada uma é recortada pela própria fatia, para
+    // nunca invadir a vizinha nem passar do aro — e o tamanho é limitado pela
+    // corda da fatia naquele raio, que é o que aperta quando N cresce.
+    const defs = svg('defs');
+    root.appendChild(defs);
+  
+    slots.forEach((slot, i) => {
+      const imagem = slot?.veiculo?.imagem;
+      if (!imagem) return;
+  
+      const de = base + i * passo;
+      const meio = de + passo / 2;
+      const rad = (meio * Math.PI) / 180;
+  
+      const clipId = `fatia-${i}`;
+      const clip = svg('clipPath', { id: clipId });
+      clip.appendChild(svg('path', { d: fatia(c, c, rFatia, de, de + passo) }));
+      defs.appendChild(clip);
+  
+      // Distância do centro em que a foto fica, e o maior quadrado que cabe ali:
+      // a corda da fatia nesse raio, com folga, limitada pelo próprio raio.
+      const dist = rFatia * 0.6;
+      const corda = 2 * dist * Math.sin((passo * Math.PI) / 360);
+      const lado = Math.max(24, Math.min(corda * 0.92, rFatia * 0.42));
+      const px = c + dist * Math.cos(rad);
+      const py = c + dist * Math.sin(rad);
+  
+      const g = svg('g', { 'clip-path': `url(#${clipId})` });
+      const img = svg('image', {
+        href: imagem,
+        x: px - lado / 2,
+        y: py - lado / 2,
+        width: lado,
+        height: lado,
+        preserveAspectRatio: 'xMidYMid meet',
+      });
+      // Como na arte original, o carro aponta para fora do centro.
+      img.setAttribute('transform', `rotate(${meio - 90} ${px} ${py})`);
+      g.appendChild(img);
+      grupo.appendChild(g);
+    });
+  
+    // Lâmpadas do aro: uma em cada divisa de fatia.
+    for (let i = 0; i < n; i++) {
+      const rad = ((base + i * passo) * Math.PI) / 180;
+      grupo.appendChild(
+        svg('circle', {
+          cx: c + rAro * 0.97 * Math.cos(rad),
+          cy: c + rAro * 0.97 * Math.sin(rad),
+          r: Math.max(6, (rAro * 0.5) / n),
+          fill: LAMPADA,
+          stroke: ARO,
+          'stroke-width': 2,
+        })
+      );
+    }
+  
+    // Miolo, onde o logo da Tecnomotor é sobreposto pela roleta.js.
+    root.appendChild(svg('circle', { cx: c, cy: c, r: c * 0.16, fill: ARO }));
+    root.appendChild(svg('circle', { cx: c, cy: c, r: c * 0.125, fill: '#ffffff' }));
+  
+    return root;
   }
   Object.defineProperty(__exports, "rodaGerada", { get: () => rodaGerada, enumerable: true });
   });
@@ -5949,138 +5950,138 @@
 
   /* ===== components/carro_foto.js ===== */
   __define("components/carro_foto.js", function (__exports, __require) {
-  // Port of lib/pages/components/carro_foto/carro_foto_widget.dart  
-  //  
-  // A foto do carro que a roleta sorteou. O Dart escrevia um `if` por indice,  
-  // cada um com o seu tamanho de imagem; os tamanhos agora vivem no veiculo.  
-    
+  // Port of lib/pages/components/carro_foto/carro_foto_widget.dart
+  //
+  // A foto do carro que a roleta sorteou. O Dart escrevia um `if` por indice,
+  // cada um com o seu tamanho de imagem; os tamanhos agora vivem no veiculo.
+  
   const { ClipRRect, Column, Img, SingleChildScrollView } = __require("widgets.js");
   const { FFAppState } = __require("state.js");
-    
-    
-  function CarroFotoWidget() {  
-    // A foto e o tamanho vinham de uma tabela fixa por indice no Dart; agora  
-    // saem do veiculo da rodada sorteada (ver deck.js), o que e o que permite a  
-    // area administrativa trocar de carro.  
-    const veiculo = FFAppState.slotAtual?.veiculo;  
-    const photo = veiculo?.imagem  
-      ? { src: veiculo.imagem, width: veiculo.largura, height: veiculo.altura, fit: veiculo.fit ?? 'cover' }  
-      : null;  
-    
-    return SingleChildScrollView({  
-      child: Column({  
-        mainAxisSize: 'max',  
-        children: [  
-          photo &&  
-            ClipRRect({  
-              borderRadius: 8.0,  
-              child: Img(photo.src, { width: photo.width, height: photo.height, fit: photo.fit }),  
-            }),  
-        ],  
-      }),  
-    });  
+  
+  
+  function CarroFotoWidget() {
+    // A foto e o tamanho vinham de uma tabela fixa por indice no Dart; agora
+    // saem do veiculo da rodada sorteada (ver deck.js), o que e o que permite a
+    // area administrativa trocar de carro.
+    const veiculo = FFAppState.slotAtual?.veiculo;
+    const photo = veiculo?.imagem
+      ? { src: veiculo.imagem, width: veiculo.largura, height: veiculo.altura, fit: veiculo.fit ?? 'cover' }
+      : null;
+  
+    return SingleChildScrollView({
+      child: Column({
+        mainAxisSize: 'max',
+        children: [
+          photo &&
+            ClipRRect({
+              borderRadius: 8.0,
+              child: Img(photo.src, { width: photo.width, height: photo.height, fit: photo.fit }),
+            }),
+        ],
+      }),
+    });
   }
   Object.defineProperty(__exports, "CarroFotoWidget", { get: () => CarroFotoWidget, enumerable: true });
   });
 
   /* ===== pages/carro_sleecionado.js ===== */
   __define("pages/carro_sleecionado.js", function (__exports, __require) {
-  // Port of lib/pages/carro_sleecionado/carro_sleecionado_widget.dart  
-  //  
-  // Reveals the car the wheel landed on, then fades out and moves to the scanner  
-  // picker after 6s.  
-    
+  // Port of lib/pages/carro_sleecionado/carro_sleecionado_widget.dart
+  //
+  // Reveals the car the wheel landed on, then fades out and moves to the scanner
+  // picker after 6s.
+  
   const { Align, Column, Container, Padding, Txt, decorationImage, el, color, unfocus } = __require("widgets.js");
   const { style } = __require("theme.js");
   const { FFAppState } = __require("state.js");
   const { CarroFotoWidget } = __require("components/carro_foto.js");
   const { goNamed, TransitionInfo, PageTransitionType } = __require("router.js");
   const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad, delayed } = __require("anim.js");
-    
-    
-  function CarroSleecionadoWidget() {  
-    let left = false;  
-    
-    const animationsMap = {  
-      columnOnPageLoadAnimation: new AnimationInfo({  
-        trigger: AnimationTrigger.onPageLoad,  
-        applyInitialState: true,  
-        effectsBuilder: () => [  
-          ScaleEffect({ curve: Curves.easeInOut, delay: 600.0, duration: 2000.0, begin: [-1.0, -1.0], end: [1.0, 1.0] }),  
-          FadeEffect({ curve: Curves.easeInOut, delay: 600.0, duration: 2000.0, begin: 0.0, end: 1.0 }),  
-          MoveEffect({ curve: Curves.easeInOut, delay: 600.0, duration: 2000.0, begin: [0.0, 100.0], end: [0.0, 0.0] }),  
-        ],  
-      }),  
-      columnOnActionTriggerAnimation: new AnimationInfo({  
-        trigger: AnimationTrigger.onActionTrigger,  
-        applyInitialState: true,  
-        effectsBuilder: () => [  
-          FadeEffect({ curve: Curves.easeOut, delay: 0.0, duration: 1220.0, begin: 1.0, end: 0.0 }),  
-        ],  
-      }),  
-    };  
-    
-    const content = Column({  
-      mainAxisSize: 'max',  
-      children: [  
-        CarroFotoWidget(),  
-        Padding({  
-          padding: [0.0, 52.0, 0.0, 0.0],  
-                  // O nome vinha de uma tabela fixa por indice no Dart (que, aliás, nao  
-          // era o campo `nome` da questao — esse o jogo nunca exibia). Agora e o  
-          // nome do veiculo da rodada.  
-          child: Txt(FFAppState.slotAtual?.veiculo?.nome || 'SEM CARRO SELECIONADO', {  
-            ...style('bodyMedium', {  
-              fontFamily: 'Roboto',  
-              fontWeight: 700,  
-              color: '#FFFFFF',  
-              fontSize: 70.0,  
-              letterSpacing: 5.0,  
-            }),  
-          }),  
-        }),  
-      ],  
-    });  
-    animateOnPageLoad(content, animationsMap.columnOnPageLoadAnimation);  
-    animateOnActionTrigger(content, animationsMap.columnOnActionTriggerAnimation);  
-    
-    const root = el(  
-      'div',  
-      { class: 'ff-scaffold', style: { background: color(0xFF1D1D2B) } },  
-      Container({  
-        width: Infinity,  
-        height: Infinity,  
-        image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),  
-        child: Column({  
-          mainAxisSize: 'min',  
-          mainAxisAlignment: 'center',  
-          height: Infinity,  
-          children: [Align({ alignment: [0.0, 0.0], child: content })],  
-        }),  
-      })  
-    );  
-    root.addEventListener('click', unfocus);  
-    
-    delayed(6000).then(async () => {  
-      if (left || !root.isConnected) return;  
-      await animationsMap.columnOnActionTriggerAnimation.controller.forward();  
-      if (left || !root.isConnected) return;  
-      goNamed('scanner', {  
-        extra: {  
-          __transition_info__: new TransitionInfo({  
-            hasTransition: true,  
-            transitionType: PageTransitionType.fade,  
-            duration: 0,  
-          }),  
-        },  
-      });  
-    });  
-    
-    root.__dispose = () => {  
-      left = true;  
-    };  
-    
-    return root;  
+  
+  
+  function CarroSleecionadoWidget() {
+    let left = false;
+  
+    const animationsMap = {
+      columnOnPageLoadAnimation: new AnimationInfo({
+        trigger: AnimationTrigger.onPageLoad,
+        applyInitialState: true,
+        effectsBuilder: () => [
+          ScaleEffect({ curve: Curves.easeInOut, delay: 600.0, duration: 2000.0, begin: [-1.0, -1.0], end: [1.0, 1.0] }),
+          FadeEffect({ curve: Curves.easeInOut, delay: 600.0, duration: 2000.0, begin: 0.0, end: 1.0 }),
+          MoveEffect({ curve: Curves.easeInOut, delay: 600.0, duration: 2000.0, begin: [0.0, 100.0], end: [0.0, 0.0] }),
+        ],
+      }),
+      columnOnActionTriggerAnimation: new AnimationInfo({
+        trigger: AnimationTrigger.onActionTrigger,
+        applyInitialState: true,
+        effectsBuilder: () => [
+          FadeEffect({ curve: Curves.easeOut, delay: 0.0, duration: 1220.0, begin: 1.0, end: 0.0 }),
+        ],
+      }),
+    };
+  
+    const content = Column({
+      mainAxisSize: 'max',
+      children: [
+        CarroFotoWidget(),
+        Padding({
+          padding: [0.0, 52.0, 0.0, 0.0],
+                  // O nome vinha de uma tabela fixa por indice no Dart (que, aliás, nao
+          // era o campo `nome` da questao — esse o jogo nunca exibia). Agora e o
+          // nome do veiculo da rodada.
+          child: Txt(FFAppState.slotAtual?.veiculo?.nome || 'SEM CARRO SELECIONADO', {
+            ...style('bodyMedium', {
+              fontFamily: 'Roboto',
+              fontWeight: 700,
+              color: '#FFFFFF',
+              fontSize: 70.0,
+              letterSpacing: 5.0,
+            }),
+          }),
+        }),
+      ],
+    });
+    animateOnPageLoad(content, animationsMap.columnOnPageLoadAnimation);
+    animateOnActionTrigger(content, animationsMap.columnOnActionTriggerAnimation);
+  
+    const root = el(
+      'div',
+      { class: 'ff-scaffold', style: { background: color(0xFF1D1D2B) } },
+      Container({
+        width: Infinity,
+        height: Infinity,
+        image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),
+        child: Column({
+          mainAxisSize: 'min',
+          mainAxisAlignment: 'center',
+          height: Infinity,
+          children: [Align({ alignment: [0.0, 0.0], child: content })],
+        }),
+      })
+    );
+    root.addEventListener('click', unfocus);
+  
+    delayed(6000).then(async () => {
+      if (left || !root.isConnected) return;
+      await animationsMap.columnOnActionTriggerAnimation.controller.forward();
+      if (left || !root.isConnected) return;
+      goNamed('scanner', {
+        extra: {
+          __transition_info__: new TransitionInfo({
+            hasTransition: true,
+            transitionType: PageTransitionType.fade,
+            duration: 0,
+          }),
+        },
+      });
+    });
+  
+    root.__dispose = () => {
+      left = true;
+    };
+  
+    return root;
   }
   Object.defineProperty(__exports, "CarroSleecionadoWidget", { get: () => CarroSleecionadoWidget, enumerable: true });
   });
@@ -6784,15 +6785,15 @@
 
   /* ===== components/perguntas_erespostas.js ===== */
   __define("components/perguntas_erespostas.js", function (__exports, __require) {
-  // Port of lib/pages/components/perguntas_erespostas/perguntas_erespostas_widget.dart  
-  //  
-  // The right half of the action screen: the scanner skin, the four shuffled  
-  // answers, the five support hints (two allowed per game) and the 60s countdown.  
-  //  
-  // The Dart writes the same block out four times for the answers and five times  
-  // for the hints; the only differences are which slot of `ordemNumeros` an  
-  // answer maps to and which help field a hint reads, so those are tables here.  
-    
+  // Port of lib/pages/components/perguntas_erespostas/perguntas_erespostas_widget.dart
+  //
+  // The right half of the action screen: the scanner skin, the four shuffled
+  // answers, the five support hints (two allowed per game) and the 60s countdown.
+  //
+  // The Dart writes the same block out four times for the answers and five times
+  // for the hints; the only differences are which slot of `ordemNumeros` an
+  // answer maps to and which help field a hint reads, so those are tables here.
+  
   const { Align, ClipRRect, Column, Container, Img, InkWell, Opacity, Padding, Row, Stack, StackAlign, Txt, boxShadow, color, decorationImage, linearGradient, valueOrDefault, SW } = __require("widgets.js");
   const { TH, style } = __require("theme.js");
   const { FFLocalizations, L } = __require("i18n.js");
@@ -6805,886 +6806,886 @@
   const { addUsuario, createUsuariosRecordData } = __require("backend.js");
   const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
   const { FlutterFlowTimer, FlutterFlowTimerController, InstantTimer, StopWatchMode, StopWatchTimer } = __require("timer.js");
-    
-  /* ------------------------------------------------------- scanner skinning -- */  
-  // Every colour in this panel is chosen by `scannerEscolhido`; the Dart spells  
-  // each switch out inline. Same values, one table per switch.  
-    
-  const skin = (map, fallback) => (key) => (key in map ? map[key] : fallback);  
-    
-  const bodyColor = skin(  
-    {  
-      'Rasther 3': color(0xFFE7E7E2),  
-      RB: color(0xFFE7E7E2),  
-      Td90: color(0xFF5A9BF9),  
-      Td80: color(0xFF5A9BF9),  
-      'Rasther 4': color(0xFFB7C9E5),  
-      RST: color(0xFFB7C9E5),  
-    },  
-    color(0xFFBCBEC0)  
-  );  
-    
-  const headerTop = skin(  
-    {  
-      'Rasther 3': color(0xFFE3E3E3),  
-      RB: color(0xFFE3E3E3),  
-      Td90: color(0xFFD4D9DF),  
-      Td80: color(0xFFD4D9DF),  
-      'Rasther 4': color(0xFFB7C9E5),  
-      RST: color(0xFFB7C9E5),  
-    },  
-    color(0xFFF6F6F6)  
-  );  
-    
-  const headerBottom = skin(  
-    {  
-      'Rasther 3': color(0xFF686868),  
-      RB: color(0xFF686868),  
-      Td90: color(0xFFD4D9DF),  
-      Td80: color(0xFFD4D9DF),  
-      'Rasther 4': color(0xFFB7C9E5),  
-      RST: color(0xFFB7C9E5),  
-    },  
-    TH.secondaryText  
-  );  
-    
-  const cardColor = skin(  
-    {  
-      'Rasther 3': color(0xFFBCBEC0),  
-      RB: color(0xFFBCBEC0),  
-      Td90: color(0xFFA9CCFF),  
-      Td80: color(0xFFA9CCFF),  
-      'Rasther 4': color(0xFFD4D9DF),  
-      RST: color(0xFFD4D9DF),  
-    },  
-    color(0xFFBCBEC0)  
-  );  
-    
-  // Note: the Dart tests 'Xtool' here, a value `scannerEscolhido` is never set  
-  // to, so that branch is dead - the numbers are black for the Rasther 3 / RB  
-  // skins and 0xFF001C43 for everything else.  
-  const numberColor = skin(  
-    {  
-      'Rasther 3': '#000000',  
-      RB: '#000000',  
-      Xtool: color(0xFF001C43),  
-      Td80: color(0xFF001C43),  
-      'Rasther 4': color(0xFF001C43),  
-      RST: color(0xFF001C43),  
-    },  
-    color(0xFF001C43)  
-  );  
-    
-  /** The scanner photo shown in the header, with the size from the Dart. */  
-  const HEADER_PHOTOS = {  
-    RST: { src: 'assets/images/Rasther_ST_+_VCI.png', width: 313.39, height: 171.8 },  
-    'Rasther 3': { src: 'assets/images/Rasther_CANFD_(1).png', width: 162.67, height: 157.9 },  
-    RB: { src: 'assets/images/Rasther---box,-3s---mensal-box---android.png', width: 325.9, height: 176.0 },  
-    Td80: { src: 'assets/images/TD_80__Final_(1).png', width: 200.0, height: 200.0 },  
-    Td90: { src: 'assets/images/TD_90_(2).png', width: 200.0, height: 200.0 },  
-  };  
-    
-  /** answer slot -> the question field the shuffled number points at. */  
-  const RESPOSTA_FIELD = { 1: 'respostaUm', 2: 'respostaDois', 3: 'respostaTres', 4: 'respostaQuatro' };  
-    
-  /** The five support hints, in the order the Dart lays them out. */  
-  const HINTS = [  
-    {  
-      key: 'apoio',  
-      field: 'ajudaApoio',  
-      tipo: 'Apoio Tecnico',  
-      image: 'assets/images/Apoio_.png',  
-      width: 170.0,  
-      height: 90.0,  
-      fit: 'cover',  
-      padding: [0.0, 16.0, 0.0, 16.0],  
-      sound: 'soundPlayer6',  
-    },  
-    {  
-      key: 'treinamento',  
-      field: 'ajudaTreinamentoEad',  
-      tipo: 'Cursos EAD',  
-      image: 'assets/images/Cursos.png',  
-      width: 170.0,  
-      height: 95.0,  
-      fit: 'contain',  
-      padding: [0.0, 0.0, 0.0, 16.0],  
-      sound: 'soundPlayer7',  
-    },  
-    {  
-      key: 'youtube',  
-      field: 'ajudaTecnomotorTv',  
-      tipo: 'TecnomotorTV',  
-      image: 'assets/images/Youtube.png',  
-      width: 170.0,  
-      height: 95.0,  
-      fit: 'contain',  
-      padding: [0.0, 0.0, 0.0, 16.0],  
-      sound: 'soundPlayer8',  
-    },  
-    {  
-      key: 'comunidade',  
-      field: 'ajudaComunidade',  
-      tipo: 'Comunidade',  
-      image: 'assets/images/Comunidade_1.png',  
-      width: 170.0,  
-      height: 95.0,  
-      fit: 'contain',  
-      padding: [0.0, 0.0, 0.0, 16.0],  
-      sound: 'soundPlayer9',  
-    },  
-    {  
-      key: 'representante',  
-      field: 'ajudaRepresentanteComercial',  
-      tipo: 'Representante',  
-      image: 'assets/images/Representante.png',  
-      width: 170.0,  
-      height: 95.0,  
-      fit: 'contain',  
-      padding: [0.0, 0.0, 0.0, 16.0],  
-      sound: 'soundPlayer10',  
-    },  
-  ];  
-    
-  const tapFeedback = () =>  
-    new AnimationInfo({  
-      trigger: AnimationTrigger.onActionTrigger,  
-      applyInitialState: true,  
-      effectsBuilder: () => [  
-        ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 200.0, begin: [1.0, 1.0], end: [0.9, 0.9] }),  
-        ScaleEffect({ curve: Curves.easeInOut, delay: 200.0, duration: 200.0, begin: [0.9, 0.9], end: [1.0, 1.0] }),  
-      ],  
-    });  
-    
-  const hintPulse = () =>  
-    new AnimationInfo({  
-      loop: true,  
-      reverse: true,  
-      trigger: AnimationTrigger.onPageLoad,  
-      applyInitialState: true,  
-      effectsBuilder: () => [  
-        ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [1.0, 1.0], end: [1.05, 1.05] }),  
-      ],  
-    });  
-    
-  /** The question in the active language, with the pt list as the fallback. */  
-  function pergunta(field, { enField = field } = {}) {  
-    const index = FFAppState.indiceAtual;  
-    return FFLocalizations.getVariableText({  
-      ptText: valueOrDefault(FFAppState.questoesBrasil[index]?.[field], 'Pergunta um'),  
-      esText: FFAppState.questoesSpanish[index]?.[field],  
-      enText: FFAppState.questoesEnglish[index]?.[enField],  
-    });  
-  }  
-    
-  /**  
-   * The answer text for one slot.  
-   *  
-   * NOTE - faithful bug: in the first answer's builder the Dart reads  
-   * `respostaQuatro` from the English list when the shuffled number is 3  
-   * (pt and es correctly read `respostaTres`), so answer 1 shows answer 4's text  
-   * in English whenever the shuffle puts option 3 first. The other three slots  
-   * are written correctly. Reproduced here so the port behaves like the original;  
-   * drop the `enField` override to fix it.  
-   */  
-  function respostaText(slot, numero) {  
-    const field = RESPOSTA_FIELD[numero];  
-    if (!field) return `Pergunta ${slot + 1}`;  
-    const enField = slot === 0 && numero === 3 ? 'respostaQuatro' : field;  
-    return pergunta(field, { enField });  
-  }  
-    
-  function PerguntasErespostasWidget() {  
-    const model = {  
-      apoio: false,  
-      youtube: false,  
-      comunidade: false,  
-      treinamento: false,  
-      representante: false,  
-      numeroDicas: 0,  
-      apertou: false,  
-      timerMilliseconds: 60000,  
-      timerValue: StopWatchTimer.getDisplayTime(60000, { hours: false }),  
-      timerController: new FlutterFlowTimerController({ mode: StopWatchMode.countDown }),  
-      instantTimer: null,  
-      soundPlayer1: null,  
-    };  
-    
-    const animationsMap = {  
-      stackOnActionTriggerAnimation1: tapFeedback(),  
-      stackOnActionTriggerAnimation2: tapFeedback(),  
-      stackOnActionTriggerAnimation3: tapFeedback(),  
-      stackOnActionTriggerAnimation4: tapFeedback(),  
-      imageOnActionTriggerAnimation1: tapFeedback(),  
-      imageOnPageLoadAnimation1: hintPulse(),  
-      imageOnActionTriggerAnimation2: tapFeedback(),  
-      imageOnPageLoadAnimation2: hintPulse(),  
-      imageOnActionTriggerAnimation3: tapFeedback(),  
-      imageOnPageLoadAnimation3: hintPulse(),  
-      imageOnActionTriggerAnimation4: tapFeedback(),  
-      imageOnPageLoadAnimation4: hintPulse(),  
-      imageOnActionTriggerAnimation5: tapFeedback(),  
-      imageOnPageLoadAnimation5: hintPulse(),  
-    };  
-    
-    const scanner = () => FFAppState.scannerEscolhido;  
-    
-    /* -------------------------------------------------------- answer cards -- */  
-    
-    /**  
-     * One answer. `slot` is the index into ordemNumeros; the visible number is  
-     * always slot + 1, and the answer text comes from the question field that  
-     * ordemNumeros[slot] points at.  
-     */  
-    function answer(slot, { numberKey, animation, sound }) {  
-      const numero = FFAppState.ordemNumeros[slot];  
-      const text = respostaText(slot, numero);  
-    
-      const card = InkWell({  
-        onTap: async () => {  
-          // Slots 0, 1 and 3 guard on `_model.apertou`; slot 2 guards on  
-          // FFAppState().finalizou instead - kept exactly as written.  
-          if (slot === 2 ? FFAppState.finalizou : model.apertou) return;  
-    
-          model.apertou = true;  
-          playSound(model, sound, 'assets/audios/undertale-select-sound.mp3', 0.53);  
-          await animation.controller.forward();  
-          await showDialog({ builder: () => ConfirmacaoWidget() });  
-    
-          if (FFAppState.finalizou) {  
-            model.soundPlayer1?.stop();  
-            model.timerController.onStopTimer();  
-    
-            const gabarito = valueOrDefault(  
-              FFAppState.questoesBrasil[FFAppState.indiceAtual]?.gabarito,  
-              'Pergunta um'  
-            );  
-            const acertou = gabarito === String(FFAppState.ordemNumeros[slot]);  
-    
-            const record = createUsuariosRecordData({  
-              nome: FFAppState.cadastro.nome,  
-              telefone: FFAppState.cadastro.telefone,  
-              atuacao: FFAppState.cadastro.atuacao,  
-              venceu: acertou,  
-              tempo: model.timerMilliseconds,  
-              equipamento: FFAppState.scannerEscolhido,  
-              invalido: FFAppState.cadastro.invalido,  
-            });  
-    
-            pushNamed(acertou ? 'Ganhou' : 'Perdeu', {  
-              extra: {  
-                __transition_info__: new TransitionInfo({  
-                  hasTransition: true,  
-                  transitionType: PageTransitionType.fade,  
-                }),  
-              },  
-            });  
-            await addUsuario(record, { serverTimestamp: true });  
-    
-            model.apoio = false;  
-            model.youtube = false;  
-            model.comunidade = false;  
-            model.treinamento = false;  
-            model.representante = false;  
-            model.timerController.onResetTimer();  
-            // Only the first answer cancels the tick timer in the Dart.  
-            if (slot === 0) model.instantTimer?.cancel();  
-            FFAppState.finalizou = false;  
-          }  
-          model.apertou = false;  
-        },  
-        child: Container({  
-          width: 550.0,  
-          height: 125.0,  
-          color: cardColor(scanner()),  
-          boxShadow: boxShadow({ blurRadius: 10.0, color: color(0x5D000000), offset: [-10.0, 10.0], spreadRadius: 1.0 }),  
-          borderRadius: 12.0,  
-          child: Padding({  
-            padding: [72.0, 16.0, 32.0, 16.0],  
-            child: Column({  
-              mainAxisSize: 'max',  
-              mainAxisAlignment: 'center',  
-              crossAxisAlignment: 'start',  
-              children: [  
-                Padding({  
-                  padding: [10.0, 0.0, 0.0, 0.0],  
-                  child: Txt(  
-                    valueOrDefault(text, 'yr'),  
-                    style('bodyMedium', { fontWeight: 400, color: color(0xFF001C43), fontSize: 24.0 })  
-                  ),  
-                }),  
-              ],  
-            }),  
-          }),  
-        }),  
-      });  
-    
-      const stack = Stack({  
-        alignment: [-1.0, 0.0],  
-        children: [  
-          // Slot 0 wraps the card in an Align(0, 0); the others don't.  
-          slot === 0 ? StackAlign({ alignment: [0.0, 0.0], child: card }) : card,  
-          StackAlign({  
-            alignment: [-1.0, 0.0],  
-            child: Padding({  
-              padding: [24.0, 0.0, 0.0, 0.0],  
-              child: Txt(  
-                L(numberKey),  
-                style('bodyMedium', { fontWeight: 900, color: numberColor(scanner()), fontSize: 55.0 })  
-              ),  
-            }),  
-          }),  
-        ],  
-      });  
-    
-      return animateOnActionTrigger(stack, animation);  
-    }  
-    
-    /* -------------------------------------------------------- support hints -- */  
-    
-    function hint(spec, { actionAnimation, pageLoadAnimation }) {  
-      const image = InkWell({  
-        onTap: async () => {  
-          playSound(model, spec.sound, 'assets/audios/adriantnt_u_click.mp3', 0.5);  
-          if (model[spec.key]) return;  
-    
-          await actionAnimation.controller.forward();  
-          model[spec.key] = true;  
-          refreshHints();  
-    
-          await showDialog({  
-            builder: () => PopUpWidget({ texto: pergunta(spec.field), tipo: spec.tipo }),  
-          });  
-    
-          model.numeroDicas += 1;  
-          refreshDicas();  
-          if (model.numeroDicas >= 2) {  
-            // Two hints used: every button is spent.  
-            for (const other of HINTS) model[other.key] = true;  
-            refreshHints();  
-          }  
-        },  
-        child: ClipRRect({  
-          borderRadius: 8.0,  
-          child: Img(spec.image, { width: spec.width, height: spec.height, fit: spec.fit }),  
-        }),  
-      });  
-      animateOnPageLoad(image, pageLoadAnimation);  
-      animateOnActionTrigger(image, actionAnimation);  
-    
-      const opacity = Opacity({  
-        opacity: model[spec.key] ? 0.3 : 1.0,  
-        child: Padding({ padding: spec.padding, child: image }),  
-      });  
-      opacity.dataset.hint = spec.key;  
-    
-      // The Dart wraps the first hint in an extra Align(0, 0).  
-      const inner = spec.key === 'apoio' ? Align({ alignment: [0.0, 0.0], child: opacity }) : opacity;  
-      return Stack({ alignment: [0.0, 0.0], children: [inner] });  
-    }  
-    
-    const hintNodes = HINTS.map((spec, index) =>  
-      hint(spec, {  
-        actionAnimation: animationsMap[`imageOnActionTriggerAnimation${index + 1}`],  
-        pageLoadAnimation: animationsMap[`imageOnPageLoadAnimation${index + 1}`],  
-      })  
-    );  
-    
-    function refreshHints() {  
-      for (const spec of HINTS) {  
-        const node = root.querySelector(`[data-hint="${spec.key}"]`);  
-        if (node) node.style.opacity = model[spec.key] ? '0.3' : '1';  
-      }  
-    }  
-    
-    const dicasLabel = Txt(`${2 - model.numeroDicas}X`, {  
-      ...style('bodyMedium', {  
-        fontFamily: 'pirulen',  
-        color: color(0xFF001B54),  
-        fontSize: 23.0,  
-        fontWeight: 400,  
-        textAlign: 'right',  
-      }),  
-    });  
-    
-    function refreshDicas() {  
-      dicasLabel.textContent = `${2 - model.numeroDicas}X`;  
-    }  
-    
-    /* --------------------------------------------------------------- header -- */  
-    
-    const headerBand = (() => {  
-      const current = scanner();  
-      if (current === 'Rasther 3' || current === 'RB') {  
-        return Container({  
-          width: Infinity,  
-          height: 65.31,  
-          color: color(0xFFDAD2D2),  
-          image: decorationImage('assets/images/Prancheta_64_cpia_2.png', 'none'),  
-        });  
-      }  
-      if (current === 'Td90' || current === 'Td80') {  
-        return Container({  
-          width: Infinity,  
-          height: 65.3,  
-          color: color(0xFFE3E3E3),  
-          image: decorationImage('assets/images/Prancheta_64_cpia.png', 'none'),  
-        });  
-      }  
-      if (current === 'Rasther 4' || current === 'RST') {  
-        return Container({  
-          width: Infinity,  
-          height: 90.6,  
-          image: decorationImage('assets/images/Prancheta_64.png', 'none'),  
-          gradient: linearGradient({  
-            colors: [color(0xFFD47008), '#000000'],  
-            stops: [0.0, 1.0],  
-            begin: [-0.64, 1.0],  
-            end: [0.64, -1.0],  
-          }),  
-        });  
-      }  
-      return null;  
-    })();  
-    
-    const headerPhoto = HEADER_PHOTOS[scanner()];  
-    
-    /* ----------------------------------------------------------- the timer -- */  
-    
-    const timer = FlutterFlowTimer({  
-      initialTime: 60000,  
-      controller: model.timerController,  
-      getDisplayTime: (value) => StopWatchTimer.getDisplayTime(value, { hours: false }),  
-      updateStateInterval: 1000,  
-      onChanged: (value, displayTime) => {  
-        model.timerMilliseconds = value;  
-        model.timerValue = displayTime;  
-      },  
-      textAlign: 'justify',  
-      style: style('headlineSmall', {  
-        fontFamily: 'pirulen',  
-        color: color(0xFFFF0000),  
-        fontSize: 62.0,  
-        fontWeight: 400,  
-      }),  
-    });  
-    
-    /* ------------------------------------------------------------- the tree -- */  
-    
-    // The panel's Stack is sized by its `double.infinity` container in Flutter;  
-    // stating it here gives the CSS grid a definite box to lay the rest against.  
-    const root = Stack({  
-      width: Infinity,  
-      height: Infinity,  
-      children: [  
-        StackAlign({  
-          alignment: [1.0, 1.0],  
-          child: Container({  
-            width: SW * 0.5,  
-            height: Infinity,  
-            color: bodyColor(scanner()),  
-            boxShadow: boxShadow({ blurRadius: 40.0, color: '#000000', offset: [-10.0, 5.0], spreadRadius: 3.0 }),  
-            child: Column({  
-              mainAxisSize: 'max',  
-              mainAxisAlignment: 'start',  
-              children: [  
-                Container({  
-                  width: Infinity,  
-                  height: 258.35,  
-                  gradient: linearGradient({  
-                    colors: [headerTop(scanner()), headerBottom(scanner())],  
-                    stops: [0.0, 1.0],  
-                    begin: [0.0, -1.0],  
-                    end: [0, 1.0],  
-                  }),  
-                  child: Column({  
-                    mainAxisSize: 'max',  
-                    crossAxisAlignment: 'start',  
-                    children: [  
-                      headerBand,  
-                      Padding({  
-                        padding: [0.0, 24.0, 0.0, 10.0],  
-                        child: Row({  
-                          mainAxisSize: 'max',  
-                          mainAxisAlignment: 'spaceEvenly',  
-                          children: [  
-                            Txt(  
-                              L('navhbcsm') /* Você está \nUsando */,  
-                              style('bodyMedium', {  
-                                fontFamily: 'pirulen',  
-                                color: color(0xFF222222),  
-                                fontSize: 40.0,  
-                                fontWeight: 400,  
-                              })  
-                            ),  
-                            Column({  
-                              mainAxisSize: 'max',  
-                              children: [  
-                                headerPhoto &&  
-                                  ClipRRect({  
-                                    borderRadius: 8.0,  
-                                    child: Img(headerPhoto.src, {  
-                                      width: headerPhoto.width,  
-                                      height: headerPhoto.height,  
-                                      fit: 'cover',  
-                                    }),  
-                                  }),  
-                              ],  
-                            }),  
-                          ],  
-                        }),  
-                      }),  
-                    ],  
-                  }),  
-                }),  
-                // The red divider only belongs to the Rasther 3 / RB skins.  
-                Opacity({  
-                  opacity: scanner() === 'Rasther 3' || scanner() === 'RB' ? 1.0 : 0.0,  
-                  child: Container({ width: Infinity, height: 8.0, color: color(0xFFC10816) }),  
-                }),  
-                Padding({  
-                  padding: [32.0, 10.0, 32.0, 0.0],  
-                  child: Row({  
-                    mainAxisSize: 'max',  
-                    mainAxisAlignment: 'spaceBetween',  
-                    crossAxisAlignment: 'start',  
-                    children: [  
-                      Column({  
-                        mainAxisSize: 'max',  
-                        crossAxisAlignment: 'start',  
-                        children: [  
-                          Padding({  
-                            padding: [56.0, 16.0, 0.0, 16.0],  
-                            child: Txt(  
-                              L('x5fvgf80') /* O problema do veículo */,  
-                              style('bodyMedium', {  
-                                fontFamily: 'pirulen',  
-                                color: color(0xFF222222),  
-                                fontSize: 25.0,  
-                                fontWeight: 400,  
-                              })  
-                            ),  
-                          }),  
-                          Padding({  
-                            padding: [32.0, 16.0, 32.0, 32.0],  
-                            child: Column({  
-                              mainAxisSize: 'max',  
-                              mainAxisAlignment: 'center',  
-                              crossAxisAlignment: 'end',  
-                              children: [  
-                                answer(0, {  
-                                  numberKey: 'bvcy0hg2',  
-                                  animation: animationsMap.stackOnActionTriggerAnimation1,  
-                                  sound: 'soundPlayer2',  
-                                }),  
-                                Padding({  
-                                  padding: [0.0, 24.0, 0.0, 0.0],  
-                                  child: answer(1, {  
-                                    numberKey: 'fvk3pjqg',  
-                                    animation: animationsMap.stackOnActionTriggerAnimation2,  
-                                    sound: 'soundPlayer3',  
-                                  }),  
-                                }),  
-                                Padding({  
-                                  padding: [0.0, 24.0, 0.0, 0.0],  
-                                  child: answer(2, {  
-                                    numberKey: 'u3qmdqw7',  
-                                    animation: animationsMap.stackOnActionTriggerAnimation3,  
-                                    sound: 'soundPlayer4',  
-                                  }),  
-                                }),  
-                                Padding({  
-                                  padding: [0.0, 24.0, 0.0, 0.0],  
-                                  child: answer(3, {  
-                                    numberKey: 'ai7wwgfu',  
-                                    animation: animationsMap.stackOnActionTriggerAnimation4,  
-                                    sound: 'soundPlayer5',  
-                                  }),  
-                                }),  
-                              ],  
-                            }),  
-                          }),  
-                        ],  
-                      }),  
-                      Column({  
-                        mainAxisSize: 'max',  
-                        children: [  
-                          Padding({  
-                            padding: [16.0, 0.0, 16.0, 0.0],  
-                            child: Column({  
-                              mainAxisSize: 'max',  
-                              children: [  
-                                Row({  
-                                  mainAxisSize: 'max',  
-                                  mainAxisAlignment: 'start',  
-                                  children: [  
-                                    Padding({ padding: [0.0, 16.0, 4.0, 4.0], child: dicasLabel }),  
-                                    Padding({  
-                                      padding: [0.0, 16.0, 0.0, 4.0],  
-                                      child: Txt(  
-                                        L('k0xz8bjz') /* Suporte\nDisponível! */,  
-                                        style('bodyMedium', {  
-                                          fontFamily: 'pirulen',  
-                                          color: '#000000',  
-                                          fontSize: 18.0,  
-                                          fontWeight: 400,  
-                                          textAlign: 'left',  
-                                        })  
-                                      ),  
-                                    }),  
-                                  ],  
-                                }),  
-                                Padding({  
-                                  padding: [0.0, 0.0, 0.0, 12.0],  
-                                  child: Container({ width: 190.0, height: 2.0, color: TH.secondaryBackground }),  
-                                }),  
-                                Container({  
-                                  color: cardColor(scanner()),  
-                                  boxShadow: boxShadow({  
-                                    blurRadius: 10.0,  
-                                    color: color(0x5D000000),  
-                                    offset: [-5.0, 5.0],  
-                                    spreadRadius: 1.0,  
-                                  }),  
-                                  borderRadius: 24.0,  
-                                  child: Padding({  
-                                    padding: [16.0, 16.0, 16.0, 16.0],  
-                                    child: Column({ mainAxisSize: 'max', children: hintNodes }),  
-                                  }),  
-                                }),  
-                              ],  
-                            }),  
-                          }),  
-                        ],  
-                      }),  
-                    ],  
-                  }),  
-                }),  
-              ],  
-            }),  
-          }),  
-        }),  
-        StackAlign({  
-          alignment: [1.0, 1.0],  
-          child: Padding({  
-            padding: [0.0, 0.0, 52.0, 32.0],  
-            child: Container({  
-              width: 385.0,  
-              height: 90.0,  
-              color: '#FFFFFF',  
-              boxShadow: boxShadow({ blurRadius: 10.0, color: color(0x5D000000), offset: [-5.0, 5.0], spreadRadius: 1.0 }),  
-              borderRadius: 8.0,  
-              child: Padding({ padding: [8.0, 8.0, 8.0, 8.0], child: timer }),  
-            }),  
-          }),  
-        }),  
-      ],  
-    });  
-    
-    /* --------------------------------------------------------- on page load -- */  
-    // Background music, then a 1Hz tick that sends the player to Perdeu when the  
-    // clock runs out.  
-    // Sem loop: o Dart chama setAsset().then(play()) e nunca setLoopMode, e a  
-    // faixa (~2min48) cobre a rodada de 60s de sobra.  
-    playSound(  
-      model,  
-      'soundPlayer1',  
-      'assets/audios/Eric_Skiff_-_A_Night_Of_Dizzy_Spells_NO_COPYRIGHT_8-bit_Music_Background.mp3',  
-      0.2  
-    );  
-    model.timerController.onStartTimer();  
-    model.instantTimer = InstantTimer.periodic({  
-      duration: 1000,  
-      startImmediately: true,  
-      callback: async () => {  
-        if (model.timerMilliseconds > 0) return;  
-        model.timerController.onStopTimer();  
-        model.timerController.onResetTimer();  
-        model.soundPlayer1?.stop();  
-        model.instantTimer?.cancel();  
-        pushNamed('Perdeu', {  
-          extra: {  
-            __transition_info__: new TransitionInfo({  
-              hasTransition: true,  
-              transitionType: PageTransitionType.scale,  
-              alignment: [0, 1],  
-            }),  
-          },  
-        });  
-        await addUsuario(  
-          createUsuariosRecordData({  
-            nome: FFAppState.cadastro.nome,  
-            telefone: FFAppState.cadastro.telefone,  
-            atuacao: FFAppState.cadastro.atuacao,  
-            venceu: false,  
-            equipamento: FFAppState.scannerEscolhido,  
-          })  
-        );  
-      },  
-    });  
-    
-    root.__dispose = () => {  
-      model.instantTimer?.cancel();  
-      model.timerController.dispose();  
-      model.soundPlayer1?.stop();  
-    };  
-    
-    return root;  
+  
+  /* ------------------------------------------------------- scanner skinning -- */
+  // Every colour in this panel is chosen by `scannerEscolhido`; the Dart spells
+  // each switch out inline. Same values, one table per switch.
+  
+  const skin = (map, fallback) => (key) => (key in map ? map[key] : fallback);
+  
+  const bodyColor = skin(
+    {
+      'Rasther 3': color(0xFFE7E7E2),
+      RB: color(0xFFE7E7E2),
+      Td90: color(0xFF5A9BF9),
+      Td80: color(0xFF5A9BF9),
+      'Rasther 4': color(0xFFB7C9E5),
+      RST: color(0xFFB7C9E5),
+    },
+    color(0xFFBCBEC0)
+  );
+  
+  const headerTop = skin(
+    {
+      'Rasther 3': color(0xFFE3E3E3),
+      RB: color(0xFFE3E3E3),
+      Td90: color(0xFFD4D9DF),
+      Td80: color(0xFFD4D9DF),
+      'Rasther 4': color(0xFFB7C9E5),
+      RST: color(0xFFB7C9E5),
+    },
+    color(0xFFF6F6F6)
+  );
+  
+  const headerBottom = skin(
+    {
+      'Rasther 3': color(0xFF686868),
+      RB: color(0xFF686868),
+      Td90: color(0xFFD4D9DF),
+      Td80: color(0xFFD4D9DF),
+      'Rasther 4': color(0xFFB7C9E5),
+      RST: color(0xFFB7C9E5),
+    },
+    TH.secondaryText
+  );
+  
+  const cardColor = skin(
+    {
+      'Rasther 3': color(0xFFBCBEC0),
+      RB: color(0xFFBCBEC0),
+      Td90: color(0xFFA9CCFF),
+      Td80: color(0xFFA9CCFF),
+      'Rasther 4': color(0xFFD4D9DF),
+      RST: color(0xFFD4D9DF),
+    },
+    color(0xFFBCBEC0)
+  );
+  
+  // Note: the Dart tests 'Xtool' here, a value `scannerEscolhido` is never set
+  // to, so that branch is dead - the numbers are black for the Rasther 3 / RB
+  // skins and 0xFF001C43 for everything else.
+  const numberColor = skin(
+    {
+      'Rasther 3': '#000000',
+      RB: '#000000',
+      Xtool: color(0xFF001C43),
+      Td80: color(0xFF001C43),
+      'Rasther 4': color(0xFF001C43),
+      RST: color(0xFF001C43),
+    },
+    color(0xFF001C43)
+  );
+  
+  /** The scanner photo shown in the header, with the size from the Dart. */
+  const HEADER_PHOTOS = {
+    RST: { src: 'assets/images/Rasther_ST_+_VCI.png', width: 313.39, height: 171.8 },
+    'Rasther 3': { src: 'assets/images/Rasther_CANFD_(1).png', width: 162.67, height: 157.9 },
+    RB: { src: 'assets/images/Rasther---box,-3s---mensal-box---android.png', width: 325.9, height: 176.0 },
+    Td80: { src: 'assets/images/TD_80__Final_(1).png', width: 200.0, height: 200.0 },
+    Td90: { src: 'assets/images/TD_90_(2).png', width: 200.0, height: 200.0 },
+  };
+  
+  /** answer slot -> the question field the shuffled number points at. */
+  const RESPOSTA_FIELD = { 1: 'respostaUm', 2: 'respostaDois', 3: 'respostaTres', 4: 'respostaQuatro' };
+  
+  /** The five support hints, in the order the Dart lays them out. */
+  const HINTS = [
+    {
+      key: 'apoio',
+      field: 'ajudaApoio',
+      tipo: 'Apoio Tecnico',
+      image: 'assets/images/Apoio_.png',
+      width: 170.0,
+      height: 90.0,
+      fit: 'cover',
+      padding: [0.0, 16.0, 0.0, 16.0],
+      sound: 'soundPlayer6',
+    },
+    {
+      key: 'treinamento',
+      field: 'ajudaTreinamentoEad',
+      tipo: 'Cursos EAD',
+      image: 'assets/images/Cursos.png',
+      width: 170.0,
+      height: 95.0,
+      fit: 'contain',
+      padding: [0.0, 0.0, 0.0, 16.0],
+      sound: 'soundPlayer7',
+    },
+    {
+      key: 'youtube',
+      field: 'ajudaTecnomotorTv',
+      tipo: 'TecnomotorTV',
+      image: 'assets/images/Youtube.png',
+      width: 170.0,
+      height: 95.0,
+      fit: 'contain',
+      padding: [0.0, 0.0, 0.0, 16.0],
+      sound: 'soundPlayer8',
+    },
+    {
+      key: 'comunidade',
+      field: 'ajudaComunidade',
+      tipo: 'Comunidade',
+      image: 'assets/images/Comunidade_1.png',
+      width: 170.0,
+      height: 95.0,
+      fit: 'contain',
+      padding: [0.0, 0.0, 0.0, 16.0],
+      sound: 'soundPlayer9',
+    },
+    {
+      key: 'representante',
+      field: 'ajudaRepresentanteComercial',
+      tipo: 'Representante',
+      image: 'assets/images/Representante.png',
+      width: 170.0,
+      height: 95.0,
+      fit: 'contain',
+      padding: [0.0, 0.0, 0.0, 16.0],
+      sound: 'soundPlayer10',
+    },
+  ];
+  
+  const tapFeedback = () =>
+    new AnimationInfo({
+      trigger: AnimationTrigger.onActionTrigger,
+      applyInitialState: true,
+      effectsBuilder: () => [
+        ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 200.0, begin: [1.0, 1.0], end: [0.9, 0.9] }),
+        ScaleEffect({ curve: Curves.easeInOut, delay: 200.0, duration: 200.0, begin: [0.9, 0.9], end: [1.0, 1.0] }),
+      ],
+    });
+  
+  const hintPulse = () =>
+    new AnimationInfo({
+      loop: true,
+      reverse: true,
+      trigger: AnimationTrigger.onPageLoad,
+      applyInitialState: true,
+      effectsBuilder: () => [
+        ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [1.0, 1.0], end: [1.05, 1.05] }),
+      ],
+    });
+  
+  /** The question in the active language, with the pt list as the fallback. */
+  function pergunta(field, { enField = field } = {}) {
+    const index = FFAppState.indiceAtual;
+    return FFLocalizations.getVariableText({
+      ptText: valueOrDefault(FFAppState.questoesBrasil[index]?.[field], 'Pergunta um'),
+      esText: FFAppState.questoesSpanish[index]?.[field],
+      enText: FFAppState.questoesEnglish[index]?.[enField],
+    });
+  }
+  
+  /**
+   * The answer text for one slot.
+   *
+   * NOTE - faithful bug: in the first answer's builder the Dart reads
+   * `respostaQuatro` from the English list when the shuffled number is 3
+   * (pt and es correctly read `respostaTres`), so answer 1 shows answer 4's text
+   * in English whenever the shuffle puts option 3 first. The other three slots
+   * are written correctly. Reproduced here so the port behaves like the original;
+   * drop the `enField` override to fix it.
+   */
+  function respostaText(slot, numero) {
+    const field = RESPOSTA_FIELD[numero];
+    if (!field) return `Pergunta ${slot + 1}`;
+    const enField = slot === 0 && numero === 3 ? 'respostaQuatro' : field;
+    return pergunta(field, { enField });
+  }
+  
+  function PerguntasErespostasWidget() {
+    const model = {
+      apoio: false,
+      youtube: false,
+      comunidade: false,
+      treinamento: false,
+      representante: false,
+      numeroDicas: 0,
+      apertou: false,
+      timerMilliseconds: 60000,
+      timerValue: StopWatchTimer.getDisplayTime(60000, { hours: false }),
+      timerController: new FlutterFlowTimerController({ mode: StopWatchMode.countDown }),
+      instantTimer: null,
+      soundPlayer1: null,
+    };
+  
+    const animationsMap = {
+      stackOnActionTriggerAnimation1: tapFeedback(),
+      stackOnActionTriggerAnimation2: tapFeedback(),
+      stackOnActionTriggerAnimation3: tapFeedback(),
+      stackOnActionTriggerAnimation4: tapFeedback(),
+      imageOnActionTriggerAnimation1: tapFeedback(),
+      imageOnPageLoadAnimation1: hintPulse(),
+      imageOnActionTriggerAnimation2: tapFeedback(),
+      imageOnPageLoadAnimation2: hintPulse(),
+      imageOnActionTriggerAnimation3: tapFeedback(),
+      imageOnPageLoadAnimation3: hintPulse(),
+      imageOnActionTriggerAnimation4: tapFeedback(),
+      imageOnPageLoadAnimation4: hintPulse(),
+      imageOnActionTriggerAnimation5: tapFeedback(),
+      imageOnPageLoadAnimation5: hintPulse(),
+    };
+  
+    const scanner = () => FFAppState.scannerEscolhido;
+  
+    /* -------------------------------------------------------- answer cards -- */
+  
+    /**
+     * One answer. `slot` is the index into ordemNumeros; the visible number is
+     * always slot + 1, and the answer text comes from the question field that
+     * ordemNumeros[slot] points at.
+     */
+    function answer(slot, { numberKey, animation, sound }) {
+      const numero = FFAppState.ordemNumeros[slot];
+      const text = respostaText(slot, numero);
+  
+      const card = InkWell({
+        onTap: async () => {
+          // Slots 0, 1 and 3 guard on `_model.apertou`; slot 2 guards on
+          // FFAppState().finalizou instead - kept exactly as written.
+          if (slot === 2 ? FFAppState.finalizou : model.apertou) return;
+  
+          model.apertou = true;
+          playSound(model, sound, 'assets/audios/undertale-select-sound.mp3', 0.53);
+          await animation.controller.forward();
+          await showDialog({ builder: () => ConfirmacaoWidget() });
+  
+          if (FFAppState.finalizou) {
+            model.soundPlayer1?.stop();
+            model.timerController.onStopTimer();
+  
+            const gabarito = valueOrDefault(
+              FFAppState.questoesBrasil[FFAppState.indiceAtual]?.gabarito,
+              'Pergunta um'
+            );
+            const acertou = gabarito === String(FFAppState.ordemNumeros[slot]);
+  
+            const record = createUsuariosRecordData({
+              nome: FFAppState.cadastro.nome,
+              telefone: FFAppState.cadastro.telefone,
+              atuacao: FFAppState.cadastro.atuacao,
+              venceu: acertou,
+              tempo: model.timerMilliseconds,
+              equipamento: FFAppState.scannerEscolhido,
+              invalido: FFAppState.cadastro.invalido,
+            });
+  
+            pushNamed(acertou ? 'Ganhou' : 'Perdeu', {
+              extra: {
+                __transition_info__: new TransitionInfo({
+                  hasTransition: true,
+                  transitionType: PageTransitionType.fade,
+                }),
+              },
+            });
+            await addUsuario(record, { serverTimestamp: true });
+  
+            model.apoio = false;
+            model.youtube = false;
+            model.comunidade = false;
+            model.treinamento = false;
+            model.representante = false;
+            model.timerController.onResetTimer();
+            // Only the first answer cancels the tick timer in the Dart.
+            if (slot === 0) model.instantTimer?.cancel();
+            FFAppState.finalizou = false;
+          }
+          model.apertou = false;
+        },
+        child: Container({
+          width: 550.0,
+          height: 125.0,
+          color: cardColor(scanner()),
+          boxShadow: boxShadow({ blurRadius: 10.0, color: color(0x5D000000), offset: [-10.0, 10.0], spreadRadius: 1.0 }),
+          borderRadius: 12.0,
+          child: Padding({
+            padding: [72.0, 16.0, 32.0, 16.0],
+            child: Column({
+              mainAxisSize: 'max',
+              mainAxisAlignment: 'center',
+              crossAxisAlignment: 'start',
+              children: [
+                Padding({
+                  padding: [10.0, 0.0, 0.0, 0.0],
+                  child: Txt(
+                    valueOrDefault(text, 'yr'),
+                    style('bodyMedium', { fontWeight: 400, color: color(0xFF001C43), fontSize: 24.0 })
+                  ),
+                }),
+              ],
+            }),
+          }),
+        }),
+      });
+  
+      const stack = Stack({
+        alignment: [-1.0, 0.0],
+        children: [
+          // Slot 0 wraps the card in an Align(0, 0); the others don't.
+          slot === 0 ? StackAlign({ alignment: [0.0, 0.0], child: card }) : card,
+          StackAlign({
+            alignment: [-1.0, 0.0],
+            child: Padding({
+              padding: [24.0, 0.0, 0.0, 0.0],
+              child: Txt(
+                L(numberKey),
+                style('bodyMedium', { fontWeight: 900, color: numberColor(scanner()), fontSize: 55.0 })
+              ),
+            }),
+          }),
+        ],
+      });
+  
+      return animateOnActionTrigger(stack, animation);
+    }
+  
+    /* -------------------------------------------------------- support hints -- */
+  
+    function hint(spec, { actionAnimation, pageLoadAnimation }) {
+      const image = InkWell({
+        onTap: async () => {
+          playSound(model, spec.sound, 'assets/audios/adriantnt_u_click.mp3', 0.5);
+          if (model[spec.key]) return;
+  
+          await actionAnimation.controller.forward();
+          model[spec.key] = true;
+          refreshHints();
+  
+          await showDialog({
+            builder: () => PopUpWidget({ texto: pergunta(spec.field), tipo: spec.tipo }),
+          });
+  
+          model.numeroDicas += 1;
+          refreshDicas();
+          if (model.numeroDicas >= 2) {
+            // Two hints used: every button is spent.
+            for (const other of HINTS) model[other.key] = true;
+            refreshHints();
+          }
+        },
+        child: ClipRRect({
+          borderRadius: 8.0,
+          child: Img(spec.image, { width: spec.width, height: spec.height, fit: spec.fit }),
+        }),
+      });
+      animateOnPageLoad(image, pageLoadAnimation);
+      animateOnActionTrigger(image, actionAnimation);
+  
+      const opacity = Opacity({
+        opacity: model[spec.key] ? 0.3 : 1.0,
+        child: Padding({ padding: spec.padding, child: image }),
+      });
+      opacity.dataset.hint = spec.key;
+  
+      // The Dart wraps the first hint in an extra Align(0, 0).
+      const inner = spec.key === 'apoio' ? Align({ alignment: [0.0, 0.0], child: opacity }) : opacity;
+      return Stack({ alignment: [0.0, 0.0], children: [inner] });
+    }
+  
+    const hintNodes = HINTS.map((spec, index) =>
+      hint(spec, {
+        actionAnimation: animationsMap[`imageOnActionTriggerAnimation${index + 1}`],
+        pageLoadAnimation: animationsMap[`imageOnPageLoadAnimation${index + 1}`],
+      })
+    );
+  
+    function refreshHints() {
+      for (const spec of HINTS) {
+        const node = root.querySelector(`[data-hint="${spec.key}"]`);
+        if (node) node.style.opacity = model[spec.key] ? '0.3' : '1';
+      }
+    }
+  
+    const dicasLabel = Txt(`${2 - model.numeroDicas}X`, {
+      ...style('bodyMedium', {
+        fontFamily: 'pirulen',
+        color: color(0xFF001B54),
+        fontSize: 23.0,
+        fontWeight: 400,
+        textAlign: 'right',
+      }),
+    });
+  
+    function refreshDicas() {
+      dicasLabel.textContent = `${2 - model.numeroDicas}X`;
+    }
+  
+    /* --------------------------------------------------------------- header -- */
+  
+    const headerBand = (() => {
+      const current = scanner();
+      if (current === 'Rasther 3' || current === 'RB') {
+        return Container({
+          width: Infinity,
+          height: 65.31,
+          color: color(0xFFDAD2D2),
+          image: decorationImage('assets/images/Prancheta_64_cpia_2.png', 'none'),
+        });
+      }
+      if (current === 'Td90' || current === 'Td80') {
+        return Container({
+          width: Infinity,
+          height: 65.3,
+          color: color(0xFFE3E3E3),
+          image: decorationImage('assets/images/Prancheta_64_cpia.png', 'none'),
+        });
+      }
+      if (current === 'Rasther 4' || current === 'RST') {
+        return Container({
+          width: Infinity,
+          height: 90.6,
+          image: decorationImage('assets/images/Prancheta_64.png', 'none'),
+          gradient: linearGradient({
+            colors: [color(0xFFD47008), '#000000'],
+            stops: [0.0, 1.0],
+            begin: [-0.64, 1.0],
+            end: [0.64, -1.0],
+          }),
+        });
+      }
+      return null;
+    })();
+  
+    const headerPhoto = HEADER_PHOTOS[scanner()];
+  
+    /* ----------------------------------------------------------- the timer -- */
+  
+    const timer = FlutterFlowTimer({
+      initialTime: 60000,
+      controller: model.timerController,
+      getDisplayTime: (value) => StopWatchTimer.getDisplayTime(value, { hours: false }),
+      updateStateInterval: 1000,
+      onChanged: (value, displayTime) => {
+        model.timerMilliseconds = value;
+        model.timerValue = displayTime;
+      },
+      textAlign: 'justify',
+      style: style('headlineSmall', {
+        fontFamily: 'pirulen',
+        color: color(0xFFFF0000),
+        fontSize: 62.0,
+        fontWeight: 400,
+      }),
+    });
+  
+    /* ------------------------------------------------------------- the tree -- */
+  
+    // The panel's Stack is sized by its `double.infinity` container in Flutter;
+    // stating it here gives the CSS grid a definite box to lay the rest against.
+    const root = Stack({
+      width: Infinity,
+      height: Infinity,
+      children: [
+        StackAlign({
+          alignment: [1.0, 1.0],
+          child: Container({
+            width: SW * 0.5,
+            height: Infinity,
+            color: bodyColor(scanner()),
+            boxShadow: boxShadow({ blurRadius: 40.0, color: '#000000', offset: [-10.0, 5.0], spreadRadius: 3.0 }),
+            child: Column({
+              mainAxisSize: 'max',
+              mainAxisAlignment: 'start',
+              children: [
+                Container({
+                  width: Infinity,
+                  height: 258.35,
+                  gradient: linearGradient({
+                    colors: [headerTop(scanner()), headerBottom(scanner())],
+                    stops: [0.0, 1.0],
+                    begin: [0.0, -1.0],
+                    end: [0, 1.0],
+                  }),
+                  child: Column({
+                    mainAxisSize: 'max',
+                    crossAxisAlignment: 'start',
+                    children: [
+                      headerBand,
+                      Padding({
+                        padding: [0.0, 24.0, 0.0, 10.0],
+                        child: Row({
+                          mainAxisSize: 'max',
+                          mainAxisAlignment: 'spaceEvenly',
+                          children: [
+                            Txt(
+                              L('navhbcsm') /* Você está \nUsando */,
+                              style('bodyMedium', {
+                                fontFamily: 'pirulen',
+                                color: color(0xFF222222),
+                                fontSize: 40.0,
+                                fontWeight: 400,
+                              })
+                            ),
+                            Column({
+                              mainAxisSize: 'max',
+                              children: [
+                                headerPhoto &&
+                                  ClipRRect({
+                                    borderRadius: 8.0,
+                                    child: Img(headerPhoto.src, {
+                                      width: headerPhoto.width,
+                                      height: headerPhoto.height,
+                                      fit: 'cover',
+                                    }),
+                                  }),
+                              ],
+                            }),
+                          ],
+                        }),
+                      }),
+                    ],
+                  }),
+                }),
+                // The red divider only belongs to the Rasther 3 / RB skins.
+                Opacity({
+                  opacity: scanner() === 'Rasther 3' || scanner() === 'RB' ? 1.0 : 0.0,
+                  child: Container({ width: Infinity, height: 8.0, color: color(0xFFC10816) }),
+                }),
+                Padding({
+                  padding: [32.0, 10.0, 32.0, 0.0],
+                  child: Row({
+                    mainAxisSize: 'max',
+                    mainAxisAlignment: 'spaceBetween',
+                    crossAxisAlignment: 'start',
+                    children: [
+                      Column({
+                        mainAxisSize: 'max',
+                        crossAxisAlignment: 'start',
+                        children: [
+                          Padding({
+                            padding: [56.0, 16.0, 0.0, 16.0],
+                            child: Txt(
+                              L('x5fvgf80') /* O problema do veículo */,
+                              style('bodyMedium', {
+                                fontFamily: 'pirulen',
+                                color: color(0xFF222222),
+                                fontSize: 25.0,
+                                fontWeight: 400,
+                              })
+                            ),
+                          }),
+                          Padding({
+                            padding: [32.0, 16.0, 32.0, 32.0],
+                            child: Column({
+                              mainAxisSize: 'max',
+                              mainAxisAlignment: 'center',
+                              crossAxisAlignment: 'end',
+                              children: [
+                                answer(0, {
+                                  numberKey: 'bvcy0hg2',
+                                  animation: animationsMap.stackOnActionTriggerAnimation1,
+                                  sound: 'soundPlayer2',
+                                }),
+                                Padding({
+                                  padding: [0.0, 24.0, 0.0, 0.0],
+                                  child: answer(1, {
+                                    numberKey: 'fvk3pjqg',
+                                    animation: animationsMap.stackOnActionTriggerAnimation2,
+                                    sound: 'soundPlayer3',
+                                  }),
+                                }),
+                                Padding({
+                                  padding: [0.0, 24.0, 0.0, 0.0],
+                                  child: answer(2, {
+                                    numberKey: 'u3qmdqw7',
+                                    animation: animationsMap.stackOnActionTriggerAnimation3,
+                                    sound: 'soundPlayer4',
+                                  }),
+                                }),
+                                Padding({
+                                  padding: [0.0, 24.0, 0.0, 0.0],
+                                  child: answer(3, {
+                                    numberKey: 'ai7wwgfu',
+                                    animation: animationsMap.stackOnActionTriggerAnimation4,
+                                    sound: 'soundPlayer5',
+                                  }),
+                                }),
+                              ],
+                            }),
+                          }),
+                        ],
+                      }),
+                      Column({
+                        mainAxisSize: 'max',
+                        children: [
+                          Padding({
+                            padding: [16.0, 0.0, 16.0, 0.0],
+                            child: Column({
+                              mainAxisSize: 'max',
+                              children: [
+                                Row({
+                                  mainAxisSize: 'max',
+                                  mainAxisAlignment: 'start',
+                                  children: [
+                                    Padding({ padding: [0.0, 16.0, 4.0, 4.0], child: dicasLabel }),
+                                    Padding({
+                                      padding: [0.0, 16.0, 0.0, 4.0],
+                                      child: Txt(
+                                        L('k0xz8bjz') /* Suporte\nDisponível! */,
+                                        style('bodyMedium', {
+                                          fontFamily: 'pirulen',
+                                          color: '#000000',
+                                          fontSize: 18.0,
+                                          fontWeight: 400,
+                                          textAlign: 'left',
+                                        })
+                                      ),
+                                    }),
+                                  ],
+                                }),
+                                Padding({
+                                  padding: [0.0, 0.0, 0.0, 12.0],
+                                  child: Container({ width: 190.0, height: 2.0, color: TH.secondaryBackground }),
+                                }),
+                                Container({
+                                  color: cardColor(scanner()),
+                                  boxShadow: boxShadow({
+                                    blurRadius: 10.0,
+                                    color: color(0x5D000000),
+                                    offset: [-5.0, 5.0],
+                                    spreadRadius: 1.0,
+                                  }),
+                                  borderRadius: 24.0,
+                                  child: Padding({
+                                    padding: [16.0, 16.0, 16.0, 16.0],
+                                    child: Column({ mainAxisSize: 'max', children: hintNodes }),
+                                  }),
+                                }),
+                              ],
+                            }),
+                          }),
+                        ],
+                      }),
+                    ],
+                  }),
+                }),
+              ],
+            }),
+          }),
+        }),
+        StackAlign({
+          alignment: [1.0, 1.0],
+          child: Padding({
+            padding: [0.0, 0.0, 52.0, 32.0],
+            child: Container({
+              width: 385.0,
+              height: 90.0,
+              color: '#FFFFFF',
+              boxShadow: boxShadow({ blurRadius: 10.0, color: color(0x5D000000), offset: [-5.0, 5.0], spreadRadius: 1.0 }),
+              borderRadius: 8.0,
+              child: Padding({ padding: [8.0, 8.0, 8.0, 8.0], child: timer }),
+            }),
+          }),
+        }),
+      ],
+    });
+  
+    /* --------------------------------------------------------- on page load -- */
+    // Background music, then a 1Hz tick that sends the player to Perdeu when the
+    // clock runs out.
+    // Sem loop: o Dart chama setAsset().then(play()) e nunca setLoopMode, e a
+    // faixa (~2min48) cobre a rodada de 60s de sobra.
+    playSound(
+      model,
+      'soundPlayer1',
+      'assets/audios/Eric_Skiff_-_A_Night_Of_Dizzy_Spells_NO_COPYRIGHT_8-bit_Music_Background.mp3',
+      0.2
+    );
+    model.timerController.onStartTimer();
+    model.instantTimer = InstantTimer.periodic({
+      duration: 1000,
+      startImmediately: true,
+      callback: async () => {
+        if (model.timerMilliseconds > 0) return;
+        model.timerController.onStopTimer();
+        model.timerController.onResetTimer();
+        model.soundPlayer1?.stop();
+        model.instantTimer?.cancel();
+        pushNamed('Perdeu', {
+          extra: {
+            __transition_info__: new TransitionInfo({
+              hasTransition: true,
+              transitionType: PageTransitionType.scale,
+              alignment: [0, 1],
+            }),
+          },
+        });
+        await addUsuario(
+          createUsuariosRecordData({
+            nome: FFAppState.cadastro.nome,
+            telefone: FFAppState.cadastro.telefone,
+            atuacao: FFAppState.cadastro.atuacao,
+            venceu: false,
+            equipamento: FFAppState.scannerEscolhido,
+          })
+        );
+      },
+    });
+  
+    root.__dispose = () => {
+      model.instantTimer?.cancel();
+      model.timerController.dispose();
+      model.soundPlayer1?.stop();
+    };
+  
+    return root;
   }
   Object.defineProperty(__exports, "PerguntasErespostasWidget", { get: () => PerguntasErespostasWidget, enumerable: true });
   });
 
   /* ===== pages/tela_acao.js ===== */
   __define("pages/tela_acao.js", function (__exports, __require) {
-  // Port of lib/pages/acao/tela_acao/tela_acao_widget.dart  
-  //  
-  // The game screen: the fault brief on the left, the scanner panel with the  
-  // answers on the right. A background task flips `tempoAcabando` after 15s  
-  // (write-only state in the original) and then waits another 15s.  
-    
+  // Port of lib/pages/acao/tela_acao/tela_acao_widget.dart
+  //
+  // The game screen: the fault brief on the left, the scanner panel with the
+  // answers on the right. A background task flips `tempoAcabando` after 15s
+  // (write-only state in the original) and then waits another 15s.
+  
   const { Align, ClipRRect, Column, Container, Flexible, Img, Padding, Row, Stack, Txt, TransformRotate, color, decorationImage, degrees, el, valueOrDefault } = __require("widgets.js");
   const { style } = __require("theme.js");
   const { FFLocalizations, L } = __require("i18n.js");
   const { FFAppState } = __require("state.js");
   const { PerguntasErespostasWidget } = __require("components/perguntas_erespostas.js");
   const { delayed } = __require("anim.js");
-    
-  function TelaAcaoWidget() {  
-    const index = FFAppState.indiceAtual;  
-    
-    const perguntaText = FFLocalizations.getVariableText({  
-      ptText: valueOrDefault(FFAppState.questoesBrasil[index]?.pergunta, 'Pergunta um'),  
-      esText: FFAppState.questoesSpanish[index]?.pergunta,  
-      enText: FFAppState.questoesEnglish[index]?.pergunta,  
-    });  
-    
-    const panel = PerguntasErespostasWidget();  
-    
-    const root = el(  
-      'div',  
-      { class: 'ff-scaffold', style: { background: color(0xFF001B56) } },  
-      Container({  
-        width: Infinity,  
-        height: Infinity,  
-        child: Stack({  
-          children: [  
-            Row({  
-              mainAxisSize: 'max',  
-              mainAxisAlignment: 'spaceBetween',  
-              height: Infinity,  
-              children: [  
-                Flexible({  
-                  flex: 1,  
-                  child: Container({  
-                    width: Infinity,  
-                    height: Infinity,  
-                    color: color(0xFF001B56),  
-                    image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),  
-                    child: Stack({  
-                      children: [  
-                        Padding({  
-                          padding: [86.0, 86.0, 68.0, 68.0],  
-                          style: { width: '100%', height: '100%' },  
-                          child: Container({  
-                            width: Infinity,  
-                            height: Infinity,  
-                            color: color(0x10FFFFFF),  
-                            borderRadius: 24.0,  
-                            border: '2px solid #FFFFFF',  
-                            child: Padding({  
-                              padding: [56.0, 46.0, 56.0, 46.0],  
-                              style: { width: '100%', height: '100%' },  
-                              child: Column({  
-                                mainAxisSize: 'max',  
-                                mainAxisAlignment: 'spaceEvenly',  
-                                children: [  
-                                  Column({  
-                                    mainAxisSize: 'max',  
-                                    crossAxisAlignment: 'center',  
-                                    children: [  
-                                      Align({  
-                                        alignment: [0.0, 0.0],  
-                                        child: Txt(  
-                                          L('yeby7x4r') /* DEFEITO */,  
-                                          style('bodyMedium', {  
-                                            fontFamily: 'Roboto Mono',  
-                                            fontWeight: 600,  
-                                            color: color(0xFFFF000D),  
-                                            fontSize: 70.0,  
-                                            letterSpacing: 10.0,  
-                                          })  
-                                        ),  
-                                      }),  
-                                      Padding({  
-                                        padding: [0.0, 36.0, 0.0, 0.0],  
-                                        child: Txt(  
-                                          L('iuseamae') /* Problema do cliente: */,  
-                                          style('bodyMedium', {  
-                                            fontFamily: 'Paralucent',  
-                                            color: '#FFFFFF',  
-                                            fontSize: 18.0,  
-                                            letterSpacing: 2.0,  
-                                            fontWeight: 300,  
-                                            fontStyle: 'italic',  
-                                            textAlign: 'left',  
-                                          })  
-                                        ),  
-                                      }),  
-                                      Align({  
-                                        alignment: [0.0, 0.0],  
-                                        child: Txt(  
-                                          perguntaText,  
-                                          style('bodyMedium', {  
-                                            fontFamily: 'Paralucent',  
-                                            color: '#FFFFFF',  
-                                            fontSize: 30.0,  
-                                            letterSpacing: 2.0,  
-                                            fontWeight: 500,  
-                                            textAlign: 'center',  
-                                          })  
-                                        ),  
-                                      }),  
-                                    ],  
-                                  }),  
-                                ],  
-                              }),  
-                            }),  
-                          }),  
-                        }),  
-                        TransformRotate({  
-                          angle: degrees(338.0),  
-                          child: ClipRRect({  
-                            borderRadius: 8.0,  
-                            child: Img('assets/images/Selo_2.png', { width: 376.4, height: 321.0, fit: 'cover' }),  
-                          }),  
-                        }),  
-                      ],  
-                    }),  
-                  }),  
-                }),  
-                Flexible({ flex: 1, child: panel }),  
-              ],  
-            }),  
-          ],  
-        }),  
-      })  
-    );  
-    
-    // Future.wait([...]) on page load: flip tempoAcabando at 15s, then idle.  
-    let left = false;  
-    (async () => {  
-      await delayed(15000);  
-      if (left) return;  
-      FFAppState.tempoAcabando = true;  
-      await delayed(15000);  
-    })();  
-    
-    root.__dispose = () => {  
-      left = true;  
-      panel.__dispose?.();  
-    };  
-    
-    return root;  
+  
+  function TelaAcaoWidget() {
+    const index = FFAppState.indiceAtual;
+  
+    const perguntaText = FFLocalizations.getVariableText({
+      ptText: valueOrDefault(FFAppState.questoesBrasil[index]?.pergunta, 'Pergunta um'),
+      esText: FFAppState.questoesSpanish[index]?.pergunta,
+      enText: FFAppState.questoesEnglish[index]?.pergunta,
+    });
+  
+    const panel = PerguntasErespostasWidget();
+  
+    const root = el(
+      'div',
+      { class: 'ff-scaffold', style: { background: color(0xFF001B56) } },
+      Container({
+        width: Infinity,
+        height: Infinity,
+        child: Stack({
+          children: [
+            Row({
+              mainAxisSize: 'max',
+              mainAxisAlignment: 'spaceBetween',
+              height: Infinity,
+              children: [
+                Flexible({
+                  flex: 1,
+                  child: Container({
+                    width: Infinity,
+                    height: Infinity,
+                    color: color(0xFF001B56),
+                    image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),
+                    child: Stack({
+                      children: [
+                        Padding({
+                          padding: [86.0, 86.0, 68.0, 68.0],
+                          style: { width: '100%', height: '100%' },
+                          child: Container({
+                            width: Infinity,
+                            height: Infinity,
+                            color: color(0x10FFFFFF),
+                            borderRadius: 24.0,
+                            border: '2px solid #FFFFFF',
+                            child: Padding({
+                              padding: [56.0, 46.0, 56.0, 46.0],
+                              style: { width: '100%', height: '100%' },
+                              child: Column({
+                                mainAxisSize: 'max',
+                                mainAxisAlignment: 'spaceEvenly',
+                                children: [
+                                  Column({
+                                    mainAxisSize: 'max',
+                                    crossAxisAlignment: 'center',
+                                    children: [
+                                      Align({
+                                        alignment: [0.0, 0.0],
+                                        child: Txt(
+                                          L('yeby7x4r') /* DEFEITO */,
+                                          style('bodyMedium', {
+                                            fontFamily: 'Roboto Mono',
+                                            fontWeight: 600,
+                                            color: color(0xFFFF000D),
+                                            fontSize: 70.0,
+                                            letterSpacing: 10.0,
+                                          })
+                                        ),
+                                      }),
+                                      Padding({
+                                        padding: [0.0, 36.0, 0.0, 0.0],
+                                        child: Txt(
+                                          L('iuseamae') /* Problema do cliente: */,
+                                          style('bodyMedium', {
+                                            fontFamily: 'Paralucent',
+                                            color: '#FFFFFF',
+                                            fontSize: 18.0,
+                                            letterSpacing: 2.0,
+                                            fontWeight: 300,
+                                            fontStyle: 'italic',
+                                            textAlign: 'left',
+                                          })
+                                        ),
+                                      }),
+                                      Align({
+                                        alignment: [0.0, 0.0],
+                                        child: Txt(
+                                          perguntaText,
+                                          style('bodyMedium', {
+                                            fontFamily: 'Paralucent',
+                                            color: '#FFFFFF',
+                                            fontSize: 30.0,
+                                            letterSpacing: 2.0,
+                                            fontWeight: 500,
+                                            textAlign: 'center',
+                                          })
+                                        ),
+                                      }),
+                                    ],
+                                  }),
+                                ],
+                              }),
+                            }),
+                          }),
+                        }),
+                        TransformRotate({
+                          angle: degrees(338.0),
+                          child: ClipRRect({
+                            borderRadius: 8.0,
+                            child: Img('assets/images/Selo_2.png', { width: 376.4, height: 321.0, fit: 'cover' }),
+                          }),
+                        }),
+                      ],
+                    }),
+                  }),
+                }),
+                Flexible({ flex: 1, child: panel }),
+              ],
+            }),
+          ],
+        }),
+      })
+    );
+  
+    // Future.wait([...]) on page load: flip tempoAcabando at 15s, then idle.
+    let left = false;
+    (async () => {
+      await delayed(15000);
+      if (left) return;
+      FFAppState.tempoAcabando = true;
+      await delayed(15000);
+    })();
+  
+    root.__dispose = () => {
+      left = true;
+      panel.__dispose?.();
+    };
+  
+    return root;
   }
   Object.defineProperty(__exports, "TelaAcaoWidget", { get: () => TelaAcaoWidget, enumerable: true });
   });
