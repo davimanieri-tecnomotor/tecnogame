@@ -31,9 +31,14 @@ await wait(2000);
 /* --- 1 e 2: o embutido reproduz questions.js, e as voltas batem com o Dart -- */
 
 const paridade = await page.evaluate(async () => {
-  const deck = await import('./js/deck.js');
-  const fns = await import('./js/functions.js');
-  const { QUESTIONS } = await import('./js/questions.js');
+  // Por HTTP roda o modulo ES e import() funciona; por file:// roda o bundle
+  // classico e o import() dinamico e recusado, entao vem pelo __tecgameRequire
+  // que o bundle expoe. Nos dois casos e a mesma instancia que a pagina usa.
+  const carregar = async (nome) =>
+    window.__tecgameRequire ? window.__tecgameRequire(nome) : await import(`./js/${nome}`);
+  const deck = await carregar('deck.js');
+  const fns = await carregar('functions.js');
+  const { QUESTIONS } = await carregar('questions.js');
 
   const problemas = [];
   const slots = deck.SLOTS_ORIGINAIS;
@@ -110,7 +115,10 @@ falhas.push(...paridade);
 
 const N_CUSTOM = 12;
 await page.evaluate(async (n) => {
-  const deck = await import('./js/deck.js');
+  const carregar = async (nome) =>
+    window.__tecgameRequire ? window.__tecgameRequire(nome) : await import(`./js/${nome}`);
+
+  const deck = await carregar('deck.js');
   const base = deck.SLOTS_ORIGINAIS;
   const slots = Array.from({ length: n }, (_, i) => {
     const s = JSON.parse(JSON.stringify(base[i % base.length]));
@@ -128,7 +136,12 @@ await page.evaluate(async (n) => {
 await page.reload({ waitUntil: 'networkidle2' });
 await wait(1500);
 const aposReload = await page.evaluate(async () => {
-  const st = await import('./js/state.js');
+  // Por HTTP roda o modulo ES e import() funciona; por file:// roda o bundle
+  // classico e o import() dinamico e recusado, entao vem pelo __tecgameRequire
+  // que o bundle expoe. Nos dois casos e a mesma instancia que a pagina usa.
+  const carregar = async (nome) =>
+    window.__tecgameRequire ? window.__tecgameRequire(nome) : await import(`./js/${nome}`);
+  const st = await carregar('state.js');
   return { total: st.FFAppState.totalSlots, primeiro: st.FFAppState.baralho.slots[0].veiculo.nome };
 });
 console.log('   apos reload ->', JSON.stringify(aposReload));
@@ -137,8 +150,13 @@ if (aposReload.total !== N_CUSTOM) falhas.push(`apos reload o baralho tem ${apos
 // Caminho 2: sem reiniciar o navegador. O jogo rele quando a tela de cadastro
 // abre — um jogador novo comecando —, entao sair da rota e voltar basta.
 await page.evaluate(async () => {
-  const deck = await import('./js/deck.js');
-  const st = await import('./js/state.js');
+  // Por HTTP roda o modulo ES e import() funciona; por file:// roda o bundle
+  // classico e o import() dinamico e recusado, entao vem pelo __tecgameRequire
+  // que o bundle expoe. Nos dois casos e a mesma instancia que a pagina usa.
+  const carregar = async (nome) =>
+    window.__tecgameRequire ? window.__tecgameRequire(nome) : await import(`./js/${nome}`);
+  const deck = await carregar('deck.js');
+  const st = await carregar('state.js');
   // Volta o estado em memoria ao original, para provar que a releitura acontece.
   st.FFAppState.baralho = deck.BARALHO_ORIGINAL;
 });
@@ -147,7 +165,12 @@ await wait(500);
 await page.goto(pageUrl('/cadastro'), { waitUntil: 'networkidle2' });
 await wait(1200);
 const aposCadastro = await page.evaluate(async () => {
-  const st = await import('./js/state.js');
+  // Por HTTP roda o modulo ES e import() funciona; por file:// roda o bundle
+  // classico e o import() dinamico e recusado, entao vem pelo __tecgameRequire
+  // que o bundle expoe. Nos dois casos e a mesma instancia que a pagina usa.
+  const carregar = async (nome) =>
+    window.__tecgameRequire ? window.__tecgameRequire(nome) : await import(`./js/${nome}`);
+  const st = await carregar('state.js');
   return st.FFAppState.totalSlots;
 });
 console.log('   apos passar pelo cadastro ->', aposCadastro, 'slots');
