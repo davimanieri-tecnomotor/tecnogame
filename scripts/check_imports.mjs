@@ -62,7 +62,10 @@ for (const [file, src] of sources) {
       .split(',')
       .map((s) => s.trim().split(/\s+as\s+/).pop().trim())
       .filter(Boolean);
-    const afterImports = body.replace(/import[^;]+;/g, '');
+    // Ancorado em inicio de linha e com \s depois de `import`: sem isso a
+    // regex casava dentro de palavras como `importar()` e apagava codigo real,
+    // gerando falso positivo de "import nao usado".
+    const afterImports = body.replace(/^[ 	]*import\s[^;]+;/gm, '');
     for (const name of localNames) {
       if (!new RegExp(`\\b${name.replace(/\$/g, '\\$')}\\b`).test(afterImports)) {
         problems.push(`${rel}: unused import '${name}' from ${spec}`);
@@ -72,17 +75,20 @@ for (const [file, src] of sources) {
   }
 }
 
-// web/js/bundle.js is the classic-script build used by the file:// fallback;
-// if a module is newer than it, the double-clickable build is stale.
-const bundlePath = path.join(ROOT, 'bundle.js');
-if (!fs.existsSync(bundlePath)) {
-  problems.push('web/js/bundle.js is missing - run `node scripts/bundle.mjs`');
-} else {
+// Os bundle.js sao a versao em script classico usada pelo fallback de file://;
+// se um modulo estiver mais novo que eles, o build clicavel roda codigo antigo.
+for (const rel of ['bundle.js', 'admin/bundle.js']) {
+  const bundlePath = path.join(ROOT, ...rel.split('/'));
+  // O bundle do admin so passa a existir depois que a pagina existe.
+  if (!fs.existsSync(bundlePath)) {
+    if (rel === 'bundle.js') problems.push('web/js/bundle.js nao existe - rode `node scripts/bundle.mjs`');
+    continue;
+  }
   const bundleTime = fs.statSync(bundlePath).mtimeMs;
   const newer = files.filter((f) => fs.statSync(f).mtimeMs > bundleTime + 1000);
   if (newer.length) {
     problems.push(
-      `web/js/bundle.js is older than ${newer.length} module(s) - run \`node scripts/bundle.mjs\`:\n  ` +
+      `web/js/${rel} esta mais velho que ${newer.length} modulo(s) - rode \`node scripts/bundle.mjs\`:\n  ` +
         newer.map((f) => path.relative(process.cwd(), f)).join('\n  ')
     );
   }

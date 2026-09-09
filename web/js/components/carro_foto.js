@@ -1,29 +1,20 @@
 // Port of lib/pages/components/carro_foto/carro_foto_widget.dart
 //
-// Shows the photo of the car the wheel landed on. The Dart lists one `if`
-// per index with its own image size, so the sizes are kept per entry.
+// A foto do carro que a roleta sorteou. O Dart escrevia um `if` por indice,
+// cada um com o seu tamanho de imagem; os tamanhos agora vivem no veiculo.
 
 import { ClipRRect, Column, Img, SingleChildScrollView } from '../widgets.js';
 import { FFAppState } from '../state.js';
-import { transformaAleatorio } from '../functions.js';
 
-/** index (transformaAleatorio) -> image + the exact size from the Dart. */
-export const CARRO_FOTOS = {
-  0: { src: 'assets/images/FIAT_TORO.png', width: 1235.0, height: 674.0, fit: 'cover' },
-  1: { src: 'assets/images/Volvo_XC_60.png', width: 1235.0, height: 674.0, fit: 'cover' },
-  2: { src: 'assets/images/BMW.png', width: 1235.0, height: 674.0, fit: 'cover' },
-  3: { src: 'assets/images/BYD.png', width: 1235.0, height: 674.0, fit: 'contain' },
-  4: { src: 'assets/images/GRAN_SIENA_(1).png', width: 1235.0, height: 674.0, fit: 'cover' },
-  5: { src: 'assets/images/VW_-_Constellation.png', width: 1061.89, height: 674.0, fit: 'cover' },
-  6: { src: 'assets/images/VW_-_Delivery.png', width: 1235.0, height: 674.0, fit: 'cover' },
-  7: { src: 'assets/images/VALTRA_Agrcola.png', width: 1012.17, height: 781.1, fit: 'cover' },
-  8: { src: 'assets/images/RENAULT_MASTER.png', width: 1235.0, height: 674.0, fit: 'cover' },
-  9: { src: 'assets/images/ACCELO__1117.png', width: 1012.17, height: 781.1, fit: 'cover' },
-};
 
 export function CarroFotoWidget() {
-  const index = transformaAleatorio(FFAppState.escolha);
-  const photo = CARRO_FOTOS[index];
+  // A foto e o tamanho vinham de uma tabela fixa por indice no Dart; agora
+  // saem do veiculo da rodada sorteada (ver deck.js), o que e o que permite a
+  // area administrativa trocar de carro.
+  const veiculo = FFAppState.slotAtual?.veiculo;
+  const photo = veiculo?.imagem
+    ? { src: veiculo.imagem, width: veiculo.largura, height: veiculo.altura, fit: veiculo.fit ?? 'cover' }
+    : null;
 
   return SingleChildScrollView({
     child: Column({

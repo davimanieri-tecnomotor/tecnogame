@@ -15,7 +15,10 @@
     "verify:sizes": "node scripts/verify/sizes.mjs",
     "verify:idioma": "node scripts/verify/idioma.mjs",
     "fonts": "python scripts/fetch_fonts.py",
-    "verify:teclado": "node scripts/verify/teclado.mjs"
+    "verify:teclado": "node scripts/verify/teclado.mjs",
+    "verify:corte": "node scripts/verify/corte.mjs",
+    "verify:baralho": "node scripts/verify/baralho.mjs",
+    "verify:admin": "node scripts/verify/admin.mjs"
   },
   "devDependencies": {
     "http-server": "^14.1.1",

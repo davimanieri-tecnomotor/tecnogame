@@ -25,12 +25,11 @@ import {
 import { style } from '../theme.js';
 import { FFLocalizations, L } from '../i18n.js';
 import { FFAppState } from '../state.js';
-import { transformaAleatorio } from '../functions.js';
 import { PerguntasErespostasWidget } from '../components/perguntas_erespostas.js';
 import { delayed } from '../anim.js';
 
 export function TelaAcaoWidget() {
-  const index = transformaAleatorio(FFAppState.escolha);
+  const index = FFAppState.indiceAtual;
 
   const perguntaText = FFLocalizations.getVariableText({
     ptText: valueOrDefault(FFAppState.questoesBrasil[index]?.pergunta, 'Pergunta um'),

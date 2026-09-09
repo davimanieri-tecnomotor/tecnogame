@@ -25,6 +25,8 @@ import { style } from '../theme.js';
 import { L } from '../i18n.js';
 import { FFAppState } from '../state.js';
 import { numeroAleatorio } from '../functions.js';
+import { usaArteOriginal } from '../deck.js';
+import { rodaGerada } from '../roda.js';
 import { playSound } from '../audio.js';
 import { goNamed, TransitionInfo, PageTransitionType } from '../router.js';
 import {
@@ -67,16 +69,24 @@ export function RoletaWidget() {
     }),
   };
 
+  // A arte da roleta e um PNG com as dez fatias ja desenhadas, uma por veiculo.
+  // Ela continua valendo enquanto a lista de veiculos for a original — mexer so
+  // no texto das perguntas nao invalida o desenho. Fora disso a roda e gerada,
+  // porque o PNG mostraria carros que nao estao mais em jogo.
+  const arte = usaArteOriginal(FFAppState.baralho)
+    ? ClipRRect({
+        borderRadius: 20.0,
+        child: Img('assets/images/Roleta.png', { width: 864.3, height: 893.2, fit: 'cover' }),
+      })
+    : rodaGerada(FFAppState.baralho?.slots ?? []);
+
   const wheel = Container({
     width: 836.1,
     height: 946.0,
     color: color(0x00FFFFFF),
     borderRadius: 22.0,
     alignment: [0.0, 0.0],
-    child: ClipRRect({
-      borderRadius: 20.0,
-      child: Img('assets/images/Roleta.png', { width: 864.3, height: 893.2, fit: 'cover' }),
-    }),
+    child: arte,
   });
   // `effects:` is read when forward() runs, so the rotation always uses the
   // value drawn a moment earlier.
@@ -91,7 +101,7 @@ export function RoletaWidget() {
       if (!model.apertaButton) return;
 
       model.apertaButton = false;
-      FFAppState.escolha = numeroAleatorio([...FFAppState.listaEscolhas]);
+      FFAppState.escolha = numeroAleatorio([...FFAppState.listaEscolhas], FFAppState.totalSlots);
       playSound(model, 'soundPlayer', 'assets/audios/roleta-normal-1_2GXmNRPk.mp3', 0.6);
       await animationsMap.containerOnActionTriggerAnimation1.controller.forward();
       await delayed(1000);

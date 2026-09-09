@@ -30,7 +30,6 @@ import {
 import { TH, style } from '../theme.js';
 import { FFLocalizations, L } from '../i18n.js';
 import { FFAppState } from '../state.js';
-import { transformaAleatorio } from '../functions.js';
 import { playSound } from '../audio.js';
 import { showDialog } from '../dialog.js';
 import { ConfirmacaoWidget } from './confirmacao.js';
@@ -210,7 +209,7 @@ const hintPulse = () =>
 
 /** The question in the active language, with the pt list as the fallback. */
 function pergunta(field, { enField = field } = {}) {
-  const index = transformaAleatorio(FFAppState.escolha);
+  const index = FFAppState.indiceAtual;
   return FFLocalizations.getVariableText({
     ptText: valueOrDefault(FFAppState.questoesBrasil[index]?.[field], 'Pergunta um'),
     esText: FFAppState.questoesSpanish[index]?.[field],
@@ -297,7 +296,7 @@ export function PerguntasErespostasWidget() {
           model.timerController.onStopTimer();
 
           const gabarito = valueOrDefault(
-            FFAppState.questoesBrasil[transformaAleatorio(FFAppState.escolha)]?.gabarito,
+            FFAppState.questoesBrasil[FFAppState.indiceAtual]?.gabarito,
             'Pergunta um'
           );
           const acertou = gabarito === String(FFAppState.ordemNumeros[slot]);

@@ -495,6 +495,9 @@ export function CadastroWidget() {
   root.addEventListener('click', unfocus);
 
   /* --------------------------------------------------------- on page load -- */
+  // Um jogador novo comecando e o momento de pegar o que a area administrativa
+  // publicou desde a ultima partida.
+  FFAppState.recarregarBaralho();
   FFAppState.finalizou = false;
   playSound(model, 'soundPlayer1', 'assets/audios/adriantnt_u_click.mp3', 1.0);
   model.timerController.onStartTimer();

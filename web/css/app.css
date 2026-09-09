@@ -319,13 +319,19 @@ body {
 .ff-col,
 .ff-row {
   display: flex;
-  min-width: 0;
-  min-height: 0;
   justify-content: flex-start;
   align-items: center;
   /* Flutter never lets a child exceed its parent's constraints; propagating
      the cap down the chain reproduces that clamping. */
   max-width: 100%;
+  /* NÃO usar min-width: 0 aqui. Um Row do Flutter dá restrição de eixo
+     principal ILIMITADA a filho não-flexível, então uma Column de cartões de
+     550px assume esses 550px. `min-width: 0` remove o piso automático do item
+     flex e apagava essa contribuição: a coluna das alternativas colapsava para
+     a largura do rótulo (300px) e três das quatro respostas apareciam cortadas
+     no meio da palavra na tela principal do jogo. Coberto por
+     scripts/verify/corte.mjs. */
+  min-height: 0;
 }
 
 .ff-col {
@@ -352,7 +358,6 @@ body {
   position: relative;
   display: grid;
   grid-template-areas: "stack";
-  min-width: 0;
   min-height: 0;
   /* Stack's default clipBehavior is Clip.hardEdge. */
   overflow: hidden;
@@ -360,6 +365,11 @@ body {
 
 .ff-stack > * {
   grid-area: stack;
+  /* O Stack tem tamanho definido, e no Flutter nenhum filho passa da restrição
+     que ele recebe: a roleta declara 946px de altura numa caixa de 839.8 e é
+     comprimida, não recortada. */
+  max-width: 100%;
+  max-height: 100%;
 }
 
 /* Align rendered in normal flow (e.g. inside a Column): takes the full cross
@@ -452,8 +462,9 @@ body {
   display: block;
   flex: none;
   /* Flutter clamps an Image to its parent's constraints rather than letting it
-     overflow, so the box shrinks instead of being clipped. */
+     overflow, so the box shrinks instead of being clipped - nos dois eixos. */
   max-width: 100%;
+  max-height: 100%;
 }
 
 /* SingleChildScrollView */
