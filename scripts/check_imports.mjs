@@ -85,7 +85,18 @@ for (const rel of ['bundle.js', 'admin/bundle.js']) {
     continue;
   }
   const bundleTime = fs.statSync(bundlePath).mtimeMs;
-  const newer = files.filter((f) => fs.statSync(f).mtimeMs > bundleTime + 1000);
+  // So os modulos que ESTE bundle contem. Comparar com todos apontava o bundle
+  // do jogo como velho por causa de um arquivo do admin, que nao entra nele.
+  const contidos = new Set(
+    [...fs.readFileSync(bundlePath, 'utf8').matchAll(/^\s*\/\* ===== (.+?) ===== \*\/$/gm)].map((m) => m[1])
+  );
+  const idDe = (f) => path.relative(ROOT, f).split(path.sep).join('/');
+  const doBundle = files.filter((f) => contidos.has(idDe(f)));
+  if (!doBundle.length) {
+    problems.push(`web/js/${rel} nao tem marcador de modulo - rode \`node scripts/bundle.mjs\``);
+    continue;
+  }
+  const newer = doBundle.filter((f) => fs.statSync(f).mtimeMs > bundleTime + 1000);
   if (newer.length) {
     problems.push(
       `web/js/${rel} esta mais velho que ${newer.length} modulo(s) - rode \`node scripts/bundle.mjs\`:\n  ` +

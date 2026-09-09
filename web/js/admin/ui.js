@@ -162,3 +162,107 @@ export function escolherArquivo({ accept = '.json' } = {}) {
     input.click();
   });
 }
+
+/* ------------------------------------------------------- imagem embutida -- */
+
+/** O maior lado que uma imagem enviada do computador pode ter, em px. */
+const MAX_LADO = 1280;
+
+/**
+ * Le uma imagem escolhida pelo operador e devolve uma versao pronta para
+ * caber no baralho.
+ *
+ * Por que reduzir: o baralho vive no localStorage, que tem alguns megabytes no
+ * total. Uma foto de celular de 4000px passa de 4 MB e sozinha estoura a cota,
+ * levando embora tambem as perguntas. Reduzida para 1280px de maior lado, uma
+ * foto de veiculo fica na casa das centenas de KB.
+ *
+ * Prefere WebP porque as fotos originais do jogo sao recortes com fundo
+ * transparente, e JPEG nao tem canal alfa -- sairia uma caixa branca em cima
+ * da fatia da roleta. Se o navegador nao souber gravar WebP, cai para PNG.
+ *
+ * Guarda o original quando ele ja e menor que o reprocessado, para nao inflar
+ * um PNG pequeno de proposito.
+ *
+ * @param {File} arquivo
+ * @returns {Promise<{dataUrl: string, largura: number, altura: number, kb: number, reduziu: boolean}>}
+ */
+export async function reduzirImagem(arquivo, { maxLado = MAX_LADO, qualidade = 0.85 } = {}) {
+  const original = await new Promise((ok, falhou) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result));
+    r.onerror = () => falhou(new Error('não foi possível ler o arquivo'));
+    r.readAsDataURL(arquivo);
+  });
+
+  const img = await new Promise((ok, falhou) => {
+    const i = new Image();
+    i.onload = () => ok(i);
+    i.onerror = () => falhou(new Error('o arquivo não é uma imagem que o navegador saiba abrir'));
+    i.src = original;
+  });
+
+  const escala = Math.min(1, maxLado / Math.max(img.naturalWidth, img.naturalHeight));
+  const largura = Math.max(1, Math.round(img.naturalWidth * escala));
+  const altura = Math.max(1, Math.round(img.naturalHeight * escala));
+
+  const tela = el('canvas', { width: largura, height: altura });
+  const ctx = tela.getContext('2d');
+  ctx.drawImage(img, 0, 0, largura, altura);
+
+  let reprocessada = tela.toDataURL('image/webp', qualidade);
+  if (!reprocessada.startsWith('data:image/webp')) reprocessada = tela.toDataURL('image/png');
+
+  const usarOriginal = original.length <= reprocessada.length;
+  const dataUrl = usarOriginal ? original : reprocessada;
+
+  return {
+    dataUrl,
+    largura: usarOriginal ? img.naturalWidth : largura,
+    altura: usarOriginal ? img.naturalHeight : altura,
+    kb: Math.round(dataUrl.length / 1024),
+    reduziu: !usarOriginal && escala < 1,
+  };
+}
+
+/**
+ * Um seletor de imagem visivel de verdade (nao um input escondido atras de um
+ * clique sintetico), para dar para alcancar por teclado e para os testes
+ * conseguirem entregar um arquivo a ele.
+ *
+ * @param {object} props
+ * @param {Function} props.onEscolha recebe (resultado, arquivo); resultado e
+ *   null quando a leitura falhou, e o terceiro argumento traz o erro
+ */
+export function entradaDeImagem({ rotulo, dica, onEscolha }) {
+  const entrada = el('input', { type: 'file', accept: 'image/*', class: 'campo-arquivo' });
+  const estado = el('span', { class: 'campo-dica campo-arquivo-estado', role: 'status' });
+
+  entrada.addEventListener('change', async () => {
+    const arquivo = entrada.files?.[0];
+    if (!arquivo) return;
+    estado.textContent = 'processando…';
+    try {
+      const r = await reduzirImagem(arquivo);
+      estado.textContent = r.reduziu
+        ? `${arquivo.name} — reduzida para ${r.largura}x${r.altura}, cerca de ${r.kb} KB`
+        : `${arquivo.name} — cerca de ${r.kb} KB`;
+      onEscolha(r, arquivo);
+    } catch (e) {
+      estado.textContent = e?.message ?? 'não foi possível usar este arquivo';
+      onEscolha(null, arquivo, e);
+    } finally {
+      // Zerar deixa escolher o MESMO arquivo de novo depois de um erro.
+      entrada.value = '';
+    }
+  });
+
+  const raiz = el('label', { class: 'campo campo-arquivo-campo' }, [
+    el('span', { class: 'campo-rotulo', text: rotulo }),
+    entrada,
+    dica ? el('span', { class: 'campo-dica', text: dica }) : null,
+    estado,
+  ]);
+  raiz.entrada = entrada;
+  return raiz;
+}

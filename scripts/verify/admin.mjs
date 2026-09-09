@@ -1,6 +1,10 @@
 // A área administrativa, de ponta a ponta: ver, editar, adicionar, remover,
 // validar, publicar — e o totem pegando o conteúdo novo na partida seguinte.
 import puppeteer from 'puppeteer';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const RAIZ_DISCO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8099';
 // BASE pode ser a origem (http://host:porta) ou o arquivo do jogo
@@ -247,6 +251,77 @@ if (restaurado.itens !== 10) falhas.push('restaurar nao voltou para 10 rodadas')
 if (restaurado.primeiro !== 'FIAT TORO - 10GF') falhas.push('restaurar nao trouxe o veiculo original');
 if (!restaurado.arteOriginal) falhas.push('com o baralho de fabrica a arte pronta da roleta deveria voltar');
 
+/* --------------------------------- 8. enviar uma imagem do computador ----- */
+
+// O caminho que faz o admin bastar por si: o operador escolhe um arquivo, ele
+// vira data URL dentro do baralho, e o totem passa a mostrar a foto sem ter
+// recebido arquivo nenhum. Reusa uma das fotos que ja vem no projeto como
+// arquivo de entrada -- o que importa e o trajeto, nao a foto.
+const fotoDeEntrada = path.join(RAIZ_DISCO, 'web', 'assets', 'images', 'BMW.png');
+// Depois do "Restaurar fabrica" a tela e redesenhada inteira: sem esperar, o
+// handle do input pertence ao editor antigo e a mutacao cai num slot que nao
+// esta mais no estado -- a previa atualiza e o publicar sai sem a foto.
+await wait(1200);
+const entradaArquivo = await page.$('.campo-arquivo');
+if (!entradaArquivo) {
+  falhas.push('nao achei o seletor de imagem no editor de veiculo');
+} else {
+  await entradaArquivo.uploadFile(fotoDeEntrada);
+  await wait(1500);
+
+  const enviada = await page.evaluate(() => {
+    const prev = document.querySelector('.previa-foto');
+    const chip = document.querySelector('.embutida-texto');
+    return {
+      previaEmbutida: (prev?.getAttribute('src') ?? '').startsWith('data:image/'),
+      formato: (prev?.getAttribute('src') ?? '').slice(5, 15),
+      kb: Math.round((prev?.getAttribute('src') ?? '').length / 1024),
+      resumo: chip?.textContent ?? null,
+      chipVisivel: document.querySelector('.embutida')?.hidden === false,
+      encaixe: document.querySelectorAll('.linha-tres select')[0]?.value ?? null,
+    };
+  });
+  console.log('8. enviou imagem ->', JSON.stringify(enviada));
+  if (!enviada.previaEmbutida) falhas.push('a previa nao virou data URL depois do envio');
+  if (!/KB/.test(enviada.resumo ?? '')) falhas.push(`resumo da imagem enviada: ${enviada.resumo}`);
+  if (enviada.kb > 900) falhas.push(`a imagem enviada ficou com ${enviada.kb} KB - a reducao nao rodou`);
+  if (enviada.encaixe !== 'contain') falhas.push(`encaixe apos envio: ${enviada.encaixe}`);
+  if (!enviada.chipVisivel) falhas.push('o campo de caminho deveria dar lugar ao resumo da imagem enviada');
+
+  await clicar('Publicar');
+  await wait(300);
+  await confirmarModal();
+  await wait(700);
+  const gravadaComFoto = await page.evaluate(() => {
+    const bruto = localStorage.getItem('tecgame:baralho');
+    if (!bruto) return { gravou: false };
+    const d = JSON.parse(bruto);
+    return { gravou: true, embutidas: d.slots.filter((s) => String(s.veiculo.imagem).startsWith('data:')).length };
+  });
+  console.log('   publicou ->', JSON.stringify(gravadaComFoto));
+  if (!gravadaComFoto.gravou) falhas.push('publicar com imagem enviada nao gravou');
+  if (gravadaComFoto.embutidas !== 1) falhas.push(`slots com imagem embutida: ${gravadaComFoto.embutidas}`);
+
+  await page.goto(urlJogo('/roleta'), { waitUntil: 'networkidle2' });
+  await wait(2400);
+  const noJogo = await page.evaluate(() => {
+    const imgs = [...document.querySelectorAll('#pages svg image')];
+    return {
+      fotosNaRoda: imgs.length,
+      comEmbutida: imgs.filter((i) => (i.getAttribute('href') ?? '').startsWith('data:')).length,
+    };
+  });
+  console.log('   no jogo ->', JSON.stringify(noJogo));
+  if (noJogo.comEmbutida !== 1) {
+    falhas.push(`a roda do jogo deveria trazer 1 foto embutida, trouxe ${noJogo.comEmbutida}`);
+  }
+
+  await page.goto(urlAdmin, { waitUntil: 'networkidle2' });
+  await wait(1200);
+  await clicar('Restaurar fábrica');
+  await confirmarModal();
+}
+
 await page.evaluate(() => localStorage.clear());
 await browser.close();
 
@@ -254,4 +329,4 @@ if (falhas.length) {
   console.log('\nFALHOU:\n- ' + falhas.join('\n- '));
   process.exit(1);
 }
-console.log('\nadministracao: ver, editar, adicionar, validar, publicar, remover e restaurar');
+console.log('\nadministracao: ver, editar, adicionar, validar, publicar, enviar imagem, remover e restaurar');

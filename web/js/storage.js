@@ -62,14 +62,36 @@ export function readRaw(name) {
   }
 }
 
+/**
+ * Por que a ultima falha fica guardada: quem grava um baralho com imagens
+ * enviadas do computador precisa saber a diferenca entre "o navegador recusou
+ * o armazenamento" e "nao cabe mais" -- sao dois problemas com solucoes
+ * opostas, e um `false` seco nao distingue.
+ *
+ * @type {null | 'recusado' | 'cheio' | 'erro'}
+ */
+let ultimaFalha = null;
+
+/** Motivo da ultima escrita que falhou, ou null se a ultima deu certo. */
+export const motivoDaFalha = () => ultimaFalha;
+
 export function writeRaw(name, value) {
   const s = store();
-  if (!s) return false;
+  if (!s) {
+    ultimaFalha = 'recusado';
+    return false;
+  }
   try {
     s.setItem(PREFIX + name, value);
+    ultimaFalha = null;
     return true;
-  } catch (_) {
+  } catch (e) {
     // Cota estourada ou escrita negada: seguir sem persistir.
+    const cheio =
+      e?.name === 'QuotaExceededError' ||
+      e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+      e?.code === 22;
+    ultimaFalha = cheio ? 'cheio' : 'erro';
     return false;
   }
 }

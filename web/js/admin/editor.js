@@ -1,7 +1,7 @@
 // O editor de uma rodada: o veículo, os equipamentos que a resolvem, o gabarito
 // e os doze campos de texto em cada um dos três idiomas.
 
-import { el, campo, selecao, caixaDeMarcar, limpar } from './ui.js';
+import { el, campo, selecao, caixaDeMarcar, limpar, botao, entradaDeImagem } from './ui.js';
 import { CAMPOS_QUESTAO, CAMPOS_OBRIGATORIOS, IDIOMAS, SCANNERS, VEICULOS_ORIGINAIS } from '../deck.js';
 
 const NOME_IDIOMA = { pt: 'Português', en: 'English', es: 'Español' };
@@ -36,7 +36,24 @@ export function editorDeSlot({ slot, indice, onChange }) {
 
   /* ------------------------------------------------------------- veículo -- */
 
+  /** Uma imagem enviada do computador vive dentro do baralho, como data URL. */
+  const embutida = (src) => typeof src === 'string' && src.startsWith('data:');
+
   const previaFoto = el('img', { class: 'previa-foto', alt: '' });
+  const semFoto = el('div', { class: 'previa-vazia', text: 'sem imagem' });
+  const resumoEmbutida = el('span', { class: 'embutida-texto' });
+  const blocoEmbutida = el('div', { class: 'embutida' }, [
+    resumoEmbutida,
+    botao('Trocar por um caminho de arquivo', {
+      onClick: () => {
+        slot.veiculo.imagem = '';
+        campoImagem.entrada.value = '';
+        atualizarPrevia();
+        mudou();
+      },
+    }),
+  ]);
+
   const atualizarPrevia = () => {
     // admin.html fica em web/, ao lado de assets/ — o caminho e relativo direto.
     // Com `../` funcionava por acidente no HTTP (nao se sobe acima da raiz) e
@@ -45,8 +62,17 @@ export function editorDeSlot({ slot, indice, onChange }) {
     previaFoto.src = src || '';
     previaFoto.hidden = !src;
     semFoto.hidden = Boolean(src);
+
+    // Um data URL tem centenas de milhares de caracteres: dentro de um campo de
+    // texto ele e inutil e ainda dispara `input` a cada tecla. Some o campo e
+    // mostra o tamanho, com a saida para voltar ao modo caminho.
+    const dentro = embutida(src);
+    campoImagem.hidden = dentro;
+    blocoEmbutida.hidden = !dentro;
+    if (dentro) {
+      resumoEmbutida.textContent = `Imagem enviada do computador — cerca de ${Math.round(src.length / 1024)} KB, guardada dentro do baralho`;
+    }
   };
-  const semFoto = el('div', { class: 'previa-vazia', text: 'sem imagem' });
 
   const campoNome = campo({
     rotulo: 'Nome do veículo',
@@ -99,6 +125,30 @@ export function editorDeSlot({ slot, indice, onChange }) {
     },
   });
 
+  const envio = entradaDeImagem({
+    rotulo: 'Ou enviar uma imagem do computador',
+    dica: 'Fica guardada dentro do baralho, então funciona no totem sem copiar arquivo nenhum. Reduzida para no máximo 1280px.',
+    onEscolha: (r, arquivo) => {
+      if (!r) return;
+      slot.veiculo.imagem = r.dataUrl;
+      // O aspecto de uma foto qualquer não é o das fotos originais, então
+      // `contain` para ela caber inteira em vez de sair recortada.
+      slot.veiculo.fit = 'contain';
+      campoFit.entrada.value = 'contain';
+      if (!slot.veiculo.nome.trim()) {
+        // Sem extensão e com os separadores virando espaço: "bmw_320i.png"
+        // chega como "bmw 320i", que é um chute melhor que vazio.
+        const chute = (arquivo?.name ?? '').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+        if (chute) {
+          slot.veiculo.nome = chute;
+          campoNome.entrada.value = chute;
+        }
+      }
+      atualizarPrevia();
+      mudou();
+    },
+  });
+
   const campoLargura = campo({
     rotulo: 'Largura (px)',
     valor: String(slot.veiculo.largura ?? 1235),
@@ -138,6 +188,8 @@ export function editorDeSlot({ slot, indice, onChange }) {
         campoNome,
         atalhoImagem,
         campoImagem,
+        blocoEmbutida,
+        envio,
         el('div', { class: 'linha-tres' }, [campoLargura, campoAltura, campoFit]),
       ]),
     ]),

@@ -34,6 +34,7 @@ const TESTES = [
   'teclado',
   'baralho',
   'admin',
+  'sizes',
 ];
 
 const argv = process.argv.slice(2);

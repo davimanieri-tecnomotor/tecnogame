@@ -119,7 +119,9 @@ palco de 1920x1080, porque não é uma tela do jogo:
 - **editar** qualquer texto, com aba por idioma;
 - **adicionar** e **remover** rodadas (cada uma é uma fatia da roleta);
 - **veículos**: nome, caminho da imagem, largura, altura e encaixe, com atalho
-  para as dez fotos que já vêm no projeto;
+  para as dez fotos que já vêm no projeto — ou **enviar uma imagem do
+  computador**, que fica guardada dentro do baralho (então o totem mostra a
+  foto nova sem receber arquivo nenhum);
 - **regras**: qual alternativa é a correta e quais equipamentos resolvem a
   rodada (os não marcados abrem *"equipamento inválido"*);
 - **validação ao vivo** — cada problema aparece na lista e acende o campo
@@ -130,6 +132,16 @@ O baralho publicado vai para o `localStorage` do navegador, na chave
 `tecgame:baralho`. Ou seja: **o admin e o jogo precisam ser abertos na mesma
 origem** (o mesmo `http://host:porta`, ou os dois pelo mesmo caminho de disco)
 para que um veja o que o outro gravou. Não há servidor no meio.
+
+Uma imagem enviada do computador vira um `data:` URL dentro do baralho, e por
+isso é reduzida para no máximo 1280px de maior lado e regravada em **WebP** —
+que, diferente de JPEG, tem canal alfa: as fotos do jogo são recortes com fundo
+transparente, e um fundo branco apareceria como uma caixa em cima da fatia da
+roleta. Uma foto de veículo fica em torno de 80 KB. Como o `localStorage` tem
+só alguns megabytes, a barra do admin acende `KB — perto do limite` a partir de
+3 MB, e se a gravação não couber a mensagem diz que foi **cota**, não permissão
+— são problemas com soluções opostas. Para muitas fotos, o caminho barato
+continua sendo copiá-las para `web/assets/images/` e referenciar pelo caminho.
 
 > **Se o totem ficar acessível a estranhos, não copie o `admin.html` nem a
 > pasta `js/admin/` para ele.** Não há senha — a proteção é a página não estar
@@ -273,8 +285,8 @@ mas **o token da z-api é** — se este repositório virar público, gire o toke
 npm run verify        # tudo: HTTP e file://, subindo o servidor sozinho
 ```
 
-Isso roda a checagem estática, regera os bundles e passa os oito testes de
-navegador nos **dois transportes** — 16 execuções. Sobe o `http-server` se a
+Isso roda a checagem estática, regera os bundles e passa os nove testes de
+navegador nos **dois transportes** — 18 execuções. Sobe o `http-server` se a
 porta 8099 estiver livre e reaproveita o que já estiver de pé. Para recortar:
 
 ```bash
@@ -296,7 +308,7 @@ em outro terminal, ou de `BASE=` apontando para o `file://`):
 | `npm run verify:idioma` | trocar de idioma não apaga o formulário |
 | `npm run verify:teclado` | os alvos são alcançáveis e acionáveis por teclado |
 | `npm run verify:baralho` | o embutido reproduz `questions.js`; baralho de outro tamanho joga |
-| `npm run verify:admin` | ver, editar, adicionar, validar, publicar, remover e restaurar |
+| `npm run verify:admin` | ver, editar, adicionar, validar, publicar, enviar imagem, remover e restaurar |
 | `npm run verify:sizes` | escala do palco em 1366x768, 1280x1024, 3840x2160 e retrato |
 | `node scripts/verify/probe.mjs telaAcao` | despeja a árvore de layout de uma rota |
 
