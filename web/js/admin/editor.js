@@ -38,8 +38,11 @@ export function editorDeSlot({ slot, indice, onChange }) {
 
   const previaFoto = el('img', { class: 'previa-foto', alt: '' });
   const atualizarPrevia = () => {
+    // admin.html fica em web/, ao lado de assets/ — o caminho e relativo direto.
+    // Com `../` funcionava por acidente no HTTP (nao se sobe acima da raiz) e
+    // quebrava por file://, onde `../` sai mesmo da pasta.
     const src = slot.veiculo.imagem;
-    previaFoto.src = src ? `../${src}` : '';
+    previaFoto.src = src || '';
     previaFoto.hidden = !src;
     semFoto.hidden = Boolean(src);
   };

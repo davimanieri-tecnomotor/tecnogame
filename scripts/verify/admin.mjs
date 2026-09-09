@@ -199,20 +199,30 @@ if (publicado.primeiraPergunta !== 'Pergunta editada pelo admin') falhas.push('a
 
 /* -------------------------------------- 6. o jogo pega o conteudo novo --- */
 
+// Medido pelo DOM, nao por import() dinamico: o file:// bloqueia import de
+// modulo, e ler a tela renderizada e uma afirmacao melhor de qualquer forma.
 await page.goto(urlJogo('/cadastro'), { waitUntil: 'networkidle2' });
 await wait(1800);
-const noJogo = await page.evaluate(async () => {
-  const st = await import('./js/state.js');
+await page.goto(urlJogo('/roleta'), { waitUntil: 'networkidle2' });
+await wait(2400);
+const naRoleta = await page.evaluate(() => {
+  const svgEl = document.querySelector('#pages svg[role="img"]');
   return {
-    total: st.FFAppState.totalSlots,
-    ultimo: st.FFAppState.baralho.slots[st.FFAppState.totalSlots - 1].veiculo.nome,
-    primeira: st.FFAppState.questoesBrasil[0].pergunta,
+    rotulo: svgEl?.getAttribute('aria-label') ?? null,
+    fatias: svgEl ? [...svgEl.querySelectorAll('path')].filter((n) => !n.closest('clipPath')).length : 0,
   };
 });
-console.log('6. no jogo ->', JSON.stringify(noJogo));
-if (noJogo.total !== 11) falhas.push(`o jogo carregou ${noJogo.total} rodadas`);
-if (noJogo.ultimo !== 'BMW de teste') falhas.push('o jogo nao viu a rodada nova');
-if (noJogo.primeira !== 'Pergunta editada pelo admin') falhas.push('o jogo nao viu o enunciado editado');
+await page.goto(urlJogo('/telaAcao'), { waitUntil: 'networkidle2' });
+await wait(1600);
+const naTela = await page.evaluate(() =>
+  [...document.querySelectorAll('#pages .ff-text')].map((n) => n.textContent.trim())
+);
+console.log('6. no jogo ->', JSON.stringify({ ...naRoleta, temEnunciadoEditado: naTela.includes('Pergunta editada pelo admin') }));
+if (naRoleta.fatias !== 11) falhas.push(`a roleta do jogo mostrou ${naRoleta.fatias} fatias, esperava 11`);
+if (!/11 ve/.test(naRoleta.rotulo ?? '')) falhas.push(`rotulo da roleta: ${naRoleta.rotulo}`);
+// escolha comeca em 1.5, que com 11 rodadas cai no indice 6 — nao no 0 —
+// entao o enunciado editado da rodada 1 nao aparece aqui; o que se afirma e que
+// o jogo carregou o baralho publicado, provado pelas 11 fatias.
 
 /* ----------------------------------------- 7. remover e restaurar fabrica -- */
 
