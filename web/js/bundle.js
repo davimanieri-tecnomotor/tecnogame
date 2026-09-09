@@ -841,730 +841,730 @@
 
   /* ===== questions.js ===== */
   __define("questions.js", function (__exports, __require) {
-  // Generated from the FlutterFlow Dart sources by scripts/gen_data.py.  
-  // Do not edit by hand.  
-  const QUESTIONS = {  
-    "pt": [  
-      {  
-        "pergunta": "O scanner mostra o código de falha P1192 (Adaptação do Sistema de Combustível), e o motor não gira na partida. O dono do carro informou que a bateria foi trocada recentemente, eliminando essa possibilidade. \nConsiderando essas informações, qual das respostas abaixo resolveria o problema?",  
-        "respostaUm": "Executar a função de sangria do sistema de combustível utilizando o scanner ",  
-        "respostaDois": " Fazer o ajuste de combustível (A/F) com o scanner",  
-        "respostaTres": "Verificar o filtro da bomba de combustível.",  
-        "respostaQuatro": "Realizar a verificação da tensão da bateria especificamente no momento da partida do veículo.",  
-        "gabarito": "1",  
-        "relatoPreliminar": "Tentei dar a partida e o carro não pegou.",  
-        "maisInformacoes": "\"Meu carro ficou sem bateria, e depois que fiz a troca, ele não ligou mais.\"",  
-        "ajudaApoio": "Ola! A P1192 indica a necessidade de executar o ajuste da sangria do sistema de combustível para resolver o problema detectado.",  
-        "ajudaTecnomotorTv": "Confira o vídeo no canal TecnomotorTV que explica esse defeito. Entre em contato com o apoio técnico para orientação.",  
-        "ajudaComunidade": "Cara, já passei por isso! Liguei no Apoio Técnico da Tecnomotor e me explicaram certinho como fazer.",  
-        "ajudaRepresentanteComercial": "O apoio técnico sugere relação com o sistema de combustível, para melhor ajuda entre em contato (16) 2106-8000.",  
-        "ajudaTreinamentoEad": "No EAD da Tecnodux, há uma aula que ensina um ajuste com scanner para solucionar esse defeito.",  
-        "nome": "FIAT Toro - 10GF",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": true  
-      },  
-      {  
-        "pergunta": "Analisando que a luz no painel indica desgaste das pastilhas traseiras e o reparador já diagnosticou a necessidade da troca, qual é o procedimento adequado para realizar essa substituição de maneira correta?",  
-        "respostaUm": "Retificar os discos traseiros e revisar o chicote do sistema de ABS.",  
-        "respostaDois": "Isolar o sensor de desgastes da pastilha.",  
-        "respostaTres": "Realizar a função de substituição das pastilhas com o scanner. ",  
-        "respostaQuatro": "Recuar a pinça de freio com o auxilio de uma alavanca.",  
-        "gabarito": "3",  
-        "relatoPreliminar": "O veículo apresentou falha no painel com o código de erro U0401 e o motor está com perda de potência. O motorista relatou que o problema ocorreu após uma troca de bateria.",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "Tem um vídeo em nosso canal  que mostra o passo a passo de como você deve fazer o procedimento, da uma olhada lá. ",  
-        "ajudaTecnomotorTv": "No vídeo dica feito pelo nosso instrutor parceiro, ele demonstra que é necessário executar o procedimento da substituição das pastilhas com o scanner",  
-        "ajudaComunidade": "cara, já passei por isso! O canal TecnomotorTV tem um vídeo que explica direitinho como resolver.",  
-        "ajudaRepresentanteComercial": "Já procurou se no canal da Tecnomotor no YouTube tem algo sobre isso? Se não achar, entre em contato com o suporte técnico.",  
-        "ajudaTreinamentoEad": "No treinamento EAD de ABS e Airbag o instrutor apresenta que é necessário executar o procedimento da substituição das pastilhas com o scanner",  
-        "nome": "Volvo XC-60",  
-        "rasher4": true,  
-        "xtool": true,  
-        "raster3S": false  
-      },  
-      {  
-        "pergunta": "Vidro, seta, farol e trava pararam de funcionar após a bateria descarregar, mas o carro liga. Scanner mostrou DTC A3C1: 'Erro no módulo da zona dos pés, receptor do grupo de instrumentos. Qual alternativa ao lado pode solucionar o defeito?",  
-        "respostaUm": "Reinicializar o FRM para reprogramar ou reconfigurar o módulo (Módulo da zona dos pés) com o Rasther",  
-        "respostaDois": "Substituir o módulo FRM (Módulo da zona dos pés).",  
-        "respostaTres": "Reinicializar o FRM para reprogramar ou reconfigurar o módulo (Módulo da zona dos pés), com o Xtool.",  
-        "respostaQuatro": "Rodar com o veículo por 3 km em rodovia",  
-        "gabarito": "3",  
-        "relatoPreliminar": "Após uma viagem, a bateria do meu carro descarregou completamente. Depois de recarregá-la, percebi que os faróis não acendem, o pisca-alerta não funciona e os vidros elétricos pararam de operar.",  
-        "maisInformacoes": "Fui informado que o arquivo do módulo FRM (módulo dos pés) pode ter sido corrompido.",  
-        "ajudaApoio": "Você já testou o sistema de carga do veículo ou precisa de mais informações para ajudar, como esquema elétrico?",  
-        "ajudaTecnomotorTv": "No vídeo dica, o instrutor Silverley apresenta o passo a passo para reinicializar o módulo FRM com o Xtool",  
-        "ajudaComunidade": "Peguei um caso parecido e o instrutor Silverley me ajudou. Será que não tem um vídeo no YouTube sobre isso?",  
-        "ajudaRepresentanteComercial": "Recebi uma mensagem parecida de outro cliente. Acho que no youtube TecnomotorTV tem algo sobre isso.",  
-        "ajudaTreinamentoEad": "No nosso EAD, as soluções envolvem diagnóstico com Scanner ou conserto da central. Da uma pesquisada no youtube TecnomotorTV",  
-        "nome": "BMW 118i",  
-        "raster3S": false,  
-        "rasher4": false,  
-        "xtool": true  
-      },  
-      {  
-        "pergunta": "A bateria de tração foi trocada, mas a autonomia continua baixa. Qual o procedimento para informar a substituição à ECU?",  
-        "respostaUm": "Refazer o balanceamento e equílibrio dos packs de bateria.",  
-        "respostaDois": "Realizar o carregamento com o carregador de Carga Rápida (Wallbox).",  
-        "respostaTres": "Realizar o procedimento de Reset dos parâmetros Adaptativos. ",  
-        "respostaQuatro": "Realizar o procedimento de calibração da capacidade de bateria.",  
-        "gabarito": "4",  
-        "relatoPreliminar": "Na outra oficina e eles trocaram os packs de bateria",  
-        "maisInformacoes": "Hello World",  
-        "ajudaApoio": "É importante estar preparado para sua segurança ao mexer com esses veículos, na Tecnodux temos um treinamento que vai ajudar.",  
-        "ajudaTecnomotorTv": "Aqui no canal temos várias dicas, mas essa ainda está em desenvolvimento. Que pena",  
-        "ajudaComunidade": " Essa eu nunca peguei. Recomendo ligar para o Apoio da Tecnomotor.",  
-        "ajudaRepresentanteComercial": "Tecnodux lançou um curso EAD recentemente, tenho certeza que você vai aprender sobre isso lá.",  
-        "ajudaTreinamentoEad": "Você viu no treinamento EAD de Elétricos -da Tecnodux-, que deve fazer a calibração da capacidade da bateria para atualizar os dados com scanner",  
-        "nome": "BYD",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": true  
-      },  
-      {  
-        "pergunta": "Após substituir o módulo do Airbag, o hodômetro começou a piscar. Qual procedimento deve ser seguido para resolver esse problema?",  
-        "respostaUm": "Realizar o procedimento de Ajustes - \"Sangria do ABS\" com Scanner.",  
-        "respostaDois": "Executar o procedimento de 'Reset dos Parâmetros' do veículo utilizando o Scanner",  
-        "respostaTres": "Realizar  o procedimento de Programação - \"Nova ECU\" - Alinhamento de Proxy com Scanner.",  
-        "respostaQuatro": "Verificar se o módulo de ABS está recenbendo 12V. ",  
-        "gabarito": "3",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "Tirei essa dúvida na comunidade. Dá uma olhada lá, tenho certeza que vai ajudar.",  
-        "ajudaTecnomotorTv": "Esse conteúdo ainda não está disponível em nosso canal, mas nossos parceiros irão criar.",  
-        "ajudaComunidade": "O apoio técnico indicou: Programação - 'Nova ECU' - Alinhamento de Proxy com Scanner.",  
-        "ajudaRepresentanteComercial": "Um cliente mencionou que essa informação está na comunidade. Dá uma olhada!",  
-        "ajudaTreinamentoEad": "Em breve, lançaremos um treinamento EAD com esse conteúdo, fique ligado na Tecnodux",  
-        "nome": "Fiat Gran Sienna",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": true  
-      },  
-      {  
-        "pergunta": "No Rasther, existe uma função usada para validar componentes do sistema de freio motor e ventilador em veículos com motor MAN D08. Caso, após a análise, os componentes ainda apresentem falhas, qual é a função que deve ser executada para garantir o funcionamento correto do sistema?",  
-        "respostaUm": "Com o Rasther, executar a programação PTO presente.",  
-        "respostaDois": "Com o Rasther, executar a programação Inibição do acelerador com PTO ativado.",  
-        "respostaTres": "Com o Rasther, realizar o ajuste Reset dos contadores. ",  
-        "respostaQuatro": "Com o Rasther, realizar o ciclo de rodagem e o reset de código de defeitos.",  
-        "gabarito": "3",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "No nosso canal TecnomotorTV, tem um vídeo que explica certinho sobre isso.",  
-        "ajudaTecnomotorTv": "Neste vídeo, Fabiano Almeida ensina o passo a passo para o Reset dos contadores no Rasther!",  
-        "ajudaComunidade": "O Fabiano falou disso no treinamento. Pena que eu não anotei…",  
-        "ajudaRepresentanteComercial": "Confere no canal da Tecnomotor no YouTube, deve ter algo sobre isso por lá!",  
-        "ajudaTreinamentoEad": "Valeu pela sugestão! Vamos alinhar com o instrutor pra gravar um conteúdo sobre isso.",  
-        "nome": "VW 24-280",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": false  
-      },  
-      {  
-        "pergunta": "Quando se depara com os DTC´s 02772 e 02773 (Sensor de NOX acima do limite de controle), na função ajuste do Rasther existe uma recomendação necessária para realizar e caso esteja tudo ok, apagar essas falhas. Qual das alterantivas é correto?",  
-        "respostaUm": "Registrar dados de performance do motor.",  
-        "respostaDois": "Monitorar o motor para garantir que ele opere dentro dos limites corretos. ",  
-        "respostaTres": "Adotar práticas de direção voltadas à economia de combustível durante a condução",  
-        "respostaQuatro": "Facilitar a troca de óleo do veículo.",  
-        "gabarito": "2",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "O ajuste é executada quando os DTCs 02772 e 02773 estão ativos após reparo, a função garante que o motor opera corretamente ao monitorar o NOx.",  
-        "ajudaTecnomotorTv": "No vídeo, o instrutor mostra o Reset de dados NOx, que monitora o motor para assegurar que ele opere dentro dos limites corretos.",  
-        "ajudaComunidade": "Vixe, já peguei esse defeito, mas não lembro se é para melhorar a potência ou monitorar algo.",  
-        "ajudaRepresentanteComercial": "Ah, diesel é melhor verificar com os instrutores Hailton ou Fabiano, ou procurar no canal Tecnomotortv.",  
-        "ajudaTreinamentoEad": "Estamos preparando vários conteúdos, logo logo vamos ter um EAD sobre isso. Boa sorte ai!",  
-        "nome": "VW Delivery",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": false  
-      },  
-      {  
-        "pergunta": "Com o Rasther, você pode resetar a válvula de segurança da pressão do Rail. O veículo aceita essa operação se o \"número de vezes que a válvula de segurança do Rail abriu\" for inferior a 2000. Qual é o nome dessa válvula?",  
-        "respostaUm": "Válvula reguladora de pressão PCV",  
-        "respostaDois": "Válvula reguladora de pressão VCP",  
-        "respostaTres": "Válvula reguladora de pressão PVR ",  
-        "respostaQuatro": "Válvula reguladora de pressão DRV",  
-        "gabarito": "3",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "A Válvula Prioritária Trator Valtra detecta pressão alta, abrindo para liberar ar na atmosfera. Saiba mais no EAD",  
-        "ajudaTecnomotorTv": "Veja no nosso canal o vídeo do parceiro Morceguinho com o passo a passo do Rasther e explicação sobre a válvula PVR.",  
-        "ajudaComunidade": "Achei um vídeo no canal Tecnomotortv que explica sobre essa válvula. Dá uma olhada!",  
-        "ajudaRepresentanteComercial": "Olá, amigo! Tente algum de nossos contatos: canal TecnomotorTV, apoio técnico ou EAD.",  
-        "ajudaTreinamentoEad": "No EAD de Tratores Valtra, foi mostrado que a válvula responsável pelo alívio da pressão é a PVR.",  
-        "nome": "Valtra",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": false  
-      },  
-      {  
-        "pergunta": "A van não liga e o painel indica baixa autonomia do reagente SCR. Mesmo após reabastecer o Arla, a van não funcionou. O que deverá ser feito para o veículo voltar a dar partida?",  
-        "respostaUm": "Com o Rasther, executar o ajuste de \"Reset da qualidade do Arla 32\".",  
-        "respostaDois": "Abasteçer o Arla, e com o Rasther, executar o ajuste de \"Reset do injetor do SCR\".",  
-        "respostaTres": "Com o Rasther, executar o ajuste de \"Liberação de Partida.",  
-        "respostaQuatro": "Abasteçer o Arla, e com o Rasther, executar o ajuste de \"Liberação de Partida\".",  
-        "gabarito": "4",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "Confira se você abasteceu o Arla. Depois, use a função ajustes e \"Liberação de Partida\" ",  
-        "ajudaTecnomotorTv": "Ainda não temos vídeo sobre isso. Você pode ser o primeiro! Envie seu vídeo. O Apoio Técnico também pode ajudar.",  
-        "ajudaComunidade": "Nunca Pegamos essa falha, mas eu vi algo parecido no EAD da Tecnomotor, o Apoio técnico também pode te ajudar.",  
-        "ajudaRepresentanteComercial": "O instrutor Fabiano Almeida deu uma dica. Ligue para o Apoio Técnico para mais detalhes.",  
-        "ajudaTreinamentoEad": "No EAD de Sistema SCR, o instrutor Fabiano destaca a importância de abastecer o Arla e executar a função via scanner.",  
-        "nome": "Renaut Master",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": false  
-      },  
-      {  
-        "pergunta": "Com o Rasther, é possível testar a dosagem do AdBlue neste veículo. Qual das alternativas ao lado indica corretamente a faixa de dosagem do reagente?",  
-        "respostaUm": "200 a 220 ml.\n",  
-        "respostaDois": "220 a 240 ml.",  
-        "respostaTres": "180 a 220 ml.",  
-        "respostaQuatro": "160 a 220 ml.",  
-        "gabarito": "3",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "A faixa correta de dosagem do AdBlue é de 180 a 220 ml, garantindo o funcionamento ideal do sistema.",  
-        "ajudaTecnomotorTv": "Veja no TecnomotorTV como identificar a faixa ideal de dosagem do AdBlue. Para mais detalhes, consulte nosso apoio técnico!",  
-        "ajudaComunidade": "Nossa, discutimos dicas sobre a dosagem do AdBlue. Para informações precisas, entre em contato com o apoio técnico!",  
-        "ajudaRepresentanteComercial": "Nunca vi isso, mas é um assunto abordado nos nossos treinamentos EAD.",  
-        "ajudaTreinamentoEad": "No treinamento EAD da Tecnodux, aprendemos que a faixa correta de dosagem do AdBlue é de 180 a 220 ml.",  
-        "nome": "Mercedes Accelo 1117",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": false  
-      }  
-    ],  
-    "en": [  
-      {  
-        "pergunta": "The scanner shows the fault code P1192 (Fuel System Adaptation), and the engine doesn't turn over at startup. The car owner informed that the battery was recently replaced, eliminating that possibility. Considering this information, which of the answers below would solve the problem?",  
-        "respostaUm": "Perform the fuel system bleed function using the scanner.",  
-        "respostaDois": "Adjust the air/fuel ratio with the scanner ",  
-        "respostaTres": "Check the fuel pump filter. ",  
-        "respostaQuatro": "Check the battery voltage at startup.\"",  
-        "gabarito": "1",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "P1192 indicates the need to perform the fuel system bleed adjustment to solve the detected problem.",  
-        "ajudaTecnomotorTv": "Check the video on the TecnomotorTV channel that explains this defect. Contact technical support for guidance.",  
-        "ajudaComunidade": "Dude, I've been through this! I called Tecnomotor Technical Support and they explained exactly how to do it.",  
-        "ajudaRepresentanteComercial": "Technical support suggests a connection with the fuel system, for better assistance, contact (16) 2106-8000.",  
-        "ajudaTreinamentoEad": "In Tecnodux's EAD, there's a lesson that teaches an adjustment with the scanner to fix this defect.",  
-        "nome": "FIAT Toro - 1.8 16V Flex",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": true  
-      },  
-      {  
-        "pergunta": "Analyzing that the dashboard light indicates wear on the rear brake pads and the mechanic has already diagnosed the need for replacement, what is the correct procedure to properly perform this replacement?",  
-        "respostaUm": "Rectify the rear discs and check the ABS system wiring.",  
-        "respostaDois": "Isolate the wear sensor on the brake pad. ",  
-        "respostaTres": "Perform the brake pad replacement function with the scanner. ",  
-        "respostaQuatro": " Rewind the brake caliper with a lever.",  
-        "gabarito": "3",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "There is a video on our channel that shows the step-by-step procedure you need to follow. Take a look there.",  
-        "ajudaTecnomotorTv": "In the video made by our partner instructor, he demonstrates that it's necessary to perform the brake pad replacement procedure with the scanner.",  
-        "ajudaComunidade": "Dude, I've been through this! The TecnomotorTV channel has a video that explains exactly how to fix it.",  
-        "ajudaRepresentanteComercial": "Have you checked the Tecnomotor YouTube channel for any content on this? If you don't find anything, reach out to technical support.",  
-        "ajudaTreinamentoEad": "In the EAD training for ABS and Airbag, the instructor explains that it is necessary to perform the brake pad replacement procedure using the scanner.",  
-        "nome": "Volvo XC-60",  
-        "raster3S": false,  
-        "rasher4": true,  
-        "xtool": true  
-      },  
-      {  
-        "pergunta": "Window, turn signal, headlight, and lock stopped working after the battery drained, but the car starts. The scanner showed DTC A3C1: 'Error in the footwell module, instrument group receiver. Which of the alternatives can solve the problem?",  
-        "respostaUm": "Perform the FRM reset to reprogram or reconfigure the module (Footwell Module) with Rasther ",  
-        "respostaDois": "Replace the FRM module (Footwell Module). ",  
-        "respostaTres": "Perform the FRM reset to reprogram or reconfigure the module (Footwell Module), using the Xtool.",  
-        "respostaQuatro": " Drive the vehicle for 3 km on a highway",  
-        "gabarito": "3",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "Have you tested the vehicle's charging system or do you need more information to help, like the electrical diagram?",  
-        "ajudaTecnomotorTv": "In the tip video, instructor Silverley shows the step-by-step to reset the FRM module with Xtool.",  
-        "ajudaComunidade": "I had a similar case, and instructor Silverley helped me. Maybe there's a video on YouTube about this?",  
-        "ajudaRepresentanteComercial": "I received a similar message from another client. I think there’s something about this on the TecnomotorTV YouTube.",  
-        "ajudaTreinamentoEad": "In our EAD, the solutions involve diagnostic with Scanner or repairing the central unit. Check TecnomotorTV YouTube.",  
-        "nome": "BMW 118i",  
-        "raster3S": false,  
-        "rasher4": false,  
-        "xtool": true  
-      },  
-      {  
-        "pergunta": "The traction battery was replaced, but the range is still low. What procedure should be done to inform the ECU about the replacement?",  
-        "respostaUm": "Rebalance and balance the battery packs. ",  
-        "respostaDois": "Perform the charging with the Rapid Charge (Wallbox) charger. ",  
-        "respostaTres": "Perform the Adaptive Parameter Reset procedure. ",  
-        "respostaQuatro": "Perform the battery capacity calibration procedure.",  
-        "gabarito": "4",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "It's important to be prepared for safety when working with these vehicles. In Tecnodux, we have a training that will help.",  
-        "ajudaTecnomotorTv": "Here on the channel, we have many tips, but this one is still under development. What a shame.",  
-        "ajudaComunidade": "I’ve never come across this one. I recommend calling Tecnomotor Support.",  
-        "ajudaRepresentanteComercial": "Tecnodux launched an EAD course recently, I’m sure you’ll learn about it there.",  
-        "ajudaTreinamentoEad": "Did you see in the EAD Electric Vehicles training from Tecnodux, that you need to calibrate the battery capacity to update the data with the scanner?",  
-        "nome": "BYD",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": true  
-      },  
-      {  
-        "pergunta": "After replacing the Airbag module, the odometer started flashing. What procedure should be followed to solve this problem?",  
-        "respostaUm": "Perform the ABS Bleed procedure with the scanner. ",  
-        "respostaDois": "Perform the 'Reset parameters' procedure with the scanner. ",  
-        "respostaTres": "Perform the Programming procedure - 'New ECU' - Proxy Alignment with the scanner. ",  
-        "respostaQuatro": "Check if the ABS module is receiving 12V.",  
-        "gabarito": "3",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "I cleared up this doubt in the community. Take a look there, I'm sure it will help.",  
-        "ajudaTecnomotorTv": "This content is not available on our channel yet, but our partners will create it.",  
-        "ajudaComunidade": "Technical support indicated: Programming - 'New ECU' - Proxy Alignment with the scanner.",  
-        "ajudaRepresentanteComercial": "A customer mentioned that this information is in the community. Take a look!",  
-        "ajudaTreinamentoEad": "Soon, we will release an EAD training on this content, stay tuned with Tecnodux.",  
-        "nome": "Fiat Gran Sienna",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": true  
-      },  
-      {  
-        "pergunta": "In Rasther, there is a function used to validate the components of the engine brake and fan system in vehicles with a MAN D08 engine. If, after analysis, the components still present failures, which function should be performed to ensure the correct operation of the system? ",  
-        "respostaUm": "With Rasther, execute the PTO present programming. ",  
-        "respostaDois": "With Rasther, execute the accelerator inhibition programming with PTO activated. ",  
-        "respostaTres": "With Rasther, perform the Reset counter adjustment. ",  
-        "respostaQuatro": "With Rasther, perform the driving cycle and reset the defect code.\"",  
-        "gabarito": "3",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "In our TecnomotorTV channel, there is a video that explains this perfectly.",  
-        "ajudaTecnomotorTv": "In this video, Fabiano Almeida teaches step-by-step how to Reset the counters in Rasther!",  
-        "ajudaComunidade": "Fabiano mentioned this in the training. Too bad I didn’t take notes...",  
-        "ajudaRepresentanteComercial": "Check out Tecnomotor's YouTube channel, there should be something about this!",  
-        "ajudaTreinamentoEad": "Thanks for the suggestion! We'll align with the instructor to record content about this.",  
-        "nome": "VW 24-280",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": false  
-      },  
-      {  
-        "pergunta": "When encountering DTCs 02772 and 02773 (NOX sensor above the control limit), there is a necessary recommendation in the Rasther adjustment function to perform, and if everything is fine, delete these faults. Which of the alternatives is correct? ",  
-        "respostaUm": "Record engine performance data. ",  
-        "respostaDois": "Monitor the engine to ensure it operates within the correct limits. ",  
-        "respostaTres": "Save fuel during driving. ",  
-        "respostaQuatro": " Facilitate the vehicle's oil change. 5 - Improve engine power.",  
-        "gabarito": "2",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "The adjustment is performed when the DTCs 02772 and 02773 are active after repair. This function ensures that the engine operates correctly by monitoring the NOx.",  
-        "ajudaTecnomotorTv": "In the video, the instructor shows the NOx data Reset, which monitors the engine to ensure it operates within the correct limits.",  
-        "ajudaComunidade": "Yikes, I’ve had this defect, but I don’t remember if it's for improving power or monitoring something.",  
-        "ajudaRepresentanteComercial": "Ah, diesel is better to check with instructors Hailton or Fabiano, or search the TecnomotorTV channel.",  
-        "ajudaTreinamentoEad": "We’re preparing several contents, soon we’ll have an EAD about this. Good luck!",  
-        "nome": "VW Delivery",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": false  
-      },  
-      {  
-        "pergunta": "With Rasther, you can reset the Rail pressure safety valve. The vehicle accepts this operation if the 'number of times the safety valve of the Rail opened' is less than 2000. What is the name of this valve?",  
-        "respostaUm": "PCV Pressure Regulator Valve.",  
-        "respostaDois": " VCP Pressure Regulator Valve.",  
-        "respostaTres": "PVR Pressure Regulator Valve.",  
-        "respostaQuatro": "DRV Pressure Regulator Valve.",  
-        "gabarito": "3",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "The Valtra Tractor Priority Valve detects high pressure, opening to release air into the atmosphere. Learn more in the EAD.",  
-        "ajudaTecnomotorTv": "Check our channel for the video from our partner Morceguinho, explaining the step-by-step on Rasther and the PVR valve.",  
-        "ajudaComunidade": "I found a video on the TecnomotorTV channel explaining this valve. Take a look!",  
-        "ajudaRepresentanteComercial": "Hi there, try one of our contacts: TecnomotorTV channel, technical support, or EAD.",  
-        "ajudaTreinamentoEad": "In the Valtra Tractors EAD, it was shown that the valve responsible for pressure relief is the PVR.",  
-        "nome": "Valtra",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": false  
-      },  
-      {  
-        "pergunta": "The van does not start, and the dashboard indicates low SCR reagent autonomy. Even after refueling the Arla, the van still did not start. What should be done to make the vehicle start again?",  
-        "respostaUm": "With Rasther, perform the \"Reset of Arla 32 quality\" adjustment.",  
-        "respostaDois": "Refuel the Arla, and with Rasther, perform the \"Reset of the SCR injector\" adjustment.",  
-        "respostaTres": "With Rasther, perform the \"Release of Start\" adjustment.",  
-        "respostaQuatro": "Refuel the Arla, and with Rasther, perform the \"Release of Start\" adjustment. ",  
-        "gabarito": "4",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "Check if you have refueled the Arla. Then, use the adjustment function and 'Release of Start.",  
-        "ajudaTecnomotorTv": "Check if you refueled the Arla. Then, use the adjustment function \"Release of Start.\"",  
-        "ajudaComunidade": "We’ve never encountered this issue, but I’ve seen something similar in the Tecnomotor EAD. Technical Support can also help.",  
-        "ajudaRepresentanteComercial": "Instructor Fabiano Almeida gave a tip. Call Technical Support for more details.",  
-        "ajudaTreinamentoEad": "In the SCR System EAD, instructor Fabiano emphasizes the importance of refilling the Arla and executing the function via scanner.",  
-        "nome": "Renaut Master",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": false  
-      },  
-      {  
-        "pergunta": "With the Rasther, it is possible to test the AdBlue dosing on this vehicle. Which of the options below correctly indicates the reagent dosing range?",  
-        "respostaUm": " 200 a 220 ml.",  
-        "respostaDois": "220 a 240 ml.",  
-        "respostaTres": "180 a 220 ml.",  
-        "respostaQuatro": "160 a 220 ml.",  
-        "gabarito": "3",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "The correct AdBlue dosing range is from 180 to 220 ml, ensuring the optimal functioning of the system.",  
-        "ajudaTecnomotorTv": "Check TecnomotorTV to learn how to identify the ideal AdBlue dosing range. For more details, consult our technical support!",  
-        "ajudaComunidade": "Wow, we discussed tips about AdBlue dosing. For precise information, contact technical support!",  
-        "ajudaRepresentanteComercial": "I've never seen this, but it's a topic covered in our EAD training.",  
-        "ajudaTreinamentoEad": "In the Tecnodux EAD training, we learned that the correct AdBlue dosage range is 180 to 220 ml.",  
-        "nome": "Mercedes Accelo 1117",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": false  
-      }  
-    ],  
-    "es": [  
-      {  
-        "pergunta": "El escáner muestra el código de falla P1192 (Adaptación del Sistema de Combustible), y el motor no gira al arrancar. El propietario del vehículo informó que la batería fue reemplazada recientemente, eliminando esa posibilidad. Considerando esta información, ¿cuál de las siguientes respuestas resolvería el problema?",  
-        "respostaUm": "Ejecutar la función de purga del sistema de combustible utilizando el escáner.",  
-        "respostaDois": "Hacer el ajuste de combustible (A/F) con el escáner ",  
-        "respostaTres": "Verificar el filtro de la bomba de combustible. ",  
-        "respostaQuatro": "Verificar la tensión de la batería al momento del arranque.",  
-        "gabarito": "1",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "P1192 indica la necesidad de ejecutar el ajuste de purga del sistema de combustible para solucionar el problema detectado.",  
-        "ajudaTecnomotorTv": "Mira el video en el canal TecnomotorTV que explica este defecto. Contacta con el soporte técnico para orientación.",  
-        "ajudaComunidade": "Amigo, ya pasé por esto! Llamé al soporte técnico de Tecnomotor y me explicaron exactamente qué hacer.",  
-        "ajudaRepresentanteComercial": "El soporte técnico sugiere relación con el sistema de combustible, para una mejor ayuda, contacta al (16) 2106-8000.",  
-        "ajudaTreinamentoEad": "En el EAD de Tecnodux, hay una clase que enseña cómo hacer un ajuste con el escáner para solucionar este defecto.",  
-        "nome": "FIAT Toro - 1.8 16V Flex",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": true  
-      },  
-      {  
-        "pergunta": "Analizando que la luz en el panel indica desgaste de las pastillas traseras y el reparador ya diagnosticó la necesidad de cambio, ¿cuál es el procedimiento adecuado para realizar esta sustitución correctamente?",  
-        "respostaUm": "Rectificar los discos traseros y revisar el cableado del sistema ABS. ",  
-        "respostaDois": "Aislar el sensor de desgaste de la pastilla.",  
-        "respostaTres": "Realizar la función de sustitución de las pastillas con el escáner. ",  
-        "respostaQuatro": "Retroceder la pinza de freno con la ayuda de una palanca.",  
-        "gabarito": "3",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "Hay un video en nuestro canal que muestra paso a paso cómo debes realizar el procedimiento, échale un vistazo.",  
-        "ajudaTecnomotorTv": "En el video, el instructor asociado muestra que es necesario ejecutar el procedimiento de sustitución de las pastillas con el escáner.",  
-        "ajudaComunidade": "Amigo, ya pasé por esto! El canal TecnomotorTV tiene un video que explica bien cómo resolverlo.",  
-        "ajudaRepresentanteComercial": "¿Ya buscaste si en el canal de Tecnomotor en YouTube hay algo sobre esto? Si no lo encuentras, contacta con el soporte técnico.",  
-        "ajudaTreinamentoEad": "En el entrenamiento EAD de ABS y Airbag, el instructor muestra que es necesario ejecutar el procedimiento de sustitución de las pastillas con el escáner.",  
-        "nome": "Volvo XC-60",  
-        "raster3S": false,  
-        "rasher4": true,  
-        "xtool": true  
-      },  
-      {  
-        "pergunta": "Vidrio, intermitente, faro y cerradura dejaron de funcionar después de que la batería se descargó, pero el coche arranca. El escáner mostró el DTC A3C1: 'Error en el módulo de la zona de los pies, receptor del grupo de instrumentos. ¿Cuál de las alternativas siguientes puede solucionar el defecto?",  
-        "respostaUm": "Hacer la reinicialización del FRM para reprogramar o reconfigurar el módulo (Módulo de la zona de los pies) con el Rasther ",  
-        "respostaDois": "Sustituir el módulo FRM (Módulo de la zona de los pies). ",  
-        "respostaTres": "Hacer la reinicialización del FRM para reprogramar o reconfigurar el módulo (Módulo de la zona de los pies), utilizando el Xtool ",  
-        "respostaQuatro": "Conducir el vehículo por 3 km en la autopista.",  
-        "gabarito": "3",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "¿Ya probaste el sistema de carga del vehículo o necesitas más información para ayudar, como un esquema eléctrico?",  
-        "ajudaTecnomotorTv": "En el video, el instructor Silverley muestra paso a paso cómo reinicializar el módulo FRM con el Xtool.",  
-        "ajudaComunidade": "Tuve un caso similar y el instructor Silverley me ayudó. ¿No habrá un video en YouTube sobre esto?",  
-        "ajudaRepresentanteComercial": "Recibí un mensaje similar de otro cliente. Creo que en el canal de YouTube TecnomotorTV hay algo sobre esto.",  
-        "ajudaTreinamentoEad": "En nuestro EAD, las soluciones involucran diagnóstico con el escáner o reparación de la central. Haz una búsqueda en el YouTube TecnomotorTV.",  
-        "nome": "BMW 118i",  
-        "raster3S": false,  
-        "rasher4": false,  
-        "xtool": true  
-      },  
-      {  
-        "pergunta": "La batería de tracción fue cambiada, pero la autonomía sigue siendo baja. ¿Cuál es el procedimiento para informar la sustitución a la ECU?",  
-        "respostaUm": "Volver a hacer el balanceo y equilibrio de los packs de batería.",  
-        "respostaDois": "Realizar la carga con el cargador de Carga Rápida (Wallbox). ",  
-        "respostaTres": "Realizar el procedimiento de Reset de los parámetros adaptativos. ",  
-        "respostaQuatro": "Realizar el procedimiento de calibración de la capacidad de la batería.",  
-        "gabarito": "4",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "Es importante estar preparado para tu seguridad al trabajar con estos vehículos, en Tecnodux tenemos una formación que te ayudará.",  
-        "ajudaTecnomotorTv": "Aquí en el canal tenemos varios consejos, pero este aún está en desarrollo. Qué lástima.",  
-        "ajudaComunidade": "Esta nunca la he encontrado. Recomiendo llamar al soporte de Tecnomotor.",  
-        "ajudaRepresentanteComercial": "Tecnodux lanzó un curso EAD recientemente, estoy seguro de que aprenderás sobre esto allí.",  
-        "ajudaTreinamentoEad": "¿Viste en el entrenamiento EAD de Eléctricos -de Tecnodux-, que debes hacer la calibración de la capacidad de la batería para actualizar los datos con el escáner?",  
-        "nome": "BYD",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": true  
-      },  
-      {  
-        "pergunta": "Después de sustituir el módulo del Airbag, el odómetro comenzó a parpadear. ¿Qué procedimiento se debe seguir para resolver este problema?",  
-        "respostaUm": " Realizar el procedimiento de Ajustes - \"\"Purgado del ABS\"\" con Escáner.",  
-        "respostaDois": "Executar o \"\"Reset dos parâmetros\"\" do veículo com Scanner.\t",  
-        "respostaTres": "Realizar o procedimento de Programação - \"\"Nova ECU\"\" - Alinhamento de Proxy com Scanner. ",  
-        "respostaQuatro": "Verificar se o módulo de ABS está recenbendo 12V.\t",  
-        "gabarito": "3",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "Resolví esta duda en la comunidad. Échale un vistazo, seguro que te ayudará.",  
-        "ajudaTecnomotorTv": "Este contenido aún no está disponible en nuestro canal, pero nuestros socios lo van a crear.",  
-        "ajudaComunidade": "El soporte técnico indicó: Programación - 'Nueva ECU' - Alineación de Proxy con escáner.",  
-        "ajudaRepresentanteComercial": "Un cliente mencionó que esa información está en la comunidad. ¡Échale un vistazo!",  
-        "ajudaTreinamentoEad": "Pronto lanzaremos una capacitación EAD con este contenido, mantente atento a Tecnodux.",  
-        "nome": "Fiat Gran Sienna",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": true  
-      },  
-      {  
-        "pergunta": "En el Rasther, existe una función utilizada para validar los componentes del sistema de freno motor y ventilador en vehículos con motor MAN D08. En caso de que, después del análisis, los componentes aún presenten fallas, ¿cuál es la función que debe ejecutarse para garantizar el correcto funcionamiento del sistema?",  
-        "respostaUm": "Con el Rasther, ejecutar la programación PTO presente.",  
-        "respostaDois": "Con el Rasther, ejecutar la programación Inhibición del acelerador con PTO activado.",  
-        "respostaTres": "Con el Rasther, realizar el ajuste Reset de los contadores. ",  
-        "respostaQuatro": "Con el Rasther, realizar el ciclo de rodaje y el reset de códigos de fallas.",  
-        "gabarito": "3",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "En nuestro canal TecnomotorTV, hay un video que lo explica todo claramente.",  
-        "ajudaTecnomotorTv": "En este video, Fabiano Almeida enseña el paso a paso para hacer el Reset de los contadores en el Rasther.",  
-        "ajudaComunidade": "Fabiano habló de eso en la capacitación. Lástima que no lo anoté...",  
-        "ajudaRepresentanteComercial": "Revisa el canal de Tecnomotor en YouTube, seguro hay algo sobre eso por ahí.",  
-        "ajudaTreinamentoEad": "¡Gracias por la sugerencia! Vamos a coordinar con el instructor para grabar un contenido sobre eso.",  
-        "nome": "VW 24-280",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": false  
-      },  
-      {  
-        "pergunta": "Al encontrar los DTCs 02772 y 02773 (Sensor de NOX fuera de límite), hay una acción a realizar con el Rasther. Si todo está correcto, borre esos errores. ¿Cuál es la función principal del ajuste \"Reset de los datos de NOx\" en el Rasther?",  
-        "respostaUm": "Registrar datos de rendimiento del motor. ",  
-        "respostaDois": "Monitorizar el motor para garantizar que opere dentro de los límites correctos.",  
-        "respostaTres": "Ahorrar combustible durante la conducción. ",  
-        "respostaQuatro": "Facilitar el cambio de aceite del vehículo.",  
-        "gabarito": "2",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "El ajuste se ejecuta cuando los DTCs 02772 y 02773 están activos después de la reparación; su función es garantizar que el motor opere correctamente al monitorear el NOx.",  
-        "ajudaTecnomotorTv": "En el video, el instructor muestra el Reset de datos NOx, que monitorea el motor para asegurar que opere dentro de los límites correctos.",  
-        "ajudaComunidade": "Ya tuve este fallo, pero no recuerdo si era para mejorar la potencia o monitorizar algo.",  
-        "ajudaRepresentanteComercial": "Ah, siendo diésel, mejor consultar con los instructores Hailton o Fabiano, o buscar en el canal TecnomotorTV.",  
-        "ajudaTreinamentoEad": "Estamos preparando varios contenidos, pronto tendremos un EAD sobre eso. ¡Suerte!",  
-        "nome": "VW Delivery",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": false  
-      },  
-      {  
-        "pergunta": "Con el Rasther, se puede resetear la válvula de seguridad de presión del Rail. El vehículo permite esta operación si el \"número de veces que la válvula de seguridad del Rail se abrió\" es menor a 2000. ¿Cuál es el nombre de esta válvula?",  
-        "respostaUm": "Válvula reguladora de presión PCV ",  
-        "respostaDois": "Válvula reguladora de presión VCP",  
-        "respostaTres": "Válvula reguladora de presión PVR",  
-        "respostaQuatro": " Válvula reguladora de presión DRV",  
-        "gabarito": "3",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "La Válvula Prioritaria del Tractor Valtra detecta alta presión y se abre para liberar aire a la atmósfera. Aprende más en el EAD.",  
-        "ajudaTecnomotorTv": "Mira en nuestro canal el video del socio Morceguinho con el paso a paso del Rasther y la explicación sobre la válvula PVR.",  
-        "ajudaComunidade": "Hay un video del canal TecnomotorTV que explica esta válvula. ¡Échale un vistazo!",  
-        "ajudaRepresentanteComercial": "¡Hola, amigo! Prueba con nuestros contactos: canal TecnomotorTV, soporte técnico o EAD.",  
-        "ajudaTreinamentoEad": "En el EAD de Tractores Valtra, se mostró que la válvula responsable de liberar la presión es la PVR.",  
-        "nome": "Valtra",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": false  
-      },  
-      {  
-        "pergunta": "La van no arranca y el panel indica baja autonomía del reactivo SCR. Incluso después de recargar el Arla, la van no arranca. ¿Qué se debe hacer para que el vehículo vuelva a arrancar?",  
-        "respostaUm": "Con el Rasther, ejecutar el ajuste \"Reset de la calidad del Arla 32\".",  
-        "respostaDois": "Recargar el Arla, y con el Rasther, ejecutar el ajuste \"Reset del inyector del SCR\". ",  
-        "respostaTres": "Con el Rasther, ejecutar el ajuste \"Liberación de arranque\".",  
-        "respostaQuatro": "Recargar el Arla, y con el Rasther, ejecutar el ajuste \"Liberación de arranque\". ",  
-        "gabarito": "4",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "Verifica si recargaste el Arla. Luego usa la función de ajustes \"Liberación de arranque\".",  
-        "ajudaTecnomotorTv": "Aún no tenemos un video sobre eso. ¡Puedes ser el primero! Envíanos tu video. El soporte técnico también puede ayudar.",  
-        "ajudaComunidade": "Nunca vimos este error, pero vi algo parecido en el EAD de Tecnomotor. El soporte técnico también puede ayudar.",  
-        "ajudaRepresentanteComercial": "El instructor Fabiano Almeida dio un consejo. Llama al Soporte Técnico para más detalles.",  
-        "ajudaTreinamentoEad": "En el EAD del Sistema SCR, el instructor Fabiano destaca la importancia de recargar el Arla y ejecutar la función vía escáner.",  
-        "nome": "Renaut Master",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": false  
-      },  
-      {  
-        "pergunta": "Con el Rasther, es posible probar la dosificación de AdBlue en este vehículo. ¿Cuál de las opciones al lado indica correctamente el rango de dosificación del reactivo?",  
-        "respostaUm": "200 a 220 ml.",  
-        "respostaDois": " 220 a 240 ml.",  
-        "respostaTres": "180 a 220 ml.",  
-        "respostaQuatro": "160 a 220 ml.",  
-        "gabarito": "3",  
-        "relatoPreliminar": "",  
-        "maisInformacoes": "",  
-        "ajudaApoio": "El rango correcto de dosificación de AdBlue es de 180 a 220 ml, lo que garantiza el funcionamiento ideal del sistema.",  
-        "ajudaTecnomotorTv": "Mira en TecnomotorTV cómo identificar el rango ideal de dosificación de AdBlue. Para más detalles, consulta con nuestro soporte técnico.",  
-        "ajudaComunidade": "Wow, discutimos consejos sobre la dosificación de AdBlue. Para información precisa, ponte en contacto con el soporte técnico.",  
-        "ajudaRepresentanteComercial": "Nunca vi eso, pero es un tema tratado en nuestras capacitaciones EAD.",  
-        "ajudaTreinamentoEad": "En la capacitación EAD de Tecnodux, aprendimos que el rango correcto de dosificación de AdBlue es de 180 a 220 ml.",  
-        "nome": "Mercedes Accelo 1117",  
-        "raster3S": true,  
-        "rasher4": true,  
-        "xtool": false  
-      }  
-    ]  
+  // Generated from the FlutterFlow Dart sources by scripts/gen_data.py.
+  // Do not edit by hand.
+  const QUESTIONS = {
+    "pt": [
+      {
+        "pergunta": "O scanner mostra o código de falha P1192 (Adaptação do Sistema de Combustível), e o motor não gira na partida. O dono do carro informou que a bateria foi trocada recentemente, eliminando essa possibilidade. \nConsiderando essas informações, qual das respostas abaixo resolveria o problema?",
+        "respostaUm": "Executar a função de sangria do sistema de combustível utilizando o scanner ",
+        "respostaDois": " Fazer o ajuste de combustível (A/F) com o scanner",
+        "respostaTres": "Verificar o filtro da bomba de combustível.",
+        "respostaQuatro": "Realizar a verificação da tensão da bateria especificamente no momento da partida do veículo.",
+        "gabarito": "1",
+        "relatoPreliminar": "Tentei dar a partida e o carro não pegou.",
+        "maisInformacoes": "\"Meu carro ficou sem bateria, e depois que fiz a troca, ele não ligou mais.\"",
+        "ajudaApoio": "Ola! A P1192 indica a necessidade de executar o ajuste da sangria do sistema de combustível para resolver o problema detectado.",
+        "ajudaTecnomotorTv": "Confira o vídeo no canal TecnomotorTV que explica esse defeito. Entre em contato com o apoio técnico para orientação.",
+        "ajudaComunidade": "Cara, já passei por isso! Liguei no Apoio Técnico da Tecnomotor e me explicaram certinho como fazer.",
+        "ajudaRepresentanteComercial": "O apoio técnico sugere relação com o sistema de combustível, para melhor ajuda entre em contato (16) 2106-8000.",
+        "ajudaTreinamentoEad": "No EAD da Tecnodux, há uma aula que ensina um ajuste com scanner para solucionar esse defeito.",
+        "nome": "FIAT Toro - 10GF",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": true
+      },
+      {
+        "pergunta": "Analisando que a luz no painel indica desgaste das pastilhas traseiras e o reparador já diagnosticou a necessidade da troca, qual é o procedimento adequado para realizar essa substituição de maneira correta?",
+        "respostaUm": "Retificar os discos traseiros e revisar o chicote do sistema de ABS.",
+        "respostaDois": "Isolar o sensor de desgastes da pastilha.",
+        "respostaTres": "Realizar a função de substituição das pastilhas com o scanner. ",
+        "respostaQuatro": "Recuar a pinça de freio com o auxilio de uma alavanca.",
+        "gabarito": "3",
+        "relatoPreliminar": "O veículo apresentou falha no painel com o código de erro U0401 e o motor está com perda de potência. O motorista relatou que o problema ocorreu após uma troca de bateria.",
+        "maisInformacoes": "",
+        "ajudaApoio": "Tem um vídeo em nosso canal  que mostra o passo a passo de como você deve fazer o procedimento, da uma olhada lá. ",
+        "ajudaTecnomotorTv": "No vídeo dica feito pelo nosso instrutor parceiro, ele demonstra que é necessário executar o procedimento da substituição das pastilhas com o scanner",
+        "ajudaComunidade": "cara, já passei por isso! O canal TecnomotorTV tem um vídeo que explica direitinho como resolver.",
+        "ajudaRepresentanteComercial": "Já procurou se no canal da Tecnomotor no YouTube tem algo sobre isso? Se não achar, entre em contato com o suporte técnico.",
+        "ajudaTreinamentoEad": "No treinamento EAD de ABS e Airbag o instrutor apresenta que é necessário executar o procedimento da substituição das pastilhas com o scanner",
+        "nome": "Volvo XC-60",
+        "rasher4": true,
+        "xtool": true,
+        "raster3S": false
+      },
+      {
+        "pergunta": "Vidro, seta, farol e trava pararam de funcionar após a bateria descarregar, mas o carro liga. Scanner mostrou DTC A3C1: 'Erro no módulo da zona dos pés, receptor do grupo de instrumentos. Qual alternativa ao lado pode solucionar o defeito?",
+        "respostaUm": "Reinicializar o FRM para reprogramar ou reconfigurar o módulo (Módulo da zona dos pés) com o Rasther",
+        "respostaDois": "Substituir o módulo FRM (Módulo da zona dos pés).",
+        "respostaTres": "Reinicializar o FRM para reprogramar ou reconfigurar o módulo (Módulo da zona dos pés), com o Xtool.",
+        "respostaQuatro": "Rodar com o veículo por 3 km em rodovia",
+        "gabarito": "3",
+        "relatoPreliminar": "Após uma viagem, a bateria do meu carro descarregou completamente. Depois de recarregá-la, percebi que os faróis não acendem, o pisca-alerta não funciona e os vidros elétricos pararam de operar.",
+        "maisInformacoes": "Fui informado que o arquivo do módulo FRM (módulo dos pés) pode ter sido corrompido.",
+        "ajudaApoio": "Você já testou o sistema de carga do veículo ou precisa de mais informações para ajudar, como esquema elétrico?",
+        "ajudaTecnomotorTv": "No vídeo dica, o instrutor Silverley apresenta o passo a passo para reinicializar o módulo FRM com o Xtool",
+        "ajudaComunidade": "Peguei um caso parecido e o instrutor Silverley me ajudou. Será que não tem um vídeo no YouTube sobre isso?",
+        "ajudaRepresentanteComercial": "Recebi uma mensagem parecida de outro cliente. Acho que no youtube TecnomotorTV tem algo sobre isso.",
+        "ajudaTreinamentoEad": "No nosso EAD, as soluções envolvem diagnóstico com Scanner ou conserto da central. Da uma pesquisada no youtube TecnomotorTV",
+        "nome": "BMW 118i",
+        "raster3S": false,
+        "rasher4": false,
+        "xtool": true
+      },
+      {
+        "pergunta": "A bateria de tração foi trocada, mas a autonomia continua baixa. Qual o procedimento para informar a substituição à ECU?",
+        "respostaUm": "Refazer o balanceamento e equílibrio dos packs de bateria.",
+        "respostaDois": "Realizar o carregamento com o carregador de Carga Rápida (Wallbox).",
+        "respostaTres": "Realizar o procedimento de Reset dos parâmetros Adaptativos. ",
+        "respostaQuatro": "Realizar o procedimento de calibração da capacidade de bateria.",
+        "gabarito": "4",
+        "relatoPreliminar": "Na outra oficina e eles trocaram os packs de bateria",
+        "maisInformacoes": "Hello World",
+        "ajudaApoio": "É importante estar preparado para sua segurança ao mexer com esses veículos, na Tecnodux temos um treinamento que vai ajudar.",
+        "ajudaTecnomotorTv": "Aqui no canal temos várias dicas, mas essa ainda está em desenvolvimento. Que pena",
+        "ajudaComunidade": " Essa eu nunca peguei. Recomendo ligar para o Apoio da Tecnomotor.",
+        "ajudaRepresentanteComercial": "Tecnodux lançou um curso EAD recentemente, tenho certeza que você vai aprender sobre isso lá.",
+        "ajudaTreinamentoEad": "Você viu no treinamento EAD de Elétricos -da Tecnodux-, que deve fazer a calibração da capacidade da bateria para atualizar os dados com scanner",
+        "nome": "BYD",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": true
+      },
+      {
+        "pergunta": "Após substituir o módulo do Airbag, o hodômetro começou a piscar. Qual procedimento deve ser seguido para resolver esse problema?",
+        "respostaUm": "Realizar o procedimento de Ajustes - \"Sangria do ABS\" com Scanner.",
+        "respostaDois": "Executar o procedimento de 'Reset dos Parâmetros' do veículo utilizando o Scanner",
+        "respostaTres": "Realizar  o procedimento de Programação - \"Nova ECU\" - Alinhamento de Proxy com Scanner.",
+        "respostaQuatro": "Verificar se o módulo de ABS está recenbendo 12V. ",
+        "gabarito": "3",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "Tirei essa dúvida na comunidade. Dá uma olhada lá, tenho certeza que vai ajudar.",
+        "ajudaTecnomotorTv": "Esse conteúdo ainda não está disponível em nosso canal, mas nossos parceiros irão criar.",
+        "ajudaComunidade": "O apoio técnico indicou: Programação - 'Nova ECU' - Alinhamento de Proxy com Scanner.",
+        "ajudaRepresentanteComercial": "Um cliente mencionou que essa informação está na comunidade. Dá uma olhada!",
+        "ajudaTreinamentoEad": "Em breve, lançaremos um treinamento EAD com esse conteúdo, fique ligado na Tecnodux",
+        "nome": "Fiat Gran Sienna",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": true
+      },
+      {
+        "pergunta": "No Rasther, existe uma função usada para validar componentes do sistema de freio motor e ventilador em veículos com motor MAN D08. Caso, após a análise, os componentes ainda apresentem falhas, qual é a função que deve ser executada para garantir o funcionamento correto do sistema?",
+        "respostaUm": "Com o Rasther, executar a programação PTO presente.",
+        "respostaDois": "Com o Rasther, executar a programação Inibição do acelerador com PTO ativado.",
+        "respostaTres": "Com o Rasther, realizar o ajuste Reset dos contadores. ",
+        "respostaQuatro": "Com o Rasther, realizar o ciclo de rodagem e o reset de código de defeitos.",
+        "gabarito": "3",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "No nosso canal TecnomotorTV, tem um vídeo que explica certinho sobre isso.",
+        "ajudaTecnomotorTv": "Neste vídeo, Fabiano Almeida ensina o passo a passo para o Reset dos contadores no Rasther!",
+        "ajudaComunidade": "O Fabiano falou disso no treinamento. Pena que eu não anotei…",
+        "ajudaRepresentanteComercial": "Confere no canal da Tecnomotor no YouTube, deve ter algo sobre isso por lá!",
+        "ajudaTreinamentoEad": "Valeu pela sugestão! Vamos alinhar com o instrutor pra gravar um conteúdo sobre isso.",
+        "nome": "VW 24-280",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": false
+      },
+      {
+        "pergunta": "Quando se depara com os DTC´s 02772 e 02773 (Sensor de NOX acima do limite de controle), na função ajuste do Rasther existe uma recomendação necessária para realizar e caso esteja tudo ok, apagar essas falhas. Qual das alterantivas é correto?",
+        "respostaUm": "Registrar dados de performance do motor.",
+        "respostaDois": "Monitorar o motor para garantir que ele opere dentro dos limites corretos. ",
+        "respostaTres": "Adotar práticas de direção voltadas à economia de combustível durante a condução",
+        "respostaQuatro": "Facilitar a troca de óleo do veículo.",
+        "gabarito": "2",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "O ajuste é executada quando os DTCs 02772 e 02773 estão ativos após reparo, a função garante que o motor opera corretamente ao monitorar o NOx.",
+        "ajudaTecnomotorTv": "No vídeo, o instrutor mostra o Reset de dados NOx, que monitora o motor para assegurar que ele opere dentro dos limites corretos.",
+        "ajudaComunidade": "Vixe, já peguei esse defeito, mas não lembro se é para melhorar a potência ou monitorar algo.",
+        "ajudaRepresentanteComercial": "Ah, diesel é melhor verificar com os instrutores Hailton ou Fabiano, ou procurar no canal Tecnomotortv.",
+        "ajudaTreinamentoEad": "Estamos preparando vários conteúdos, logo logo vamos ter um EAD sobre isso. Boa sorte ai!",
+        "nome": "VW Delivery",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": false
+      },
+      {
+        "pergunta": "Com o Rasther, você pode resetar a válvula de segurança da pressão do Rail. O veículo aceita essa operação se o \"número de vezes que a válvula de segurança do Rail abriu\" for inferior a 2000. Qual é o nome dessa válvula?",
+        "respostaUm": "Válvula reguladora de pressão PCV",
+        "respostaDois": "Válvula reguladora de pressão VCP",
+        "respostaTres": "Válvula reguladora de pressão PVR ",
+        "respostaQuatro": "Válvula reguladora de pressão DRV",
+        "gabarito": "3",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "A Válvula Prioritária Trator Valtra detecta pressão alta, abrindo para liberar ar na atmosfera. Saiba mais no EAD",
+        "ajudaTecnomotorTv": "Veja no nosso canal o vídeo do parceiro Morceguinho com o passo a passo do Rasther e explicação sobre a válvula PVR.",
+        "ajudaComunidade": "Achei um vídeo no canal Tecnomotortv que explica sobre essa válvula. Dá uma olhada!",
+        "ajudaRepresentanteComercial": "Olá, amigo! Tente algum de nossos contatos: canal TecnomotorTV, apoio técnico ou EAD.",
+        "ajudaTreinamentoEad": "No EAD de Tratores Valtra, foi mostrado que a válvula responsável pelo alívio da pressão é a PVR.",
+        "nome": "Valtra",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": false
+      },
+      {
+        "pergunta": "A van não liga e o painel indica baixa autonomia do reagente SCR. Mesmo após reabastecer o Arla, a van não funcionou. O que deverá ser feito para o veículo voltar a dar partida?",
+        "respostaUm": "Com o Rasther, executar o ajuste de \"Reset da qualidade do Arla 32\".",
+        "respostaDois": "Abasteçer o Arla, e com o Rasther, executar o ajuste de \"Reset do injetor do SCR\".",
+        "respostaTres": "Com o Rasther, executar o ajuste de \"Liberação de Partida.",
+        "respostaQuatro": "Abasteçer o Arla, e com o Rasther, executar o ajuste de \"Liberação de Partida\".",
+        "gabarito": "4",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "Confira se você abasteceu o Arla. Depois, use a função ajustes e \"Liberação de Partida\" ",
+        "ajudaTecnomotorTv": "Ainda não temos vídeo sobre isso. Você pode ser o primeiro! Envie seu vídeo. O Apoio Técnico também pode ajudar.",
+        "ajudaComunidade": "Nunca Pegamos essa falha, mas eu vi algo parecido no EAD da Tecnomotor, o Apoio técnico também pode te ajudar.",
+        "ajudaRepresentanteComercial": "O instrutor Fabiano Almeida deu uma dica. Ligue para o Apoio Técnico para mais detalhes.",
+        "ajudaTreinamentoEad": "No EAD de Sistema SCR, o instrutor Fabiano destaca a importância de abastecer o Arla e executar a função via scanner.",
+        "nome": "Renaut Master",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": false
+      },
+      {
+        "pergunta": "Com o Rasther, é possível testar a dosagem do AdBlue neste veículo. Qual das alternativas ao lado indica corretamente a faixa de dosagem do reagente?",
+        "respostaUm": "200 a 220 ml.\n",
+        "respostaDois": "220 a 240 ml.",
+        "respostaTres": "180 a 220 ml.",
+        "respostaQuatro": "160 a 220 ml.",
+        "gabarito": "3",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "A faixa correta de dosagem do AdBlue é de 180 a 220 ml, garantindo o funcionamento ideal do sistema.",
+        "ajudaTecnomotorTv": "Veja no TecnomotorTV como identificar a faixa ideal de dosagem do AdBlue. Para mais detalhes, consulte nosso apoio técnico!",
+        "ajudaComunidade": "Nossa, discutimos dicas sobre a dosagem do AdBlue. Para informações precisas, entre em contato com o apoio técnico!",
+        "ajudaRepresentanteComercial": "Nunca vi isso, mas é um assunto abordado nos nossos treinamentos EAD.",
+        "ajudaTreinamentoEad": "No treinamento EAD da Tecnodux, aprendemos que a faixa correta de dosagem do AdBlue é de 180 a 220 ml.",
+        "nome": "Mercedes Accelo 1117",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": false
+      }
+    ],
+    "en": [
+      {
+        "pergunta": "The scanner shows the fault code P1192 (Fuel System Adaptation), and the engine doesn't turn over at startup. The car owner informed that the battery was recently replaced, eliminating that possibility. Considering this information, which of the answers below would solve the problem?",
+        "respostaUm": "Perform the fuel system bleed function using the scanner.",
+        "respostaDois": "Adjust the air/fuel ratio with the scanner ",
+        "respostaTres": "Check the fuel pump filter. ",
+        "respostaQuatro": "Check the battery voltage at startup.\"",
+        "gabarito": "1",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "P1192 indicates the need to perform the fuel system bleed adjustment to solve the detected problem.",
+        "ajudaTecnomotorTv": "Check the video on the TecnomotorTV channel that explains this defect. Contact technical support for guidance.",
+        "ajudaComunidade": "Dude, I've been through this! I called Tecnomotor Technical Support and they explained exactly how to do it.",
+        "ajudaRepresentanteComercial": "Technical support suggests a connection with the fuel system, for better assistance, contact (16) 2106-8000.",
+        "ajudaTreinamentoEad": "In Tecnodux's EAD, there's a lesson that teaches an adjustment with the scanner to fix this defect.",
+        "nome": "FIAT Toro - 1.8 16V Flex",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": true
+      },
+      {
+        "pergunta": "Analyzing that the dashboard light indicates wear on the rear brake pads and the mechanic has already diagnosed the need for replacement, what is the correct procedure to properly perform this replacement?",
+        "respostaUm": "Rectify the rear discs and check the ABS system wiring.",
+        "respostaDois": "Isolate the wear sensor on the brake pad. ",
+        "respostaTres": "Perform the brake pad replacement function with the scanner. ",
+        "respostaQuatro": " Rewind the brake caliper with a lever.",
+        "gabarito": "3",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "There is a video on our channel that shows the step-by-step procedure you need to follow. Take a look there.",
+        "ajudaTecnomotorTv": "In the video made by our partner instructor, he demonstrates that it's necessary to perform the brake pad replacement procedure with the scanner.",
+        "ajudaComunidade": "Dude, I've been through this! The TecnomotorTV channel has a video that explains exactly how to fix it.",
+        "ajudaRepresentanteComercial": "Have you checked the Tecnomotor YouTube channel for any content on this? If you don't find anything, reach out to technical support.",
+        "ajudaTreinamentoEad": "In the EAD training for ABS and Airbag, the instructor explains that it is necessary to perform the brake pad replacement procedure using the scanner.",
+        "nome": "Volvo XC-60",
+        "raster3S": false,
+        "rasher4": true,
+        "xtool": true
+      },
+      {
+        "pergunta": "Window, turn signal, headlight, and lock stopped working after the battery drained, but the car starts. The scanner showed DTC A3C1: 'Error in the footwell module, instrument group receiver. Which of the alternatives can solve the problem?",
+        "respostaUm": "Perform the FRM reset to reprogram or reconfigure the module (Footwell Module) with Rasther ",
+        "respostaDois": "Replace the FRM module (Footwell Module). ",
+        "respostaTres": "Perform the FRM reset to reprogram or reconfigure the module (Footwell Module), using the Xtool.",
+        "respostaQuatro": " Drive the vehicle for 3 km on a highway",
+        "gabarito": "3",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "Have you tested the vehicle's charging system or do you need more information to help, like the electrical diagram?",
+        "ajudaTecnomotorTv": "In the tip video, instructor Silverley shows the step-by-step to reset the FRM module with Xtool.",
+        "ajudaComunidade": "I had a similar case, and instructor Silverley helped me. Maybe there's a video on YouTube about this?",
+        "ajudaRepresentanteComercial": "I received a similar message from another client. I think there’s something about this on the TecnomotorTV YouTube.",
+        "ajudaTreinamentoEad": "In our EAD, the solutions involve diagnostic with Scanner or repairing the central unit. Check TecnomotorTV YouTube.",
+        "nome": "BMW 118i",
+        "raster3S": false,
+        "rasher4": false,
+        "xtool": true
+      },
+      {
+        "pergunta": "The traction battery was replaced, but the range is still low. What procedure should be done to inform the ECU about the replacement?",
+        "respostaUm": "Rebalance and balance the battery packs. ",
+        "respostaDois": "Perform the charging with the Rapid Charge (Wallbox) charger. ",
+        "respostaTres": "Perform the Adaptive Parameter Reset procedure. ",
+        "respostaQuatro": "Perform the battery capacity calibration procedure.",
+        "gabarito": "4",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "It's important to be prepared for safety when working with these vehicles. In Tecnodux, we have a training that will help.",
+        "ajudaTecnomotorTv": "Here on the channel, we have many tips, but this one is still under development. What a shame.",
+        "ajudaComunidade": "I’ve never come across this one. I recommend calling Tecnomotor Support.",
+        "ajudaRepresentanteComercial": "Tecnodux launched an EAD course recently, I’m sure you’ll learn about it there.",
+        "ajudaTreinamentoEad": "Did you see in the EAD Electric Vehicles training from Tecnodux, that you need to calibrate the battery capacity to update the data with the scanner?",
+        "nome": "BYD",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": true
+      },
+      {
+        "pergunta": "After replacing the Airbag module, the odometer started flashing. What procedure should be followed to solve this problem?",
+        "respostaUm": "Perform the ABS Bleed procedure with the scanner. ",
+        "respostaDois": "Perform the 'Reset parameters' procedure with the scanner. ",
+        "respostaTres": "Perform the Programming procedure - 'New ECU' - Proxy Alignment with the scanner. ",
+        "respostaQuatro": "Check if the ABS module is receiving 12V.",
+        "gabarito": "3",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "I cleared up this doubt in the community. Take a look there, I'm sure it will help.",
+        "ajudaTecnomotorTv": "This content is not available on our channel yet, but our partners will create it.",
+        "ajudaComunidade": "Technical support indicated: Programming - 'New ECU' - Proxy Alignment with the scanner.",
+        "ajudaRepresentanteComercial": "A customer mentioned that this information is in the community. Take a look!",
+        "ajudaTreinamentoEad": "Soon, we will release an EAD training on this content, stay tuned with Tecnodux.",
+        "nome": "Fiat Gran Sienna",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": true
+      },
+      {
+        "pergunta": "In Rasther, there is a function used to validate the components of the engine brake and fan system in vehicles with a MAN D08 engine. If, after analysis, the components still present failures, which function should be performed to ensure the correct operation of the system? ",
+        "respostaUm": "With Rasther, execute the PTO present programming. ",
+        "respostaDois": "With Rasther, execute the accelerator inhibition programming with PTO activated. ",
+        "respostaTres": "With Rasther, perform the Reset counter adjustment. ",
+        "respostaQuatro": "With Rasther, perform the driving cycle and reset the defect code.\"",
+        "gabarito": "3",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "In our TecnomotorTV channel, there is a video that explains this perfectly.",
+        "ajudaTecnomotorTv": "In this video, Fabiano Almeida teaches step-by-step how to Reset the counters in Rasther!",
+        "ajudaComunidade": "Fabiano mentioned this in the training. Too bad I didn’t take notes...",
+        "ajudaRepresentanteComercial": "Check out Tecnomotor's YouTube channel, there should be something about this!",
+        "ajudaTreinamentoEad": "Thanks for the suggestion! We'll align with the instructor to record content about this.",
+        "nome": "VW 24-280",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": false
+      },
+      {
+        "pergunta": "When encountering DTCs 02772 and 02773 (NOX sensor above the control limit), there is a necessary recommendation in the Rasther adjustment function to perform, and if everything is fine, delete these faults. Which of the alternatives is correct? ",
+        "respostaUm": "Record engine performance data. ",
+        "respostaDois": "Monitor the engine to ensure it operates within the correct limits. ",
+        "respostaTres": "Save fuel during driving. ",
+        "respostaQuatro": " Facilitate the vehicle's oil change. 5 - Improve engine power.",
+        "gabarito": "2",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "The adjustment is performed when the DTCs 02772 and 02773 are active after repair. This function ensures that the engine operates correctly by monitoring the NOx.",
+        "ajudaTecnomotorTv": "In the video, the instructor shows the NOx data Reset, which monitors the engine to ensure it operates within the correct limits.",
+        "ajudaComunidade": "Yikes, I’ve had this defect, but I don’t remember if it's for improving power or monitoring something.",
+        "ajudaRepresentanteComercial": "Ah, diesel is better to check with instructors Hailton or Fabiano, or search the TecnomotorTV channel.",
+        "ajudaTreinamentoEad": "We’re preparing several contents, soon we’ll have an EAD about this. Good luck!",
+        "nome": "VW Delivery",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": false
+      },
+      {
+        "pergunta": "With Rasther, you can reset the Rail pressure safety valve. The vehicle accepts this operation if the 'number of times the safety valve of the Rail opened' is less than 2000. What is the name of this valve?",
+        "respostaUm": "PCV Pressure Regulator Valve.",
+        "respostaDois": " VCP Pressure Regulator Valve.",
+        "respostaTres": "PVR Pressure Regulator Valve.",
+        "respostaQuatro": "DRV Pressure Regulator Valve.",
+        "gabarito": "3",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "The Valtra Tractor Priority Valve detects high pressure, opening to release air into the atmosphere. Learn more in the EAD.",
+        "ajudaTecnomotorTv": "Check our channel for the video from our partner Morceguinho, explaining the step-by-step on Rasther and the PVR valve.",
+        "ajudaComunidade": "I found a video on the TecnomotorTV channel explaining this valve. Take a look!",
+        "ajudaRepresentanteComercial": "Hi there, try one of our contacts: TecnomotorTV channel, technical support, or EAD.",
+        "ajudaTreinamentoEad": "In the Valtra Tractors EAD, it was shown that the valve responsible for pressure relief is the PVR.",
+        "nome": "Valtra",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": false
+      },
+      {
+        "pergunta": "The van does not start, and the dashboard indicates low SCR reagent autonomy. Even after refueling the Arla, the van still did not start. What should be done to make the vehicle start again?",
+        "respostaUm": "With Rasther, perform the \"Reset of Arla 32 quality\" adjustment.",
+        "respostaDois": "Refuel the Arla, and with Rasther, perform the \"Reset of the SCR injector\" adjustment.",
+        "respostaTres": "With Rasther, perform the \"Release of Start\" adjustment.",
+        "respostaQuatro": "Refuel the Arla, and with Rasther, perform the \"Release of Start\" adjustment. ",
+        "gabarito": "4",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "Check if you have refueled the Arla. Then, use the adjustment function and 'Release of Start.",
+        "ajudaTecnomotorTv": "Check if you refueled the Arla. Then, use the adjustment function \"Release of Start.\"",
+        "ajudaComunidade": "We’ve never encountered this issue, but I’ve seen something similar in the Tecnomotor EAD. Technical Support can also help.",
+        "ajudaRepresentanteComercial": "Instructor Fabiano Almeida gave a tip. Call Technical Support for more details.",
+        "ajudaTreinamentoEad": "In the SCR System EAD, instructor Fabiano emphasizes the importance of refilling the Arla and executing the function via scanner.",
+        "nome": "Renaut Master",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": false
+      },
+      {
+        "pergunta": "With the Rasther, it is possible to test the AdBlue dosing on this vehicle. Which of the options below correctly indicates the reagent dosing range?",
+        "respostaUm": " 200 a 220 ml.",
+        "respostaDois": "220 a 240 ml.",
+        "respostaTres": "180 a 220 ml.",
+        "respostaQuatro": "160 a 220 ml.",
+        "gabarito": "3",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "The correct AdBlue dosing range is from 180 to 220 ml, ensuring the optimal functioning of the system.",
+        "ajudaTecnomotorTv": "Check TecnomotorTV to learn how to identify the ideal AdBlue dosing range. For more details, consult our technical support!",
+        "ajudaComunidade": "Wow, we discussed tips about AdBlue dosing. For precise information, contact technical support!",
+        "ajudaRepresentanteComercial": "I've never seen this, but it's a topic covered in our EAD training.",
+        "ajudaTreinamentoEad": "In the Tecnodux EAD training, we learned that the correct AdBlue dosage range is 180 to 220 ml.",
+        "nome": "Mercedes Accelo 1117",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": false
+      }
+    ],
+    "es": [
+      {
+        "pergunta": "El escáner muestra el código de falla P1192 (Adaptación del Sistema de Combustible), y el motor no gira al arrancar. El propietario del vehículo informó que la batería fue reemplazada recientemente, eliminando esa posibilidad. Considerando esta información, ¿cuál de las siguientes respuestas resolvería el problema?",
+        "respostaUm": "Ejecutar la función de purga del sistema de combustible utilizando el escáner.",
+        "respostaDois": "Hacer el ajuste de combustible (A/F) con el escáner ",
+        "respostaTres": "Verificar el filtro de la bomba de combustible. ",
+        "respostaQuatro": "Verificar la tensión de la batería al momento del arranque.",
+        "gabarito": "1",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "P1192 indica la necesidad de ejecutar el ajuste de purga del sistema de combustible para solucionar el problema detectado.",
+        "ajudaTecnomotorTv": "Mira el video en el canal TecnomotorTV que explica este defecto. Contacta con el soporte técnico para orientación.",
+        "ajudaComunidade": "Amigo, ya pasé por esto! Llamé al soporte técnico de Tecnomotor y me explicaron exactamente qué hacer.",
+        "ajudaRepresentanteComercial": "El soporte técnico sugiere relación con el sistema de combustible, para una mejor ayuda, contacta al (16) 2106-8000.",
+        "ajudaTreinamentoEad": "En el EAD de Tecnodux, hay una clase que enseña cómo hacer un ajuste con el escáner para solucionar este defecto.",
+        "nome": "FIAT Toro - 1.8 16V Flex",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": true
+      },
+      {
+        "pergunta": "Analizando que la luz en el panel indica desgaste de las pastillas traseras y el reparador ya diagnosticó la necesidad de cambio, ¿cuál es el procedimiento adecuado para realizar esta sustitución correctamente?",
+        "respostaUm": "Rectificar los discos traseros y revisar el cableado del sistema ABS. ",
+        "respostaDois": "Aislar el sensor de desgaste de la pastilla.",
+        "respostaTres": "Realizar la función de sustitución de las pastillas con el escáner. ",
+        "respostaQuatro": "Retroceder la pinza de freno con la ayuda de una palanca.",
+        "gabarito": "3",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "Hay un video en nuestro canal que muestra paso a paso cómo debes realizar el procedimiento, échale un vistazo.",
+        "ajudaTecnomotorTv": "En el video, el instructor asociado muestra que es necesario ejecutar el procedimiento de sustitución de las pastillas con el escáner.",
+        "ajudaComunidade": "Amigo, ya pasé por esto! El canal TecnomotorTV tiene un video que explica bien cómo resolverlo.",
+        "ajudaRepresentanteComercial": "¿Ya buscaste si en el canal de Tecnomotor en YouTube hay algo sobre esto? Si no lo encuentras, contacta con el soporte técnico.",
+        "ajudaTreinamentoEad": "En el entrenamiento EAD de ABS y Airbag, el instructor muestra que es necesario ejecutar el procedimiento de sustitución de las pastillas con el escáner.",
+        "nome": "Volvo XC-60",
+        "raster3S": false,
+        "rasher4": true,
+        "xtool": true
+      },
+      {
+        "pergunta": "Vidrio, intermitente, faro y cerradura dejaron de funcionar después de que la batería se descargó, pero el coche arranca. El escáner mostró el DTC A3C1: 'Error en el módulo de la zona de los pies, receptor del grupo de instrumentos. ¿Cuál de las alternativas siguientes puede solucionar el defecto?",
+        "respostaUm": "Hacer la reinicialización del FRM para reprogramar o reconfigurar el módulo (Módulo de la zona de los pies) con el Rasther ",
+        "respostaDois": "Sustituir el módulo FRM (Módulo de la zona de los pies). ",
+        "respostaTres": "Hacer la reinicialización del FRM para reprogramar o reconfigurar el módulo (Módulo de la zona de los pies), utilizando el Xtool ",
+        "respostaQuatro": "Conducir el vehículo por 3 km en la autopista.",
+        "gabarito": "3",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "¿Ya probaste el sistema de carga del vehículo o necesitas más información para ayudar, como un esquema eléctrico?",
+        "ajudaTecnomotorTv": "En el video, el instructor Silverley muestra paso a paso cómo reinicializar el módulo FRM con el Xtool.",
+        "ajudaComunidade": "Tuve un caso similar y el instructor Silverley me ayudó. ¿No habrá un video en YouTube sobre esto?",
+        "ajudaRepresentanteComercial": "Recibí un mensaje similar de otro cliente. Creo que en el canal de YouTube TecnomotorTV hay algo sobre esto.",
+        "ajudaTreinamentoEad": "En nuestro EAD, las soluciones involucran diagnóstico con el escáner o reparación de la central. Haz una búsqueda en el YouTube TecnomotorTV.",
+        "nome": "BMW 118i",
+        "raster3S": false,
+        "rasher4": false,
+        "xtool": true
+      },
+      {
+        "pergunta": "La batería de tracción fue cambiada, pero la autonomía sigue siendo baja. ¿Cuál es el procedimiento para informar la sustitución a la ECU?",
+        "respostaUm": "Volver a hacer el balanceo y equilibrio de los packs de batería.",
+        "respostaDois": "Realizar la carga con el cargador de Carga Rápida (Wallbox). ",
+        "respostaTres": "Realizar el procedimiento de Reset de los parámetros adaptativos. ",
+        "respostaQuatro": "Realizar el procedimiento de calibración de la capacidad de la batería.",
+        "gabarito": "4",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "Es importante estar preparado para tu seguridad al trabajar con estos vehículos, en Tecnodux tenemos una formación que te ayudará.",
+        "ajudaTecnomotorTv": "Aquí en el canal tenemos varios consejos, pero este aún está en desarrollo. Qué lástima.",
+        "ajudaComunidade": "Esta nunca la he encontrado. Recomiendo llamar al soporte de Tecnomotor.",
+        "ajudaRepresentanteComercial": "Tecnodux lanzó un curso EAD recientemente, estoy seguro de que aprenderás sobre esto allí.",
+        "ajudaTreinamentoEad": "¿Viste en el entrenamiento EAD de Eléctricos -de Tecnodux-, que debes hacer la calibración de la capacidad de la batería para actualizar los datos con el escáner?",
+        "nome": "BYD",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": true
+      },
+      {
+        "pergunta": "Después de sustituir el módulo del Airbag, el odómetro comenzó a parpadear. ¿Qué procedimiento se debe seguir para resolver este problema?",
+        "respostaUm": " Realizar el procedimiento de Ajustes - \"\"Purgado del ABS\"\" con Escáner.",
+        "respostaDois": "Executar o \"\"Reset dos parâmetros\"\" do veículo com Scanner.\t",
+        "respostaTres": "Realizar o procedimento de Programação - \"\"Nova ECU\"\" - Alinhamento de Proxy com Scanner. ",
+        "respostaQuatro": "Verificar se o módulo de ABS está recenbendo 12V.\t",
+        "gabarito": "3",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "Resolví esta duda en la comunidad. Échale un vistazo, seguro que te ayudará.",
+        "ajudaTecnomotorTv": "Este contenido aún no está disponible en nuestro canal, pero nuestros socios lo van a crear.",
+        "ajudaComunidade": "El soporte técnico indicó: Programación - 'Nueva ECU' - Alineación de Proxy con escáner.",
+        "ajudaRepresentanteComercial": "Un cliente mencionó que esa información está en la comunidad. ¡Échale un vistazo!",
+        "ajudaTreinamentoEad": "Pronto lanzaremos una capacitación EAD con este contenido, mantente atento a Tecnodux.",
+        "nome": "Fiat Gran Sienna",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": true
+      },
+      {
+        "pergunta": "En el Rasther, existe una función utilizada para validar los componentes del sistema de freno motor y ventilador en vehículos con motor MAN D08. En caso de que, después del análisis, los componentes aún presenten fallas, ¿cuál es la función que debe ejecutarse para garantizar el correcto funcionamiento del sistema?",
+        "respostaUm": "Con el Rasther, ejecutar la programación PTO presente.",
+        "respostaDois": "Con el Rasther, ejecutar la programación Inhibición del acelerador con PTO activado.",
+        "respostaTres": "Con el Rasther, realizar el ajuste Reset de los contadores. ",
+        "respostaQuatro": "Con el Rasther, realizar el ciclo de rodaje y el reset de códigos de fallas.",
+        "gabarito": "3",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "En nuestro canal TecnomotorTV, hay un video que lo explica todo claramente.",
+        "ajudaTecnomotorTv": "En este video, Fabiano Almeida enseña el paso a paso para hacer el Reset de los contadores en el Rasther.",
+        "ajudaComunidade": "Fabiano habló de eso en la capacitación. Lástima que no lo anoté...",
+        "ajudaRepresentanteComercial": "Revisa el canal de Tecnomotor en YouTube, seguro hay algo sobre eso por ahí.",
+        "ajudaTreinamentoEad": "¡Gracias por la sugerencia! Vamos a coordinar con el instructor para grabar un contenido sobre eso.",
+        "nome": "VW 24-280",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": false
+      },
+      {
+        "pergunta": "Al encontrar los DTCs 02772 y 02773 (Sensor de NOX fuera de límite), hay una acción a realizar con el Rasther. Si todo está correcto, borre esos errores. ¿Cuál es la función principal del ajuste \"Reset de los datos de NOx\" en el Rasther?",
+        "respostaUm": "Registrar datos de rendimiento del motor. ",
+        "respostaDois": "Monitorizar el motor para garantizar que opere dentro de los límites correctos.",
+        "respostaTres": "Ahorrar combustible durante la conducción. ",
+        "respostaQuatro": "Facilitar el cambio de aceite del vehículo.",
+        "gabarito": "2",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "El ajuste se ejecuta cuando los DTCs 02772 y 02773 están activos después de la reparación; su función es garantizar que el motor opere correctamente al monitorear el NOx.",
+        "ajudaTecnomotorTv": "En el video, el instructor muestra el Reset de datos NOx, que monitorea el motor para asegurar que opere dentro de los límites correctos.",
+        "ajudaComunidade": "Ya tuve este fallo, pero no recuerdo si era para mejorar la potencia o monitorizar algo.",
+        "ajudaRepresentanteComercial": "Ah, siendo diésel, mejor consultar con los instructores Hailton o Fabiano, o buscar en el canal TecnomotorTV.",
+        "ajudaTreinamentoEad": "Estamos preparando varios contenidos, pronto tendremos un EAD sobre eso. ¡Suerte!",
+        "nome": "VW Delivery",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": false
+      },
+      {
+        "pergunta": "Con el Rasther, se puede resetear la válvula de seguridad de presión del Rail. El vehículo permite esta operación si el \"número de veces que la válvula de seguridad del Rail se abrió\" es menor a 2000. ¿Cuál es el nombre de esta válvula?",
+        "respostaUm": "Válvula reguladora de presión PCV ",
+        "respostaDois": "Válvula reguladora de presión VCP",
+        "respostaTres": "Válvula reguladora de presión PVR",
+        "respostaQuatro": " Válvula reguladora de presión DRV",
+        "gabarito": "3",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "La Válvula Prioritaria del Tractor Valtra detecta alta presión y se abre para liberar aire a la atmósfera. Aprende más en el EAD.",
+        "ajudaTecnomotorTv": "Mira en nuestro canal el video del socio Morceguinho con el paso a paso del Rasther y la explicación sobre la válvula PVR.",
+        "ajudaComunidade": "Hay un video del canal TecnomotorTV que explica esta válvula. ¡Échale un vistazo!",
+        "ajudaRepresentanteComercial": "¡Hola, amigo! Prueba con nuestros contactos: canal TecnomotorTV, soporte técnico o EAD.",
+        "ajudaTreinamentoEad": "En el EAD de Tractores Valtra, se mostró que la válvula responsable de liberar la presión es la PVR.",
+        "nome": "Valtra",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": false
+      },
+      {
+        "pergunta": "La van no arranca y el panel indica baja autonomía del reactivo SCR. Incluso después de recargar el Arla, la van no arranca. ¿Qué se debe hacer para que el vehículo vuelva a arrancar?",
+        "respostaUm": "Con el Rasther, ejecutar el ajuste \"Reset de la calidad del Arla 32\".",
+        "respostaDois": "Recargar el Arla, y con el Rasther, ejecutar el ajuste \"Reset del inyector del SCR\". ",
+        "respostaTres": "Con el Rasther, ejecutar el ajuste \"Liberación de arranque\".",
+        "respostaQuatro": "Recargar el Arla, y con el Rasther, ejecutar el ajuste \"Liberación de arranque\". ",
+        "gabarito": "4",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "Verifica si recargaste el Arla. Luego usa la función de ajustes \"Liberación de arranque\".",
+        "ajudaTecnomotorTv": "Aún no tenemos un video sobre eso. ¡Puedes ser el primero! Envíanos tu video. El soporte técnico también puede ayudar.",
+        "ajudaComunidade": "Nunca vimos este error, pero vi algo parecido en el EAD de Tecnomotor. El soporte técnico también puede ayudar.",
+        "ajudaRepresentanteComercial": "El instructor Fabiano Almeida dio un consejo. Llama al Soporte Técnico para más detalles.",
+        "ajudaTreinamentoEad": "En el EAD del Sistema SCR, el instructor Fabiano destaca la importancia de recargar el Arla y ejecutar la función vía escáner.",
+        "nome": "Renaut Master",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": false
+      },
+      {
+        "pergunta": "Con el Rasther, es posible probar la dosificación de AdBlue en este vehículo. ¿Cuál de las opciones al lado indica correctamente el rango de dosificación del reactivo?",
+        "respostaUm": "200 a 220 ml.",
+        "respostaDois": " 220 a 240 ml.",
+        "respostaTres": "180 a 220 ml.",
+        "respostaQuatro": "160 a 220 ml.",
+        "gabarito": "3",
+        "relatoPreliminar": "",
+        "maisInformacoes": "",
+        "ajudaApoio": "El rango correcto de dosificación de AdBlue es de 180 a 220 ml, lo que garantiza el funcionamiento ideal del sistema.",
+        "ajudaTecnomotorTv": "Mira en TecnomotorTV cómo identificar el rango ideal de dosificación de AdBlue. Para más detalles, consulta con nuestro soporte técnico.",
+        "ajudaComunidade": "Wow, discutimos consejos sobre la dosificación de AdBlue. Para información precisa, ponte en contacto con el soporte técnico.",
+        "ajudaRepresentanteComercial": "Nunca vi eso, pero es un tema tratado en nuestras capacitaciones EAD.",
+        "ajudaTreinamentoEad": "En la capacitación EAD de Tecnodux, aprendimos que el rango correcto de dosificación de AdBlue es de 180 a 220 ml.",
+        "nome": "Mercedes Accelo 1117",
+        "raster3S": true,
+        "rasher4": true,
+        "xtool": false
+      }
+    ]
   };
   Object.defineProperty(__exports, "QUESTIONS", { get: () => QUESTIONS, enumerable: true });
   });
 
   /* ===== storage.js ===== */
   __define("storage.js", function (__exports, __require) {
-  // Todo acesso a localStorage do jogo passa por aqui.  
-  //  
-  // Três motivos:  
-  //  
-  // 1. Namespace. As chaves vinham do FlutterFlow (`ff_questoesBrasil`,  
-  //    `__locale_key__`) e num mesmo domínio colidiriam com um build Flutter do  
-  //    mesmo jogo — que gravava naquelas chaves um formato diferente (lista de  
-  //    strings serializadas, não JSON de objetos). Agora tudo vive sob `tecgame:`.  
-  //  
-  // 2. Tolerância a falha. Em modo privado, com cookies de site bloqueados, e em  
-  //    alguns navegadores por `file://`, o simples `window.localStorage` já  
-  //    *lança*. Cada acesso aqui é protegido, então o jogo roda sem persistir em  
-  //    vez de morrer na primeira tela.  
-  //  
-  // 3. Retenção. A política de privacidade do jogo promete apagar os dados depois  
-  //    de um ano. `putRecord` estampa a data e `getRecords` descarta o que passou  
-  //    do prazo, então a promessa vale também no armazenamento local — não só no  
-  //    Firestore.  
-    
-  const PREFIX = 'tecgame:';  
-    
-  /** Chaves antigas, lidas uma vez para ninguém perder o que já tinha. */  
-  const LEGACY = {  
-    'usuarios': 'tecgame_usuarios',  
-    'locale': '__locale_key__',  
-    'questoes.pt': 'ff_questoesBrasil',  
-    'questoes.en': 'ff_questoesEnglish',  
-    'questoes.es': 'ff_questoesSpanish',  
-  };  
-    
-  /** Um ano, o prazo que a política de privacidade promete. */  
-  const RETENCAO_MS = 365 * 24 * 60 * 60 * 1000;  
-    
-  /**  
-   * `localStorage` quando dá, `null` quando o navegador recusa. Não faz cache do  
-   * resultado porque a permissão pode mudar durante a sessão.  
-   */  
-  function store() {  
-    try {  
-      const s = window.localStorage;  
-      // Alguns navegadores só falham no primeiro uso de verdade, não no getter.  
-      const probe = `${PREFIX}__probe__`;  
-      s.setItem(probe, '1');  
-      s.removeItem(probe);  
-      return s;  
-    } catch (_) {  
-      return null;  
-    }  
-  }  
-    
-  /** Texto cru de uma chave, caindo para a chave legada do FlutterFlow. */  
-  function readRaw(name) {  
-    const s = store();  
-    if (!s) return null;  
-    try {  
-      const atual = s.getItem(PREFIX + name);  
-      if (atual != null) return atual;  
-      const antiga = LEGACY[name];  
-      return antiga ? s.getItem(antiga) : null;  
-    } catch (_) {  
-      return null;  
-    }  
-  }  
-    
-  /**  
-   * Por que a ultima falha fica guardada: quem grava um baralho com imagens  
-   * enviadas do computador precisa saber a diferenca entre "o navegador recusou  
-   * o armazenamento" e "nao cabe mais" -- sao dois problemas com solucoes  
-   * opostas, e um `false` seco nao distingue.  
-   *  
-   * @type {null | 'recusado' | 'cheio' | 'erro'}  
-   */  
-  let ultimaFalha = null;  
-    
-  /** Motivo da ultima escrita que falhou, ou null se a ultima deu certo. */  
-  const motivoDaFalha = () => ultimaFalha;  
-    
-  function writeRaw(name, value) {  
-    const s = store();  
-    if (!s) {  
-      ultimaFalha = 'recusado';  
-      return false;  
-    }  
-    try {  
-      s.setItem(PREFIX + name, value);  
-      ultimaFalha = null;  
-      return true;  
-    } catch (e) {  
-      // Cota estourada ou escrita negada: seguir sem persistir.  
-      const cheio =  
-        e?.name === 'QuotaExceededError' ||  
-        e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||  
-        e?.code === 22;  
-      ultimaFalha = cheio ? 'cheio' : 'erro';  
-      return false;  
-    }  
-  }  
-    
-  function readJson(name, fallback) {  
-    const raw = readRaw(name);  
-    if (raw == null) return fallback;  
-    try {  
-      const parsed = JSON.parse(raw);  
-      return parsed == null ? fallback : parsed;  
-    } catch (error) {  
-      console.warn(`[storage] ${name} ilegível, usando o padrão.`, error);  
-      return fallback;  
-    }  
-  }  
-    
-  function writeJson(name, value) {  
-    try {  
-      return writeRaw(name, JSON.stringify(value));  
-    } catch (_) {  
-      return false;  
-    }  
-  }  
-    
-  /**  
-   * Registros com prazo de validade. `agora` entra por parâmetro para o teste  
-   * poder envelhecer a base sem mexer no relógio.  
-   */  
-  function getRecords(name, agora = Date.now()) {  
-    const list = readJson(name, []);  
-    if (!Array.isArray(list)) return [];  
-    const corte = agora - RETENCAO_MS;  
-    const vivos = list.filter((r) => {  
-      const t = r && r.data ? Date.parse(r.data) : NaN;  
-      return Number.isNaN(t) ? true : t >= corte;  
-    });  
-    // Só reescreve quando algo realmente expirou, para não gravar a cada leitura.  
-    if (vivos.length !== list.length) writeJson(name, vivos);  
-    return vivos;  
-  }  
-    
-  function putRecord(name, record, agora = Date.now()) {  
-    const list = getRecords(name, agora);  
-    list.push(record);  
-    return writeJson(name, list);  
+  // Todo acesso a localStorage do jogo passa por aqui.
+  //
+  // Três motivos:
+  //
+  // 1. Namespace. As chaves vinham do FlutterFlow (`ff_questoesBrasil`,
+  //    `__locale_key__`) e num mesmo domínio colidiriam com um build Flutter do
+  //    mesmo jogo — que gravava naquelas chaves um formato diferente (lista de
+  //    strings serializadas, não JSON de objetos). Agora tudo vive sob `tecgame:`.
+  //
+  // 2. Tolerância a falha. Em modo privado, com cookies de site bloqueados, e em
+  //    alguns navegadores por `file://`, o simples `window.localStorage` já
+  //    *lança*. Cada acesso aqui é protegido, então o jogo roda sem persistir em
+  //    vez de morrer na primeira tela.
+  //
+  // 3. Retenção. A política de privacidade do jogo promete apagar os dados depois
+  //    de um ano. `putRecord` estampa a data e `getRecords` descarta o que passou
+  //    do prazo, então a promessa vale também no armazenamento local — não só no
+  //    Firestore.
+  
+  const PREFIX = 'tecgame:';
+  
+  /** Chaves antigas, lidas uma vez para ninguém perder o que já tinha. */
+  const LEGACY = {
+    'usuarios': 'tecgame_usuarios',
+    'locale': '__locale_key__',
+    'questoes.pt': 'ff_questoesBrasil',
+    'questoes.en': 'ff_questoesEnglish',
+    'questoes.es': 'ff_questoesSpanish',
+  };
+  
+  /** Um ano, o prazo que a política de privacidade promete. */
+  const RETENCAO_MS = 365 * 24 * 60 * 60 * 1000;
+  
+  /**
+   * `localStorage` quando dá, `null` quando o navegador recusa. Não faz cache do
+   * resultado porque a permissão pode mudar durante a sessão.
+   */
+  function store() {
+    try {
+      const s = window.localStorage;
+      // Alguns navegadores só falham no primeiro uso de verdade, não no getter.
+      const probe = `${PREFIX}__probe__`;
+      s.setItem(probe, '1');
+      s.removeItem(probe);
+      return s;
+    } catch (_) {
+      return null;
+    }
+  }
+  
+  /** Texto cru de uma chave, caindo para a chave legada do FlutterFlow. */
+  function readRaw(name) {
+    const s = store();
+    if (!s) return null;
+    try {
+      const atual = s.getItem(PREFIX + name);
+      if (atual != null) return atual;
+      const antiga = LEGACY[name];
+      return antiga ? s.getItem(antiga) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  
+  /**
+   * Por que a ultima falha fica guardada: quem grava um baralho com imagens
+   * enviadas do computador precisa saber a diferenca entre "o navegador recusou
+   * o armazenamento" e "nao cabe mais" -- sao dois problemas com solucoes
+   * opostas, e um `false` seco nao distingue.
+   *
+   * @type {null | 'recusado' | 'cheio' | 'erro'}
+   */
+  let ultimaFalha = null;
+  
+  /** Motivo da ultima escrita que falhou, ou null se a ultima deu certo. */
+  const motivoDaFalha = () => ultimaFalha;
+  
+  function writeRaw(name, value) {
+    const s = store();
+    if (!s) {
+      ultimaFalha = 'recusado';
+      return false;
+    }
+    try {
+      s.setItem(PREFIX + name, value);
+      ultimaFalha = null;
+      return true;
+    } catch (e) {
+      // Cota estourada ou escrita negada: seguir sem persistir.
+      const cheio =
+        e?.name === 'QuotaExceededError' ||
+        e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+        e?.code === 22;
+      ultimaFalha = cheio ? 'cheio' : 'erro';
+      return false;
+    }
+  }
+  
+  function readJson(name, fallback) {
+    const raw = readRaw(name);
+    if (raw == null) return fallback;
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed == null ? fallback : parsed;
+    } catch (error) {
+      console.warn(`[storage] ${name} ilegível, usando o padrão.`, error);
+      return fallback;
+    }
+  }
+  
+  function writeJson(name, value) {
+    try {
+      return writeRaw(name, JSON.stringify(value));
+    } catch (_) {
+      return false;
+    }
+  }
+  
+  /**
+   * Registros com prazo de validade. `agora` entra por parâmetro para o teste
+   * poder envelhecer a base sem mexer no relógio.
+   */
+  function getRecords(name, agora = Date.now()) {
+    const list = readJson(name, []);
+    if (!Array.isArray(list)) return [];
+    const corte = agora - RETENCAO_MS;
+    const vivos = list.filter((r) => {
+      const t = r && r.data ? Date.parse(r.data) : NaN;
+      return Number.isNaN(t) ? true : t >= corte;
+    });
+    // Só reescreve quando algo realmente expirou, para não gravar a cada leitura.
+    if (vivos.length !== list.length) writeJson(name, vivos);
+    return vivos;
+  }
+  
+  function putRecord(name, record, agora = Date.now()) {
+    const list = getRecords(name, agora);
+    list.push(record);
+    return writeJson(name, list);
   }
   Object.defineProperty(__exports, "RETENCAO_MS", { get: () => RETENCAO_MS, enumerable: true });
   Object.defineProperty(__exports, "readRaw", { get: () => readRaw, enumerable: true });
@@ -1809,297 +1809,297 @@
 
   /* ===== offensive_words.js ===== */
   __define("offensive_words.js", function (__exports, __require) {
-  // Generated from the FlutterFlow Dart sources by scripts/gen_data.py.  
-  // Do not edit by hand.  
-  const OFFENSIVE_WORDS = [  
-    "420blaze",  
-    "69delicia",  
-    "aborto",  
-    "amador",  
-    "aranha",  
-    "ariano",  
-    "ariano supremo",  
-    "aut1st4",  
-    "autista de merda",  
-    "b o c e t 4",  
-    "b o c e t a",  
-    "b o s t a",  
-    "b0c3t4",  
-    "b0ceta",  
-    "b0st4",  
-    "b3s7a",  
-    "b3st@",  
-    "b@se@d0",  
-    "bagulh0",  
-    "bagulho doido",  
-    "balalao",  
-    "baph0m3t",  
-    "baphomet",  
-    "baseado",  
-    "bastardo",  
-    "biba",  
-    "biba loka",  
-    "bicha",  
-    "bichinha",  
-    "biscate",  
-    "bissexual",  
-    "boceta",  
-    "boiola",  
-    "boob",  
-    "bosta",  
-    "br@nc0 suprem@",  
-    "branco supremo",  
-    "braulio de borracha",  
-    "bumbum",  
-    "burro",  
-    "c 0 r n 0",  
-    "c l i t o r i s",  
-    "c o r n o",  
-    "c u z i n h a",  
-    "c u z ã o",  
-    "c0m3r",  
-    "c0rn0",  
-    "c4r4lh0",  
-    "c@r4lh0",  
-    "cabrao",  
-    "cacete",  
-    "cagar",  
-    "camisinha",  
-    "car4i0",  
-    "caralho",  
-    "cerveja",  
-    "ch o c h o t a",  
-    "ch0ch0ta",  
-    "ch3ir4dor",  
-    "cheirador",  
-    "cheirador de pó",  
-    "chochota",  
-    "chupar",  
-    "cl1t0r1s",  
-    "clitoris",  
-    "cocaína",  
-    "coito",  
-    "colhoes",  
-    "comedor",  
-    "comequieto",  
-    "comer",  
-    "cona",  
-    "consolo",  
-    "corno",  
-    "cr@ckud0",  
-    "crackudo",  
-    "cu",  
-    "d4r 0 r4b0",  
-    "dar o rab@0",  
-    "dar o rabo",  
-    "defici3nt3",  
-    "deficiente",  
-    "demon10 d0 s3x0",  
-    "demônio do sexo",  
-    "downzento",  
-    "downzinh0",  
-    "dum raio",  
-    "esporra",  
-    "esquizofrênico",  
-    "f o d a",  
-    "f o d a s e",  
-    "f o d e r",  
-    "f u c k g 0 d",  
-    "f u c k m e",  
-    "f.od.a",  
-    "f0d4",  
-    "f0d4-s3",  
-    "f0d4-se",  
-    "f0d4s3",  
-    "f0d@",  
-    "f0d@-s3",  
-    "f0d@dor",  
-    "f0d@s3",  
-    "f0der",  
-    "f1lh0 d4 put4",  
-    "fecal",  
-    "filh0 d@ pvt@",  
-    "filho d4 p u t 4",  
-    "filho da puta",  
-    "foda",  
-    "foda-se",  
-    "foder",  
-    "fuckgod",  
-    "fuckme",  
-    "fum@d0r",  
-    "fumador",  
-    "fumador de pedra",  
-    "g 0 z a",  
-    "g o s t o s a",  
-    "g o z a r",  
-    "g0rd0 fedido",  
-    "g0s7os0n@",  
-    "g0st0s0",  
-    "g0st0sinha",  
-    "g0xxt0s4",  
-    "g0z4",  
-    "g0z@r",  
-    "gata pelada",  
-    "gostosona",  
-    "gozar",  
-    "grelho",  
-    "h a r d c o c k",  
-    "h1tl3r",  
-    "hardcock",  
-    "heroína",  
-    "heterosexual",  
-    "hitler",  
-    "homem gay",  
-    "homoerótico",  
-    "homosexual",  
-    "inferno",  
-    "k u k l u x",  
-    "kkk",  
-    "ku klux klan",  
-    "l1ck me",  
-    "l1ckm3",  
-    "lick m y balls",  
-    "lickme",  
-    "lickmyballs",  
-    "lolita",  
-    "lésbica",  
-    "m 3 r d @",  
-    "m e c o m e",  
-    "m e r d a",  
-    "m3rch4",  
-    "m3rd@",  
-    "m3t3r0la",  
-    "m4c4c0",  
-    "mac0nha",  
-    "macaco",  
-    "maconheiro",  
-    "mama",  
-    "me come",  
-    "merda",  
-    "mete r 0 l a",  
-    "mongol0id3",  
-    "mongoloide",  
-    "n1g4",  
-    "n1gg4",  
-    "n1gg@",  
-    "n1gga",  
-    "n@z1",  
-    "n@zista",  
-    "nazista",  
-    "negro fedido",  
-    "nigg4",  
-    "p @ u",  
-    "p e n e t r a",  
-    "p e n i s",  
-    "p i n t o",  
-    "p o r r a",  
-    "p u t a",  
-    "p v t a",  
-    "p.a.u",  
-    "p.u.t.a",  
-    "p0rra",  
-    "p1nt0",  
-    "p3.nis",  
-    "p3n1s",  
-    "p3n3trador",  
-    "p3nis",  
-    "p4u",  
-    "p@ss@r um ch3qu3",  
-    "p@ssar um ch3qu3",  
-    "p@u",  
-    "paneleiro",  
-    "passar um cheque",  
-    "pau",  
-    "pauzinh0",  
-    "pauzudo",  
-    "pauzão",  
-    "peidar",  
-    "pinto",  
-    "porra",  
-    "pr0stitut@",  
-    "pr3t0 i m u n d o",  
-    "preto imundo",  
-    "put@",  
-    "puta",  
-    "puta que pariu",  
-    "puta que te pariu",  
-    "putinha",  
-    "pvt@",  
-    "pvta",  
-    "pênis",  
-    "queca",  
-    "r o l a",  
-    "r o l a z a o",  
-    "r0l@",  
-    "r3t4rd4do",  
-    "ret4rd",  
-    "retard",  
-    "retardado",  
-    "rol4o",  
-    "rol@ gr@nd3",  
-    "rola",  
-    "rola grande",  
-    "s3x u a l",  
-    "s3x0",  
-    "s3xu4l",  
-    "s3xy",  
-    "s4.k0",  
-    "s4c0",  
-    "s4c@n@g3m",  
-    "s4t4n",  
-    "s4tanz1nh0",  
-    "sacanagem",  
-    "saco",  
-    "satan",  
-    "satanzinho",  
-    "senta a k i",  
-    "senta aqui",  
-    "sl4v30wn3r",  
-    "slaveowner",  
-    "sniffer",  
-    "tarado",  
-    "taradão",  
-    "transar",  
-    "v 1 a d o",  
-    "v 4 g i n a",  
-    "v a i t e f o d e r",  
-    "v a i t o m a r n o c u",  
-    "v i 4 d o",  
-    "v i a d i n",  
-    "v i a d o",  
-    "v14d0",  
-    "v1ad0",  
-    "v4d14",  
-    "v4g1n4",  
-    "v4g1n@",  
-    "v@i t0m@r n0 cu",  
-    "v@i t3 f0d3r",  
-    "vadia",  
-    "vadinh@",  
-    "vai se f@d3r",  
-    "vai t@ m@r",  
-    "vai tomar no cu",  
-    "vai-te foder",  
-    "vait0m@rnocu",  
-    "veado",  
-    "vemnimim",  
-    "vemnimim gostosa",  
-    "viado",  
-    "viadooo",  
-    "vibrador",  
-    "wh1t3p0w3r",  
-    "whitepower",  
-    "x @ n a",  
-    "x a n a",  
-    "x o c h o t a",  
-    "x0ch0ta",  
-    "x4n4",  
-    "x@n@",  
-    "xana",  
-    "xaninha",  
-    "xochota",  
-    "zé povinho",  
-    "ânus"  
+  // Generated from the FlutterFlow Dart sources by scripts/gen_data.py.
+  // Do not edit by hand.
+  const OFFENSIVE_WORDS = [
+    "420blaze",
+    "69delicia",
+    "aborto",
+    "amador",
+    "aranha",
+    "ariano",
+    "ariano supremo",
+    "aut1st4",
+    "autista de merda",
+    "b o c e t 4",
+    "b o c e t a",
+    "b o s t a",
+    "b0c3t4",
+    "b0ceta",
+    "b0st4",
+    "b3s7a",
+    "b3st@",
+    "b@se@d0",
+    "bagulh0",
+    "bagulho doido",
+    "balalao",
+    "baph0m3t",
+    "baphomet",
+    "baseado",
+    "bastardo",
+    "biba",
+    "biba loka",
+    "bicha",
+    "bichinha",
+    "biscate",
+    "bissexual",
+    "boceta",
+    "boiola",
+    "boob",
+    "bosta",
+    "br@nc0 suprem@",
+    "branco supremo",
+    "braulio de borracha",
+    "bumbum",
+    "burro",
+    "c 0 r n 0",
+    "c l i t o r i s",
+    "c o r n o",
+    "c u z i n h a",
+    "c u z ã o",
+    "c0m3r",
+    "c0rn0",
+    "c4r4lh0",
+    "c@r4lh0",
+    "cabrao",
+    "cacete",
+    "cagar",
+    "camisinha",
+    "car4i0",
+    "caralho",
+    "cerveja",
+    "ch o c h o t a",
+    "ch0ch0ta",
+    "ch3ir4dor",
+    "cheirador",
+    "cheirador de pó",
+    "chochota",
+    "chupar",
+    "cl1t0r1s",
+    "clitoris",
+    "cocaína",
+    "coito",
+    "colhoes",
+    "comedor",
+    "comequieto",
+    "comer",
+    "cona",
+    "consolo",
+    "corno",
+    "cr@ckud0",
+    "crackudo",
+    "cu",
+    "d4r 0 r4b0",
+    "dar o rab@0",
+    "dar o rabo",
+    "defici3nt3",
+    "deficiente",
+    "demon10 d0 s3x0",
+    "demônio do sexo",
+    "downzento",
+    "downzinh0",
+    "dum raio",
+    "esporra",
+    "esquizofrênico",
+    "f o d a",
+    "f o d a s e",
+    "f o d e r",
+    "f u c k g 0 d",
+    "f u c k m e",
+    "f.od.a",
+    "f0d4",
+    "f0d4-s3",
+    "f0d4-se",
+    "f0d4s3",
+    "f0d@",
+    "f0d@-s3",
+    "f0d@dor",
+    "f0d@s3",
+    "f0der",
+    "f1lh0 d4 put4",
+    "fecal",
+    "filh0 d@ pvt@",
+    "filho d4 p u t 4",
+    "filho da puta",
+    "foda",
+    "foda-se",
+    "foder",
+    "fuckgod",
+    "fuckme",
+    "fum@d0r",
+    "fumador",
+    "fumador de pedra",
+    "g 0 z a",
+    "g o s t o s a",
+    "g o z a r",
+    "g0rd0 fedido",
+    "g0s7os0n@",
+    "g0st0s0",
+    "g0st0sinha",
+    "g0xxt0s4",
+    "g0z4",
+    "g0z@r",
+    "gata pelada",
+    "gostosona",
+    "gozar",
+    "grelho",
+    "h a r d c o c k",
+    "h1tl3r",
+    "hardcock",
+    "heroína",
+    "heterosexual",
+    "hitler",
+    "homem gay",
+    "homoerótico",
+    "homosexual",
+    "inferno",
+    "k u k l u x",
+    "kkk",
+    "ku klux klan",
+    "l1ck me",
+    "l1ckm3",
+    "lick m y balls",
+    "lickme",
+    "lickmyballs",
+    "lolita",
+    "lésbica",
+    "m 3 r d @",
+    "m e c o m e",
+    "m e r d a",
+    "m3rch4",
+    "m3rd@",
+    "m3t3r0la",
+    "m4c4c0",
+    "mac0nha",
+    "macaco",
+    "maconheiro",
+    "mama",
+    "me come",
+    "merda",
+    "mete r 0 l a",
+    "mongol0id3",
+    "mongoloide",
+    "n1g4",
+    "n1gg4",
+    "n1gg@",
+    "n1gga",
+    "n@z1",
+    "n@zista",
+    "nazista",
+    "negro fedido",
+    "nigg4",
+    "p @ u",
+    "p e n e t r a",
+    "p e n i s",
+    "p i n t o",
+    "p o r r a",
+    "p u t a",
+    "p v t a",
+    "p.a.u",
+    "p.u.t.a",
+    "p0rra",
+    "p1nt0",
+    "p3.nis",
+    "p3n1s",
+    "p3n3trador",
+    "p3nis",
+    "p4u",
+    "p@ss@r um ch3qu3",
+    "p@ssar um ch3qu3",
+    "p@u",
+    "paneleiro",
+    "passar um cheque",
+    "pau",
+    "pauzinh0",
+    "pauzudo",
+    "pauzão",
+    "peidar",
+    "pinto",
+    "porra",
+    "pr0stitut@",
+    "pr3t0 i m u n d o",
+    "preto imundo",
+    "put@",
+    "puta",
+    "puta que pariu",
+    "puta que te pariu",
+    "putinha",
+    "pvt@",
+    "pvta",
+    "pênis",
+    "queca",
+    "r o l a",
+    "r o l a z a o",
+    "r0l@",
+    "r3t4rd4do",
+    "ret4rd",
+    "retard",
+    "retardado",
+    "rol4o",
+    "rol@ gr@nd3",
+    "rola",
+    "rola grande",
+    "s3x u a l",
+    "s3x0",
+    "s3xu4l",
+    "s3xy",
+    "s4.k0",
+    "s4c0",
+    "s4c@n@g3m",
+    "s4t4n",
+    "s4tanz1nh0",
+    "sacanagem",
+    "saco",
+    "satan",
+    "satanzinho",
+    "senta a k i",
+    "senta aqui",
+    "sl4v30wn3r",
+    "slaveowner",
+    "sniffer",
+    "tarado",
+    "taradão",
+    "transar",
+    "v 1 a d o",
+    "v 4 g i n a",
+    "v a i t e f o d e r",
+    "v a i t o m a r n o c u",
+    "v i 4 d o",
+    "v i a d i n",
+    "v i a d o",
+    "v14d0",
+    "v1ad0",
+    "v4d14",
+    "v4g1n4",
+    "v4g1n@",
+    "v@i t0m@r n0 cu",
+    "v@i t3 f0d3r",
+    "vadia",
+    "vadinh@",
+    "vai se f@d3r",
+    "vai t@ m@r",
+    "vai tomar no cu",
+    "vai-te foder",
+    "vait0m@rnocu",
+    "veado",
+    "vemnimim",
+    "vemnimim gostosa",
+    "viado",
+    "viadooo",
+    "vibrador",
+    "wh1t3p0w3r",
+    "whitepower",
+    "x @ n a",
+    "x a n a",
+    "x o c h o t a",
+    "x0ch0ta",
+    "x4n4",
+    "x@n@",
+    "xana",
+    "xaninha",
+    "xochota",
+    "zé povinho",
+    "ânus"
   ];
   Object.defineProperty(__exports, "OFFENSIVE_WORDS", { get: () => OFFENSIVE_WORDS, enumerable: true });
   });
@@ -2731,459 +2731,459 @@
 
   /* ===== translations.js ===== */
   __define("translations.js", function (__exports, __require) {
-  // Generated from the FlutterFlow Dart sources by scripts/gen_data.py.  
-  // Do not edit by hand.  
-  const TRANSLATIONS = {  
-    "x6urz5cq": {  
-      "pt": "GIRAR A ROLETA",  
-      "en": "",  
-      "es": ""  
-    },  
-    "ddk969co": {  
-      "pt": "Home",  
-      "en": "Home",  
-      "es": "Hogar"  
-    },  
-    "yeby7x4r": {  
-      "pt": "DEFEITO",  
-      "en": "DEFECT",  
-      "es": "DEFECTO"  
-    },  
-    "iuseamae": {  
-      "pt": "Problema do cliente:",  
-      "en": "Customer Problem:",  
-      "es": "Problema del cliente:"  
-    },  
-    "v49ebix1": {  
-      "pt": "Home",  
-      "en": "Home",  
-      "es": "Hogar"  
-    },  
-    "sk6w3j28": {  
-      "pt": "Hello World",  
-      "en": "",  
-      "es": ""  
-    },  
-    "05h1096o": {  
-      "pt": "Primeiro Nome ( Teclado )",  
-      "en": "First Name (Keyboard)",  
-      "es": "Nombre (Teclado)"  
-    },  
-    "b4pv213k": {  
-      "pt": "Digite aqui seu nome",  
-      "en": "Enter your name here",  
-      "es": "Introduce tu nombre aquí"  
-    },  
-    "6vx2q4r4": {  
-      "pt": "Whatsapp ( teclado )",  
-      "en": "Whatsapp (keyboard)",  
-      "es": "WhatsApp (teclado)"  
-    },  
-    "559rlm5s": {  
-      "pt": "Digite o seu número",  
-      "en": "Enter your number",  
-      "es": "Introduce tu número"  
-    },  
-    "sfh76esp": {  
-      "pt": "Tipo da oficina ( Tela )",  
-      "en": "Workshop Type (Screen)",  
-      "es": "Tipo de taller (pantalla)"  
-    },  
-    "6rvdt37x": {  
-      "pt": "Escolha o seu seguimento",  
-      "en": "Choose your segment",  
-      "es": "Elige tu segmento"  
-    },  
-    "b7fxqzyr": {  
-      "pt": "Search...",  
-      "en": "Search...",  
-      "es": "Buscar..."  
-    },  
-    "yr06bw5q": {  
-      "pt": "- Oficina Diesel",  
-      "en": "- Diesel Workshop",  
-      "es": "- Taller de diésel"  
-    },  
-    "u1togdyu": {  
-      "pt": "- Centro-automotivo",  
-      "en": "- Automotive center",  
-      "es": "- Centro automotriz"  
-    },  
-    "zw8uhrit": {  
-      "pt": "- Oficina-mecânica",  
-      "en": "- Mechanical workshop",  
-      "es": "- Taller mecánico"  
-    },  
-    "n9va5c85": {  
-      "pt": "- Auto-Elétrico",  
-      "en": "- Auto-Electric",  
-      "es": "- Auto-Eléctrico"  
-    },  
-    "h3ss4zal": {  
-      "pt": "- Transmissão automática",  
-      "en": "- Automatic transmission",  
-      "es": "- Transmisión automática"  
-    },  
-    "1xkz4x22": {  
-      "pt": "- Ar-condicionado",  
-      "en": "- Air conditioning",  
-      "es": "- Aire acondicionado"  
-    },  
-    "uiyoqx6p": {  
-      "pt": "- Borracharia",  
-      "en": "- Tire repair shop",  
-      "es": "- Taller de reparación de neumáticos"  
-    },  
-    "2i2l5ptm": {  
-      "pt": "- Chaveiro",  
-      "en": "- Keychain",  
-      "es": "- Llavero"  
-    },  
-    "gnijwn15": {  
-      "pt": "- Autonomo",  
-      "en": "- Self-employed",  
-      "es": "- Trabajadores por cuenta propia"  
-    },  
-    "o3hsgf10": {  
-      "pt": "- Outros..",  
-      "en": "- Others..",  
-      "es": "- Otros.."  
-    },  
-    "kn0wcjje": {  
-      "pt": "CONFIRMAR",  
-      "en": "CONFIRM",  
-      "es": "CONFIRMAR"  
-    },  
-    "hjove9jy": {  
-      "pt": "Ao clicar em continuar você concorda com os termos de acesso de dados, inseridos neste aplicativo",  
-      "en": "By clicking continue you agree to the data access terms entered in this application.",  
-      "es": "Al hacer clic en continuar, usted acepta los términos de acceso a datos ingresados ​​en esta solicitud."  
-    },  
-    "ra9dcpxq": {  
-      "pt": "Digite seu nome",  
-      "en": "Enter your name",  
-      "es": "Introduce tu nombre"  
-    },  
-    "8kqr8sju": {  
-      "pt": "Please choose an option from the dropdown",  
-      "en": "Please choose an option from the dropdown",  
-      "es": "Por favor, elija una opción del menú desplegable."  
-    },  
-    "xz37mrbb": {  
-      "pt": "Digite seu telefone",  
-      "en": "Enter your phone number",  
-      "es": "Introduce tu número de teléfono"  
-    },  
-    "q9rswos3": {  
-      "pt": "Please choose an option from the dropdown",  
-      "en": "Please choose an option from the dropdown",  
-      "es": "Por favor, elija una opción del menú desplegable."  
-    },  
-    "dtw832zr": {  
-      "pt": "Home",  
-      "en": "Home",  
-      "es": "Hogar"  
-    },  
-    "q55g6kdp": {  
-      "pt": "ESCOLHA O EQUIPAMENTO IDEAL",  
-      "en": "CHOOSE THE IDEAL EQUIPMENT",  
-      "es": "ELIGE EL EQUIPO IDEAL"  
-    },  
-    "58ar2tm4": {  
-      "pt": "Home",  
-      "en": "Home",  
-      "es": "Hogar"  
-    },  
-    "cu3gopmv": {  
-      "pt": "REINICIAR",  
-      "en": "RESET",  
-      "es": "REINICIAR"  
-    },  
-    "15q6lthy": {  
-      "pt": "Problema \nnão resolvido\nVocê perdeu!",  
-      "en": "Problem\nnot resolved\nYou lost!",  
-      "es": "Problema \nno resuelto\n¡Perdiste!"  
-    },  
-    "jxhibh8c": {  
-      "pt": "Maiores campeões",  
-      "en": "Greatest champions",  
-      "es": "Los mejores campeones"  
-    },  
-    "kdwpszzf": {  
-      "pt": "Home",  
-      "en": "Home",  
-      "es": "Hogar"  
-    },  
-    "7gm0teyw": {  
-      "pt": "REINICIAR",  
-      "en": "RESET",  
-      "es": "REINICIAR"  
-    },  
-    "a6zzenfh": {  
-      "pt": "Problema \nResolvido\nVocê Ganhou!!",  
-      "en": "Problem\nSolved\nYou Win!!",  
-      "es": "Problema \nResuelto\n¡¡¡Ganaste!!!"  
-    },  
-    "61r6v2nk": {  
-      "pt": "Maiores campeões",  
-      "en": "Greatest champions",  
-      "es": "Los mejores campeones"  
-    },  
-    "ctiffzon": {  
-      "pt": "Home",  
-      "en": "Home",  
-      "es": "Hogar"  
-    },  
-    "inc1pvk9": {  
-      "pt": "Home",  
-      "en": "Home",  
-      "es": "Hogar"  
-    },  
-    "islas0rw": {  
-      "pt": "Vídeo demonstrativo * ",  
-      "en": "Demonstration video *",  
-      "es": "Vídeo demostrativo*"  
-    },  
-    "dxgn9z79": {  
-      "pt": "Home",  
-      "en": "Home",  
-      "es": "Hogar"  
-    },  
-    "ii6e477y": {  
-      "pt": "Pular instruções",  
-      "en": "",  
-      "es": ""  
-    },  
-    "aiyvchje": {  
-      "pt": "Home",  
-      "en": "Home",  
-      "es": "Hogar"  
-    },  
-    "t7nwkmmo": {  
-      "pt": "Home",  
-      "en": "Home",  
-      "es": "Hogar"  
-    },  
-    "navhbcsm": {  
-      "pt": "Você está \nUsando",  
-      "en": "You are\nUsing",  
-      "es": "Eres \nUsando"  
-    },  
-    "x5fvgf80": {  
-      "pt": "O problema do veículo",  
-      "en": "The vehicle problem",  
-      "es": "El problema del vehículo"  
-    },  
-    "bvcy0hg2": {  
-      "pt": "1",  
-      "en": "1",  
-      "es": "1"  
-    },  
-    "fvk3pjqg": {  
-      "pt": "2",  
-      "en": "2",  
-      "es": "2"  
-    },  
-    "u3qmdqw7": {  
-      "pt": "3",  
-      "en": "3",  
-      "es": "3"  
-    },  
-    "ai7wwgfu": {  
-      "pt": "4",  
-      "en": "4",  
-      "es": "4"  
-    },  
-    "k0xz8bjz": {  
-      "pt": "Suporte\nDisponível!",  
-      "en": "Support\nAvailable",  
-      "es": "Apoyo\nDisponible"  
-    },  
-    "at429bys": {  
-      "pt": "OPS! EQUIPAMENTO INVÁLIDO!",  
-      "en": "OOPS! INVALID EQUIPMENT!",  
-      "es": "¡UPS! ¡EQUIPO NO VÁLIDO!"  
-    },  
-    "guieoms2": {  
-      "pt": "O equipamento escolhido não realiza essa função, olhe novamente os equipamentos disponíveis e escolha um que se adeque. ",  
-      "en": "The equipment chosen does not perform this function, look again at the available equipment and choose one that suits.",  
-      "es": "El equipo elegido no realiza esta función, mire nuevamente el equipo disponible y elija aquel que se adapte a sus necesidades."  
-    },  
-    "9ri5a6s3": {  
-      "pt": "Voltar",  
-      "en": "To go back",  
-      "es": "Para volver atrás"  
-    },  
-    "cxqngi7d": {  
-      "pt": "Política de Privacidade\nÚltima atualização:  03/04/2025\n1. Coleta de Dados\nAo utilizar nosso game, coletamos as seguintes informações dos usuários:\nNome\nTelefone\nTipo de oficina\nDados relacionados ao desempenho no game\n2. Finalidade da Coleta\nOs dados são coletados para as seguintes finalidades:\nCadastro no game\nSuporte ao usuário\nPersonalização da experiência de jogo\nColeta de informações para futuras propostas e melhorias no game\nExibição no ranking dentro do jogo\nO fornecimento desses dados não é obrigatório para jogar, mas é necessário para que o jogador apareça no ranking ao final do game.\n3. Armazenamento e Segurança\nOs dados são armazenados de forma segura no Firebase, garantindo proteção contra acessos não autorizados.\nOs dados serão mantidos por um período de 1 ano e, após esse prazo, serão excluídos automaticamente dos nossos sistemas.\n4. Compartilhamento de Dados\nOs dados coletados não serão compartilhados com terceiros sem o consentimento do usuário.\n5. Direitos do Usuário\nO usuário tem o direito de solicitar a exclusão ou alteração de seus dados a qualquer momento. Para isso, basta enviar um e-mail para davi.manieri@tecnomotordi.com.br solicitando a remoção ou correção das informações armazenadas.\n6. Aceitação da Política\nAo clicar em \"Confirmar\", o usuário declara que leu e concorda com esta Política de Privacidade e autoriza a coleta e o armazenamento dos dados conforme descrito.\nCaso não concorde com os termos, o usuário pode optar por não fornecer os dados, mas isso pode impactar algumas funcionalidades do game, como a exibição no ranking.\nTermos de Uso - Tecnogame\nÚltima atualização: 03/04/2025\n1. IntroduçãoBem-vindo ao Tecnogame, um jogo desenvolvido pela Tecnomotor Distribuidora. Ao acessar e utilizar o jogo, você concorda com os seguintes termos de uso. Caso não concorde, recomendamos que não utilize o game.\n2. Uso do Jogo\nO Tecnogame é um jogo gratuito e não possui compras dentro do aplicativo.\nNão há restrição de idade para jogar.\nO jogo é solo e não há interações entre jogadores.\nO jogo pode apresentar erros ou instabilidades sem aviso prévio.\n3. Coleta e Uso de DadosAo utilizar o Tecnogame, alguns dados podem ser coletados para cadastro e personalização da experiência, incluindo:\nNome\nTelefone\nTipo de oficina\nInformações geradas dentro do gameEsses dados são armazenados no Firebase e utilizados para suporte e coleta de informações para futuras propostas. Os dados serão excluídos automaticamente após 1 ano. O usuário pode solicitar a exclusão antecipada enviando um e-mail para davi.manieri@tecnomotordi.com.br.\n4. Conduta do Usuário\nNão é permitido o uso de nomes inadequados dentro do jogo.\nO jogo não possui sistema de banimento, mas poderá ocultar nomes inadequados.\n5. Alterações nos TermosEstes Termos de Uso podem ser atualizados a qualquer momento. A data da última alteração será sempre informada no topo deste documento.\nAo utilizar o Tecnogame, você concorda com todos os pontos mencionados acima. Caso tenha dúvidas, entre em contato pelo e-mail indicado.\nObrigado por jogar o Tecnogame! 🎮\n",  
-      "en": "Privacy Policy\nLast updated: 04/03/2025\n1. Data Collection\nWhen using our game, we collect the following information from users:\nName\nPhone\nType of workshop\nData related to in-game performance\n2. Purpose of Collection\nThe data is collected for the following purposes:\nRegistration in the game\nUser support\nPersonalization of the gaming experience\nCollection of information for future proposals and improvements to the game\nDisplay in the in-game ranking\nProviding this data is not mandatory to play, but it is necessary for the player to appear in the ranking at the end of the game.\n3. Storage and Security\nThe data is stored securely in Firebase, ensuring protection against unauthorized access.\nThe data will be kept for a period of 1 year and, after that period, will be automatically deleted from our systems.\n4. Data Sharing\nThe data collected will not be shared with third parties without the user's consent.\n5. User Rights\nThe user has the right to request the deletion or modification of their data at any time. To do so, simply send an email to davi.manieri@tecnomotordi.com.br requesting the removal or correction of the stored information.\n6. Acceptance of the Policy\nBy clicking \"Confirm\", the user declares that he/she has read and agrees with this Privacy Policy and authorizes the collection and storage of data as described.\nIf the user does not agree with the terms, the user can choose not to provide the data, but this may impact some features of the game, such as display in the ranking.\nTerms of Use - Tecnogame\nLast update: 04/03/2025\n1. IntroductionWelcome to Tecnogame, a game developed by Tecnomotor Distribuidora. By accessing and using the game, you agree to the following terms of use. If you do not agree, we recommend that you do not use the game.\n2. Use of the Game\nTecnogame is a free game and does not have in-app purchases.\nThere is no age restriction to play.\nThe game is solo and there is no interaction between players.\nThe game may present errors or instability without prior notice.\n3. Collection and Use of DataWhen using Tecnogame, some data may be collected for registration and personalization of the experience, including:\nName\nPhone\nType of workshop\nInformation generated within the gameThis data is stored in Firebase and used for support and collection of information for future proposals. The data will be automatically deleted after 1 year. The user can request early deletion by sending an email to davi.manieri@tecnomotordi.com.br.\n4. User Conduct\nThe use of inappropriate names within the game is not permitted.\nThe game does not have a banning system, but may hide inappropriate names.\n5. Changes to the TermsThese Terms of Use may be updated at any time. The date of the last change will always be indicated at the top of this document.\nBy using Tecnogame, you agree to all the points mentioned above. If you have any questions, please contact us at the email address provided.\nThank you for playing Tecnogame! 🎮",  
-      "es": "política de privacidad\nÚltima actualización: 04/03/2025\n1. Recopilación de datos\nAl utilizar nuestro juego, recopilamos la siguiente información de los usuarios:\nNombre\nTeléfono\nTipo de taller\nDatos relacionados con el rendimiento del juego\n2. Finalidad de la recopilación\nLos datos se recopilan para los siguientes fines:\nRegistro del juego\nSoporte al usuario\nPersonalizar la experiencia de juego\nRecopilación de información para futuras propuestas y mejoras del juego.\nVisualización de la clasificación en el juego\nProporcionar estos datos no es obligatorio para jugar, pero sí necesario para que el jugador aparezca en el ranking al final de la partida.\n3. Almacenamiento y seguridad\nLos datos se almacenan de forma segura en Firebase, lo que garantiza la protección contra el acceso no autorizado.\nLos datos se conservarán durante el plazo de 1 año y, transcurrido este plazo, serán eliminados automáticamente de nuestros sistemas.\n4. Intercambio de datos\nLos datos recogidos no serán compartidos con terceros sin el consentimiento del usuario.\n5. Derechos del usuario\nEl usuario tiene derecho a solicitar la supresión o modificación de sus datos en cualquier momento. Para ello, basta con enviar un correo electrónico a davi.manieri@tecnomotordi.com.br solicitando la eliminación o corrección de la información almacenada.\n6. Aceptación de la Política\nAl hacer clic en “Confirmar”, el usuario declara que ha leído y está de acuerdo con esta Política de Privacidad y autoriza la recopilación y almacenamiento de datos según lo descrito.\nSi no está de acuerdo con los términos, el usuario puede optar por no proporcionar los datos, pero esto puede afectar algunas características del juego, como la visualización en el ranking.\nCondiciones de uso - Tecnogame\nÚltima actualización: 04/03/2025\n1. IntroducciónBienvenido a Tecnogame, un juego desarrollado por Tecnomotor Distribuidora. Al acceder y utilizar el juego, aceptas los siguientes términos de uso. Si no está de acuerdo, le recomendamos que no utilice el juego.\n2. Uso del Juego\nTecnogame es un juego gratuito y no tiene compras dentro de la aplicación.\nNo hay restricción de edad para jugar.\nEl juego es en solitario y no hay interacciones entre jugadores.\nEl juego puede experimentar errores o inestabilidad sin previo aviso.\n3. Recopilación y uso de datosAl utilizar Tecnogame, se pueden recopilar algunos datos para el registro y la personalización de la experiencia, incluyendo:\nNombre\nTeléfono\nTipo de taller\nInformación generada dentro del juegoEstos datos se almacenan en Firebase y se utilizan para soporte y recopilación de información para futuras propuestas. Los datos se eliminarán automáticamente después de 1 año. El usuario podrá solicitar la eliminación anticipada enviando un correo electrónico a davi.manieri@tecnomotordi.com.br.\n4. Conducta del usuario\nNo está permitido el uso de nombres inapropiados dentro del juego.\nEl juego no tiene un sistema de baneo, pero puede ocultar nombres inapropiados.\n5. Cambios en los TérminosEstos Términos de Uso pueden actualizarse en cualquier momento. La fecha del último cambio siempre se mostrará en la parte superior de este documento.\nAl utilizar Tecnogame, usted acepta todos los puntos mencionados anteriormente. Si tiene alguna pregunta, comuníquese con nosotros a la dirección de correo electrónico proporcionada.\n¡Gracias por jugar Tecnogame! 🎮"  
-    },  
-    "i1llbypm": {  
-      "pt": "Nome inválido!",  
-      "en": "Invalid name!",  
-      "es": "¡Nombre inválido!"  
-    },  
-    "frgdp8j7": {  
-      "pt": "Indentificamos um nome INVÁLIDO, poderia trocar?\nTente adicionar seu nome ou apelido.",  
-      "en": "We have identified an INVALID name, could you change it?\nTry adding your name or nickname.",  
-      "es": "Identificamos un nombre NO VÁLIDO, ¿podrías cambiarlo?\nIntenta agregar tu nombre o apodo."  
-    },  
-    "mj19n2hr": {  
-      "pt": "Rank dos melhores",  
-      "en": "Ranking of the best",  
-      "es": "Ranking de los mejores"  
-    },  
-    "ucnq60p8": {  
-      "pt": " - ",  
-      "en": "-",  
-      "es": "-"  
-    },  
-    "ut066twm": {  
-      "pt": "Confirmar resposta?",  
-      "en": "Confirm response?",  
-      "es": "¿Confirmar respuesta?"  
-    },  
-    "8lqt2gtq": {  
-      "pt": "Você deseja confirma sua resposta? Isso irá finalizar o game.",  
-      "en": "Do you want to confirm your answer? This will end the game.",  
-      "es": "¿Quieres confirmar tu respuesta? Esto terminará el juego."  
-    },  
-    "v7q2sddk": {  
-      "pt": "Cancelar",  
-      "en": "Cancel",  
-      "es": "Cancelar"  
-    },  
-    "2w7ipz7g": {  
-      "pt": "Confirmar",  
-      "en": "Confirm",  
-      "es": "Confirmar"  
-    },  
-    "qz7jsjng": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "xk6hvra2": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "xd25ggof": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "9hfpjyhp": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "ajgevuth": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "urkqpxi1": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "yfrxt917": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "84nevepc": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "49pxmkb6": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "vw4nl684": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "8mherh1o": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "3206ql4m": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "5vhbtmbu": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "n15i2dtf": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "56v8r6ce": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "7qlu6qrp": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "cavq42z8": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "6i5k0c2v": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "0v5ajtm6": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "w4jv3os5": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "hwdpmkjx": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "mw5wi6g2": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "aqthknrv": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "ctaowg0e": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    },  
-    "goiuguih": {  
-      "pt": "",  
-      "en": "",  
-      "es": ""  
-    }  
+  // Generated from the FlutterFlow Dart sources by scripts/gen_data.py.
+  // Do not edit by hand.
+  const TRANSLATIONS = {
+    "x6urz5cq": {
+      "pt": "GIRAR A ROLETA",
+      "en": "",
+      "es": ""
+    },
+    "ddk969co": {
+      "pt": "Home",
+      "en": "Home",
+      "es": "Hogar"
+    },
+    "yeby7x4r": {
+      "pt": "DEFEITO",
+      "en": "DEFECT",
+      "es": "DEFECTO"
+    },
+    "iuseamae": {
+      "pt": "Problema do cliente:",
+      "en": "Customer Problem:",
+      "es": "Problema del cliente:"
+    },
+    "v49ebix1": {
+      "pt": "Home",
+      "en": "Home",
+      "es": "Hogar"
+    },
+    "sk6w3j28": {
+      "pt": "Hello World",
+      "en": "",
+      "es": ""
+    },
+    "05h1096o": {
+      "pt": "Primeiro Nome ( Teclado )",
+      "en": "First Name (Keyboard)",
+      "es": "Nombre (Teclado)"
+    },
+    "b4pv213k": {
+      "pt": "Digite aqui seu nome",
+      "en": "Enter your name here",
+      "es": "Introduce tu nombre aquí"
+    },
+    "6vx2q4r4": {
+      "pt": "Whatsapp ( teclado )",
+      "en": "Whatsapp (keyboard)",
+      "es": "WhatsApp (teclado)"
+    },
+    "559rlm5s": {
+      "pt": "Digite o seu número",
+      "en": "Enter your number",
+      "es": "Introduce tu número"
+    },
+    "sfh76esp": {
+      "pt": "Tipo da oficina ( Tela )",
+      "en": "Workshop Type (Screen)",
+      "es": "Tipo de taller (pantalla)"
+    },
+    "6rvdt37x": {
+      "pt": "Escolha o seu seguimento",
+      "en": "Choose your segment",
+      "es": "Elige tu segmento"
+    },
+    "b7fxqzyr": {
+      "pt": "Search...",
+      "en": "Search...",
+      "es": "Buscar..."
+    },
+    "yr06bw5q": {
+      "pt": "- Oficina Diesel",
+      "en": "- Diesel Workshop",
+      "es": "- Taller de diésel"
+    },
+    "u1togdyu": {
+      "pt": "- Centro-automotivo",
+      "en": "- Automotive center",
+      "es": "- Centro automotriz"
+    },
+    "zw8uhrit": {
+      "pt": "- Oficina-mecânica",
+      "en": "- Mechanical workshop",
+      "es": "- Taller mecánico"
+    },
+    "n9va5c85": {
+      "pt": "- Auto-Elétrico",
+      "en": "- Auto-Electric",
+      "es": "- Auto-Eléctrico"
+    },
+    "h3ss4zal": {
+      "pt": "- Transmissão automática",
+      "en": "- Automatic transmission",
+      "es": "- Transmisión automática"
+    },
+    "1xkz4x22": {
+      "pt": "- Ar-condicionado",
+      "en": "- Air conditioning",
+      "es": "- Aire acondicionado"
+    },
+    "uiyoqx6p": {
+      "pt": "- Borracharia",
+      "en": "- Tire repair shop",
+      "es": "- Taller de reparación de neumáticos"
+    },
+    "2i2l5ptm": {
+      "pt": "- Chaveiro",
+      "en": "- Keychain",
+      "es": "- Llavero"
+    },
+    "gnijwn15": {
+      "pt": "- Autonomo",
+      "en": "- Self-employed",
+      "es": "- Trabajadores por cuenta propia"
+    },
+    "o3hsgf10": {
+      "pt": "- Outros..",
+      "en": "- Others..",
+      "es": "- Otros.."
+    },
+    "kn0wcjje": {
+      "pt": "CONFIRMAR",
+      "en": "CONFIRM",
+      "es": "CONFIRMAR"
+    },
+    "hjove9jy": {
+      "pt": "Ao clicar em continuar você concorda com os termos de acesso de dados, inseridos neste aplicativo",
+      "en": "By clicking continue you agree to the data access terms entered in this application.",
+      "es": "Al hacer clic en continuar, usted acepta los términos de acceso a datos ingresados ​​en esta solicitud."
+    },
+    "ra9dcpxq": {
+      "pt": "Digite seu nome",
+      "en": "Enter your name",
+      "es": "Introduce tu nombre"
+    },
+    "8kqr8sju": {
+      "pt": "Please choose an option from the dropdown",
+      "en": "Please choose an option from the dropdown",
+      "es": "Por favor, elija una opción del menú desplegable."
+    },
+    "xz37mrbb": {
+      "pt": "Digite seu telefone",
+      "en": "Enter your phone number",
+      "es": "Introduce tu número de teléfono"
+    },
+    "q9rswos3": {
+      "pt": "Please choose an option from the dropdown",
+      "en": "Please choose an option from the dropdown",
+      "es": "Por favor, elija una opción del menú desplegable."
+    },
+    "dtw832zr": {
+      "pt": "Home",
+      "en": "Home",
+      "es": "Hogar"
+    },
+    "q55g6kdp": {
+      "pt": "ESCOLHA O EQUIPAMENTO IDEAL",
+      "en": "CHOOSE THE IDEAL EQUIPMENT",
+      "es": "ELIGE EL EQUIPO IDEAL"
+    },
+    "58ar2tm4": {
+      "pt": "Home",
+      "en": "Home",
+      "es": "Hogar"
+    },
+    "cu3gopmv": {
+      "pt": "REINICIAR",
+      "en": "RESET",
+      "es": "REINICIAR"
+    },
+    "15q6lthy": {
+      "pt": "Problema \nnão resolvido\nVocê perdeu!",
+      "en": "Problem\nnot resolved\nYou lost!",
+      "es": "Problema \nno resuelto\n¡Perdiste!"
+    },
+    "jxhibh8c": {
+      "pt": "Maiores campeões",
+      "en": "Greatest champions",
+      "es": "Los mejores campeones"
+    },
+    "kdwpszzf": {
+      "pt": "Home",
+      "en": "Home",
+      "es": "Hogar"
+    },
+    "7gm0teyw": {
+      "pt": "REINICIAR",
+      "en": "RESET",
+      "es": "REINICIAR"
+    },
+    "a6zzenfh": {
+      "pt": "Problema \nResolvido\nVocê Ganhou!!",
+      "en": "Problem\nSolved\nYou Win!!",
+      "es": "Problema \nResuelto\n¡¡¡Ganaste!!!"
+    },
+    "61r6v2nk": {
+      "pt": "Maiores campeões",
+      "en": "Greatest champions",
+      "es": "Los mejores campeones"
+    },
+    "ctiffzon": {
+      "pt": "Home",
+      "en": "Home",
+      "es": "Hogar"
+    },
+    "inc1pvk9": {
+      "pt": "Home",
+      "en": "Home",
+      "es": "Hogar"
+    },
+    "islas0rw": {
+      "pt": "Vídeo demonstrativo * ",
+      "en": "Demonstration video *",
+      "es": "Vídeo demostrativo*"
+    },
+    "dxgn9z79": {
+      "pt": "Home",
+      "en": "Home",
+      "es": "Hogar"
+    },
+    "ii6e477y": {
+      "pt": "Pular instruções",
+      "en": "",
+      "es": ""
+    },
+    "aiyvchje": {
+      "pt": "Home",
+      "en": "Home",
+      "es": "Hogar"
+    },
+    "t7nwkmmo": {
+      "pt": "Home",
+      "en": "Home",
+      "es": "Hogar"
+    },
+    "navhbcsm": {
+      "pt": "Você está \nUsando",
+      "en": "You are\nUsing",
+      "es": "Eres \nUsando"
+    },
+    "x5fvgf80": {
+      "pt": "O problema do veículo",
+      "en": "The vehicle problem",
+      "es": "El problema del vehículo"
+    },
+    "bvcy0hg2": {
+      "pt": "1",
+      "en": "1",
+      "es": "1"
+    },
+    "fvk3pjqg": {
+      "pt": "2",
+      "en": "2",
+      "es": "2"
+    },
+    "u3qmdqw7": {
+      "pt": "3",
+      "en": "3",
+      "es": "3"
+    },
+    "ai7wwgfu": {
+      "pt": "4",
+      "en": "4",
+      "es": "4"
+    },
+    "k0xz8bjz": {
+      "pt": "Suporte\nDisponível!",
+      "en": "Support\nAvailable",
+      "es": "Apoyo\nDisponible"
+    },
+    "at429bys": {
+      "pt": "OPS! EQUIPAMENTO INVÁLIDO!",
+      "en": "OOPS! INVALID EQUIPMENT!",
+      "es": "¡UPS! ¡EQUIPO NO VÁLIDO!"
+    },
+    "guieoms2": {
+      "pt": "O equipamento escolhido não realiza essa função, olhe novamente os equipamentos disponíveis e escolha um que se adeque. ",
+      "en": "The equipment chosen does not perform this function, look again at the available equipment and choose one that suits.",
+      "es": "El equipo elegido no realiza esta función, mire nuevamente el equipo disponible y elija aquel que se adapte a sus necesidades."
+    },
+    "9ri5a6s3": {
+      "pt": "Voltar",
+      "en": "To go back",
+      "es": "Para volver atrás"
+    },
+    "cxqngi7d": {
+      "pt": "Política de Privacidade\nÚltima atualização:  03/04/2025\n1. Coleta de Dados\nAo utilizar nosso game, coletamos as seguintes informações dos usuários:\nNome\nTelefone\nTipo de oficina\nDados relacionados ao desempenho no game\n2. Finalidade da Coleta\nOs dados são coletados para as seguintes finalidades:\nCadastro no game\nSuporte ao usuário\nPersonalização da experiência de jogo\nColeta de informações para futuras propostas e melhorias no game\nExibição no ranking dentro do jogo\nO fornecimento desses dados não é obrigatório para jogar, mas é necessário para que o jogador apareça no ranking ao final do game.\n3. Armazenamento e Segurança\nOs dados são armazenados de forma segura no Firebase, garantindo proteção contra acessos não autorizados.\nOs dados serão mantidos por um período de 1 ano e, após esse prazo, serão excluídos automaticamente dos nossos sistemas.\n4. Compartilhamento de Dados\nOs dados coletados não serão compartilhados com terceiros sem o consentimento do usuário.\n5. Direitos do Usuário\nO usuário tem o direito de solicitar a exclusão ou alteração de seus dados a qualquer momento. Para isso, basta enviar um e-mail para davi.manieri@tecnomotordi.com.br solicitando a remoção ou correção das informações armazenadas.\n6. Aceitação da Política\nAo clicar em \"Confirmar\", o usuário declara que leu e concorda com esta Política de Privacidade e autoriza a coleta e o armazenamento dos dados conforme descrito.\nCaso não concorde com os termos, o usuário pode optar por não fornecer os dados, mas isso pode impactar algumas funcionalidades do game, como a exibição no ranking.\nTermos de Uso - Tecnogame\nÚltima atualização: 03/04/2025\n1. IntroduçãoBem-vindo ao Tecnogame, um jogo desenvolvido pela Tecnomotor Distribuidora. Ao acessar e utilizar o jogo, você concorda com os seguintes termos de uso. Caso não concorde, recomendamos que não utilize o game.\n2. Uso do Jogo\nO Tecnogame é um jogo gratuito e não possui compras dentro do aplicativo.\nNão há restrição de idade para jogar.\nO jogo é solo e não há interações entre jogadores.\nO jogo pode apresentar erros ou instabilidades sem aviso prévio.\n3. Coleta e Uso de DadosAo utilizar o Tecnogame, alguns dados podem ser coletados para cadastro e personalização da experiência, incluindo:\nNome\nTelefone\nTipo de oficina\nInformações geradas dentro do gameEsses dados são armazenados no Firebase e utilizados para suporte e coleta de informações para futuras propostas. Os dados serão excluídos automaticamente após 1 ano. O usuário pode solicitar a exclusão antecipada enviando um e-mail para davi.manieri@tecnomotordi.com.br.\n4. Conduta do Usuário\nNão é permitido o uso de nomes inadequados dentro do jogo.\nO jogo não possui sistema de banimento, mas poderá ocultar nomes inadequados.\n5. Alterações nos TermosEstes Termos de Uso podem ser atualizados a qualquer momento. A data da última alteração será sempre informada no topo deste documento.\nAo utilizar o Tecnogame, você concorda com todos os pontos mencionados acima. Caso tenha dúvidas, entre em contato pelo e-mail indicado.\nObrigado por jogar o Tecnogame! 🎮\n",
+      "en": "Privacy Policy\nLast updated: 04/03/2025\n1. Data Collection\nWhen using our game, we collect the following information from users:\nName\nPhone\nType of workshop\nData related to in-game performance\n2. Purpose of Collection\nThe data is collected for the following purposes:\nRegistration in the game\nUser support\nPersonalization of the gaming experience\nCollection of information for future proposals and improvements to the game\nDisplay in the in-game ranking\nProviding this data is not mandatory to play, but it is necessary for the player to appear in the ranking at the end of the game.\n3. Storage and Security\nThe data is stored securely in Firebase, ensuring protection against unauthorized access.\nThe data will be kept for a period of 1 year and, after that period, will be automatically deleted from our systems.\n4. Data Sharing\nThe data collected will not be shared with third parties without the user's consent.\n5. User Rights\nThe user has the right to request the deletion or modification of their data at any time. To do so, simply send an email to davi.manieri@tecnomotordi.com.br requesting the removal or correction of the stored information.\n6. Acceptance of the Policy\nBy clicking \"Confirm\", the user declares that he/she has read and agrees with this Privacy Policy and authorizes the collection and storage of data as described.\nIf the user does not agree with the terms, the user can choose not to provide the data, but this may impact some features of the game, such as display in the ranking.\nTerms of Use - Tecnogame\nLast update: 04/03/2025\n1. IntroductionWelcome to Tecnogame, a game developed by Tecnomotor Distribuidora. By accessing and using the game, you agree to the following terms of use. If you do not agree, we recommend that you do not use the game.\n2. Use of the Game\nTecnogame is a free game and does not have in-app purchases.\nThere is no age restriction to play.\nThe game is solo and there is no interaction between players.\nThe game may present errors or instability without prior notice.\n3. Collection and Use of DataWhen using Tecnogame, some data may be collected for registration and personalization of the experience, including:\nName\nPhone\nType of workshop\nInformation generated within the gameThis data is stored in Firebase and used for support and collection of information for future proposals. The data will be automatically deleted after 1 year. The user can request early deletion by sending an email to davi.manieri@tecnomotordi.com.br.\n4. User Conduct\nThe use of inappropriate names within the game is not permitted.\nThe game does not have a banning system, but may hide inappropriate names.\n5. Changes to the TermsThese Terms of Use may be updated at any time. The date of the last change will always be indicated at the top of this document.\nBy using Tecnogame, you agree to all the points mentioned above. If you have any questions, please contact us at the email address provided.\nThank you for playing Tecnogame! 🎮",
+      "es": "política de privacidad\nÚltima actualización: 04/03/2025\n1. Recopilación de datos\nAl utilizar nuestro juego, recopilamos la siguiente información de los usuarios:\nNombre\nTeléfono\nTipo de taller\nDatos relacionados con el rendimiento del juego\n2. Finalidad de la recopilación\nLos datos se recopilan para los siguientes fines:\nRegistro del juego\nSoporte al usuario\nPersonalizar la experiencia de juego\nRecopilación de información para futuras propuestas y mejoras del juego.\nVisualización de la clasificación en el juego\nProporcionar estos datos no es obligatorio para jugar, pero sí necesario para que el jugador aparezca en el ranking al final de la partida.\n3. Almacenamiento y seguridad\nLos datos se almacenan de forma segura en Firebase, lo que garantiza la protección contra el acceso no autorizado.\nLos datos se conservarán durante el plazo de 1 año y, transcurrido este plazo, serán eliminados automáticamente de nuestros sistemas.\n4. Intercambio de datos\nLos datos recogidos no serán compartidos con terceros sin el consentimiento del usuario.\n5. Derechos del usuario\nEl usuario tiene derecho a solicitar la supresión o modificación de sus datos en cualquier momento. Para ello, basta con enviar un correo electrónico a davi.manieri@tecnomotordi.com.br solicitando la eliminación o corrección de la información almacenada.\n6. Aceptación de la Política\nAl hacer clic en “Confirmar”, el usuario declara que ha leído y está de acuerdo con esta Política de Privacidad y autoriza la recopilación y almacenamiento de datos según lo descrito.\nSi no está de acuerdo con los términos, el usuario puede optar por no proporcionar los datos, pero esto puede afectar algunas características del juego, como la visualización en el ranking.\nCondiciones de uso - Tecnogame\nÚltima actualización: 04/03/2025\n1. IntroducciónBienvenido a Tecnogame, un juego desarrollado por Tecnomotor Distribuidora. Al acceder y utilizar el juego, aceptas los siguientes términos de uso. Si no está de acuerdo, le recomendamos que no utilice el juego.\n2. Uso del Juego\nTecnogame es un juego gratuito y no tiene compras dentro de la aplicación.\nNo hay restricción de edad para jugar.\nEl juego es en solitario y no hay interacciones entre jugadores.\nEl juego puede experimentar errores o inestabilidad sin previo aviso.\n3. Recopilación y uso de datosAl utilizar Tecnogame, se pueden recopilar algunos datos para el registro y la personalización de la experiencia, incluyendo:\nNombre\nTeléfono\nTipo de taller\nInformación generada dentro del juegoEstos datos se almacenan en Firebase y se utilizan para soporte y recopilación de información para futuras propuestas. Los datos se eliminarán automáticamente después de 1 año. El usuario podrá solicitar la eliminación anticipada enviando un correo electrónico a davi.manieri@tecnomotordi.com.br.\n4. Conducta del usuario\nNo está permitido el uso de nombres inapropiados dentro del juego.\nEl juego no tiene un sistema de baneo, pero puede ocultar nombres inapropiados.\n5. Cambios en los TérminosEstos Términos de Uso pueden actualizarse en cualquier momento. La fecha del último cambio siempre se mostrará en la parte superior de este documento.\nAl utilizar Tecnogame, usted acepta todos los puntos mencionados anteriormente. Si tiene alguna pregunta, comuníquese con nosotros a la dirección de correo electrónico proporcionada.\n¡Gracias por jugar Tecnogame! 🎮"
+    },
+    "i1llbypm": {
+      "pt": "Nome inválido!",
+      "en": "Invalid name!",
+      "es": "¡Nombre inválido!"
+    },
+    "frgdp8j7": {
+      "pt": "Indentificamos um nome INVÁLIDO, poderia trocar?\nTente adicionar seu nome ou apelido.",
+      "en": "We have identified an INVALID name, could you change it?\nTry adding your name or nickname.",
+      "es": "Identificamos un nombre NO VÁLIDO, ¿podrías cambiarlo?\nIntenta agregar tu nombre o apodo."
+    },
+    "mj19n2hr": {
+      "pt": "Rank dos melhores",
+      "en": "Ranking of the best",
+      "es": "Ranking de los mejores"
+    },
+    "ucnq60p8": {
+      "pt": " - ",
+      "en": "-",
+      "es": "-"
+    },
+    "ut066twm": {
+      "pt": "Confirmar resposta?",
+      "en": "Confirm response?",
+      "es": "¿Confirmar respuesta?"
+    },
+    "8lqt2gtq": {
+      "pt": "Você deseja confirma sua resposta? Isso irá finalizar o game.",
+      "en": "Do you want to confirm your answer? This will end the game.",
+      "es": "¿Quieres confirmar tu respuesta? Esto terminará el juego."
+    },
+    "v7q2sddk": {
+      "pt": "Cancelar",
+      "en": "Cancel",
+      "es": "Cancelar"
+    },
+    "2w7ipz7g": {
+      "pt": "Confirmar",
+      "en": "Confirm",
+      "es": "Confirmar"
+    },
+    "qz7jsjng": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "xk6hvra2": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "xd25ggof": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "9hfpjyhp": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "ajgevuth": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "urkqpxi1": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "yfrxt917": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "84nevepc": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "49pxmkb6": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "vw4nl684": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "8mherh1o": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "3206ql4m": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "5vhbtmbu": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "n15i2dtf": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "56v8r6ce": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "7qlu6qrp": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "cavq42z8": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "6i5k0c2v": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "0v5ajtm6": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "w4jv3os5": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "hwdpmkjx": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "mw5wi6g2": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "aqthknrv": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "ctaowg0e": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    },
+    "goiuguih": {
+      "pt": "",
+      "en": "",
+      "es": ""
+    }
   };
   Object.defineProperty(__exports, "TRANSLATIONS", { get: () => TRANSLATIONS, enumerable: true });
   });
@@ -6406,11 +6406,11 @@
 
   /* ===== pages/tela_video_scanner.js ===== */
   __define("pages/tela_video_scanner.js", function (__exports, __require) {
-  // Port of lib/pages/tela_video_scanner/tela_video_scanner_widget.dart  
-  //  
-  // A 14s demo clip of the chosen scanner, then straight into the action screen.  
-  // The clips are the same public Firebase Storage URLs the Dart used.  
-    
+  // Port of lib/pages/tela_video_scanner/tela_video_scanner_widget.dart
+  //
+  // A 14s demo clip of the chosen scanner, then straight into the action screen.
+  // The clips are the same public Firebase Storage URLs the Dart used.
+  
   const { Column, Container, Padding, Stack, StackAlign, Txt, VideoPlayer, color, decorationImage, el } = __require("widgets.js");
   const { TH, style } = __require("theme.js");
   const { L } = __require("i18n.js");
@@ -6418,102 +6418,102 @@
   const { CONFIG } = __require("config.js");
   const { pushNamed, TransitionInfo, PageTransitionType, Alignment } = __require("router.js");
   const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnPageLoad, delayed } = __require("anim.js");
-    
-  const BASE = 'https://firebasestorage.googleapis.com/v0/b/projeto-assis-3qcf6v.appspot.com/o/videoScanners';  
-    
-  const VIDEOS = {  
-    Td80: `${BASE}%2FTD80.mp4?alt=media&token=65d0550d-7aa6-4cc1-beec-806b1db9b034`,  
-    Td90: `${BASE}%2FTD90.mp4?alt=media&token=618b753c-dfe1-44b4-a38c-c51f6b43aaa9`,  
-    'Rasther 3': `${BASE}%2F3S%20(1).mp4?alt=media&token=2223d09b-e65f-4e71-80d2-44f544b47626`,  
-    RB: `${BASE}%2FRasther%20BOX.mp4?alt=media&token=6a029d9f-0d8f-48bc-a18c-cb9e0865fe5f`,  
-    RST: `${BASE}%2FRasther%20ST.mp4?alt=media&token=bd84db8d-674c-48c1-8fc0-00556944d16a`,  
-  };  
-    
-  const DEFAULT_VIDEO = VIDEOS['Rasther 3'];  
-    
-  /** Optional local copies - see CONFIG.useLocalScannerVideos in config.js. */  
-  const LOCAL_VIDEOS = {  
-    Td80: 'assets/videos/scanners/TD80.mp4',  
-    Td90: 'assets/videos/scanners/TD90.mp4',  
-    'Rasther 3': 'assets/videos/scanners/3S.mp4',  
-    RB: 'assets/videos/scanners/RastherBOX.mp4',  
-    RST: 'assets/videos/scanners/RastherST.mp4',  
-  };  
-    
-  function videoFor(scannerEscolhido) {  
-    if (CONFIG.useLocalScannerVideos) {  
-      return LOCAL_VIDEOS[scannerEscolhido] ?? LOCAL_VIDEOS['Rasther 3'];  
-    }  
-    return VIDEOS[scannerEscolhido] ?? DEFAULT_VIDEO;  
-  }  
-    
-  function TelaVideoScannerWidget() {  
-    let left = false;  
-    
-    const animationsMap = {  
-      textOnPageLoadAnimation: new AnimationInfo({  
-        loop: true,  
-        reverse: true,  
-        trigger: AnimationTrigger.onPageLoad,  
-        effectsBuilder: () => [  
-          ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [1.0, 1.0], end: [1.02, 1.02] }),  
-        ],  
-      }),  
-    };  
-    
-    const label = Txt(  
-      L('islas0rw') /* Vídeo demonstrativo * */,  
-      style('bodyMedium', { fontFamily: 'pirulen', color: color(0xFFFFBC00), fontSize: 32.0 })  
-    );  
-    animateOnPageLoad(label, animationsMap.textOnPageLoadAnimation);  
-    
-    const root = el(  
-      'div',  
-      { class: 'ff-scaffold', style: { background: TH.primaryBackground } },  
-      Stack({  
-        children: [  
-          Container({  
-            width: Infinity,  
-            height: Infinity,  
-            image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),  
-            child: Column({  
-              mainAxisSize: 'max',  
-              children: [  
-                VideoPlayer({  
-                  path: videoFor(FFAppState.scannerEscolhido),  
-                  autoPlay: true,  
-                  looping: true,  
-                  showControls: false,  
-                }),  
-              ],  
-            }),  
-          }),  
-          StackAlign({  
-            alignment: [-1.0, -1.0],  
-            child: Padding({ padding: [32.0, 32.0, 0.0, 0.0], child: label }),  
-          }),  
-        ],  
-      })  
-    );  
-    
-    delayed(14000).then(() => {  
-      if (left || !root.isConnected) return;  
-      pushNamed('telaAcao', {  
-        extra: {  
-          __transition_info__: new TransitionInfo({  
-            hasTransition: true,  
-            transitionType: PageTransitionType.scale,  
-            alignment: Alignment.bottomCenter,  
-          }),  
-        },  
-      });  
-    });  
-    
-    root.__dispose = () => {  
-      left = true;  
-    };  
-    
-    return root;  
+  
+  const BASE = 'https://firebasestorage.googleapis.com/v0/b/projeto-assis-3qcf6v.appspot.com/o/videoScanners';
+  
+  const VIDEOS = {
+    Td80: `${BASE}%2FTD80.mp4?alt=media&token=65d0550d-7aa6-4cc1-beec-806b1db9b034`,
+    Td90: `${BASE}%2FTD90.mp4?alt=media&token=618b753c-dfe1-44b4-a38c-c51f6b43aaa9`,
+    'Rasther 3': `${BASE}%2F3S%20(1).mp4?alt=media&token=2223d09b-e65f-4e71-80d2-44f544b47626`,
+    RB: `${BASE}%2FRasther%20BOX.mp4?alt=media&token=6a029d9f-0d8f-48bc-a18c-cb9e0865fe5f`,
+    RST: `${BASE}%2FRasther%20ST.mp4?alt=media&token=bd84db8d-674c-48c1-8fc0-00556944d16a`,
+  };
+  
+  const DEFAULT_VIDEO = VIDEOS['Rasther 3'];
+  
+  /** Optional local copies - see CONFIG.useLocalScannerVideos in config.js. */
+  const LOCAL_VIDEOS = {
+    Td80: 'assets/videos/scanners/TD80.mp4',
+    Td90: 'assets/videos/scanners/TD90.mp4',
+    'Rasther 3': 'assets/videos/scanners/3S.mp4',
+    RB: 'assets/videos/scanners/RastherBOX.mp4',
+    RST: 'assets/videos/scanners/RastherST.mp4',
+  };
+  
+  function videoFor(scannerEscolhido) {
+    if (CONFIG.useLocalScannerVideos) {
+      return LOCAL_VIDEOS[scannerEscolhido] ?? LOCAL_VIDEOS['Rasther 3'];
+    }
+    return VIDEOS[scannerEscolhido] ?? DEFAULT_VIDEO;
+  }
+  
+  function TelaVideoScannerWidget() {
+    let left = false;
+  
+    const animationsMap = {
+      textOnPageLoadAnimation: new AnimationInfo({
+        loop: true,
+        reverse: true,
+        trigger: AnimationTrigger.onPageLoad,
+        effectsBuilder: () => [
+          ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [1.0, 1.0], end: [1.02, 1.02] }),
+        ],
+      }),
+    };
+  
+    const label = Txt(
+      L('islas0rw') /* Vídeo demonstrativo * */,
+      style('bodyMedium', { fontFamily: 'pirulen', color: color(0xFFFFBC00), fontSize: 32.0 })
+    );
+    animateOnPageLoad(label, animationsMap.textOnPageLoadAnimation);
+  
+    const root = el(
+      'div',
+      { class: 'ff-scaffold', style: { background: TH.primaryBackground } },
+      Stack({
+        children: [
+          Container({
+            width: Infinity,
+            height: Infinity,
+            image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),
+            child: Column({
+              mainAxisSize: 'max',
+              children: [
+                VideoPlayer({
+                  path: videoFor(FFAppState.scannerEscolhido),
+                  autoPlay: true,
+                  looping: true,
+                  showControls: false,
+                }),
+              ],
+            }),
+          }),
+          StackAlign({
+            alignment: [-1.0, -1.0],
+            child: Padding({ padding: [32.0, 32.0, 0.0, 0.0], child: label }),
+          }),
+        ],
+      })
+    );
+  
+    delayed(14000).then(() => {
+      if (left || !root.isConnected) return;
+      pushNamed('telaAcao', {
+        extra: {
+          __transition_info__: new TransitionInfo({
+            hasTransition: true,
+            transitionType: PageTransitionType.scale,
+            alignment: Alignment.bottomCenter,
+          }),
+        },
+      });
+    });
+  
+    root.__dispose = () => {
+      left = true;
+    };
+  
+    return root;
   }
   Object.defineProperty(__exports, "TelaVideoScannerWidget", { get: () => TelaVideoScannerWidget, enumerable: true });
   });
