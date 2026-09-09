@@ -5671,6 +5671,12 @@
    */
   function fatia(cx, cy, r, de, ate) {
     const rad = (g) => (g * Math.PI) / 180;
+    // Baralho de uma rodada so: a "fatia" e a volta inteira, e um arco de 360
+    // graus comeca e termina no mesmo ponto — o SVG nao desenha nada. Vira um
+    // circulo cheio, montado com dois semiarcos.
+    if (ate - de >= 360) {
+      return `M ${cx - r} ${cy} A ${r} ${r} 0 1 1 ${cx + r} ${cy} A ${r} ${r} 0 1 1 ${cx - r} ${cy} Z`;
+    }
     const x1 = cx + r * Math.cos(rad(de));
     const y1 = cy + r * Math.sin(rad(de));
     const x2 = cx + r * Math.cos(rad(ate));
@@ -5752,7 +5758,10 @@
       // Distância do centro em que a foto fica, e o maior quadrado que cabe ali:
       // a corda da fatia nesse raio, com folga, limitada pelo próprio raio.
       const dist = rFatia * 0.6;
-      const corda = 2 * dist * Math.sin((passo * Math.PI) / 360);
+      // A corda so limita enquanto a fatia e estreita: de meia-volta para cima
+      // ela volta a encolher, e em 360 graus zera — o que dava um carro de 24px
+      // num baralho de uma rodada so. Dai para cima quem limita e o raio.
+      const corda = passo >= 180 ? 2 * dist : 2 * dist * Math.sin((passo * Math.PI) / 360);
       const lado = Math.max(24, Math.min(corda * 0.92, rFatia * 0.42));
       const px = c + dist * Math.cos(rad);
       const py = c + dist * Math.sin(rad);
@@ -5772,6 +5781,28 @@
       grupo.appendChild(g);
     });
   
+    // Divisas. Com N par a alternância já separa as fatias sozinha, mas com N
+    // ímpar a fatia 0 e a fatia N-1 caem as duas em dourado e se encostam: viram
+    // um bloco único do dobro da largura, e a roda passa a mostrar uma rodada a
+    // menos do que tem. Duas cores não fecham um ciclo ímpar, então quem separa é
+    // um traço em cada divisa — que vale para qualquer N. Vai por cima das fotos
+    // porque elas são recortadas pela própria fatia e encostam na divisa.
+    if (n > 1) {
+      for (let i = 0; i < n; i++) {
+        const rad = ((base - i * passo) * Math.PI) / 180;
+        grupo.appendChild(
+          svg('line', {
+            x1: c,
+            y1: c,
+            x2: c + rFatia * Math.cos(rad),
+            y2: c + rFatia * Math.sin(rad),
+            stroke: ARO,
+            'stroke-width': Math.max(2, LADO / 300),
+          })
+        );
+      }
+    }
+  
     // Lâmpadas do aro: uma em cada divisa de fatia.
     for (let i = 0; i < n; i++) {
       const rad = ((base + i * passo) * Math.PI) / 180;
@@ -5779,7 +5810,10 @@
         svg('circle', {
           cx: c + rAro * 0.97 * Math.cos(rad),
           cy: c + rAro * 0.97 * Math.sin(rad),
-          r: Math.max(6, (rAro * 0.5) / n),
+          // O raio nao pode crescer como 1/n: com uma fatia so virava uma bolha
+          // de 220px. Fica limitado pelo proprio aro e pelo espaco entre duas
+          // lampadas vizinhas, o que impede tanto a bolha quanto a sobreposicao.
+          r: Math.max(4, Math.min(rAro * 0.05, (Math.PI * rAro) / (n * 1.8))),
           fill: LAMPADA,
           stroke: ARO,
           'stroke-width': 2,
