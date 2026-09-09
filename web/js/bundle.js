@@ -368,9 +368,11 @@
       minHeight: 0,
       // A Flutter child can never exceed its parent's constraints - a
       // `Container(width: 1920)` inside a 1102px-wide parent lays out at 1102.
-      // O mesmo vale na vertical: a roleta declara 946px de altura dentro de uma
-      // caixa de 839.8, e o Flutter a comprime; sem isto ela era recortada em
-      // cima e embaixo em vez de encolher.
+      // O mesmo vale na vertical. Cuidado: dentro de um Stack isto NAO segura um
+      // filho que declara mais altura que o Stack, porque a porcentagem resolve
+      // contra a grid area, que cresce junto com o maior filho. Foi assim que a
+      // roleta estourou a caixa e teve o fundo recortado. Quem declara tamanho
+      // dentro de um Stack precisa declarar o tamanho ja resolvido.
       maxWidth: '100%',
       maxHeight: '100%',
     };
@@ -5679,19 +5681,24 @@
   
   /**
    * @param {Array} slots as rodadas do baralho, na ordem das fatias
-   * @returns {SVGElement} uma roda do mesmo tamanho que o PNG original
+   * @param {{largura: number, altura: number}} caixa a mesma que o PNG ocupa
+   * @returns {SVGElement} uma roda do tamanho da caixa, sempre circular
    */
-  function rodaGerada(slots) {
+  function rodaGerada(slots, { largura = 836.1, altura = 839.8 } = {}) {
     const n = Math.max(slots.length, 1);
-    const LADO = 893.2; // o mesmo tamanho do PNG original
+    // O viewBox e quadrado para o disco sair circular; o preserveAspectRatio
+    // padrao encaixa esse quadrado na caixa que a roleta.js passa, que e a mesma
+    // que o PNG original ocupa — assim a roda nao muda de tamanho quando a area
+    // administrativa troca o baralho e o desenho entra no lugar da arte.
+    const LADO = 893.2;
     const c = LADO / 2;
     const rFatia = c * 0.94;
     const rAro = c * 0.985;
   
     const root = svg('svg', {
       viewBox: `0 0 ${LADO} ${LADO}`,
-      width: 864.3,
-      height: LADO,
+      width: largura,
+      height: altura,
       role: 'img',
       'aria-label': `Roleta com ${n} veículo${n === 1 ? '' : 's'}`,
     });
@@ -5840,16 +5847,25 @@
     // Ela continua valendo enquanto a lista de veiculos for a original — mexer so
     // no texto das perguntas nao invalida o desenho. Fora disso a roda e gerada,
     // porque o PNG mostraria carros que nao estao mais em jogo.
+    // O Dart declara a roda com 836.1x946 e a arte com 864.3x893.2, mas o Stack
+    // que a contem tem 839.8 de altura, e no Flutter um filho nunca passa da
+    // restricao que recebe: a caixa que aparece na tela e 836.1x839.8. Declarar
+    // os numeros crus aqui fazia a roda estourar o Stack, que recorta com
+    // Clip.hardEdge — sumiam ~50px do fundo do disco e, junto, a seta inteira,
+    // que se alinha pelo fundo do Stack. Entao a caixa ja entra resolvida.
+    const RODA_LARGURA = 836.1;
+    const RODA_ALTURA = 839.8;
+  
     const arte = usaArteOriginal(FFAppState.baralho)
       ? ClipRRect({
           borderRadius: 20.0,
-          child: Img('assets/images/Roleta.png', { width: 864.3, height: 893.2, fit: 'cover' }),
+          child: Img('assets/images/Roleta.png', { width: RODA_LARGURA, height: RODA_ALTURA, fit: 'cover' }),
         })
-      : rodaGerada(FFAppState.baralho?.slots ?? []);
+      : rodaGerada(FFAppState.baralho?.slots ?? [], { largura: RODA_LARGURA, altura: RODA_ALTURA });
   
     const wheel = Container({
-      width: 836.1,
-      height: 946.0,
+      width: RODA_LARGURA,
+      height: RODA_ALTURA,
       color: color(0x00FFFFFF),
       borderRadius: 22.0,
       alignment: [0.0, 0.0],

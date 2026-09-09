@@ -42,19 +42,24 @@ function fatia(cx, cy, r, de, ate) {
 
 /**
  * @param {Array} slots as rodadas do baralho, na ordem das fatias
- * @returns {SVGElement} uma roda do mesmo tamanho que o PNG original
+ * @param {{largura: number, altura: number}} caixa a mesma que o PNG ocupa
+ * @returns {SVGElement} uma roda do tamanho da caixa, sempre circular
  */
-export function rodaGerada(slots) {
+export function rodaGerada(slots, { largura = 836.1, altura = 839.8 } = {}) {
   const n = Math.max(slots.length, 1);
-  const LADO = 893.2; // o mesmo tamanho do PNG original
+  // O viewBox e quadrado para o disco sair circular; o preserveAspectRatio
+  // padrao encaixa esse quadrado na caixa que a roleta.js passa, que e a mesma
+  // que o PNG original ocupa — assim a roda nao muda de tamanho quando a area
+  // administrativa troca o baralho e o desenho entra no lugar da arte.
+  const LADO = 893.2;
   const c = LADO / 2;
   const rFatia = c * 0.94;
   const rAro = c * 0.985;
 
   const root = svg('svg', {
     viewBox: `0 0 ${LADO} ${LADO}`,
-    width: 864.3,
-    height: LADO,
+    width: largura,
+    height: altura,
     role: 'img',
     'aria-label': `Roleta com ${n} veículo${n === 1 ? '' : 's'}`,
   });

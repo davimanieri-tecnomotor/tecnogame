@@ -349,9 +349,11 @@ export function Container({
     minHeight: 0,
     // A Flutter child can never exceed its parent's constraints - a
     // `Container(width: 1920)` inside a 1102px-wide parent lays out at 1102.
-    // O mesmo vale na vertical: a roleta declara 946px de altura dentro de uma
-    // caixa de 839.8, e o Flutter a comprime; sem isto ela era recortada em
-    // cima e embaixo em vez de encolher.
+    // O mesmo vale na vertical. Cuidado: dentro de um Stack isto NAO segura um
+    // filho que declara mais altura que o Stack, porque a porcentagem resolve
+    // contra a grid area, que cresce junto com o maior filho. Foi assim que a
+    // roleta estourou a caixa e teve o fundo recortado. Quem declara tamanho
+    // dentro de um Stack precisa declarar o tamanho ja resolvido.
     maxWidth: '100%',
     maxHeight: '100%',
   };

@@ -365,9 +365,10 @@ body {
 
 .ff-stack > * {
   grid-area: stack;
-  /* O Stack tem tamanho definido, e no Flutter nenhum filho passa da restrição
-     que ele recebe: a roleta declara 946px de altura numa caixa de 839.8 e é
-     comprimida, não recortada. */
+  /* Segura o filho que só é largo/alto demais por pouco. Não resolve o filho
+     que declara mais que o Stack: a porcentagem resolve contra a grid area,
+     que cresce com o maior filho, e aí o Stack recorta. Era o caso da roleta,
+     hoje corrigido em pages/roleta.js declarando a caixa já resolvida. */
   max-width: 100%;
   max-height: 100%;
 }
