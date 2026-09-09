@@ -25,6 +25,7 @@ import {
   usaArteOriginal,
   validarBaralho,
 } from '../deck.js';
+import { motivoDaFalha } from '../storage.js';
 
 /* -------------------------------------------------------------- o estado -- */
 
@@ -80,7 +81,15 @@ async function publicar() {
   if (!(await confirmar({ titulo: 'Publicar para o totem?', texto, confirmarTexto: 'Publicar' }))) return;
 
   if (!publicarBaralho(estado.baralho)) {
-    aviso('Não foi possível gravar — o navegador está bloqueando o armazenamento deste site.', 'erro');
+    // "Cheio" e "recusado" pedem coisas opostas: um pede tirar imagem enviada,
+    // o outro pede liberar o armazenamento do site. Dizer qual dos dois e.
+    const motivo = motivoDaFalha();
+    aviso(
+      motivo === 'cheio'
+        ? `Não caberia: o baralho está com cerca de ${pesoDoBaralho()} KB e o navegador não aceitou. Imagens enviadas do computador são o que mais ocupa — troque alguma por um caminho de arquivo em assets/images.`
+        : 'Não foi possível gravar — o navegador está bloqueando o armazenamento deste site.',
+      'erro'
+    );
     return;
   }
   estado.sujo = false;
@@ -189,9 +198,27 @@ async function importar() {
 
 /* ------------------------------------------------------------------ telas -- */
 
+/**
+ * Tamanho do baralho em KB, como ele vai para o localStorage.
+ *
+ * Serve de aviso antecipado: sem isso o operador so descobre que passou da
+ * cota na hora de publicar, depois de ter enviado dez fotos.
+ */
+function pesoDoBaralho() {
+  try {
+    return Math.round(JSON.stringify(estado.baralho).length / 1024);
+  } catch (_) {
+    return 0;
+  }
+}
+
+/** Acima disso vale avisar: a cota tipica de localStorage fica em poucos MB. */
+const PESO_DE_ATENCAO_KB = 3000;
+
 function barra() {
   const publicado = temBaralhoPublicado();
   const { total } = errosPorRodada(estado.baralho);
+  const peso = pesoDoBaralho();
 
   const situacao = estado.sujo
     ? { texto: 'alterações não publicadas', tipo: 'suja' }
@@ -210,6 +237,13 @@ function barra() {
       total > 0
         ? el('span', { class: 'situacao situacao-erro', text: `${total} problema(s)` })
         : el('span', { class: 'situacao situacao-ok', text: 'pronto para publicar' }),
+      peso >= PESO_DE_ATENCAO_KB
+        ? el('span', {
+            class: 'situacao situacao-atencao',
+            title: 'O baralho vive no armazenamento do navegador, que tem poucos megabytes. Imagens enviadas do computador são o que mais ocupa.',
+            text: `${peso} KB — perto do limite`,
+          })
+        : null,
       !usaArteOriginal(estado.baralho)
         ? el('span', {
             class: 'situacao situacao-atencao',

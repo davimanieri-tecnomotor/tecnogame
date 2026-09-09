@@ -592,3 +592,60 @@ code {
     animation: none;
   }
 }
+
+/* ---------------------------------------- imagem enviada do computador -- */
+
+/* O input de arquivo nativo e feio e inconsistente entre navegadores, mas
+   esconder e simular com um botao custa o alcance por teclado e a entrega de
+   arquivo nos testes. Entao ele fica visivel, com o botao interno estilizado
+   pelo ::file-selector-button. */
+.campo-arquivo {
+  width: 100%;
+  padding: 0.4rem 0;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--texto-2);
+}
+
+.campo-arquivo::file-selector-button {
+  margin-right: 0.7rem;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--fundo-3);
+  color: var(--texto);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.campo-arquivo::file-selector-button:hover {
+  border-color: var(--azul-claro);
+}
+
+.campo-arquivo:focus-visible {
+  outline: 2px solid var(--azul-claro);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+.campo-arquivo-estado:empty {
+  display: none;
+}
+
+.embutida {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.6rem 0.75rem;
+  border: 1px dashed var(--borda);
+  border-radius: 10px;
+  background: var(--fundo-2);
+}
+
+.embutida-texto {
+  flex: 1 1 14rem;
+  font-size: 0.82rem;
+  color: var(--texto-2);
+}
