@@ -62,7 +62,10 @@ for (const [file, src] of sources) {
       .split(',')
       .map((s) => s.trim().split(/\s+as\s+/).pop().trim())
       .filter(Boolean);
-    const afterImports = body.replace(/import[^;]+;/g, '');
+    // Ancorado em inicio de linha e com \s depois de `import`: sem isso a
+    // regex casava dentro de palavras como `importar()` e apagava codigo real,
+    // gerando falso positivo de "import nao usado".
+    const afterImports = body.replace(/^[ 	]*import\s[^;]+;/gm, '');
     for (const name of localNames) {
       if (!new RegExp(`\\b${name.replace(/\$/g, '\\$')}\\b`).test(afterImports)) {
         problems.push(`${rel}: unused import '${name}' from ${spec}`);

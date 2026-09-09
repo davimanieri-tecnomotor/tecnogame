@@ -81,6 +81,9 @@ jobs:
       - name: Baralho — fidelidade do original e tamanho livre
         run: npm run verify:baralho
 
+      - name: Administração — ver, editar, adicionar, publicar
+        run: npm run verify:admin
+
       # O mesmo jogo tem de funcionar aberto direto do disco, pelo bundle clássico.
       - name: Rotas (file://, bundle clássico)
         env:
