@@ -116,7 +116,10 @@ HEADER = ('// Generated from the FlutterFlow Dart sources by scripts/gen_data.py
 
 def dump(name, varname, value):
     path = os.path.join(OUT, name)
-    with open(path, 'w', encoding='utf-8') as f:
+    # newline fixo em LF: o arquivo gerado e commitado, e sem isso o Python
+    # no Windows grava CRLF -- o mesmo commit passa a ter bytes diferentes
+    # dependendo de quem rodou o gerador, e a CI acusa dessincronia.
+    with open(path, 'w', encoding='utf-8', newline=chr(10)) as f:
         f.write(HEADER)
         f.write('export const %s = ' % varname)
         f.write(json.dumps(value, ensure_ascii=False, indent=2))

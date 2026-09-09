@@ -41,7 +41,11 @@ function walk(dir) {
 const id = (file) => path.relative(ROOT, file).split(path.sep).join('/');
 
 const files = walk(ROOT);
-const sources = new Map(files.map((f) => [id(f), fs.readFileSync(f, 'utf8')]));
+// CRLF vira LF na leitura: o bundle e um artefato commitado, e precisa sair
+// byte-a-byte igual em qualquer maquina. Sem isso um modulo salvo com fim de
+// linha do Windows produz um bundle diferente do que a CI gera do mesmo commit,
+// e o passo que confere a sincronia falha sem ter nada de errado no codigo.
+const sources = new Map(files.map((f) => [id(f), fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n')]));
 
 /* ------------------------------------------------------------ transforms -- */
 
