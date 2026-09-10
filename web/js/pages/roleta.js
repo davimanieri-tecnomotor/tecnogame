@@ -39,10 +39,16 @@ import {
   animateOnActionTrigger,
   animateOnPageLoad,
   delayed,
+  menosMovimento,
 } from '../anim.js';
 
 export function RoletaWidget() {
   const model = { apertaButton: true };
+  // O giro leva 5s e só então navega. Se a tela sair nesse meio-tempo (o botão
+  // Voltar do navegador, ou o endereço trocado à mão), a navegação de dentro do
+  // `onTap` chegaria depois e arrancaria o jogador de onde ele estivesse. É o
+  // mesmo guarda que as outras telas de espera usam.
+  let left = false;
 
   const animationsMap = {
     columnOnPageLoadAnimation: new AnimationInfo({
@@ -100,20 +106,26 @@ export function RoletaWidget() {
   // `effects:` is read when forward() runs, so the rotation always uses the
   // value drawn a moment earlier.
   animateOnActionTrigger(wheel, animationsMap.containerOnActionTriggerAnimation1, null);
-  animationsMap.containerOnActionTriggerAnimation1.effectsBuilder = () => [
-    RotateEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 5000.0, begin: 0.0, end: FFAppState.escolha }),
-  ];
+  animationsMap.containerOnActionTriggerAnimation1.effectsBuilder = () =>
+    // Cinco segundos de tela inteira girando é exatamente o que quem pediu
+    // menos movimento no sistema não quer ver. Sem efeito nenhum o `forward()`
+    // resolve na hora, e o jogo segue para o carro sorteado: o resultado do
+    // sorteio é o mesmo, a roda só não gira.
+    menosMovimento()
+      ? []
+      : [RotateEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 5000.0, begin: 0.0, end: FFAppState.escolha })];
 
   const spinButton = InkWell({
     onTap: async () => {
       await animationsMap.containerOnActionTriggerAnimation2.controller.forward();
-      if (!model.apertaButton) return;
+      if (!model.apertaButton || left) return;
 
       model.apertaButton = false;
       FFAppState.escolha = numeroAleatorio([...FFAppState.listaEscolhas], FFAppState.totalSlots);
       playSound(model, 'soundPlayer', 'assets/audios/roleta-normal-1_2GXmNRPk.mp3', 0.6);
       await animationsMap.containerOnActionTriggerAnimation1.controller.forward();
       await delayed(1000);
+      if (left || !root.isConnected) return;
 
       // Keep a rolling window of the last five draws so the same car can't come
       // up again too soon.
@@ -210,5 +222,11 @@ export function RoletaWidget() {
     })
   );
   root.addEventListener('click', unfocus);
+
+  root.__dispose = () => {
+    left = true;
+    model.soundPlayer?.stop();
+  };
+
   return root;
 }

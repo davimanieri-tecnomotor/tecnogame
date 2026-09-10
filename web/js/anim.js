@@ -10,10 +10,14 @@
 
 /**
  * Quem pede menos movimento no sistema nao deve receber os loops infinitos —
- * o jogo pulsa varios elementos para sempre. As animacoes de um disparo ficam:
- * sao curtas e comunicam estado (o toque afundando um botao, a tela entrando).
+ * o jogo pulsa varios elementos para sempre — nem o giro de 5s da roleta, que
+ * e a tela inteira girando. As animacoes de um disparo ficam: sao curtas e
+ * comunicam estado (o toque afundando um botao, a tela entrando).
+ *
+ * Os loops saem aqui; o giro sai no proprio call site (pages/roleta.js), porque
+ * quem decide se a roda gira e o efeito que ele monta.
  */
-const semLoops = () => {
+export const menosMovimento = () => {
   try {
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   } catch (_) {
@@ -116,7 +120,7 @@ export function run(node, effects, info = {}) {
   if (total === 0) return null;
 
   // Loop infinito com "menos movimento" ligado: fixa o estado final e sai.
-  if (info.loop && semLoops()) {
+  if (info.loop && menosMovimento()) {
     const fade = effects.find((e) => e.kind === 'fade');
     if (fade) node.style.opacity = String(fade.end);
     return Promise.resolve();

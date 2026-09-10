@@ -207,8 +207,10 @@ mudou em relação a simplesmente sobrar preto em volta:
   duas faixas pretas duras;
 - em **retrato com toque** (celular na vertical) aparece um aviso para virar o
   aparelho, porque um jogo de 16:9 em 9:16 fica com 20% da altura útil;
-- `prefers-reduced-motion` desliga as animações de entrada e a rotação da
-  roleta (o resultado do sorteio é o mesmo, só não gira);
+- `prefers-reduced-motion` desliga os laços infinitos (o fundo que pulsa, a seta
+  do aviso de virar o aparelho) e a rotação de 5s da roleta — o resultado do
+  sorteio é o mesmo, a roda só não gira. As animações curtas de um disparo
+  ficam, porque comunicam estado: o botão afundando ao toque, a tela entrando;
 - as cinco famílias de fonte são **auto-hospedadas** em
   `web/assets/fonts/`, com o `css/fonts.css` gerado por `npm run fonts`, então
   o totem não depende de internet para o texto sair certo.

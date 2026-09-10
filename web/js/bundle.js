@@ -3829,10 +3829,14 @@
   
   /**
    * Quem pede menos movimento no sistema nao deve receber os loops infinitos —
-   * o jogo pulsa varios elementos para sempre. As animacoes de um disparo ficam:
-   * sao curtas e comunicam estado (o toque afundando um botao, a tela entrando).
+   * o jogo pulsa varios elementos para sempre — nem o giro de 5s da roleta, que
+   * e a tela inteira girando. As animacoes de um disparo ficam: sao curtas e
+   * comunicam estado (o toque afundando um botao, a tela entrando).
+   *
+   * Os loops saem aqui; o giro sai no proprio call site (pages/roleta.js), porque
+   * quem decide se a roda gira e o efeito que ele monta.
    */
-  const semLoops = () => {
+  const menosMovimento = () => {
     try {
       return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     } catch (_) {
@@ -3935,7 +3939,7 @@
     if (total === 0) return null;
   
     // Loop infinito com "menos movimento" ligado: fixa o estado final e sai.
-    if (info.loop && semLoops()) {
+    if (info.loop && menosMovimento()) {
       const fade = effects.find((e) => e.kind === 'fade');
       if (fade) node.style.opacity = String(fade.end);
       return Promise.resolve();
@@ -4049,6 +4053,7 @@
   
   /** `await Future.delayed(Duration(milliseconds: n))` */
   const delayed = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+  Object.defineProperty(__exports, "menosMovimento", { get: () => menosMovimento, enumerable: true });
   Object.defineProperty(__exports, "Curves", { get: () => Curves, enumerable: true });
   Object.defineProperty(__exports, "ScaleEffect", { get: () => ScaleEffect, enumerable: true });
   Object.defineProperty(__exports, "FadeEffect", { get: () => FadeEffect, enumerable: true });
@@ -5958,10 +5963,15 @@
   const { rodaGerada } = __require("roda.js");
   const { playSound } = __require("audio.js");
   const { goNamed, TransitionInfo, PageTransitionType } = __require("router.js");
-  const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, RotateEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad, delayed } = __require("anim.js");
+  const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, RotateEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad, delayed, menosMovimento } = __require("anim.js");
   
   function RoletaWidget() {
     const model = { apertaButton: true };
+    // O giro leva 5s e só então navega. Se a tela sair nesse meio-tempo (o botão
+    // Voltar do navegador, ou o endereço trocado à mão), a navegação de dentro do
+    // `onTap` chegaria depois e arrancaria o jogador de onde ele estivesse. É o
+    // mesmo guarda que as outras telas de espera usam.
+    let left = false;
   
     const animationsMap = {
       columnOnPageLoadAnimation: new AnimationInfo({
@@ -6019,20 +6029,26 @@
     // `effects:` is read when forward() runs, so the rotation always uses the
     // value drawn a moment earlier.
     animateOnActionTrigger(wheel, animationsMap.containerOnActionTriggerAnimation1, null);
-    animationsMap.containerOnActionTriggerAnimation1.effectsBuilder = () => [
-      RotateEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 5000.0, begin: 0.0, end: FFAppState.escolha }),
-    ];
+    animationsMap.containerOnActionTriggerAnimation1.effectsBuilder = () =>
+      // Cinco segundos de tela inteira girando é exatamente o que quem pediu
+      // menos movimento no sistema não quer ver. Sem efeito nenhum o `forward()`
+      // resolve na hora, e o jogo segue para o carro sorteado: o resultado do
+      // sorteio é o mesmo, a roda só não gira.
+      menosMovimento()
+        ? []
+        : [RotateEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 5000.0, begin: 0.0, end: FFAppState.escolha })];
   
     const spinButton = InkWell({
       onTap: async () => {
         await animationsMap.containerOnActionTriggerAnimation2.controller.forward();
-        if (!model.apertaButton) return;
+        if (!model.apertaButton || left) return;
   
         model.apertaButton = false;
         FFAppState.escolha = numeroAleatorio([...FFAppState.listaEscolhas], FFAppState.totalSlots);
         playSound(model, 'soundPlayer', 'assets/audios/roleta-normal-1_2GXmNRPk.mp3', 0.6);
         await animationsMap.containerOnActionTriggerAnimation1.controller.forward();
         await delayed(1000);
+        if (left || !root.isConnected) return;
   
         // Keep a rolling window of the last five draws so the same car can't come
         // up again too soon.
@@ -6129,6 +6145,12 @@
       })
     );
     root.addEventListener('click', unfocus);
+  
+    root.__dispose = () => {
+      left = true;
+      model.soundPlayer?.stop();
+    };
+  
     return root;
   }
   Object.defineProperty(__exports, "RoletaWidget", { get: () => RoletaWidget, enumerable: true });

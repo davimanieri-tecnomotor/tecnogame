@@ -1,5 +1,10 @@
 // Item 9 da auditoria: os alvos de toque sao <div role="button">, que nao entram
 // na ordem de tabulacao sozinhos. Confere que o teclado alcanca e aciona.
+//
+// E, junto, a outra promessa de acessibilidade que o README faz: com
+// `prefers-reduced-motion` a roleta nao gira. Ela girava — os cinco segundos de
+// tela inteira rodando passavam batido, porque anim.js so tirava os lacos
+// infinitos.
 import puppeteer from 'puppeteer';
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8099';
@@ -55,9 +60,47 @@ for (const tecla of ['Enter', ' ']) {
   await wait(500);
 }
 
+/* ------------------------------- menos movimento: a roleta nao gira -------- */
+
+const giro = async (reduzido) => {
+  const aba = await browser.newPage();
+  await aba.setViewport({ width: 1920, height: 1080 });
+  if (reduzido) await aba.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
+  await aba.goto(pageUrl('/roleta'), { waitUntil: 'networkidle2' });
+  await wait(2600);
+  await aba.evaluate(() => {
+    [...document.querySelectorAll('#pages .ff-inkwell')].find((n) => /GIRAR|SPIN|GIRA/i.test(n.textContent))?.click();
+  });
+  await wait(800);
+  const estado = await aba.evaluate(() => ({
+    reduzido: matchMedia('(prefers-reduced-motion: reduce)').matches,
+    // o giro e a unica animacao longa da tela
+    longas: document.getAnimations().filter((a) => (a.effect?.getTiming?.().duration ?? 0) >= 3000).length,
+  }));
+  // Com o giro desligado a tela segue sozinha para o carro sorteado.
+  await wait(1600);
+  const rota = await aba.evaluate(() => location.hash);
+  await aba.close();
+  return { ...estado, rota };
+};
+
+const normal = await giro(false);
+const reduzido = await giro(true);
+console.log('giro normal:', JSON.stringify(normal));
+console.log('giro com menos movimento:', JSON.stringify(reduzido));
+if (!normal.reduzido && normal.longas !== 1) {
+  falhas.push(`sem "menos movimento" a roleta deveria estar girando (animacoes longas: ${normal.longas})`);
+}
+if (reduzido.longas !== 0) {
+  falhas.push(`com "menos movimento" a roleta ainda gira (animacoes longas: ${reduzido.longas})`);
+}
+if (!reduzido.rota.includes('/carro')) {
+  falhas.push(`com "menos movimento" o jogo parou em ${reduzido.rota} em vez de seguir para o carro`);
+}
+
 await browser.close();
 if (falhas.length) {
   console.log('\nFALHOU:\n- ' + falhas.join('\n- '));
   process.exit(1);
 }
-console.log('\nalvos alcancaveis e acionaveis por teclado');
+console.log('\nalvos alcancaveis e acionaveis por teclado, e a roleta respeita "menos movimento"');
