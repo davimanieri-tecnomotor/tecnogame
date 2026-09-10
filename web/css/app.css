@@ -158,6 +158,41 @@ body {
   pointer-events: none;
 }
 
+/* --------------------------------------------------- pisos de legibilidade -- */
+/* O palco e escalado inteiro, entao tudo encolhe junto. As telas atendidas vao
+   de 1280x800 (escala 0,667) a 4K (escala 2), e no pe dessa faixa o texto de
+   14px do cadastro chegava a 9,3px na tela e o link da politica a 11px de alvo.
+
+   Estes dois pisos sao escritos em px DE TELA e convertidos para px do palco
+   pela propria escala. Em 1x eles valem 12px e 24px, que nenhum texto do jogo
+   e quase nenhum alvo alcanca — o totem continua identico ao Dart — e crescem
+   sozinhos conforme a janela encolhe. Sao 12px de texto e 24px de area de
+   toque, o minimo que a faixa atendida tem de entregar.
+
+   O `min(escala, 1)` trava o piso em 1x para cima: sem ele o 4K, que escala
+   por 2, receberia um piso de 12px do palco em vez de 24px, e a geometria do
+   palco passaria a depender do monitor — o totem e o 4K desenhariam a mesma
+   tela com alturas diferentes. Com ele existem so dois regimes: 1x ou acima,
+   que e o layout do Dart mais o piso de toque, e abaixo de 1x, onde os pisos
+   crescem.
+
+   Quem usa: `fonte()` em js/widgets.js (todo texto) e o min-height abaixo. */
+#stage {
+  --piso-fonte: calc(12px / min(var(--stage-scale, 1), 1));
+  --piso-alvo: calc(24px / min(var(--stage-scale, 1), 1));
+}
+
+/* Cresce so a AREA CLICAVEL. O desenho continua do tamanho que era, porque o
+   .ff-inkwell nao tem fundo nem borda proprios: ele so embrulha o filho. Alvo
+   que ja passa do piso nao muda em nada.
+
+   O padrao e `auto`, e nao `0px`, de proposito: fora do palco a variavel nao
+   existe, e `min-height: 0` num item flex desliga o `min-height: auto` que o
+   impede de encolher abaixo do proprio conteudo — os alvos colapsariam. */
+.ff-inkwell {
+  min-height: var(--piso-alvo, auto);
+}
+
 /* Centred by translating half its own (unscaled) size, which the scale that
    follows does not affect - a grid/flex centre would instead centre the
    1920x1080 box and let it overflow once the window is smaller than that. */

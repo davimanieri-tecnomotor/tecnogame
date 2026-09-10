@@ -1,7 +1,7 @@
 // Port of lib/flutter_flow/flutter_flow_timer.dart, lib/flutter_flow/instant_timer.dart
 // and the pieces of the stop_watch_timer package the project touches.
 
-import { el } from './widgets.js';
+import { el, fonte } from './widgets.js';
 
 /* ------------------------------------------------- StopWatchTimer helpers -- */
 
@@ -142,7 +142,7 @@ export function FlutterFlowTimer({
     class: ['ff-text', className].filter(Boolean).join(' '),
     style: {
       fontFamily: style.fontFamily ? `'${style.fontFamily}', sans-serif` : null,
-      fontSize: style.fontSize != null ? `${style.fontSize}px` : null,
+      fontSize: fonte(style.fontSize),
       fontWeight: style.fontWeight != null ? String(style.fontWeight) : null,
       color: style.color || null,
       letterSpacing: style.letterSpacing != null ? `${style.letterSpacing}px` : null,

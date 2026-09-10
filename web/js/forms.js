@@ -2,7 +2,7 @@
 // TextFormField + InputDecoration, FlutterFlowDropDown (dropdown_button2),
 // FlutterFlowLanguageSelector, FFButtonWidget and MaskTextInputFormatter.
 
-import { el, px, Icon, Txt, Colors } from './widgets.js';
+import { el, px, fonte, Icon, Txt, Colors } from './widgets.js';
 import { LANGUAGE_NAMES } from './i18n.js';
 
 /* --------------------------------------------------- MaskTextInputFormatter */
@@ -37,7 +37,7 @@ export class MaskTextInputFormatter {
 
 const styleToCss = (style = {}) => ({
   fontFamily: style.fontFamily ? `'${style.fontFamily}', sans-serif` : null,
-  fontSize: style.fontSize != null ? `${style.fontSize}px` : null,
+  fontSize: fonte(style.fontSize),
   fontWeight: style.fontWeight != null ? String(style.fontWeight) : null,
   fontStyle: style.fontStyle || null,
   color: style.color || null,
@@ -102,7 +102,9 @@ export function TextFormField({
       borderRadius: `${borderRadius}px`,
       borderColor,
       borderWidth: `${borderWidth}px`,
-      minHeight: `${(style?.fontSize ?? 14) * 1.2109 + 40 + borderWidth * 2}px`,
+      // A altura acompanha o piso de legibilidade da fonte, senao o texto
+      // crescido numa janela pequena encostaria na borda do campo.
+      minHeight: `calc(${fonte(style?.fontSize ?? 14)} * 1.2109 + ${40 + borderWidth * 2}px)`,
     },
   }, input);
 

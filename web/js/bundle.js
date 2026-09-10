@@ -40,6 +40,23 @@
     return `${v}px`;
   }
   
+  /**
+   * Um tamanho de fonte com piso de legibilidade.
+   *
+   * O palco e escalado inteiro, entao todo texto encolhe junto: num notebook de
+   * 1280x800 a escala e 0,667 e o texto de 14px do cadastro chega a 9,3px na
+   * tela. `--piso-fonte` (css/app.css) e 12px DE TELA convertidos para px do
+   * palco pela escala, entao em 1x ele vale 12px e nao alcanca nada — o totem
+   * continua identico ao Dart — e so entra quando a janela e pequena.
+   *
+   * Sem `--piso-fonte` definido (a area administrativa nao tem palco) o piso e
+   * zero e o tamanho declarado passa direto.
+   */
+  function fonte(v) {
+    if (v == null) return null;
+    return `max(${typeof v === 'number' ? `${v}px` : v}, var(--piso-fonte, 0px))`;
+  }
+  
   /** Flutter's `Color(0xAARRGGBB)` -> css. */
   function color(argb) {
     if (typeof argb === 'string') return argb;
@@ -560,7 +577,7 @@
       class: 'ff-text',
       style: {
         fontFamily: fontFamily ? `'${fontFamily}', sans-serif` : null,
-        fontSize: fontSize != null ? `${fontSize}px` : null,
+        fontSize: fonte(fontSize),
         fontWeight: fontWeight != null ? String(fontWeight) : null,
         fontStyle: fontStyle || null,
         color: c || null,
@@ -782,6 +799,7 @@
   Object.defineProperty(__exports, "SW", { get: () => SW, enumerable: true });
   Object.defineProperty(__exports, "SH", { get: () => SH, enumerable: true });
   Object.defineProperty(__exports, "px", { get: () => px, enumerable: true });
+  Object.defineProperty(__exports, "fonte", { get: () => fonte, enumerable: true });
   Object.defineProperty(__exports, "color", { get: () => color, enumerable: true });
   Object.defineProperty(__exports, "Colors", { get: () => Colors, enumerable: true });
   Object.defineProperty(__exports, "el", { get: () => el, enumerable: true });
@@ -4073,7 +4091,7 @@
   // Port of lib/flutter_flow/flutter_flow_timer.dart, lib/flutter_flow/instant_timer.dart
   // and the pieces of the stop_watch_timer package the project touches.
   
-  const { el } = __require("widgets.js");
+  const { el, fonte } = __require("widgets.js");
   
   /* ------------------------------------------------- StopWatchTimer helpers -- */
   
@@ -4214,7 +4232,7 @@
       class: ['ff-text', className].filter(Boolean).join(' '),
       style: {
         fontFamily: style.fontFamily ? `'${style.fontFamily}', sans-serif` : null,
-        fontSize: style.fontSize != null ? `${style.fontSize}px` : null,
+        fontSize: fonte(style.fontSize),
         fontWeight: style.fontWeight != null ? String(style.fontWeight) : null,
         color: style.color || null,
         letterSpacing: style.letterSpacing != null ? `${style.letterSpacing}px` : null,
@@ -4289,7 +4307,7 @@
   // TextFormField + InputDecoration, FlutterFlowDropDown (dropdown_button2),
   // FlutterFlowLanguageSelector, FFButtonWidget and MaskTextInputFormatter.
   
-  const { el, px, Icon, Txt, Colors } = __require("widgets.js");
+  const { el, px, fonte, Icon, Txt, Colors } = __require("widgets.js");
   const { LANGUAGE_NAMES } = __require("i18n.js");
   
   /* --------------------------------------------------- MaskTextInputFormatter */
@@ -4324,7 +4342,7 @@
   
   const styleToCss = (style = {}) => ({
     fontFamily: style.fontFamily ? `'${style.fontFamily}', sans-serif` : null,
-    fontSize: style.fontSize != null ? `${style.fontSize}px` : null,
+    fontSize: fonte(style.fontSize),
     fontWeight: style.fontWeight != null ? String(style.fontWeight) : null,
     fontStyle: style.fontStyle || null,
     color: style.color || null,
@@ -4389,7 +4407,9 @@
         borderRadius: `${borderRadius}px`,
         borderColor,
         borderWidth: `${borderWidth}px`,
-        minHeight: `${(style?.fontSize ?? 14) * 1.2109 + 40 + borderWidth * 2}px`,
+        // A altura acompanha o piso de legibilidade da fonte, senao o texto
+        // crescido numa janela pequena encostaria na borda do campo.
+        minHeight: `calc(${fonte(style?.fontSize ?? 14)} * 1.2109 + ${40 + borderWidth * 2}px)`,
       },
     }, input);
   

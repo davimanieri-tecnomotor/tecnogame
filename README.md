@@ -199,8 +199,40 @@ python scripts/gen_data.py
 
 ## Como fica em telas que não são 1920x1080
 
-O palco é escalado uniformemente, então a proporção nunca distorce. O que
-mudou em relação a simplesmente sobrar preto em volta:
+O palco é escalado uniformemente, então a proporção nunca distorce — mas tudo
+encolhe junto, e é aí que mora a responsividade. As telas atendidas vão de
+**1280x800** (escala 0,667) a **4K** (escala 2), passando por 1366x768,
+1920x1080 e ultrawide. Nessa faixa o jogo garante **12px de texto** e **24px de
+área de toque**, no mínimo, medidos na tela.
+
+Isso não sai da escala sozinho: em 0,667 o texto de 14px do cadastro chegava a
+9,3px e o link da política de privacidade a 11px de alvo. Quem sustenta o piso
+são duas variáveis em `css/app.css`:
+
+```css
+#stage {
+  --piso-fonte: calc(12px / min(var(--stage-scale, 1), 1));
+  --piso-alvo:  calc(24px / min(var(--stage-scale, 1), 1));
+}
+```
+
+Elas são escritas em px **de tela** e convertidas para px do palco pela própria
+escala, então **em 1x não alcançam nada** — o totem continua pixel a pixel como
+o Dart — e crescem sozinhas conforme a janela encolhe. `fonte()` em
+`js/widgets.js` aplica o piso da fonte em todo texto (`max(declarado, piso)`), e
+o `min-height` do `.ff-inkwell` aplica o do alvo, crescendo só a área clicável:
+o desenho dentro dela não muda de tamanho. A única mudança visível em 1x é o
+link da política, que ganhou 7px de altura clicável — ele tinha 17px, abaixo do
+mínimo até no próprio totem.
+
+`npm run verify:sizes` é o teste do envelope: percorre as 8 rotas em cada tela
+atendida e falha se algum texto ficar abaixo de 12px, algum alvo abaixo de 24px,
+algum texto for cortado ou a página rolar na horizontal. Ele também **lista as
+artes que o 4K amplia** — 11 PNGs, com a largura que cada um precisaria. Isso
+não se conserta em código: o `Img` desenha em px do palco, então basta
+reexportar o arquivo maior e o navegador passa a reduzi-lo em vez de ampliá-lo.
+
+O resto do que mudou em relação a simplesmente sobrar preto em volta:
 
 - as tarjas viraram **moldura**: a arte do jogo desfocada e escurecida atrás do
   palco (`#viewport::before`), com uma vinheta suave (`::after`) — em vez de

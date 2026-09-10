@@ -21,6 +21,23 @@ export function px(v) {
   return `${v}px`;
 }
 
+/**
+ * Um tamanho de fonte com piso de legibilidade.
+ *
+ * O palco e escalado inteiro, entao todo texto encolhe junto: num notebook de
+ * 1280x800 a escala e 0,667 e o texto de 14px do cadastro chega a 9,3px na
+ * tela. `--piso-fonte` (css/app.css) e 12px DE TELA convertidos para px do
+ * palco pela escala, entao em 1x ele vale 12px e nao alcanca nada — o totem
+ * continua identico ao Dart — e so entra quando a janela e pequena.
+ *
+ * Sem `--piso-fonte` definido (a area administrativa nao tem palco) o piso e
+ * zero e o tamanho declarado passa direto.
+ */
+export function fonte(v) {
+  if (v == null) return null;
+  return `max(${typeof v === 'number' ? `${v}px` : v}, var(--piso-fonte, 0px))`;
+}
+
 /** Flutter's `Color(0xAARRGGBB)` -> css. */
 export function color(argb) {
   if (typeof argb === 'string') return argb;
@@ -541,7 +558,7 @@ export function Txt(text, style = {}) {
     class: 'ff-text',
     style: {
       fontFamily: fontFamily ? `'${fontFamily}', sans-serif` : null,
-      fontSize: fontSize != null ? `${fontSize}px` : null,
+      fontSize: fonte(fontSize),
       fontWeight: fontWeight != null ? String(fontWeight) : null,
       fontStyle: fontStyle || null,
       color: c || null,
