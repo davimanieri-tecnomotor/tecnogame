@@ -310,6 +310,113 @@ console.log(
 alinhamento.slice(0, 10).forEach((p) => console.log('   - ' + p));
 falhas.push(...alinhamento);
 
+/* ------- 6: a roda gerada cabe na caixa, se le, e nao corta as fotos -------
+ * Quatro bugs de desenho, um teste. (a) O brilho das lampadas passava 13,6px da
+ * caixa e saia cortado reto no alto e nos dois lados. (b) Com N impar a
+ * primeira e a ultima fatia caiam na mesma cor, se encostavam e viravam um
+ * bloco do dobro da largura — a roda mostrava uma rodada a menos do que tem.
+ * (c) Nada segurava a quina de fora da foto contra o arco, e o carro encostado
+ * na borda saia cortado. (d) O aro tinha uma lampada por fatia, o que deixava
+ * uma lampada so num baralho de uma rodada, e a divisao que consertava isso
+ * punha uma lampada no meio da fatia — acesa por dentro do vao da seta. */
+
+const desenho = await page.evaluate(async () => {
+  const carregar = async (nome) =>
+    window.__tecgameRequire ? window.__tecgameRequire(nome) : await import(`./js/${nome}`);
+  const { rodaGerada } = await carregar('roda.js');
+
+  // A roda mede a foto para acertar a proporcao da caixa dela, e isso chega por
+  // evento. Deixa a foto no cache antes, para o que este teste le ser a
+  // geometria final e nao a provisoria.
+  const FOTO = 'assets/images/FIAT_TORO.png';
+  await new Promise((ok) => {
+    const i = new Image();
+    i.onload = ok;
+    i.onerror = ok;
+    i.src = FOTO;
+  });
+
+  const problemas = [];
+  for (const N of [1, 2, 3, 5, 7, 9, 10, 12, 16, 30]) {
+    const slots = Array.from({ length: N }, () => ({
+      veiculo: { imagem: FOTO, largura: 1235, altura: 674 },
+    }));
+    const el = rodaGerada(slots);
+    await new Promise((ok) => setTimeout(ok, 40));
+    const lado = Number(el.getAttribute('viewBox').split(' ')[2]);
+    const c = lado / 2;
+
+    // (a) nada desenhado passa da caixa: o viewBox quadrado E a caixa.
+    let alcance = 0;
+    for (const n of el.querySelectorAll('circle')) {
+      const d = Math.hypot(+n.getAttribute('cx') - c, +n.getAttribute('cy') - c) + +n.getAttribute('r');
+      if (d > alcance) alcance = d;
+    }
+    if (alcance > c + 0.5) problemas.push(`N=${N}: a roda passa ${(alcance - c).toFixed(1)} do viewBox`);
+    // e ela tambem nao pode ser pequena demais, senao a troca da arte pronta
+    // para o desenho faria a roleta mudar de tamanho no meio do jogo.
+    if (alcance < c * 0.9) problemas.push(`N=${N}: a roda so ocupa ${((alcance / c) * 100).toFixed(0)}% da caixa`);
+
+    // (b) nenhuma fatia tem a cor da vizinha.
+    const cores = [...el.querySelectorAll('path')]
+      .filter((p) => !p.closest('clipPath'))
+      .map((p) => p.getAttribute('fill'));
+    if (cores.length !== N) problemas.push(`N=${N}: a roda tem ${cores.length} fatias`);
+    if (N > 1) {
+      for (let i = 0; i < cores.length; i++) {
+        const j = (i + 1) % cores.length;
+        if (cores[i] === cores[j]) problemas.push(`N=${N}: fatias ${i} e ${j} estao as duas em ${cores[i]}`);
+      }
+    }
+
+    // (c) a quina de fora de cada foto fica dentro do arco da fatia.
+    const rFatia = Math.max(
+      ...[...el.querySelectorAll('path')]
+        .filter((p) => !p.closest('clipPath'))
+        .map((p) => {
+          const v = p.getAttribute('d').split(' ').map(Number).filter((x) => !Number.isNaN(x));
+          return Math.max(Math.hypot(v[2] - c, v[3] - c), Math.hypot(v[0] - c, v[1] - c));
+        })
+    );
+    for (const img of el.querySelectorAll('image')) {
+      const x = +img.getAttribute('x');
+      const y = +img.getAttribute('y');
+      const larg = +img.getAttribute('width');
+      const alt = +img.getAttribute('height');
+      // A rotacao e em volta do centro da foto, entao a quina mais longe do
+      // centro da roda nao muda de distancia com ela.
+      const dist = Math.hypot(x + larg / 2 - c, y + alt / 2 - c);
+      const quina = Math.hypot(dist + alt / 2, larg / 2);
+      if (quina > rFatia + 0.5) problemas.push(`N=${N}: a foto passa ${(quina - rFatia).toFixed(1)} do arco`);
+    }
+
+    // (d) o aro nunca fica ralo, toda divisa tem a sua lampada, e nenhuma cai
+    // no meio de uma fatia — o meio da fatia e onde a seta para, e a lampada
+    // ali acendia por dentro do vao da seta.
+    const halos = [...el.querySelectorAll('circle')].filter((n) =>
+      (n.getAttribute('fill') || '').startsWith('url')
+    );
+    const doAro = halos.filter((n) => Math.hypot(+n.getAttribute('cx') - c, +n.getAttribute('cy') - c) > c * 0.5);
+    if (doAro.length < 10) problemas.push(`N=${N}: o aro ficou com ${doAro.length} lampadas`);
+    if (doAro.length % N !== 0) problemas.push(`N=${N}: ${doAro.length} lampadas nao caem uma em cada divisa`);
+    const passo = 360 / N;
+    for (const luz of doAro) {
+      const ang = (Math.atan2(+luz.getAttribute('cy') - c, +luz.getAttribute('cx') - c) * 180) / Math.PI;
+      // 90 graus e para baixo no SVG: o meio da fatia 0, onde a seta aponta.
+      const doMeio = (((ang - 90) % passo) + passo) % passo;
+      if (Math.min(doMeio, passo - doMeio) < 0.5) {
+        problemas.push(`N=${N}: uma lampada caiu no meio de uma fatia (${ang.toFixed(1)}deg)`);
+      }
+    }
+  }
+  return problemas;
+});
+console.log(
+  desenho.length ? '6. DESENHO FALHOU:' : '6. a roda gerada cabe na caixa, se le fatia a fatia, e nao corta as fotos'
+);
+desenho.slice(0, 10).forEach((p) => console.log('   - ' + p));
+falhas.push(...desenho);
+
 await browser.close();
 if (falhas.length) {
   console.log('\nFALHOU:\n- ' + falhas.slice(0, 15).join('\n- '));
