@@ -70,6 +70,17 @@ export class AnimationInfo {
     this.controller = { forward: () => this._forward() };
   }
 
+  /**
+   * `animationsMap['x']!.controller.forward(from: 0.0)`.
+   *
+   * CONVENCAO: quem anima um TOQUE dispara isto SEM `await`. O Dart esperava os
+   * 400ms da animacao de aperto antes de fazer qualquer coisa, e o resultado e
+   * um botao que parece nao ter pego — 400ms e tempo de sobra para o dedo achar
+   * que errou. A animacao roda junto com a acao, nao antes dela.
+   *
+   * Os poucos `await` que sobraram sao sequencia de verdade (o giro de 5s da
+   * roleta, a saida da tela do carro) e estao comentados no lugar.
+   */
   _forward() {
     const runs = this._targets
       .map(({ node, effects }) => run(node, effects ?? this.effectsBuilder?.(), this))
@@ -228,9 +239,6 @@ export function animateOnActionTrigger(node, info, effects = null) {
   info._targets.push({ node, effects });
   return node;
 }
-
-/** setupAnimations(...) - nothing to pre-register in this port. */
-export function setupAnimations() {}
 
 /** `await Future.delayed(Duration(milliseconds: n))` */
 export const delayed = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));

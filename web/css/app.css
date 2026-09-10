@@ -300,9 +300,20 @@ body {
 }
 
 #pages,
+#popups,
 #overlays {
   position: absolute;
   inset: 0;
+}
+
+/* A camada dos menus abertos (ver camadaDeMenus em js/forms.js). Fica entre as
+   telas e os dialogos, e nao intercepta toque: so o menu dentro dela recebe. */
+#popups {
+  pointer-events: none;
+}
+
+#popups > * {
+  pointer-events: auto;
 }
 
 #overlays {
@@ -400,6 +411,13 @@ body {
 
 .ff-stack > * {
   grid-area: stack;
+  /* PINTURA. Sem isto, um filho que ANIMA `transform` — a roleta girando — e
+     promovido a camada composta e passa a ser desenhado por cima dos filhos
+     seguintes: durante o giro a seta e o logo da Tecnomotor desapareciam atras
+     do disco. Com todos os filhos posicionados, eles voltam a ser pintados na
+     ordem do DOM, que e a ordem do Stack. `relative` sem deslocamento nao move
+     nada, entao o layout fica igual. */
+  position: relative;
   /* Segura o filho que só é largo/alto demais por pouco. Não resolve o filho
      que declara mais que o Stack: a porcentagem resolve contra a grid area,
      que cresce com o maior filho, e aí o Stack recorta. Era o caso da roleta,
@@ -442,6 +460,41 @@ body {
   cursor: pointer;
   -webkit-user-select: none;
   user-select: none;
+}
+
+/* -------------------------------------------------------- toque que responde -- */
+/* O aperto tem de aparecer no dedo, nao depois. Duas escolhas importam aqui:
+
+   1. a propriedade e `scale`, e nao `transform`. Metade dos botoes do jogo
+      carrega `transform` inline de uma animacao com `fill: both` (o
+      `applyInitialState`), e animacao ganha de regra CSS — um `:active` no
+      transform simplesmente nao apareceria justo onde mais precisa (REINICIAR,
+      os botoes de dica, "Pular instrucoes"). `scale` e propriedade separada e
+      se compoe com o transform em vez de brigar com ele.
+
+   2. quem afunda e `.ff-press`, que o InkWell so poe em alvo interativo de
+      verdade (ver widgets.js) — nao no InkWell que cobre a tela inteira. */
+.ff-press,
+.ff-btn {
+  transition: scale 90ms ease-out, filter 90ms ease-out;
+}
+
+.ff-press:active,
+.ff-btn:active {
+  scale: 0.96;
+  filter: brightness(0.92);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ff-press,
+  .ff-btn {
+    transition: filter 90ms ease-out;
+  }
+
+  .ff-press:active,
+  .ff-btn:active {
+    scale: 1;
+  }
 }
 
 .ff-inkwell,
@@ -661,4 +714,54 @@ body {
 .ff-video {
   display: block;
   background: #000;
+}
+
+/* ------------------------------------------------------- popup de suporte -- */
+/* O layout sai da arte, medida no pixel; os numeros estao em
+   js/components/pop_up.js, que explica de onde vem cada um. Aqui fica so o
+   que e CSS: o fundo sem corte, a pilha absoluta e o texto que nunca vaza. */
+.pop-cartao {
+  position: relative;
+  flex: none;
+  /* `100% 100%` e nao `cover`: o cartao entra com a proporcao da arte, entao
+     esticar para os dois lados nao distorce e nao corta as bordas. */
+  background: url('../assets/images/Pop_Up.png') 0 0 / 100% 100% no-repeat;
+}
+
+.pop-logo,
+.pop-fechar,
+.pop-texto,
+.pop-foto {
+  position: absolute;
+}
+
+.pop-logo {
+  display: flex;
+  align-items: center;
+}
+
+.pop-fechar {
+  display: flex;
+  width: 56px;
+  height: 56px;
+  align-items: center;
+  justify-content: center;
+}
+
+.pop-texto {
+  display: grid;
+  /* `safe center` centra o texto curto e, quando ele e longo demais, desiste de
+     centrar em vez de empurrar o comeco para fora da area rolavel. */
+  align-content: safe center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: max(32px, var(--piso-fonte, 0px));
+  line-height: 1.35;
+  color: #0a2540;
+}
+
+.pop-foto {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }

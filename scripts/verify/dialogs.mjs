@@ -135,7 +135,7 @@ log('--- language switch to English');
 await page.evaluate(() => document.querySelectorAll('#pages .ff-dropdown')[1].click());
 await wait(200);
 await page.evaluate(() => {
-  const items = [...document.querySelectorAll('#pages .ff-dropdown-item')];
+  const items = [...document.querySelectorAll('.ff-dropdown-item')];
   items.find((n) => n.textContent.trim() === 'English').click();
 });
 await wait(800);
@@ -150,7 +150,7 @@ log('--- language switch to Español');
 await page.evaluate(() => document.querySelectorAll('#pages .ff-dropdown')[1].click());
 await wait(200);
 await page.evaluate(() => {
-  const items = [...document.querySelectorAll('#pages .ff-dropdown-item')];
+  const items = [...document.querySelectorAll('.ff-dropdown-item')];
   items.find((n) => n.textContent.trim() === 'Español').click();
 });
 await wait(800);
@@ -165,7 +165,7 @@ if (!esLabels.some((l) => l.includes('Nombre'))) throw new Error('did not switch
 await page.evaluate(() => document.querySelectorAll('#pages .ff-dropdown')[1].click());
 await wait(200);
 await page.evaluate(() => {
-  [...document.querySelectorAll('#pages .ff-dropdown-item')].find((n) => n.textContent.trim() === 'Português').click();
+  [...document.querySelectorAll('.ff-dropdown-item')].find((n) => n.textContent.trim() === 'Português').click();
 });
 await wait(700);
 
@@ -208,7 +208,7 @@ await inputs2[1].type('16999998888');
 await page.evaluate(() => document.querySelectorAll('#pages .ff-dropdown')[0].click());
 await wait(200);
 await page.evaluate(() =>
-  document.querySelectorAll('#pages .ff-dropdown')[0].parentElement.querySelectorAll('.ff-dropdown-item')[0].click()
+  document.querySelectorAll('.ff-dropdown-item')[0].click()
 );
 await wait(200);
 await clickText('CONFIRMAR');

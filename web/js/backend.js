@@ -133,20 +133,6 @@ export async function queryUsuariosVencedores({ limit = 15 } = {}) {
     .map(normalize);
 }
 
-/** `queryUsuariosRecordCount()` */
-export async function queryUsuariosRecordCount() {
-  if (CONFIG.useFirestore) {
-    try {
-      const { db, fs } = await ensureFirestore();
-      const snapshot = await fs.getCountFromServer(fs.collection(db, 'usuarios'));
-      return snapshot.data().count;
-    } catch (error) {
-      console.warn('Firestore count failed, falling back to local storage.', error);
-    }
-  }
-  return readLocal().length;
-}
-
 /**
  * UsuariosRecord's getters all default a missing field. `telefone` saiu de
  * proposito: o ranking nao o le mais (ver addUsuario).
@@ -184,6 +170,11 @@ export async function enviarMensagemZap({ numero = '', resultado = '' } = {}) {
     return { succeeded: false, skipped: true };
   }
 
+  if (!CONFIG.zapApiUrl || !CONFIG.zapClientToken) {
+    console.warn('[enviarMensagemZap] sem credencial em config.js — nada enviado');
+    return { succeeded: false, skipped: true };
+  }
+
   try {
     const response = await fetch(CONFIG.zapApiUrl, {
       method: 'POST',
@@ -197,22 +188,3 @@ export async function enviarMensagemZap({ numero = '', resultado = '' } = {}) {
   }
 }
 
-/** EnviarMensagemAgenteCall.call({nome, telefone, venceu}) - defined in the
- *  Dart but never called from a widget; kept for parity. */
-export async function enviarMensagemAgente({ nome = '', telefone = '', venceu = null } = {}) {
-  if (!CONFIG.useAgentWebhook) {
-    console.info('[enviarMensagemAgente] desligado em config.js (useAgentWebhook)');
-    return { succeeded: false, skipped: true };
-  }
-  try {
-    const response = await fetch(CONFIG.agentWebhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, telefone, venceu }),
-    });
-    return { succeeded: response.ok, statusCode: response.status };
-  } catch (error) {
-    console.warn('enviarMensagemAgente failed', error);
-    return { succeeded: false };
-  }
-}

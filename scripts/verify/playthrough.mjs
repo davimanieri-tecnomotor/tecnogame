@@ -94,13 +94,13 @@ await page.evaluate((sel) => document.querySelectorAll(sel)[0].click(), DD);
 await wait(200);
 await shot('02-dropdown');
 const optionCount = await page.evaluate(
-  (sel) => document.querySelectorAll(sel)[0].parentElement.querySelectorAll('.ff-dropdown-item').length,
+  () => document.querySelectorAll('.ff-dropdown-item').length,
   DD
 );
 log(`3. oficina dropdown options: ${optionCount}`);
 if (optionCount !== 10) throw new Error(`expected 10 options, got ${optionCount}`);
 await page.evaluate(
-  (sel) => document.querySelectorAll(sel)[0].parentElement.querySelectorAll('.ff-dropdown-item')[2].click(),
+  () => document.querySelectorAll('.ff-dropdown-item')[2].click(),
   DD
 );
 await wait(200);
@@ -195,7 +195,10 @@ const popupText = await page.evaluate(
   () => document.querySelector('#overlays .ff-dialog .ff-text')?.textContent?.slice(0, 60) ?? null
 );
 log(`13. hint popup: ${JSON.stringify(popupText)}`);
-await page.evaluate(() => document.querySelector('#overlays .ff-dialog .ff-inkwell:last-of-type').click());
+// Fecha pelo ROTULO, e nao pela posicao na arvore: o `:last-of-type` que
+// estava aqui casava a antiga forma do popup e parou de achar o X quando ele
+// foi para o canto do cabecalho.
+await page.evaluate(() => document.querySelector('#overlays [aria-label="Fechar"]').click());
 await wait(800);
 const dicasAfter = await page.evaluate(
   () => [...document.querySelectorAll('#pages .ff-text')].find((n) => /^\dX$/.test(n.textContent.trim()))?.textContent

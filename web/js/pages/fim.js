@@ -90,7 +90,7 @@ export function FimWidget(spec) {
 
   const restart = async () => {
     playSound(model, 'soundPlayer2', 'assets/audios/undertale-select-sound.mp3', 0.6);
-    await animationsMap.buttonOnActionTriggerAnimation.controller.forward();
+    animationsMap.buttonOnActionTriggerAnimation.controller.forward();
 
     await enviarMensagemZap({
       numero: transformaNumero(FFAppState.cadastro.telefone),
@@ -101,7 +101,6 @@ export function FimWidget(spec) {
     FFAppState.tempoAcabando = false;
     FFAppState.cadastro = new CadastroStruct();
     FFAppState.ajuda = 0;
-    FFAppState.update();
 
     goNamed('telaVideoTransisao', {
       queryParameters: { tipo: serializeParam(0) },

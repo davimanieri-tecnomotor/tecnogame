@@ -97,7 +97,7 @@ export function append(node, children) {
   }
 }
 
-/** Flutter's `[...].divide(SizedBox(...))` - drops nulls first, like `if (...)`
+/** Flutter's `[...].divide(gap)` - drops nulls first, like `if (...)`
  *  children that evaluate to nothing. */
 export function divide(children, gap) {
   return { __divided: children.filter((c) => c != null && c !== false), gap };
@@ -465,10 +465,6 @@ export function ClipRRect({ borderRadius = 0, child, style } = {}) {
   return inheritFill(node, child);
 }
 
-export function SizedBox({ width, height } = {}) {
-  return el('div', { style: { width: px(width), height: px(height), flex: 'none' } });
-}
-
 /**
  * Expanded / Flexible.
  *
@@ -597,13 +593,18 @@ export function Img(src, { width, height, fit = 'cover', alignment, style } = {}
 
 /** InkWell with all the splash/focus/hover/highlight colours set to
  *  transparent, which is how every tap target in this project is written. */
-export function InkWell({ onTap, child, style, disabled = false, label } = {}) {
+/**
+ * @param {boolean} [feedback] se o toque afunda o alvo. Padrao sim; passa-se
+ *   `false` no InkWell que cobre a tela inteira so para captar toque no fundo —
+ *   afundar a pagina toda a cada clique seria absurdo.
+ */
+export function InkWell({ onTap, child, style, disabled = false, label, feedback = true } = {}) {
   const interactive = Boolean(onTap) && !disabled;
   const node = inheritFill(
     el(
       'div',
       {
-        class: 'ff-inkwell',
+        class: ['ff-inkwell', interactive && feedback ? 'ff-press' : null].filter(Boolean).join(' '),
         role: 'button',
         // Um <div role="button"> nao entra na ordem de tabulacao por conta
         // propria, e sem isto o teclado nao alcanca nada no jogo.
@@ -745,8 +746,12 @@ export function FutureBuilder({ future, builder, loading = null, fill = false })
   return host;
 }
 
-/** Center(child: SizedBox(50x50, child: CircularProgressIndicator(...))) */
-export function CircularProgressIndicator({ color: c = 'transparent', size = 50 } = {}) {
+/**
+ * O que o FutureBuilder mostra enquanto espera. Nao e exportado porque so ele
+ * usa — e nao e visivel: todo call site do projeto o quer transparente, porque
+ * o Dart passava `Color(0x004B39EF)`, alfa zero.
+ */
+function CircularProgressIndicator({ color: c = 'transparent', size = 50 } = {}) {
   return el('div', {
     style: {
       width: `${size}px`,
@@ -755,9 +760,7 @@ export function CircularProgressIndicator({ color: c = 'transparent', size = 50 
       alignSelf: 'center',
       margin: 'auto',
       border: `4px solid ${c}`,
-      borderTopColor: 'transparent',
       borderRadius: '50%',
-      animation: 'ff-spin 1.2s linear infinite',
     },
   });
 }

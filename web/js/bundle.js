@@ -116,7 +116,7 @@
     }
   }
   
-  /** Flutter's `[...].divide(SizedBox(...))` - drops nulls first, like `if (...)`
+  /** Flutter's `[...].divide(gap)` - drops nulls first, like `if (...)`
    *  children that evaluate to nothing. */
   function divide(children, gap) {
     return { __divided: children.filter((c) => c != null && c !== false), gap };
@@ -484,10 +484,6 @@
     return inheritFill(node, child);
   }
   
-  function SizedBox({ width, height } = {}) {
-    return el('div', { style: { width: px(width), height: px(height), flex: 'none' } });
-  }
-  
   /**
    * Expanded / Flexible.
    *
@@ -616,13 +612,18 @@
   
   /** InkWell with all the splash/focus/hover/highlight colours set to
    *  transparent, which is how every tap target in this project is written. */
-  function InkWell({ onTap, child, style, disabled = false, label } = {}) {
+  /**
+   * @param {boolean} [feedback] se o toque afunda o alvo. Padrao sim; passa-se
+   *   `false` no InkWell que cobre a tela inteira so para captar toque no fundo —
+   *   afundar a pagina toda a cada clique seria absurdo.
+   */
+  function InkWell({ onTap, child, style, disabled = false, label, feedback = true } = {}) {
     const interactive = Boolean(onTap) && !disabled;
     const node = inheritFill(
       el(
         'div',
         {
-          class: 'ff-inkwell',
+          class: ['ff-inkwell', interactive && feedback ? 'ff-press' : null].filter(Boolean).join(' '),
           role: 'button',
           // Um <div role="button"> nao entra na ordem de tabulacao por conta
           // propria, e sem isto o teclado nao alcanca nada no jogo.
@@ -764,7 +765,11 @@
     return host;
   }
   
-  /** Center(child: SizedBox(50x50, child: CircularProgressIndicator(...))) */
+  /**
+   * O que o FutureBuilder mostra enquanto espera. Nao e exportado porque so ele
+   * usa — e nao e visivel: todo call site do projeto o quer transparente, porque
+   * o Dart passava `Color(0x004B39EF)`, alfa zero.
+   */
   function CircularProgressIndicator({ color: c = 'transparent', size = 50 } = {}) {
     return el('div', {
       style: {
@@ -774,9 +779,7 @@
         alignSelf: 'center',
         margin: 'auto',
         border: `4px solid ${c}`,
-        borderTopColor: 'transparent',
         borderRadius: '50%',
-        animation: 'ff-spin 1.2s linear infinite',
       },
     });
   }
@@ -817,7 +820,6 @@
   Object.defineProperty(__exports, "boxShadow", { get: () => boxShadow, enumerable: true });
   Object.defineProperty(__exports, "Opacity", { get: () => Opacity, enumerable: true });
   Object.defineProperty(__exports, "ClipRRect", { get: () => ClipRRect, enumerable: true });
-  Object.defineProperty(__exports, "SizedBox", { get: () => SizedBox, enumerable: true });
   Object.defineProperty(__exports, "Expanded", { get: () => Expanded, enumerable: true });
   Object.defineProperty(__exports, "Flexible", { get: () => Flexible, enumerable: true });
   Object.defineProperty(__exports, "SingleChildScrollView", { get: () => SingleChildScrollView, enumerable: true });
@@ -830,7 +832,6 @@
   Object.defineProperty(__exports, "Icon", { get: () => Icon, enumerable: true });
   Object.defineProperty(__exports, "VideoPlayer", { get: () => VideoPlayer, enumerable: true });
   Object.defineProperty(__exports, "FutureBuilder", { get: () => FutureBuilder, enumerable: true });
-  Object.defineProperty(__exports, "CircularProgressIndicator", { get: () => CircularProgressIndicator, enumerable: true });
   Object.defineProperty(__exports, "valueOrDefault", { get: () => valueOrDefault, enumerable: true });
   Object.defineProperty(__exports, "maybeHandleOverflow", { get: () => maybeHandleOverflow, enumerable: true });
   Object.defineProperty(__exports, "degrees", { get: () => degrees, enumerable: true });
@@ -2257,8 +2258,6 @@
   const { carregarBaralho, CAMPOS_QUESTAO } = __require("deck.js");
   const { escolhaParaIndice } = __require("functions.js");
   
-  const listeners = new Set();
-  
   /** CadastroStruct */
   class CadastroStruct {
     constructor({ nome, telefone, atuacao, invalido } = {}) {
@@ -2377,12 +2376,6 @@
       return vistaPorIdioma(this.baralho, 'es');
     }
   
-    /** update(callback) - runs the mutation then notifies listeners. */
-    update(callback) {
-      if (callback) callback();
-      this.notifyListeners();
-    }
-  
     addToListaEscolhas(value) {
       this.listaEscolhas.push(value);
     }
@@ -2390,10 +2383,6 @@
     removeFromListaEscolhas(value) {
       const index = this.listaEscolhas.indexOf(value);
       if (index >= 0) this.listaEscolhas.splice(index, 1);
-    }
-  
-    notifyListeners() {
-      for (const fn of listeners) fn(this);
     }
   }
   
@@ -2423,20 +2412,8 @@
   }
   
   const FFAppState = new FFAppStateClass();
-  
-  /**
-   * Contraparte de `notifyListeners()`. Hoje nenhuma tela assina — o porte
-   * re-renderiza por navegação, não por observação — mas é o seam que dá sentido
-   * ao `update()` espalhado pelo código, que existe por paridade com o
-   * ChangeNotifier do Dart.
-   */
-  function onAppStateChange(fn) {
-    listeners.add(fn);
-    return () => listeners.delete(fn);
-  }
   Object.defineProperty(__exports, "CadastroStruct", { get: () => CadastroStruct, enumerable: true });
   Object.defineProperty(__exports, "FFAppState", { get: () => FFAppState, enumerable: true });
-  Object.defineProperty(__exports, "onAppStateChange", { get: () => onAppStateChange, enumerable: true });
   });
 
   /* ===== dialog.js ===== */
@@ -2528,12 +2505,9 @@
   function popAllDialogs() {
     while (stack.length) pop(undefined, stack[stack.length - 1]);
   }
-  
-  const hasOpenDialog = () => stack.length > 0;
   Object.defineProperty(__exports, "showDialog", { get: () => showDialog, enumerable: true });
   Object.defineProperty(__exports, "pop", { get: () => pop, enumerable: true });
   Object.defineProperty(__exports, "popAllDialogs", { get: () => popAllDialogs, enumerable: true });
-  Object.defineProperty(__exports, "hasOpenDialog", { get: () => hasOpenDialog, enumerable: true });
   });
 
   /* ===== router.js ===== */
@@ -2571,11 +2545,13 @@
   }
   
   const routes = new Map();
-  /** name -> path, so goNamed/pushNamed can resolve like go_router does. */
+  /** name -> path, so goNamed can resolve like go_router does. */
   const namedPaths = new Map();
   
   let current = null;
   let navigating = false;
+  /** O pedido de navegacao que chegou durante outra (ver render). */
+  let pendente = null;
   
   function defineRoute({ name, path, builder }) {
     routes.set(path, { name, path, builder });
@@ -2591,23 +2567,6 @@
     const index = path.indexOf('?');
     if (index < 0) return {};
     return Object.fromEntries(new URLSearchParams(path.slice(index + 1)).entries());
-  }
-  
-  /** deserializeParam(value, ParamType.int) for the one int param in the app. */
-  const ParamType = { int: 'int', String: 'String', double: 'double', bool: 'bool' };
-  
-  function deserializeParam(raw, type) {
-    if (raw == null) return null;
-    switch (type) {
-      case ParamType.int:
-        return Number.parseInt(raw, 10);
-      case ParamType.double:
-        return Number.parseFloat(raw);
-      case ParamType.bool:
-        return raw === 'true';
-      default:
-        return raw;
-    }
   }
   
   const serializeParam = (value) => (value == null ? null : String(value));
@@ -2649,7 +2608,15 @@
   /* -------------------------------------------------------------- navigate -- */
   
   async function render(path, { info }) {
-    if (navigating) return;
+    if (navigating) {
+      // Um toque durante a transicao de ENTRADA da tela anterior era engolido em
+      // silencio: este `return` descartava a navegacao e o jogador ficava olhando
+      // um botao que nao fez nada. Enquanto toda acao esperava 400ms de animacao
+      // de aperto, a janela era pequena e o defeito passava; sem essa espera ele
+      // aparece. Agora o pedido espera a vez em vez de morrer.
+      pendente = { path, info };
+      return;
+    }
     navigating = true;
     try {
       const route = resolve(path) ?? resolve('/cadastro');
@@ -2686,25 +2653,16 @@
       await transitionIn(node, info);
     } finally {
       navigating = false;
+      // So o ultimo pedido interessa: quem apertou duas telas atras nao quer
+      // atravessar as duas.
+      const proximo = pendente;
+      pendente = null;
+      if (proximo) await render(proximo.path, { info: proximo.info });
     }
   }
   
   /** `context.goNamed(name, queryParameters: ..., extra: {__transition_info__})` */
   function goNamed(name, { queryParameters = null, extra = null } = {}) {
-    const path = buildPath(name, queryParameters);
-    return render(path, { info: extra?.__transition_info__ });
-  }
-  
-  /**
-   * `context.pushNamed(...)`.
-   *
-   * No go_router isto empilha a rota. Aqui nao existe pilha propria: o unico
-   * consumidor era `safePop()`, que nenhuma tela chamava (o Dart tambem nao), e
-   * o botao Voltar do navegador ja e tratado pelo listener de `hashchange`. Fica
-   * como sinonimo de goNamed para os call sites continuarem legiveis ao lado do
-   * Dart.
-   */
-  function pushNamed(name, { queryParameters = null, extra = null } = {}) {
     const path = buildPath(name, queryParameters);
     return render(path, { info: extra?.__transition_info__ });
   }
@@ -2733,20 +2691,14 @@
       render(path, { info: null });
     });
   }
-  
-  const currentRoute = () => current?.route?.name ?? null;
   Object.defineProperty(__exports, "PageTransitionType", { get: () => PageTransitionType, enumerable: true });
   Object.defineProperty(__exports, "Alignment", { get: () => Alignment, enumerable: true });
   Object.defineProperty(__exports, "TransitionInfo", { get: () => TransitionInfo, enumerable: true });
   Object.defineProperty(__exports, "defineRoute", { get: () => defineRoute, enumerable: true });
-  Object.defineProperty(__exports, "ParamType", { get: () => ParamType, enumerable: true });
-  Object.defineProperty(__exports, "deserializeParam", { get: () => deserializeParam, enumerable: true });
   Object.defineProperty(__exports, "serializeParam", { get: () => serializeParam, enumerable: true });
   Object.defineProperty(__exports, "goNamed", { get: () => goNamed, enumerable: true });
-  Object.defineProperty(__exports, "pushNamed", { get: () => pushNamed, enumerable: true });
   Object.defineProperty(__exports, "go", { get: () => go, enumerable: true });
   Object.defineProperty(__exports, "startRouter", { get: () => startRouter, enumerable: true });
-  Object.defineProperty(__exports, "currentRoute", { get: () => currentRoute, enumerable: true });
   });
 
   /* ===== translations.js ===== */
@@ -3575,9 +3527,6 @@
     /** POST the "you finished TECNOGAME" WhatsApp message on the end screens. */
     useWhatsApp: false,
   
-    /** The n8n webhook in EnviarMensagemAgenteCall (never called by the UI). */
-    useAgentWebhook: false,
-  
     // lib/backend/firebase/firebase_config.dart
     firebaseOptions: {
       apiKey: 'AIzaSyAZTmRXL83WY-KjmtAhsE-ERAdWRkEEKMY',
@@ -3596,11 +3545,23 @@
      */
     useLocalScannerVideos: false,
   
-    // lib/backend/api_requests/api_calls.dart
-    zapApiUrl:
-      'https://api.z-api.io/instances/3DF6AF6878FFE0BA1789FA8592F99CB9/token/957757C50A408830EA4E34A1/send-link',
-    zapClientToken: 'F6fe8ad64e65d43f38881110afffab493S',
-    agentWebhookUrl: 'https://d0ed-200-210-23-242.ngrok-free.app/webhook-test/lutterflow-webhook',
+    /**
+     * A credencial do z-api (lib/backend/api_requests/api_calls.dart no Dart).
+     *
+     * Ela vinha CRAVADA aqui, com a instancia e o token no caminho da URL. O
+     * problema nao e o repositorio: e que este arquivo entra no `bundle.js`
+     * servido ao navegador, ou seja, qualquer pessoa que abrisse o jogo lia uma
+     * credencial capaz de disparar WhatsApp pela conta da Tecnomotor.
+     *
+     * Agora nasce vazia e o envio se recusa a rodar sem ela (ver backend.js).
+     * Para ligar o disparo: preencha as duas linhas na copia que vai para o
+     * totem, com `useWhatsApp: true` — e NAO comite os valores.
+     *
+     * O token que estava aqui tem de ser considerado exposto e ROTACIONADO no
+     * painel do z-api, porque ja foi servido e esta no historico do git.
+     */
+    zapApiUrl: '',
+    zapClientToken: '',
   };
   Object.defineProperty(__exports, "CONFIG", { get: () => CONFIG, enumerable: true });
   });
@@ -3742,20 +3703,6 @@
       .map(normalize);
   }
   
-  /** `queryUsuariosRecordCount()` */
-  async function queryUsuariosRecordCount() {
-    if (CONFIG.useFirestore) {
-      try {
-        const { db, fs } = await ensureFirestore();
-        const snapshot = await fs.getCountFromServer(fs.collection(db, 'usuarios'));
-        return snapshot.data().count;
-      } catch (error) {
-        console.warn('Firestore count failed, falling back to local storage.', error);
-      }
-    }
-    return readLocal().length;
-  }
-  
   /**
    * UsuariosRecord's getters all default a missing field. `telefone` saiu de
    * proposito: o ranking nao o le mais (ver addUsuario).
@@ -3793,6 +3740,11 @@
       return { succeeded: false, skipped: true };
     }
   
+    if (!CONFIG.zapApiUrl || !CONFIG.zapClientToken) {
+      console.warn('[enviarMensagemZap] sem credencial em config.js — nada enviado');
+      return { succeeded: false, skipped: true };
+    }
+  
     try {
       const response = await fetch(CONFIG.zapApiUrl, {
         method: 'POST',
@@ -3805,32 +3757,10 @@
       return { succeeded: false };
     }
   }
-  
-  /** EnviarMensagemAgenteCall.call({nome, telefone, venceu}) - defined in the
-   *  Dart but never called from a widget; kept for parity. */
-  async function enviarMensagemAgente({ nome = '', telefone = '', venceu = null } = {}) {
-    if (!CONFIG.useAgentWebhook) {
-      console.info('[enviarMensagemAgente] desligado em config.js (useAgentWebhook)');
-      return { succeeded: false, skipped: true };
-    }
-    try {
-      const response = await fetch(CONFIG.agentWebhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome, telefone, venceu }),
-      });
-      return { succeeded: response.ok, statusCode: response.status };
-    } catch (error) {
-      console.warn('enviarMensagemAgente failed', error);
-      return { succeeded: false };
-    }
-  }
   Object.defineProperty(__exports, "createUsuariosRecordData", { get: () => createUsuariosRecordData, enumerable: true });
   Object.defineProperty(__exports, "addUsuario", { get: () => addUsuario, enumerable: true });
   Object.defineProperty(__exports, "queryUsuariosVencedores", { get: () => queryUsuariosVencedores, enumerable: true });
-  Object.defineProperty(__exports, "queryUsuariosRecordCount", { get: () => queryUsuariosRecordCount, enumerable: true });
   Object.defineProperty(__exports, "enviarMensagemZap", { get: () => enviarMensagemZap, enumerable: true });
-  Object.defineProperty(__exports, "enviarMensagemAgente", { get: () => enviarMensagemAgente, enumerable: true });
   });
 
   /* ===== anim.js ===== */
@@ -3907,6 +3837,17 @@
       this.controller = { forward: () => this._forward() };
     }
   
+    /**
+     * `animationsMap['x']!.controller.forward(from: 0.0)`.
+     *
+     * CONVENCAO: quem anima um TOQUE dispara isto SEM `await`. O Dart esperava os
+     * 400ms da animacao de aperto antes de fazer qualquer coisa, e o resultado e
+     * um botao que parece nao ter pego — 400ms e tempo de sobra para o dedo achar
+     * que errou. A animacao roda junto com a acao, nao antes dela.
+     *
+     * Os poucos `await` que sobraram sao sequencia de verdade (o giro de 5s da
+     * roleta, a saida da tela do carro) e estao comentados no lugar.
+     */
     _forward() {
       const runs = this._targets
         .map(({ node, effects }) => run(node, effects ?? this.effectsBuilder?.(), this))
@@ -4066,9 +4007,6 @@
     return node;
   }
   
-  /** setupAnimations(...) - nothing to pre-register in this port. */
-  function setupAnimations() {}
-  
   /** `await Future.delayed(Duration(milliseconds: n))` */
   const delayed = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
   Object.defineProperty(__exports, "menosMovimento", { get: () => menosMovimento, enumerable: true });
@@ -4082,7 +4020,6 @@
   Object.defineProperty(__exports, "run", { get: () => run, enumerable: true });
   Object.defineProperty(__exports, "animateOnPageLoad", { get: () => animateOnPageLoad, enumerable: true });
   Object.defineProperty(__exports, "animateOnActionTrigger", { get: () => animateOnActionTrigger, enumerable: true });
-  Object.defineProperty(__exports, "setupAnimations", { get: () => setupAnimations, enumerable: true });
   Object.defineProperty(__exports, "delayed", { get: () => delayed, enumerable: true });
   });
 
@@ -4511,6 +4448,42 @@
   
   /* ------------------------------------------------- FlutterFlowDropDown ---- */
   
+  /**
+   * A camada dos menus: fica DENTRO do palco (para herdar a escala e as unidades
+   * dele) e ANTES de `#overlays`, para um menu ficar acima das telas e abaixo dos
+   * dialogos. Criada na primeira vez que alguem abre um menu.
+   */
+  let sequenciaDeMenus = 0;
+  
+  function camadaDeMenus() {
+    let camada = document.getElementById('popups');
+    if (camada) return camada;
+    const palco = document.getElementById('stage');
+    camada = el('div', { id: 'popups' });
+    palco.insertBefore(camada, document.getElementById('overlays'));
+    return camada;
+  }
+  
+  /**
+   * A caixa de `node` em coordenadas DO PALCO. O palco e escalado por transform,
+   * entao `getBoundingClientRect` devolve px de tela; a escala sai da razao entre
+   * a largura desenhada e a de layout, sem depender de ler a variavel CSS.
+   */
+  function paraOPalco(node) {
+    const palco = document.getElementById('stage');
+    if (!palco) return null;
+    const p = palco.getBoundingClientRect();
+    const escala = p.width / palco.offsetWidth || 1;
+    const r = node.getBoundingClientRect();
+    return {
+      x: (r.left - p.left) / escala,
+      y: (r.top - p.top) / escala,
+      largura: r.width / escala,
+      altura: r.height / escala,
+      alturaDoPalco: palco.offsetHeight,
+    };
+  }
+  
   /** FormFieldController<T> */
   class FormFieldController {
     constructor(value = null) {
@@ -4563,22 +4536,25 @@
   
     const [ml, , mr] = margin;
   
+    // O menu vive fora do botao (ver abre/fecha), entao a ligacao entre os dois e
+    // declarada: `aria-controls` aponta para ele. Isso serve ao leitor de tela e
+    // da a quem testa um jeito estavel de achar o menu de um dropdown especifico,
+    // em vez de andar pela arvore.
+    const menuId = `ff-menu-${(sequenciaDeMenus += 1)}`;
     const menu = el('div', {
+      id: menuId,
       class: 'ff-dropdown-menu',
+      role: 'listbox',
       style: {
         background: menuColor || fillColor || null,
         borderRadius: '4px',
-        left: '0',
-        right: '0',
-        top: '100%',
-        maxHeight: maxHeight != null ? `${maxHeight}px` : '420px',
       },
     });
-    menu.hidden = true;
   
     options.forEach((option, index) => {
       const item = el('div', {
         class: 'ff-dropdown-item ff-text',
+        role: 'option',
         style: { ...styleToCss(textStyle), padding: `${(height ?? 48) / 4}px ${mr}px ${(height ?? 48) / 4}px ${ml}px` },
         text: labelFor(option, index),
       });
@@ -4621,27 +4597,96 @@
           border: `${borderWidth}px solid ${borderColor}`,
         },
       },
-      [button, menu]
+      [button]
     );
   
-    const close = () => {
-      menu.hidden = true;
-      document.removeEventListener('click', onDocumentClick, true);
-    };
-    const onDocumentClick = (event) => {
-      if (!root.contains(event.target)) close();
+    /* ------------------------------------------------------------ abre/fecha -- */
+    /*
+     * O menu e desenhado numa CAMADA propria do palco, e nao como filho absoluto
+     * do botao. Dois defeitos vinham dali:
+     *
+     *   1. o `z-index: 40` do menu ficava preso no contexto de empilhamento do
+     *      pedaco de tela onde o dropdown vive, entao o botao CONFIRMAR e a linha
+     *      de termos, que vem depois na arvore, eram pintados POR CIMA do menu
+     *      aberto;
+     *   2. o menu abria sempre para baixo. No cadastro ele comeca em y=802 e tem
+     *      420px, ou seja, vazava 142px abaixo do palco — e o palco recorta, o que
+     *      deixava as ultimas opcoes inalcancaveis.
+     *
+     * Na camada, o menu escapa de qualquer contexto de empilhamento e da para
+     * posicionar em coordenadas do palco: abre para baixo se cabe, para cima se
+     * nao cabe, e no pior caso encolhe e rola por dentro.
+     */
+    let aberto = false;
+  
+    const fechar = () => {
+      if (!aberto) return;
+      aberto = false;
+      menu.remove();
+      button.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('click', aoClicarFora, true);
+      document.removeEventListener('keydown', aoTeclar, true);
+      window.removeEventListener('resize', fechar);
     };
   
+    const aoClicarFora = (event) => {
+      if (!root.contains(event.target) && !menu.contains(event.target)) fechar();
+    };
+  
+    const aoTeclar = (event) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        fechar();
+      }
+    };
+  
+    const abrir = () => {
+      if (aberto) return;
+      aberto = true;
+      camadaDeMenus().appendChild(menu);
+      button.setAttribute('aria-expanded', 'true');
+      posicionar();
+      document.addEventListener('click', aoClicarFora, true);
+      document.addEventListener('keydown', aoTeclar, true);
+      window.addEventListener('resize', fechar);
+    };
+  
+    /** Poe o menu embaixo do botao, ou em cima se nao couber. */
+    function posicionar() {
+      const alvo = paraOPalco(button);
+      if (!alvo) return;
+      const { x, y, largura, altura, alturaDoPalco } = alvo;
+  
+      const FOLGA = 4;
+      const BORDA = 8;
+      const abaixo = alturaDoPalco - (y + altura) - FOLGA - BORDA;
+      const acima = y - FOLGA - BORDA;
+      const tetoPedido = maxHeight != null ? maxHeight : 420;
+  
+      menu.style.left = `${x}px`;
+      menu.style.width = `${largura}px`;
+      menu.style.maxHeight = `${Math.max(80, Math.min(tetoPedido, Math.max(abaixo, acima)))}px`;
+  
+      // Mede com o teto ja aplicado, para decidir com a altura real.
+      const alto = menu.offsetHeight;
+      if (alto <= abaixo || abaixo >= acima) {
+        menu.style.top = `${Math.min(y + altura + FOLGA, alturaDoPalco - BORDA - alto)}px`;
+      } else {
+        menu.style.top = `${Math.max(BORDA, y - FOLGA - alto)}px`;
+      }
+    }
+  
+    button.setAttribute('role', 'button');
+    button.setAttribute('aria-haspopup', 'listbox');
+    button.setAttribute('aria-controls', menuId);
+    button.setAttribute('aria-expanded', 'false');
     button.addEventListener('click', (event) => {
       event.stopPropagation();
-      if (menu.hidden) {
-        menu.hidden = false;
-        document.addEventListener('click', onDocumentClick, true);
-      } else {
-        close();
-      }
+      if (aberto) fechar();
+      else abrir();
     });
   
+    const close = fechar;
     return root;
   }
   
@@ -4977,7 +5022,7 @@
   // A count-up timer runs in the background; after 45 idle seconds the ranking
   // takes over the screen. Any tap, submit or dropdown change resets it.
   
-  const { Align, ClipRRect, Column, Container, FutureBuilder, Icon, Img, InkWell, Opacity, Padding, Stack, StackAlign, Txt, TransformSkew, color, decorationImage, divide, el, unfocus, SW, SH } = __require("widgets.js");
+  const { Align, ClipRRect, Column, Container, Icon, Img, InkWell, Opacity, Padding, Stack, StackAlign, Txt, TransformSkew, color, decorationImage, divide, el, unfocus, SW, SH } = __require("widgets.js");
   const { TH, style } = __require("theme.js");
   const { L, FFLocalizations, LANGUAGES, setAppLanguage } = __require("i18n.js");
   const { CadastroStruct, FFAppState } = __require("state.js");
@@ -4988,7 +5033,6 @@
   const { PoliticaPrivacidadeWidget } = __require("components/politica_privacidade.js");
   const { RankingWidget } = __require("components/ranking.js");
   const { goNamed, TransitionInfo, PageTransitionType, Alignment } = __require("router.js");
-  const { queryUsuariosRecordCount } = __require("backend.js");
   const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
   const { FlutterFlowTimer, FlutterFlowTimerController, InstantTimer, StopWatchMode, StopWatchTimer } = __require("timer.js");
   const { FlutterFlowDropDown, FlutterFlowLanguageSelector, FormFieldController, FormState, MaskTextInputFormatter, TextEditingController, TextFormField } = __require("forms.js");
@@ -5206,11 +5250,10 @@
         child: InkWell({
           onTap: async () => {
             playSound(model, 'soundPlayer6', 'assets/audios/undertale-select-sound.mp3', 0.6);
-            await animationsMap.transformOnActionTriggerAnimation.controller.forward();
+            animationsMap.transformOnActionTriggerAnimation.controller.forward();
   
             FFAppState.ordemNumeros = embaralhaQuestoes();
-            FFAppState.update();
-  
+        
             if (nomeOfensivo(model.textFieldNomeTextController.text)) {
               await showDialog({ builder: () => NomeOfensivoWidget() });
               model.invalido = model.invalido + 1;
@@ -5282,9 +5325,13 @@
     animateOnPageLoad(privacyText, animationsMap.textOnPageLoadAnimation);
   
     /* ---------------------------------------------------------- hidden bits -- */
-    // The Dart keeps the timer inside an Opacity(0) and prints the total number
-    // of `usuarios` rows plus a stray "Hello World" - all invisible or leftover,
-    // reproduced so the layout matches.
+    // O cronometro conta a inatividade e nao e para ser visto: fica num
+    // Opacity(0), como no Dart.
+    //
+    // O Dart tambem imprimia aqui um "Hello World" solto e a CONTAGEM de linhas
+    // de `usuarios` — 14px, visiveis, na primeira tela que o jogador ve, e a
+    // contagem disparava uma consulta a cada abertura do cadastro. Os dois eram
+    // lixo do FlutterFlow reproduzido por fidelidade, e sairam.
   
     const timer = FlutterFlowTimer({
       initialTime: 0,
@@ -5362,6 +5409,9 @@
             playSound(model, 'soundPlayer2', 'assets/audios/adriantnt_u_click.mp3', 1.0);
             restartIdleTimer();
           },
+          // Cobre a tela inteira so para captar o toque no fundo e reiniciar a
+          // contagem de inatividade: nao e um botao, e nao deve afundar.
+          feedback: false,
           style: { width: '100%', height: '100%' },
           child: Container({
             width: Infinity,
@@ -5377,7 +5427,6 @@
                 mainAxisSize: 'max',
                 mainAxisAlignment: 'center',
                 children: [
-                  Txt(L('sk6w3j28') /* Hello World */, style('bodyMedium')),
                   animateOnPageLoad(
                     ClipRRect({
                       borderRadius: 8.0,
@@ -5394,10 +5443,6 @@
                     }),
                   }),
                   Opacity({ opacity: 0.0, child: timer }),
-                  FutureBuilder({
-                    future: queryUsuariosRecordCount(),
-                    builder: (count) => Txt(String(count), style('bodyMedium')),
-                  }),
                 ],
               })
             ),
@@ -5521,7 +5566,7 @@
     const skipButton = InkWell({
       onTap: async () => {
         playSound(model, 'soundPlayer', 'assets/audios/adriantnt_u_click.mp3', 1.0);
-        await animationsMap.containerOnActionTriggerAnimation.controller.forward();
+        animationsMap.containerOnActionTriggerAnimation.controller.forward();
         left = true;
         NEXT();
       },
@@ -6060,12 +6105,13 @@
   
     const spinButton = InkWell({
       onTap: async () => {
-        await animationsMap.containerOnActionTriggerAnimation2.controller.forward();
+        animationsMap.containerOnActionTriggerAnimation2.controller.forward();
         if (!model.apertaButton || left) return;
   
         model.apertaButton = false;
         FFAppState.escolha = numeroAleatorio([...FFAppState.listaEscolhas], FFAppState.totalSlots);
         playSound(model, 'soundPlayer', 'assets/audios/roleta-normal-1_2GXmNRPk.mp3', 0.6);
+        // Este `await` E sequencia: sao os 5s de giro, e o jogo so segue depois.
         await animationsMap.containerOnActionTriggerAnimation1.controller.forward();
         await delayed(1000);
         if (left || !root.isConnected) return;
@@ -6292,6 +6338,7 @@
   
     delayed(6000).then(async () => {
       if (left || !root.isConnected) return;
+      // Sequencia de verdade: e a animacao de SAIDA da tela, antes de navegar.
       await animationsMap.columnOnActionTriggerAnimation.controller.forward();
       if (left || !root.isConnected) return;
       goNamed('scanner', {
@@ -6416,7 +6463,7 @@
   const { playSound } = __require("audio.js");
   const { showDialog } = __require("dialog.js");
   const { EquipamentoInvalidoWidget } = __require("components/equipamento_invalido.js");
-  const { pushNamed, TransitionInfo, PageTransitionType, Alignment } = __require("router.js");
+  const { goNamed, TransitionInfo, PageTransitionType, Alignment } = __require("router.js");
   const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnActionTrigger } = __require("anim.js");
   
   const TOOLS = {
@@ -6455,9 +6502,9 @@
   
     const onTap = async () => {
       playSound(model, tool.sound, 'assets/audios/undertale-select-sound.mp3', 0.6);
-      await animationsMap.stackOnActionTriggerAnimation.controller.forward();
+      animationsMap.stackOnActionTriggerAnimation.controller.forward();
       if (enabled) {
-        pushNamed('telaVideoScanner', {
+        goNamed('telaVideoScanner', {
           extra: {
             __transition_info__: new TransitionInfo({
               hasTransition: true,
@@ -6467,8 +6514,7 @@
           },
         });
         FFAppState.scannerEscolhido = tool.escolhido;
-        FFAppState.update();
-      } else {
+        } else {
         await showDialog({ builder: () => EquipamentoInvalidoWidget() });
       }
     };
@@ -6621,7 +6667,7 @@
   const { L } = __require("i18n.js");
   const { FFAppState } = __require("state.js");
   const { CONFIG } = __require("config.js");
-  const { pushNamed, TransitionInfo, PageTransitionType, Alignment } = __require("router.js");
+  const { goNamed, TransitionInfo, PageTransitionType, Alignment } = __require("router.js");
   const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnPageLoad, delayed } = __require("anim.js");
   
   const BASE = 'https://firebasestorage.googleapis.com/v0/b/projeto-assis-3qcf6v.appspot.com/o/videoScanners';
@@ -6703,7 +6749,7 @@
   
     delayed(14000).then(() => {
       if (left || !root.isConnected) return;
-      pushNamed('telaAcao', {
+      goNamed('telaAcao', {
         extra: {
           __transition_info__: new TransitionInfo({
             hasTransition: true,
@@ -6839,7 +6885,7 @@
                                 actionAnimation: animationsMap.containerOnActionTriggerAnimation1,
                                 onTap: async () => {
                                   playSound(model, 'soundPlayer1', 'assets/audios/adriantnt_u_click.mp3', 1.0);
-                                  await animationsMap.containerOnActionTriggerAnimation1.controller.forward();
+                                  animationsMap.containerOnActionTriggerAnimation1.controller.forward();
                                   pop();
                                 },
                               }),
@@ -6848,7 +6894,7 @@
                                 actionAnimation: animationsMap.containerOnActionTriggerAnimation2,
                                 onTap: async () => {
                                   playSound(model, 'soundPlayer2', 'assets/audios/undertale-select-sound.mp3', 1.0);
-                                  await animationsMap.containerOnActionTriggerAnimation2.controller.forward();
+                                  animationsMap.containerOnActionTriggerAnimation2.controller.forward();
                                   FFAppState.finalizou = true;
                                   pop();
                                 },
@@ -6882,17 +6928,34 @@
 
   /* ===== components/pop_up.js ===== */
   __define("components/pop_up.js", function (__exports, __require) {
-  // Port of lib/pages/components/pop_up/pop_up_widget.dart
+  // O popup de dica de suporte. `tipo` escolhe o logo e a foto, `texto` e a dica
+  // da questao no idioma atual.
   //
-  // The support hint popup. `tipo` selects the logo + photo pair, `texto` is the
-  // hint text for the current question in the current language.
+  // POR QUE ESTE ARQUIVO NAO E UM PORTE DIRETO DO DART
+  // O widget original (pop_up_widget.dart) empilhava um Column com um Row
+  // centralizado e um Padding de 62px por cima de um PNG de fundo com `cover`.
+  // Na pratica nada caia no lugar: a foto do notebook subia acima da faixa azul,
+  // o texto encostava na borda de baixo do cartao e vazava, e o X de fechar
+  // flutuava no meio do cartao (alignment 0.52/0.72). Estava fiel ao Dart e
+  // quebrado na tela.
+  //
+  // Aqui o layout sai da PROPRIA ARTE, medida no pixel (assets/images/Pop_Up.png,
+  // 1480x767):
+  //
+  //   - o cartao e um paralelogramo de largura constante 1234 que desliza 0,3px
+  //     para a esquerda por pixel de altura;
+  //   - a faixa azul do cabecalho vai de y 45 a y 172;
+  //   - o corpo claro vai de y 175 ao fim.
+  //
+  // Como os lados sao inclinados, o conteudo vive em duas caixas seguras — o
+  // retangulo que cabe dentro do paralelogramo na altura de cada uma. Os numeros
+  // abaixo sao a medicao em px de arte multiplicada pela escala do cartao.
   
-  const { Align, ClipRRect, Column, Container, Img, InkWell, Padding, Row, Stack, StackAlign, Txt, decorationImage, divide, valueOrDefault } = __require("widgets.js");
-  const { style } = __require("theme.js");
+  const { el, Img, valueOrDefault } = __require("widgets.js");
   const { pop } = __require("dialog.js");
-  const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
+  const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, animateOnPageLoad } = __require("anim.js");
   
-  /** tipo -> the logo image on the left of the header. */
+  /** tipo -> o logo da faixa do cabecalho. */
   const LOGOS = {
     'Apoio Tecnico': 'assets/images/Apoio_1.png',
     'Cursos EAD': 'assets/images/Cursos_EAD_1.png',
@@ -6901,112 +6964,117 @@
     TecnomotorTV: 'assets/images/TecnomotorTV_(1).png',
   };
   
-  /** tipo -> the photo on the right, with its own size in the Dart. */
-  const PHOTOS = {
-    Representante: { src: 'assets/images/Representantes_(1).png', width: 357.2, height: 188.1 },
-    TecnomotorTV: { src: 'assets/images/TecnmotorTV.png', width: 293.7, height: 206.1 },
-    Comunidade: { src: 'assets/images/Comunidade.png', width: 293.7, height: 206.1 },
-    'Cursos EAD': { src: 'assets/images/Instrutores_(1)_(1).png', width: 293.7, height: 206.1 },
-    'Apoio Tecnico': { src: 'assets/images/Apoio_(1).png', width: 293.7, height: 206.1 },
+  /** tipo -> a foto do corpo. */
+  const FOTOS = {
+    Representante: 'assets/images/Representantes_(1).png',
+    TecnomotorTV: 'assets/images/TecnmotorTV.png',
+    Comunidade: 'assets/images/Comunidade.png',
+    'Cursos EAD': 'assets/images/Instrutores_(1)_(1).png',
+    'Apoio Tecnico': 'assets/images/Apoio_(1).png',
   };
   
+  /** A arte tem 1480x767; o cartao entra com a MESMA proporcao, para nao cortar. */
+  const CARTAO = { largura: 1340, altura: 694 };
+  /** A faixa azul do cabecalho (arte y 45..172). */
+  const FAIXA = { topo: 41, altura: 115 };
+  /** O retangulo que cabe na faixa (arte x 250..1345 nas linhas dela). */
+  const CABECALHO = { esquerda: 226, largura: 991 };
+  /** O retangulo que cabe no corpo (arte x 215..1230, y 195..720). */
+  const CORPO = { esquerda: 195, topo: 177, largura: 919, altura: 475 };
+  /** A foto ocupa a direita do corpo; o texto fica com o que sobra. */
+  const FOTO = { largura: 300, altura: 212 };
+  const FOLGA = 48;
+  
+  const px = (n) => `${n}px`;
+  
   function PopUpWidget({ texto, tipo } = {}) {
-    const animationsMap = {
-      stackOnPageLoadAnimation: new AnimationInfo({
-        trigger: AnimationTrigger.onPageLoad,
-        effectsBuilder: () => [
-          FadeEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 1200.0, begin: 0.0, end: 1.0 }),
-          MoveEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 1200.0, begin: [0.0, 100.0], end: [0.0, 0.0] }),
-        ],
-      }),
-      imageOnActionTriggerAnimation: new AnimationInfo({
-        trigger: AnimationTrigger.onActionTrigger,
-        applyInitialState: true,
-        effectsBuilder: () => [
-          ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 200.0, begin: [1.0, 1.0], end: [0.9, 0.9] }),
-          ScaleEffect({ curve: Curves.easeInOut, delay: 200.0, duration: 200.0, begin: [0.9, 0.9], end: [1.0, 1.0] }),
-        ],
-      }),
-    };
-  
-    const logo = LOGOS[tipo];
-    const photo = PHOTOS[tipo];
-  
-    const closeButton = InkWell({
-      onTap: async () => {
-        await animationsMap.imageOnActionTriggerAnimation.controller.forward();
-        pop();
-      },
-      child: ClipRRect({
-        borderRadius: 8.0,
-        child: Img('assets/images/Icones_Suporte_(1).png', { width: 200.0, height: 200.0, fit: 'cover' }),
-      }),
-    });
-    animateOnActionTrigger(closeButton, animationsMap.imageOnActionTriggerAnimation);
-  
-    const root = Stack({
-      children: [
-        StackAlign({
-          alignment: [0.0, 0.0],
-          child: Container({
-            width: 1304.5,
-            height: 689.6,
-            constraints: { minWidth: '200px' },
-            image: decorationImage('assets/images/Pop_Up.png', 'cover'),
-            child: Column({
-              mainAxisSize: 'max',
-              mainAxisAlignment: 'start',
-              children: [
-                Row({
-                  mainAxisSize: 'max',
-                  mainAxisAlignment: 'center',
-                  crossAxisAlignment: 'center',
-                  children: divide(
-                    [
-                      Column({
-                        mainAxisSize: 'max',
-                        children: [
-                          logo &&
-                            ClipRRect({
-                              borderRadius: 8.0,
-                              child: Img(logo, { width: 400.0, height: 100.0, fit: 'contain' }),
-                            }),
-                        ],
-                      }),
-                      Column({
-                        mainAxisSize: 'max',
-                        children: [
-                          photo &&
-                            ClipRRect({
-                              borderRadius: 8.0,
-                              child: Img(photo.src, { width: photo.width, height: photo.height, fit: 'cover' }),
-                            }),
-                        ],
-                      }),
-                    ],
-                    32.0
-                  ),
-                }),
-                Align({
-                  alignment: [0.0, 0.0],
-                  child: Padding({
-                    padding: [0.0, 62.0, 0.0, 0.0],
-                    child: Container({
-                      width: 902.36,
-                      alignment: [0.0, 0.0],
-                      child: Txt(valueOrDefault(texto, 'Texto'), style('bodyMedium', { color: '#000000', fontSize: 32.0 })),
-                    }),
-                  }),
-                }),
-              ],
-            }),
-          }),
-        }),
-        StackAlign({ alignment: [0.52, 0.72], child: closeButton }),
+    const entrada = new AnimationInfo({
+      trigger: AnimationTrigger.onPageLoad,
+      effectsBuilder: () => [
+        FadeEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 420.0, begin: 0.0, end: 1.0 }),
+        MoveEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 420.0, begin: [0.0, 60.0], end: [0.0, 0.0] }),
       ],
     });
   
-    return animateOnPageLoad(root, animationsMap.stackOnPageLoadAnimation);
+    const logo = LOGOS[tipo];
+    const foto = FOTOS[tipo];
+  
+    /* ------------------------------------------------------------- cabecalho -- */
+  
+    const marca = logo
+      ? el('div', { class: 'pop-logo', style: { left: px(CABECALHO.esquerda), top: px(FAIXA.topo + 16) } },
+          Img(logo, { width: 300, height: FAIXA.altura - 32, fit: 'contain', alignment: [-1.0, 0.0] }))
+      : null;
+  
+    // O X fica no canto do cabecalho, que e onde se procura por ele — e nao no
+    // meio do cartao, como o Dart o punha. 56px de lado da area de toque folgada.
+    const fechar = el(
+      'div',
+      {
+        class: 'ff-inkwell pop-fechar',
+        role: 'button',
+        tabindex: '0',
+        'aria-label': 'Fechar',
+        style: {
+          left: px(CABECALHO.esquerda + CABECALHO.largura - 56),
+          top: px(FAIXA.topo + (FAIXA.altura - 56) / 2),
+        },
+      },
+      Img('assets/images/Icones_Suporte_(1).png', { width: 56, height: 56, fit: 'contain' })
+    );
+    // Fecha na hora. O Dart esperava 400ms de animacao antes de fazer qualquer
+    // coisa, o que faz o toque parecer que nao pegou.
+    const aoFechar = () => pop();
+    fechar.addEventListener('click', (event) => {
+      event.stopPropagation();
+      aoFechar();
+    });
+    fechar.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+        event.preventDefault();
+        event.stopPropagation();
+        aoFechar();
+      }
+    });
+  
+    /* ----------------------------------------------------------------- corpo -- */
+  
+    const dica = el('div', {
+      class: 'ff-text pop-texto',
+      style: {
+        left: px(CORPO.esquerda),
+        top: px(CORPO.topo),
+        width: px(CORPO.largura - (foto ? FOTO.largura + FOLGA : 0)),
+        height: px(CORPO.altura),
+      },
+      text: valueOrDefault(texto, ''),
+    });
+  
+    const imagem = foto
+      ? el('div', {
+          class: 'pop-foto',
+          style: {
+            left: px(CORPO.esquerda + CORPO.largura - FOTO.largura),
+            top: px(CORPO.topo),
+            width: px(FOTO.largura),
+            height: px(CORPO.altura),
+          },
+        },
+        Img(foto, { width: FOTO.largura, height: FOTO.altura, fit: 'contain' }))
+      : null;
+  
+    const cartao = el(
+      'div',
+      {
+        class: 'pop-cartao',
+        role: 'dialog',
+        'aria-modal': 'true',
+        style: { width: px(CARTAO.largura), height: px(CARTAO.altura) },
+      },
+      [marca, fechar, dica, imagem].filter(Boolean)
+    );
+  
+    return animateOnPageLoad(cartao, entrada);
   }
   Object.defineProperty(__exports, "PopUpWidget", { get: () => PopUpWidget, enumerable: true });
   });
@@ -7030,7 +7098,7 @@
   const { showDialog } = __require("dialog.js");
   const { ConfirmacaoWidget } = __require("components/confirmacao.js");
   const { PopUpWidget } = __require("components/pop_up.js");
-  const { pushNamed, TransitionInfo, PageTransitionType } = __require("router.js");
+  const { goNamed, TransitionInfo, PageTransitionType } = __require("router.js");
   const { addUsuario, createUsuariosRecordData } = __require("backend.js");
   const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
   const { FlutterFlowTimer, FlutterFlowTimerController, InstantTimer, StopWatchMode, StopWatchTimer } = __require("timer.js");
@@ -7277,7 +7345,7 @@
   
           model.apertou = true;
           playSound(model, sound, 'assets/audios/undertale-select-sound.mp3', 0.53);
-          await animation.controller.forward();
+          animation.controller.forward();
           await showDialog({ builder: () => ConfirmacaoWidget() });
   
           if (FFAppState.finalizou) {
@@ -7300,7 +7368,7 @@
               invalido: FFAppState.cadastro.invalido,
             });
   
-            pushNamed(acertou ? 'Ganhou' : 'Perdeu', {
+            goNamed(acertou ? 'Ganhou' : 'Perdeu', {
               extra: {
                 __transition_info__: new TransitionInfo({
                   hasTransition: true,
@@ -7377,7 +7445,7 @@
           playSound(model, spec.sound, 'assets/audios/adriantnt_u_click.mp3', 0.5);
           if (model[spec.key]) return;
   
-          await actionAnimation.controller.forward();
+          actionAnimation.controller.forward();
           model[spec.key] = true;
           refreshHints();
   
@@ -7731,7 +7799,7 @@
         model.timerController.onResetTimer();
         model.soundPlayer1?.stop();
         model.instantTimer?.cancel();
-        pushNamed('Perdeu', {
+        goNamed('Perdeu', {
           extra: {
             __transition_info__: new TransitionInfo({
               hasTransition: true,
@@ -7983,7 +8051,7 @@
   
     const restart = async () => {
       playSound(model, 'soundPlayer2', 'assets/audios/undertale-select-sound.mp3', 0.6);
-      await animationsMap.buttonOnActionTriggerAnimation.controller.forward();
+      animationsMap.buttonOnActionTriggerAnimation.controller.forward();
   
       await enviarMensagemZap({
         numero: transformaNumero(FFAppState.cadastro.telefone),
@@ -7994,7 +8062,6 @@
       FFAppState.tempoAcabando = false;
       FFAppState.cadastro = new CadastroStruct();
       FFAppState.ajuda = 0;
-      FFAppState.update();
   
       goNamed('telaVideoTransisao', {
         queryParameters: { tipo: serializeParam(0) },

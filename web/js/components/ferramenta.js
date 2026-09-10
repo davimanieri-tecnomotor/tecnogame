@@ -21,7 +21,7 @@ import { FFAppState } from '../state.js';
 import { playSound } from '../audio.js';
 import { showDialog } from '../dialog.js';
 import { EquipamentoInvalidoWidget } from './equipamento_invalido.js';
-import { pushNamed, TransitionInfo, PageTransitionType, Alignment } from '../router.js';
+import { goNamed, TransitionInfo, PageTransitionType, Alignment } from '../router.js';
 import {
   AnimationInfo,
   AnimationTrigger,
@@ -66,9 +66,9 @@ export function FerramentaWidget({ ferramenta, util } = {}) {
 
   const onTap = async () => {
     playSound(model, tool.sound, 'assets/audios/undertale-select-sound.mp3', 0.6);
-    await animationsMap.stackOnActionTriggerAnimation.controller.forward();
+    animationsMap.stackOnActionTriggerAnimation.controller.forward();
     if (enabled) {
-      pushNamed('telaVideoScanner', {
+      goNamed('telaVideoScanner', {
         extra: {
           __transition_info__: new TransitionInfo({
             hasTransition: true,
@@ -78,8 +78,7 @@ export function FerramentaWidget({ ferramenta, util } = {}) {
         },
       });
       FFAppState.scannerEscolhido = tool.escolhido;
-      FFAppState.update();
-    } else {
+      } else {
       await showDialog({ builder: () => EquipamentoInvalidoWidget() });
     }
   };

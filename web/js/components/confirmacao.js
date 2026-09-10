@@ -132,7 +132,7 @@ export function ConfirmacaoWidget() {
                               actionAnimation: animationsMap.containerOnActionTriggerAnimation1,
                               onTap: async () => {
                                 playSound(model, 'soundPlayer1', 'assets/audios/adriantnt_u_click.mp3', 1.0);
-                                await animationsMap.containerOnActionTriggerAnimation1.controller.forward();
+                                animationsMap.containerOnActionTriggerAnimation1.controller.forward();
                                 pop();
                               },
                             }),
@@ -141,7 +141,7 @@ export function ConfirmacaoWidget() {
                               actionAnimation: animationsMap.containerOnActionTriggerAnimation2,
                               onTap: async () => {
                                 playSound(model, 'soundPlayer2', 'assets/audios/undertale-select-sound.mp3', 1.0);
-                                await animationsMap.containerOnActionTriggerAnimation2.controller.forward();
+                                animationsMap.containerOnActionTriggerAnimation2.controller.forward();
                                 FFAppState.finalizou = true;
                                 pop();
                               },

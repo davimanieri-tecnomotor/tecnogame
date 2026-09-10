@@ -7,8 +7,6 @@
 import { carregarBaralho, CAMPOS_QUESTAO } from './deck.js';
 import { escolhaParaIndice } from './functions.js';
 
-const listeners = new Set();
-
 /** CadastroStruct */
 export class CadastroStruct {
   constructor({ nome, telefone, atuacao, invalido } = {}) {
@@ -127,12 +125,6 @@ class FFAppStateClass {
     return vistaPorIdioma(this.baralho, 'es');
   }
 
-  /** update(callback) - runs the mutation then notifies listeners. */
-  update(callback) {
-    if (callback) callback();
-    this.notifyListeners();
-  }
-
   addToListaEscolhas(value) {
     this.listaEscolhas.push(value);
   }
@@ -140,10 +132,6 @@ class FFAppStateClass {
   removeFromListaEscolhas(value) {
     const index = this.listaEscolhas.indexOf(value);
     if (index >= 0) this.listaEscolhas.splice(index, 1);
-  }
-
-  notifyListeners() {
-    for (const fn of listeners) fn(this);
   }
 }
 
@@ -173,15 +161,4 @@ function vistaPorIdioma(deck, lang) {
 }
 
 export const FFAppState = new FFAppStateClass();
-
-/**
- * Contraparte de `notifyListeners()`. Hoje nenhuma tela assina — o porte
- * re-renderiza por navegação, não por observação — mas é o seam que dá sentido
- * ao `update()` espalhado pelo código, que existe por paridade com o
- * ChangeNotifier do Dart.
- */
-export function onAppStateChange(fn) {
-  listeners.add(fn);
-  return () => listeners.delete(fn);
-}
 

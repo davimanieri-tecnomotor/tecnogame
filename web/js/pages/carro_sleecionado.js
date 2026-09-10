@@ -86,6 +86,7 @@ export function CarroSleecionadoWidget() {
 
   delayed(6000).then(async () => {
     if (left || !root.isConnected) return;
+    // Sequencia de verdade: e a animacao de SAIDA da tela, antes de navegar.
     await animationsMap.columnOnActionTriggerAnimation.controller.forward();
     if (left || !root.isConnected) return;
     goNamed('scanner', {

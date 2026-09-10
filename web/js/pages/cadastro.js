@@ -9,7 +9,6 @@ import {
   ClipRRect,
   Column,
   Container,
-  FutureBuilder,
   Icon,
   Img,
   InkWell,
@@ -37,7 +36,6 @@ import { NomeOfensivoWidget } from '../components/nome_ofensivo.js';
 import { PoliticaPrivacidadeWidget } from '../components/politica_privacidade.js';
 import { RankingWidget } from '../components/ranking.js';
 import { goNamed, TransitionInfo, PageTransitionType, Alignment } from '../router.js';
-import { queryUsuariosRecordCount } from '../backend.js';
 import {
   AnimationInfo,
   AnimationTrigger,
@@ -272,11 +270,10 @@ export function CadastroWidget() {
       child: InkWell({
         onTap: async () => {
           playSound(model, 'soundPlayer6', 'assets/audios/undertale-select-sound.mp3', 0.6);
-          await animationsMap.transformOnActionTriggerAnimation.controller.forward();
+          animationsMap.transformOnActionTriggerAnimation.controller.forward();
 
           FFAppState.ordemNumeros = embaralhaQuestoes();
-          FFAppState.update();
-
+      
           if (nomeOfensivo(model.textFieldNomeTextController.text)) {
             await showDialog({ builder: () => NomeOfensivoWidget() });
             model.invalido = model.invalido + 1;
@@ -348,9 +345,13 @@ export function CadastroWidget() {
   animateOnPageLoad(privacyText, animationsMap.textOnPageLoadAnimation);
 
   /* ---------------------------------------------------------- hidden bits -- */
-  // The Dart keeps the timer inside an Opacity(0) and prints the total number
-  // of `usuarios` rows plus a stray "Hello World" - all invisible or leftover,
-  // reproduced so the layout matches.
+  // O cronometro conta a inatividade e nao e para ser visto: fica num
+  // Opacity(0), como no Dart.
+  //
+  // O Dart tambem imprimia aqui um "Hello World" solto e a CONTAGEM de linhas
+  // de `usuarios` — 14px, visiveis, na primeira tela que o jogador ve, e a
+  // contagem disparava uma consulta a cada abertura do cadastro. Os dois eram
+  // lixo do FlutterFlow reproduzido por fidelidade, e sairam.
 
   const timer = FlutterFlowTimer({
     initialTime: 0,
@@ -428,6 +429,9 @@ export function CadastroWidget() {
           playSound(model, 'soundPlayer2', 'assets/audios/adriantnt_u_click.mp3', 1.0);
           restartIdleTimer();
         },
+        // Cobre a tela inteira so para captar o toque no fundo e reiniciar a
+        // contagem de inatividade: nao e um botao, e nao deve afundar.
+        feedback: false,
         style: { width: '100%', height: '100%' },
         child: Container({
           width: Infinity,
@@ -443,7 +447,6 @@ export function CadastroWidget() {
               mainAxisSize: 'max',
               mainAxisAlignment: 'center',
               children: [
-                Txt(L('sk6w3j28') /* Hello World */, style('bodyMedium')),
                 animateOnPageLoad(
                   ClipRRect({
                     borderRadius: 8.0,
@@ -460,10 +463,6 @@ export function CadastroWidget() {
                   }),
                 }),
                 Opacity({ opacity: 0.0, child: timer }),
-                FutureBuilder({
-                  future: queryUsuariosRecordCount(),
-                  builder: (count) => Txt(String(count), style('bodyMedium')),
-                }),
               ],
             })
           ),

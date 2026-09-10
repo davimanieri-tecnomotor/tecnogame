@@ -16,9 +16,6 @@ export const CONFIG = {
   /** POST the "you finished TECNOGAME" WhatsApp message on the end screens. */
   useWhatsApp: false,
 
-  /** The n8n webhook in EnviarMensagemAgenteCall (never called by the UI). */
-  useAgentWebhook: false,
-
   // lib/backend/firebase/firebase_config.dart
   firebaseOptions: {
     apiKey: 'AIzaSyAZTmRXL83WY-KjmtAhsE-ERAdWRkEEKMY',
@@ -37,9 +34,21 @@ export const CONFIG = {
    */
   useLocalScannerVideos: false,
 
-  // lib/backend/api_requests/api_calls.dart
-  zapApiUrl:
-    'https://api.z-api.io/instances/3DF6AF6878FFE0BA1789FA8592F99CB9/token/957757C50A408830EA4E34A1/send-link',
-  zapClientToken: 'F6fe8ad64e65d43f38881110afffab493S',
-  agentWebhookUrl: 'https://d0ed-200-210-23-242.ngrok-free.app/webhook-test/lutterflow-webhook',
+  /**
+   * A credencial do z-api (lib/backend/api_requests/api_calls.dart no Dart).
+   *
+   * Ela vinha CRAVADA aqui, com a instancia e o token no caminho da URL. O
+   * problema nao e o repositorio: e que este arquivo entra no `bundle.js`
+   * servido ao navegador, ou seja, qualquer pessoa que abrisse o jogo lia uma
+   * credencial capaz de disparar WhatsApp pela conta da Tecnomotor.
+   *
+   * Agora nasce vazia e o envio se recusa a rodar sem ela (ver backend.js).
+   * Para ligar o disparo: preencha as duas linhas na copia que vai para o
+   * totem, com `useWhatsApp: true` — e NAO comite os valores.
+   *
+   * O token que estava aqui tem de ser considerado exposto e ROTACIONADO no
+   * painel do z-api, porque ja foi servido e esta no historico do git.
+   */
+  zapApiUrl: '',
+  zapClientToken: '',
 };

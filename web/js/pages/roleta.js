@@ -117,12 +117,13 @@ export function RoletaWidget() {
 
   const spinButton = InkWell({
     onTap: async () => {
-      await animationsMap.containerOnActionTriggerAnimation2.controller.forward();
+      animationsMap.containerOnActionTriggerAnimation2.controller.forward();
       if (!model.apertaButton || left) return;
 
       model.apertaButton = false;
       FFAppState.escolha = numeroAleatorio([...FFAppState.listaEscolhas], FFAppState.totalSlots);
       playSound(model, 'soundPlayer', 'assets/audios/roleta-normal-1_2GXmNRPk.mp3', 0.6);
+      // Este `await` E sequencia: sao os 5s de giro, e o jogo so segue depois.
       await animationsMap.containerOnActionTriggerAnimation1.controller.forward();
       await delayed(1000);
       if (left || !root.isConnected) return;

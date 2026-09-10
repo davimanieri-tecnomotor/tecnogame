@@ -31,11 +31,13 @@ export class TransitionInfo {
 }
 
 const routes = new Map();
-/** name -> path, so goNamed/pushNamed can resolve like go_router does. */
+/** name -> path, so goNamed can resolve like go_router does. */
 const namedPaths = new Map();
 
 let current = null;
 let navigating = false;
+/** O pedido de navegacao que chegou durante outra (ver render). */
+let pendente = null;
 
 export function defineRoute({ name, path, builder }) {
   routes.set(path, { name, path, builder });
@@ -51,23 +53,6 @@ function parseQuery(path) {
   const index = path.indexOf('?');
   if (index < 0) return {};
   return Object.fromEntries(new URLSearchParams(path.slice(index + 1)).entries());
-}
-
-/** deserializeParam(value, ParamType.int) for the one int param in the app. */
-export const ParamType = { int: 'int', String: 'String', double: 'double', bool: 'bool' };
-
-export function deserializeParam(raw, type) {
-  if (raw == null) return null;
-  switch (type) {
-    case ParamType.int:
-      return Number.parseInt(raw, 10);
-    case ParamType.double:
-      return Number.parseFloat(raw);
-    case ParamType.bool:
-      return raw === 'true';
-    default:
-      return raw;
-  }
 }
 
 export const serializeParam = (value) => (value == null ? null : String(value));
@@ -109,7 +94,15 @@ function transitionOut(node, info) {
 /* -------------------------------------------------------------- navigate -- */
 
 async function render(path, { info }) {
-  if (navigating) return;
+  if (navigating) {
+    // Um toque durante a transicao de ENTRADA da tela anterior era engolido em
+    // silencio: este `return` descartava a navegacao e o jogador ficava olhando
+    // um botao que nao fez nada. Enquanto toda acao esperava 400ms de animacao
+    // de aperto, a janela era pequena e o defeito passava; sem essa espera ele
+    // aparece. Agora o pedido espera a vez em vez de morrer.
+    pendente = { path, info };
+    return;
+  }
   navigating = true;
   try {
     const route = resolve(path) ?? resolve('/cadastro');
@@ -146,25 +139,16 @@ async function render(path, { info }) {
     await transitionIn(node, info);
   } finally {
     navigating = false;
+    // So o ultimo pedido interessa: quem apertou duas telas atras nao quer
+    // atravessar as duas.
+    const proximo = pendente;
+    pendente = null;
+    if (proximo) await render(proximo.path, { info: proximo.info });
   }
 }
 
 /** `context.goNamed(name, queryParameters: ..., extra: {__transition_info__})` */
 export function goNamed(name, { queryParameters = null, extra = null } = {}) {
-  const path = buildPath(name, queryParameters);
-  return render(path, { info: extra?.__transition_info__ });
-}
-
-/**
- * `context.pushNamed(...)`.
- *
- * No go_router isto empilha a rota. Aqui nao existe pilha propria: o unico
- * consumidor era `safePop()`, que nenhuma tela chamava (o Dart tambem nao), e
- * o botao Voltar do navegador ja e tratado pelo listener de `hashchange`. Fica
- * como sinonimo de goNamed para os call sites continuarem legiveis ao lado do
- * Dart.
- */
-export function pushNamed(name, { queryParameters = null, extra = null } = {}) {
   const path = buildPath(name, queryParameters);
   return render(path, { info: extra?.__transition_info__ });
 }
@@ -193,5 +177,3 @@ export function startRouter() {
     render(path, { info: null });
   });
 }
-
-export const currentRoute = () => current?.route?.name ?? null;

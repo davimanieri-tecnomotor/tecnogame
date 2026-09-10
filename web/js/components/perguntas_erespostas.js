@@ -34,7 +34,7 @@ import { playSound } from '../audio.js';
 import { showDialog } from '../dialog.js';
 import { ConfirmacaoWidget } from './confirmacao.js';
 import { PopUpWidget } from './pop_up.js';
-import { pushNamed, TransitionInfo, PageTransitionType } from '../router.js';
+import { goNamed, TransitionInfo, PageTransitionType } from '../router.js';
 import { addUsuario, createUsuariosRecordData } from '../backend.js';
 import {
   AnimationInfo,
@@ -288,7 +288,7 @@ export function PerguntasErespostasWidget() {
 
         model.apertou = true;
         playSound(model, sound, 'assets/audios/undertale-select-sound.mp3', 0.53);
-        await animation.controller.forward();
+        animation.controller.forward();
         await showDialog({ builder: () => ConfirmacaoWidget() });
 
         if (FFAppState.finalizou) {
@@ -311,7 +311,7 @@ export function PerguntasErespostasWidget() {
             invalido: FFAppState.cadastro.invalido,
           });
 
-          pushNamed(acertou ? 'Ganhou' : 'Perdeu', {
+          goNamed(acertou ? 'Ganhou' : 'Perdeu', {
             extra: {
               __transition_info__: new TransitionInfo({
                 hasTransition: true,
@@ -388,7 +388,7 @@ export function PerguntasErespostasWidget() {
         playSound(model, spec.sound, 'assets/audios/adriantnt_u_click.mp3', 0.5);
         if (model[spec.key]) return;
 
-        await actionAnimation.controller.forward();
+        actionAnimation.controller.forward();
         model[spec.key] = true;
         refreshHints();
 
@@ -742,7 +742,7 @@ export function PerguntasErespostasWidget() {
       model.timerController.onResetTimer();
       model.soundPlayer1?.stop();
       model.instantTimer?.cancel();
-      pushNamed('Perdeu', {
+      goNamed('Perdeu', {
         extra: {
           __transition_info__: new TransitionInfo({
             hasTransition: true,
