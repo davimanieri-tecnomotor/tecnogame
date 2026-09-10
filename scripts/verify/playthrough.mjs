@@ -170,7 +170,7 @@ log('11. telaAcao');
 // ---- inspect the question panel -----------------------------------------
 const ANSWER_FINDER = `
   [...document.querySelectorAll('#pages .ff-text')]
-    .filter((n) => /^[1-4]$/.test(n.textContent.trim()) && n.style.fontSize === '55px')
+    .filter((n) => /^[1-4]$/.test(n.textContent.trim()) && Math.round(parseFloat(getComputedStyle(n).fontSize)) === 55)
     .map((n) => n.closest('.ff-stack'))
 `;
 const panel = await page.evaluate((finder) => {
@@ -213,7 +213,10 @@ const answered = await page.evaluate((finder) => {
   const cards = eval(finder);
   if (!cards.length) return null;
   const card = cards[0];
-  const text = [...card.querySelectorAll('.ff-text')].find((n) => n.style.fontSize === '24px')?.textContent;
+  // Computado, nao inline: ver a nota em baralho.mjs sobre o piso de legibilidade.
+  const text = [...card.querySelectorAll('.ff-text')].find(
+    (n) => Math.round(parseFloat(getComputedStyle(n).fontSize)) === 24
+  )?.textContent;
   card.querySelector('.ff-inkwell').click();
   return text;
 }, ANSWER_FINDER);

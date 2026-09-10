@@ -238,8 +238,12 @@ for (let i = 0; i < 90; i++) {
 await wait(1500);
 
 const jogo = await page.evaluate(() => {
+  // O valor COMPUTADO, e nao `n.style.fontSize`: o piso de legibilidade emite
+  // `max(55px, var(--piso-fonte))`, entao a string do estilo inline nao e mais
+  // "55px". Em 1x o computado continua 55.
+  const fontePx = (n) => Math.round(parseFloat(getComputedStyle(n).fontSize));
   const cards = [...document.querySelectorAll('#pages .ff-text')]
-    .filter((n) => /^[1-4]$/.test(n.textContent.trim()) && n.style.fontSize === '55px')
+    .filter((n) => /^[1-4]$/.test(n.textContent.trim()) && fontePx(n) === 55)
     .map((n) => n.closest('.ff-stack'));
   const enunciado = [...document.querySelectorAll('#pages .ff-text')]
     .map((n) => n.textContent.trim())

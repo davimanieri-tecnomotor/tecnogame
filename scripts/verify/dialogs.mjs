@@ -258,10 +258,12 @@ await wait(1200);
 /* ------------------------------------------------- pick the correct answer */
 const cards = await page.evaluate(() =>
   [...document.querySelectorAll('#pages .ff-text')]
-    .filter((n) => /^[1-4]$/.test(n.textContent.trim()) && n.style.fontSize === '55px')
+    .filter((n) => /^[1-4]$/.test(n.textContent.trim()) && Math.round(parseFloat(getComputedStyle(n).fontSize)) === 55)
     .map((n) => {
       const stack = n.closest('.ff-stack');
-      const body = [...stack.querySelectorAll('.ff-text')].find((t) => t.style.fontSize === '24px');
+      const body = [...stack.querySelectorAll('.ff-text')].find(
+        (t) => Math.round(parseFloat(getComputedStyle(t).fontSize)) === 24
+      );
       return { number: n.textContent.trim(), text: body?.textContent ?? '' };
     })
 );
@@ -278,7 +280,7 @@ if (!target) throw new Error('correct answer is not on screen');
 log(`  clicking card ${target.number}`);
 await page.evaluate((wanted) => {
   const hit = [...document.querySelectorAll('#pages .ff-text')].find(
-    (n) => n.style.fontSize === '24px' && n.textContent === wanted
+    (n) => Math.round(parseFloat(getComputedStyle(n).fontSize)) === 24 && n.textContent === wanted
   );
   hit.closest('.ff-stack').querySelector('.ff-inkwell').click();
 }, correctText);
