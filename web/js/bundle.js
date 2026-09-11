@@ -3723,19 +3723,23 @@
 
   /* ===== config.js ===== */
   __define("config.js", function (__exports, __require) {
-  // Backend switches.
+  // As chaves do que sai desta máquina.
   //
-  // The Dart app wrote every game result into the live Firestore collection
-  // `usuarios` and sent a WhatsApp message through a production z-api instance.
-  // Both are wired up in backend.js with the original credentials, but they start
-  // switched OFF so that opening this port does not touch production data.
+  // Duas, e separadas de propósito:
   //
-  // Turn `useFirestore` on to get the real shared ranking back (the same project,
-  // collection and query as the Dart). With it off, results are kept in this
-  // browser's localStorage and the ranking screens work exactly the same way.
+  //   useFirestore     falar com o Firebase — o baralho em `conteudo`.
+  //   rankingNaNuvem   gravar RESULTADO DE PARTIDA em `usuarios`/`contatos`.
+  //
+  // A segunda é mais rígida que a primeira: numa máquina de trabalho ela fica
+  // desligada mesmo com `?comNuvem=1`. Mexer no baralho pelo `npm start` é
+  // legítimo; semear o ranking da feira com partidas de teste não é, e já
+  // aconteceu.
+  //
+  // O disparo de WhatsApp (`useWhatsApp`) continua desligado, porque a credencial
+  // dele não pode viajar no cliente.
   
   /**
-   * Cópia de desenvolvimento? Então a nuvem fica fora.
+   * Cópia de desenvolvimento? Então a nuvem fica fora — a não ser que você peça.
    *
    * Isto não é preciosismo: com o Firestore ligado, CADA partida escreve em
    * `usuarios` e `contatos`. Uma rodada do `npm run verify` joga o jogo inteiro
@@ -3746,14 +3750,27 @@
    * mexendo no jogo. Um IP de rede local (o totem servido de outra máquina do
    * estande) continua valendo como produção.
    *
-   * Para desligar em qualquer outro lugar — uma cópia de demonstração no ar, um
-   * totem que não deve mandar nada —, basta abrir com `?semNuvem=1` na URL.
+   * AS DUAS CHAVES, porque os dois casos existem:
+   *
+   *   ?comNuvem=1   liga aqui mesmo. É o que se usa para mexer no baralho pelo
+   *                 `npm start` e ver o resultado chegar no Firebase. A suíte de
+   *                 verificação não passa por aqui, então continua hermética.
+   *   ?semNuvem=1   desliga em qualquer outro lugar — uma cópia de demonstração
+   *                 no ar, um totem que não deve mandar nada.
    */
-  function origemDeDesenvolvimento() {
+  const busca = () => new URLSearchParams(typeof location === 'undefined' ? '' : location.search);
+  
+  /** `file://` ou localhost: alguém mexendo no jogo, não um totem em feira. */
+  function maquinaDeTrabalho() {
     if (typeof location === 'undefined') return true;
     if (location.protocol === 'file:') return true;
-    if (new URLSearchParams(location.search).has('semNuvem')) return true;
     return ['localhost', '127.0.0.1', '::1', '0.0.0.0'].includes(location.hostname);
+  }
+  
+  function origemDeDesenvolvimento() {
+    if (busca().has('semNuvem')) return true;
+    if (busca().has('comNuvem')) return false;
+    return maquinaDeTrabalho();
   }
   
   const CONFIG = {
@@ -3769,6 +3786,18 @@
      * disco continua jogando só com o que tem guardado no próprio navegador.
      */
     useFirestore: !origemDeDesenvolvimento(),
+  
+    /**
+     * O RANKING é caso à parte, e mais rígido: numa máquina de trabalho ele NUNCA
+     * vai para a nuvem, nem com `?comNuvem=1`.
+     *
+     * `comNuvem` existe para mexer no baralho pelo `npm start` e ver chegar no
+     * Firebase — não para semear o ranking da feira com partidas de teste. Foi
+     * exatamente isso que encheu `usuarios` e `contatos` de "Davi" e "Vencedor"
+     * com telefone de mentira. Numa máquina de trabalho o ranking é local, e é o
+     * local que o jogo lê de volta, para a tela de fim ficar coerente.
+     */
+    rankingNaNuvem: !maquinaDeTrabalho() && !busca().has('semNuvem'),
   
     /** POST the "you finished TECNOGAME" WhatsApp message on the end screens. */
     useWhatsApp: false,
@@ -3983,7 +4012,7 @@
     putRecord(LOCAL_KEY, row);
     if (contato) putRecord(CONTACT_KEY, contato);
   
-    if (!CONFIG.useFirestore) return;
+    if (!CONFIG.rankingNaNuvem) return;
     try {
       const alvo = await ensureFirestore();
       if (!alvo) return;
@@ -4011,7 +4040,7 @@
    * the fastest players first - the ranking is sorted exactly as in the Dart.
    */
   async function queryUsuariosVencedores({ limit = 15 } = {}) {
-    if (CONFIG.useFirestore) {
+    if (CONFIG.rankingNaNuvem) {
       try {
         const alvo = await comPrazo(ensureFirestore());
         if (alvo) {
@@ -6355,11 +6384,21 @@
       return;
     }
   
-    const mudouArte = !usaArteOriginal(estado.baralho);
-    const texto = mudouArte
-      ? 'O baralho não usa mais os dez veículos originais, então a roleta será desenhada pelo jogo em vez de usar a arte pronta. A próxima partida já usa este conteúdo.'
-      : 'A próxima partida já usa este conteúdo.';
-    if (!(await confirmar({ titulo: 'Salvar o baralho?', texto, confirmarTexto: 'Salvar' }))) return;
+    const partes = [
+      !usaArteOriginal(estado.baralho)
+        ? 'O baralho não usa mais os dez veículos originais, então a roleta será desenhada pelo jogo em vez de usar a arte pronta.'
+        : null,
+      // Dito AQUI, e não num selo permanente: é no momento de salvar que a
+      // diferença entre "foi para todo mundo" e "ficou nesta máquina" importa.
+      !podeUsarNuvem()
+        ? 'Atenção: esta cópia não fala com o Firebase, então o baralho vai valer só neste navegador. Para salvar na nuvem daqui, abra o jogo com ?comNuvem=1 no endereço.'
+        : !estado.operador
+          ? 'Atenção: você não está conectado, então o baralho vai valer só neste navegador. Entre com a conta do operador para alcançar os outros totens.'
+          : 'Vai para o Firebase: todo totem com internet pega na próxima partida.',
+      'A próxima partida aqui já usa este conteúdo.',
+    ].filter(Boolean);
+  
+    if (!(await confirmar({ titulo: 'Salvar o baralho?', texto: partes.join(' '), confirmarTexto: 'Salvar' }))) return;
   
     if (!publicarBaralho(estado.baralho)) {
       // "Cheio" e "recusado" pedem coisas opostas: um pede tirar imagem enviada,
@@ -6381,7 +6420,10 @@
     // gravado local de propósito: se a internet estiver fora, o que foi editado
     // não se perde, e o operador é avisado do que ficou faltando.
     if (!podeUsarNuvem()) {
-      aviso('Esta cópia não fala com o Firebase: o baralho vale só neste navegador.');
+      aviso(
+        'Esta cópia não fala com o Firebase — abra com ?comNuvem=1 no endereço para salvar na nuvem daqui.',
+        'erro'
+      );
       return;
     }
     if (!estado.operador) {

@@ -101,7 +101,7 @@ export async function addUsuario(record, { serverTimestamp = false } = {}) {
   putRecord(LOCAL_KEY, row);
   if (contato) putRecord(CONTACT_KEY, contato);
 
-  if (!CONFIG.useFirestore) return;
+  if (!CONFIG.rankingNaNuvem) return;
   try {
     const alvo = await ensureFirestore();
     if (!alvo) return;
@@ -129,7 +129,7 @@ export async function addUsuario(record, { serverTimestamp = false } = {}) {
  * the fastest players first - the ranking is sorted exactly as in the Dart.
  */
 export async function queryUsuariosVencedores({ limit = 15 } = {}) {
-  if (CONFIG.useFirestore) {
+  if (CONFIG.rankingNaNuvem) {
     try {
       const alvo = await comPrazo(ensureFirestore());
       if (alvo) {

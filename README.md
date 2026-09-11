@@ -197,6 +197,19 @@ partida não ficar refém da conexão — e, se vier conteúdo novo, ele vale j�
 partida seguinte. Isso é o que mantém o totem jogando com a internet caída: ele
 fica com a última cópia que baixou.
 
+> **Mexendo pelo `npm start`?** Em `localhost` o jogo não fala com o Firebase —
+> é o que impede a suíte de verificação, que joga quatro partidas por rodada, de
+> encher o ranking da feira com dados de teste. Para trabalhar no baralho e ver
+> chegar na nuvem, abra com **`?comNuvem=1`**:
+>
+> ```
+> http://localhost:8099/index.html?comNuvem=1#/adm
+> ```
+>
+> O ranking continua local mesmo assim, de propósito: `comNuvem` serve para
+> mexer no conteúdo, não para semear `usuarios` e `contatos` com partidas de
+> teste. E `?semNuvem=1` desliga tudo em qualquer lugar.
+
 > **Para salvar para todos os totens é preciso entrar.** O botão "Entrar" na
 > barra pede a conta do **Firebase** — é ela que a regra de escrita de
 > `conteudo` exige. Não é a senha `2040`: aquela só destranca a tela e viaja no

@@ -1,16 +1,20 @@
-// Backend switches.
+// As chaves do que sai desta máquina.
 //
-// The Dart app wrote every game result into the live Firestore collection
-// `usuarios` and sent a WhatsApp message through a production z-api instance.
-// Both are wired up in backend.js with the original credentials, but they start
-// switched OFF so that opening this port does not touch production data.
+// Duas, e separadas de propósito:
 //
-// Turn `useFirestore` on to get the real shared ranking back (the same project,
-// collection and query as the Dart). With it off, results are kept in this
-// browser's localStorage and the ranking screens work exactly the same way.
+//   useFirestore     falar com o Firebase — o baralho em `conteudo`.
+//   rankingNaNuvem   gravar RESULTADO DE PARTIDA em `usuarios`/`contatos`.
+//
+// A segunda é mais rígida que a primeira: numa máquina de trabalho ela fica
+// desligada mesmo com `?comNuvem=1`. Mexer no baralho pelo `npm start` é
+// legítimo; semear o ranking da feira com partidas de teste não é, e já
+// aconteceu.
+//
+// O disparo de WhatsApp (`useWhatsApp`) continua desligado, porque a credencial
+// dele não pode viajar no cliente.
 
 /**
- * Cópia de desenvolvimento? Então a nuvem fica fora.
+ * Cópia de desenvolvimento? Então a nuvem fica fora — a não ser que você peça.
  *
  * Isto não é preciosismo: com o Firestore ligado, CADA partida escreve em
  * `usuarios` e `contatos`. Uma rodada do `npm run verify` joga o jogo inteiro
@@ -21,14 +25,27 @@
  * mexendo no jogo. Um IP de rede local (o totem servido de outra máquina do
  * estande) continua valendo como produção.
  *
- * Para desligar em qualquer outro lugar — uma cópia de demonstração no ar, um
- * totem que não deve mandar nada —, basta abrir com `?semNuvem=1` na URL.
+ * AS DUAS CHAVES, porque os dois casos existem:
+ *
+ *   ?comNuvem=1   liga aqui mesmo. É o que se usa para mexer no baralho pelo
+ *                 `npm start` e ver o resultado chegar no Firebase. A suíte de
+ *                 verificação não passa por aqui, então continua hermética.
+ *   ?semNuvem=1   desliga em qualquer outro lugar — uma cópia de demonstração
+ *                 no ar, um totem que não deve mandar nada.
  */
-function origemDeDesenvolvimento() {
+const busca = () => new URLSearchParams(typeof location === 'undefined' ? '' : location.search);
+
+/** `file://` ou localhost: alguém mexendo no jogo, não um totem em feira. */
+function maquinaDeTrabalho() {
   if (typeof location === 'undefined') return true;
   if (location.protocol === 'file:') return true;
-  if (new URLSearchParams(location.search).has('semNuvem')) return true;
   return ['localhost', '127.0.0.1', '::1', '0.0.0.0'].includes(location.hostname);
+}
+
+function origemDeDesenvolvimento() {
+  if (busca().has('semNuvem')) return true;
+  if (busca().has('comNuvem')) return false;
+  return maquinaDeTrabalho();
 }
 
 export const CONFIG = {
@@ -44,6 +61,18 @@ export const CONFIG = {
    * disco continua jogando só com o que tem guardado no próprio navegador.
    */
   useFirestore: !origemDeDesenvolvimento(),
+
+  /**
+   * O RANKING é caso à parte, e mais rígido: numa máquina de trabalho ele NUNCA
+   * vai para a nuvem, nem com `?comNuvem=1`.
+   *
+   * `comNuvem` existe para mexer no baralho pelo `npm start` e ver chegar no
+   * Firebase — não para semear o ranking da feira com partidas de teste. Foi
+   * exatamente isso que encheu `usuarios` e `contatos` de "Davi" e "Vencedor"
+   * com telefone de mentira. Numa máquina de trabalho o ranking é local, e é o
+   * local que o jogo lê de volta, para a tela de fim ficar coerente.
+   */
+  rankingNaNuvem: !maquinaDeTrabalho() && !busca().has('semNuvem'),
 
   /** POST the "you finished TECNOGAME" WhatsApp message on the end screens. */
   useWhatsApp: false,

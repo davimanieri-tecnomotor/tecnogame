@@ -119,11 +119,21 @@ async function publicar() {
     return;
   }
 
-  const mudouArte = !usaArteOriginal(estado.baralho);
-  const texto = mudouArte
-    ? 'O baralho não usa mais os dez veículos originais, então a roleta será desenhada pelo jogo em vez de usar a arte pronta. A próxima partida já usa este conteúdo.'
-    : 'A próxima partida já usa este conteúdo.';
-  if (!(await confirmar({ titulo: 'Salvar o baralho?', texto, confirmarTexto: 'Salvar' }))) return;
+  const partes = [
+    !usaArteOriginal(estado.baralho)
+      ? 'O baralho não usa mais os dez veículos originais, então a roleta será desenhada pelo jogo em vez de usar a arte pronta.'
+      : null,
+    // Dito AQUI, e não num selo permanente: é no momento de salvar que a
+    // diferença entre "foi para todo mundo" e "ficou nesta máquina" importa.
+    !podeUsarNuvem()
+      ? 'Atenção: esta cópia não fala com o Firebase, então o baralho vai valer só neste navegador. Para salvar na nuvem daqui, abra o jogo com ?comNuvem=1 no endereço.'
+      : !estado.operador
+        ? 'Atenção: você não está conectado, então o baralho vai valer só neste navegador. Entre com a conta do operador para alcançar os outros totens.'
+        : 'Vai para o Firebase: todo totem com internet pega na próxima partida.',
+    'A próxima partida aqui já usa este conteúdo.',
+  ].filter(Boolean);
+
+  if (!(await confirmar({ titulo: 'Salvar o baralho?', texto: partes.join(' '), confirmarTexto: 'Salvar' }))) return;
 
   if (!publicarBaralho(estado.baralho)) {
     // "Cheio" e "recusado" pedem coisas opostas: um pede tirar imagem enviada,
@@ -145,7 +155,10 @@ async function publicar() {
   // gravado local de propósito: se a internet estiver fora, o que foi editado
   // não se perde, e o operador é avisado do que ficou faltando.
   if (!podeUsarNuvem()) {
-    aviso('Esta cópia não fala com o Firebase: o baralho vale só neste navegador.');
+    aviso(
+      'Esta cópia não fala com o Firebase — abra com ?comNuvem=1 no endereço para salvar na nuvem daqui.',
+      'erro'
+    );
     return;
   }
   if (!estado.operador) {
