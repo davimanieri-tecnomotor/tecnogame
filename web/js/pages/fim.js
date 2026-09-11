@@ -7,11 +7,15 @@
 // Both read the top 5 winners and show the first 3, then REINICIAR sends the
 // WhatsApp message, clears the run state and restarts at the transition video.
 //
-// E as duas passaram a CONTAR QUAL ERA A RESPOSTA CERTA. O jogo julgava e ia
-// embora sem dizer — num jogo feito para ensinar técnico a usar scanner, quem
-// errava saía sem ter aprendido nada, que é o contrário do ponto. Quem acertou
-// também ganha a confirmação, que é metade do prazer. O que mostrar vem de
-// `FFAppState.resultado`, escrito na hora do veredito.
+// E a tela de DERROTA passou a contar qual era a resposta certa. O jogo julgava
+// e ia embora sem dizer — num jogo feito para ensinar técnico a usar scanner,
+// quem errava saía sem ter aprendido nada, que é o contrário do ponto.
+//
+// A de vitória não mostra: a revelação na tela da pergunta já acendeu em verde
+// a alternativa certa, e ela era justamente a que o jogador escolheu. Repetir
+// ali é contar a alguém o que essa pessoa acabou de dizer.
+//
+// O que mostrar vem de `FFAppState.resultado`, escrito na hora do veredito.
 
 import {
   Align,
@@ -202,12 +206,18 @@ export function FimWidget(spec) {
       animationsMap.textOnPageLoadAnimation
     );
 
-    // O gabarito, contado ao jogador. Entra atrasado de propósito (1,1s): a
+    // O gabarito, contado a QUEM ERROU. Entra atrasado de propósito (1,1s): a
     // manchete chega primeiro, a explicação depois — na ordem em que a pessoa
     // quer as duas coisas.
+    //
+    // Quem acertou não vê este cartão. A revelação na tela da pergunta já
+    // acendeu a alternativa certa em verde, e ela era a que o jogador tinha
+    // escolhido: repetir aqui é contar a alguém o que essa pessoa acabou de
+    // dizer. Quem errou é que precisa da resposta — é a única coisa que ele
+    // leva embora.
     const resultado = FFAppState.resultado;
     const gabarito =
-      resultado?.numeroCerto && resultado?.textoCerto
+      !resultado?.acertou && resultado?.numeroCerto && resultado?.textoCerto
         ? animateOnPageLoad(
             Container({
               // 520 e não mais: o botão REINICIAR começa em x≈615 do palco, e
@@ -215,7 +225,7 @@ export function FimWidget(spec) {
               width: 520.0,
               color: color(0xB3000E24),
               borderRadius: 12.0,
-              border: `2px solid ${resultado.acertou ? '#2FBF71' : '#FF5963'}`,
+              border: '2px solid #FF5963',
               child: Padding({
                 padding: [28.0, 20.0, 28.0, 20.0],
                 child: Column({
@@ -226,7 +236,7 @@ export function FimWidget(spec) {
                       `${T('respostaCerta')}: ${T('alternativa')} ${resultado.numeroCerto}`,
                       style('bodyMedium', {
                         fontFamily: 'pirulen',
-                        color: resultado.acertou ? '#2FBF71' : '#FF9A94',
+                        color: '#FF9A94',
                         fontSize: 22.0,
                         letterSpacing: 2.0,
                         fontWeight: 400,
@@ -246,9 +256,8 @@ export function FimWidget(spec) {
                         })
                       ),
                     }),
-                    // Só para quem errou: sem isto a pessoa não liga o que
-                    // escolheu ao que era certo.
-                    !resultado.acertou && resultado.textoEscolhido
+                    // Sem isto a pessoa não liga o que escolheu ao que era certo.
+                    resultado.textoEscolhido
                       ? Padding({
                           padding: [0.0, 14.0, 0.0, 0.0],
                           child: Txt(
