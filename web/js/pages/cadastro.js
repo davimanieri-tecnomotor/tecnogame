@@ -261,16 +261,21 @@ export function CadastroWidget() {
 
   /* ------------------------------------------------------ confirm button -- */
 
+  // O InkWell embrulha o BOTÃO, e não o texto dentro dele.
+  //
+  // No Dart ele estava por dentro do Container, e o Container centraliza o
+  // filho: o alvo era o tamanho da palavra "CONFIRMAR", e todo o azul em volta
+  // não respondia a nada. Numa tela de toque isso é um botão que parece
+  // quebrado — o dedo acerta o retângulo e não acontece nada.
+  //
+  // Por fora, o alvo passa a ser exatamente a forma azul que se vê (o
+  // `TransformSkew` é o pai, então a inclinação vale para o acerto também), e o
+  // afundar do `.ff-press` passa a ser do botão inteiro em vez de só da palavra.
   const confirmar = TransformSkew({
     ax: -0.5,
-    child: Container({
-      width: SW * 0.25,
-      height: SH * 0.07,
-      color: color(0xFF0053B6),
-      borderRadius: 16.0,
-      alignment: [0.0, 0.0],
-      child: InkWell({
-        onTap: async () => {
+    child: InkWell({
+      label: 'CONFIRMAR',
+      onTap: async () => {
           playSound(model, 'soundPlayer6', 'assets/audios/undertale-select-sound.mp3', 0.6);
           animationsMap.transformOnActionTriggerAnimation.controller.forward();
 
@@ -305,6 +310,12 @@ export function CadastroWidget() {
             },
           });
         },
+      child: Container({
+        width: SW * 0.25,
+        height: SH * 0.07,
+        color: color(0xFF0053B6),
+        borderRadius: 16.0,
+        alignment: [0.0, 0.0],
         child: TransformSkew({
           ax: 0.5,
           child: Align({
