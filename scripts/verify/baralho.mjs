@@ -46,20 +46,28 @@ const paridade = await page.evaluate(async () => {
 
   if (slots.length !== 10) problemas.push(`baralho embutido tem ${slots.length} slots, esperava 10`);
 
+  // Desde a v2 do baralho um veiculo tem um BANCO de perguntas; o embutido nasce
+  // com uma por veiculo, que e a do Dart.
   slots.forEach((slot, i) => {
+    if ((slot.perguntas ?? []).length !== 1) {
+      problemas.push(`slot ${i}: o embutido deveria ter 1 pergunta, tem ${(slot.perguntas ?? []).length}`);
+      return;
+    }
+    const pergunta = slot.perguntas[0];
+    if (pergunta.ativa !== true) problemas.push(`slot ${i}: a pergunta do embutido deveria nascer ativa`);
     for (const lang of deck.IDIOMAS) {
       const q = QUESTIONS[lang][i];
       for (const campo of deck.CAMPOS_QUESTAO) {
         const esperado = q[campo] ?? '';
-        const obtido = slot[lang][campo];
+        const obtido = pergunta[lang][campo];
         if (obtido !== esperado) {
           problemas.push(`slot ${i} ${lang}.${campo}: ${JSON.stringify(obtido)} != ${JSON.stringify(esperado)}`);
         }
       }
     }
-    if (slot.gabarito !== String(QUESTIONS.pt[i].gabarito)) problemas.push(`slot ${i}: gabarito`);
+    if (pergunta.gabarito !== String(QUESTIONS.pt[i].gabarito)) problemas.push(`slot ${i}: gabarito`);
     for (const flag of ['raster3S', 'rasher4', 'xtool']) {
-      if (slot.scanners[flag] !== Boolean(QUESTIONS.pt[i][flag])) problemas.push(`slot ${i}: flag ${flag}`);
+      if (pergunta.scanners[flag] !== Boolean(QUESTIONS.pt[i][flag])) problemas.push(`slot ${i}: flag ${flag}`);
     }
   });
 
@@ -85,7 +93,7 @@ const paridade = await page.evaluate(async () => {
   // 3: a arte original vale para o baralho embutido, e não para um alterado.
   if (!deck.usaArteOriginal(deck.BARALHO_ORIGINAL)) problemas.push('usaArteOriginal deveria ser true no embutido');
   const trocado = {
-    versao: 1,
+    versao: 2,
     slots: deck.SLOTS_ORIGINAIS.map((s, i) =>
       i === 0 ? { ...s, veiculo: { ...s.veiculo, imagem: 'assets/images/BMW.png' } } : s
     ),
@@ -94,9 +102,11 @@ const paridade = await page.evaluate(async () => {
 
   // Só mexer no texto não invalida a arte: os veículos continuam os mesmos.
   const soTexto = {
-    versao: 1,
+    versao: 2,
     slots: deck.SLOTS_ORIGINAIS.map((s, i) =>
-      i === 0 ? { ...s, pt: { ...s.pt, pergunta: 'outra pergunta' } } : s
+      i === 0
+        ? { ...s, perguntas: [{ ...s.perguntas[0], pt: { ...s.perguntas[0].pt, pergunta: 'outra pergunta' } }] }
+        : s
     ),
   };
   if (!deck.usaArteOriginal(soTexto)) problemas.push('editar so o texto nao deveria invalidar a arte');
@@ -124,13 +134,14 @@ await page.evaluate(async (n) => {
   const slots = Array.from({ length: n }, (_, i) => {
     const s = JSON.parse(JSON.stringify(base[i % base.length]));
     s.veiculo.nome = `Veiculo de teste ${i + 1}`;
+    const p = s.perguntas[0];
     // Todos resolvem com qualquer equipamento, para o teste sempre conseguir avançar.
-    s.scanners = { raster3S: true, rasher4: true, xtool: true };
-    s.gabarito = '2';
-    for (const lang of deck.IDIOMAS) s[lang].pergunta = `Pergunta de teste ${i + 1}`;
+    p.scanners = { raster3S: true, rasher4: true, xtool: true };
+    p.gabarito = '2';
+    for (const lang of deck.IDIOMAS) p[lang].pergunta = `Pergunta de teste ${i + 1}`;
     return s;
   });
-  deck.publicarBaralho({ versao: 1, slots });
+  deck.publicarBaralho({ versao: 2, slots });
 }, N_CUSTOM);
 
 // Caminho 1: o totem reinicia. Um reload sempre le o baralho publicado.
@@ -421,9 +432,122 @@ console.log(
 desenho.slice(0, 10).forEach((p) => console.log('   - ' + p));
 falhas.push(...desenho);
 
+/* ------------- 7: banco de perguntas por veiculo, e o sorteio -------------- */
+
+// Desde a v2 um veiculo pode ter varias perguntas e o jogo sorteia entre as
+// LIGADAS. Duas coisas tem de valer: nunca cair numa desligada (senao o
+// operador nao consegue guardar rascunho) e nao cair sempre na mesma (senao o
+// segundo da fila recebe a pergunta do primeiro, que e o defeito que o banco
+// existe para resolver).
+
+const banco = await page.evaluate(async () => {
+  const carregar = async (nome) =>
+    window.__tecgameRequire ? window.__tecgameRequire(nome) : await import(`./js/${nome}`);
+
+  const deck = await carregar('deck.js');
+  const st = await carregar('state.js');
+  const problemas = [];
+  const clonar = (x) => JSON.parse(JSON.stringify(x));
+
+  const molde = clonar(deck.SLOTS_ORIGINAIS[0]);
+  const perguntaDe = (rotulo, ativa) => {
+    const p = clonar(molde.perguntas[0]);
+    p.id = `t-${rotulo}`;
+    p.ativa = ativa;
+    for (const lang of deck.IDIOMAS) p[lang].pergunta = rotulo;
+    return p;
+  };
+
+  // Tres veiculos; o do meio com quatro perguntas, das quais duas ligadas.
+  const slots = [0, 1, 2].map((i) => {
+    const s = clonar(molde);
+    s.veiculo.nome = `Veiculo ${i}`;
+    s.perguntas =
+      i === 1
+        ? [
+            perguntaDe('A-ligada', true),
+            perguntaDe('B-desligada', false),
+            perguntaDe('C-ligada', true),
+            perguntaDe('D-desligada', false),
+          ]
+        : [perguntaDe(`unica-${i}`, true)];
+    return s;
+  });
+  const comBanco = { versao: 2, slots };
+
+  // Rascunho desligado com campo vazio nao pode impedir publicar.
+  const rascunhoVazio = clonar(comBanco);
+  for (const lang of deck.IDIOMAS) rascunhoVazio.slots[1].perguntas[1][lang].pergunta = '';
+  const erros = deck.validarBaralho(rascunhoVazio);
+  if (erros.length) problemas.push('validar reprovou por causa de rascunho desligado: ' + erros.join('; '));
+
+  // Mas um veiculo SEM nenhuma ligada tem de reprovar: a roleta cairia nele sem jogo.
+  const todasDesligadas = clonar(comBanco);
+  todasDesligadas.slots[1].perguntas.forEach((p) => {
+    p.ativa = false;
+  });
+  if (!deck.validarBaralho(todasDesligadas).some((m) => /desligadas/.test(m))) {
+    problemas.push('validar deixou passar um veiculo com todas as perguntas desligadas');
+  }
+
+  // O sorteio, muitas vezes: sempre entre as ligadas, e cobrindo as duas.
+  deck.publicarBaralho(comBanco);
+  st.FFAppState.recarregarBaralho();
+  const vistas = new Set();
+  for (let n = 0; n < 200; n++) {
+    st.FFAppState.sortearPerguntas();
+    vistas.add(st.FFAppState.questoesBrasil[1].pergunta);
+  }
+  if (![...vistas].every((t) => t.endsWith('-ligada'))) {
+    problemas.push('o sorteio caiu numa pergunta desligada: ' + [...vistas].join(', '));
+  }
+  if (vistas.size !== 2) {
+    problemas.push(`o sorteio cobriu ${vistas.size} perguntas em 200 partidas, esperava as 2 ligadas`);
+  }
+  // Veiculo de uma pergunta so continua deterministico.
+  if (st.FFAppState.questoesBrasil[0].pergunta !== 'unica-0') {
+    problemas.push('veiculo de uma pergunta nao devolveu a dele');
+  }
+
+  // E um baralho v1 (a pergunta solta no slot) tem de continuar abrindo.
+  const antigo = clonar(molde.perguntas[0]);
+  deck.publicarBaralho({
+    versao: 1,
+    slots: [
+      {
+        veiculo: clonar(molde.veiculo),
+        gabarito: '3',
+        scanners: { raster3S: true, rasher4: false, xtool: false },
+        pt: { ...antigo.pt, pergunta: 'veio da v1' },
+        en: antigo.en,
+        es: antigo.es,
+      },
+    ],
+  });
+  const migrado = deck.carregarBaralho();
+  const p0 = migrado.slots[0].perguntas?.[0];
+  if (migrado.versao !== 2) problemas.push(`migracao nao marcou versao 2 (${migrado.versao})`);
+  if (migrado.slots[0].perguntas?.length !== 1) problemas.push('migracao nao criou o banco de uma pergunta');
+  if (p0?.pt?.pergunta !== 'veio da v1') problemas.push('migracao perdeu o enunciado');
+  if (p0?.gabarito !== '3') problemas.push('migracao perdeu o gabarito');
+  if (p0?.scanners?.rasher4 !== false) problemas.push('migracao perdeu as flags de equipamento');
+  if (p0?.ativa !== true) problemas.push('migracao nao deixou a pergunta ativa');
+
+  deck.restaurarOriginal();
+  return problemas;
+});
+
+console.log(
+  banco.length
+    ? '7. BANCO DE PERGUNTAS FALHOU:'
+    : '7. o sorteio so cai em pergunta ligada, cobre todas elas, e baralho v1 migra sozinho'
+);
+banco.slice(0, 10).forEach((p) => console.log('   - ' + p));
+falhas.push(...banco);
+
 await browser.close();
 if (falhas.length) {
   console.log('\nFALHOU:\n- ' + falhas.slice(0, 15).join('\n- '));
   process.exit(1);
 }
-console.log('\nbaralho: fidelidade do original preservada e tamanho livre funcionando');
+console.log('\nbaralho: fidelidade do original, tamanho livre e banco de perguntas funcionando');

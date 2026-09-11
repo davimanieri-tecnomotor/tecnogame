@@ -10,20 +10,36 @@
 // browser's localStorage and the ranking screens work exactly the same way.
 
 export const CONFIG = {
-  /** Read/write the `usuarios` collection in Firestore. */
-  useFirestore: false,
+  /**
+   * Liga o Firebase: o ranking compartilhado (`usuarios`) e o baralho na nuvem
+   * (`conteudo`, ver nuvem.js).
+   *
+   * Ligado aponta para `tecnogame-c7e46`, o projeto da Tecnomotor — e não mais
+   * para o `projeto-assis-3qcf6v` do FlutterFlow original, que está morto (o
+   * bucket dele responde 402). Como o projeto novo nasceu vazio, ligar isto não
+   * arrisca dado de ninguém.
+   *
+   * Vale saber: `file://` recusa o SDK, então o jogo aberto do disco continua
+   * jogando só com o que tem guardado no próprio navegador.
+   */
+  useFirestore: true,
 
   /** POST the "you finished TECNOGAME" WhatsApp message on the end screens. */
   useWhatsApp: false,
 
-  // lib/backend/firebase/firebase_config.dart
+  /**
+   * A chave web do Firebase pode ficar aqui: ela é identificador público por
+   * design, não credencial. Quem defende os dados são as regras em
+   * firebase/firestore.rules — leitura do ranking sem telefone, escrita do
+   * conteúdo só autenticada.
+   */
   firebaseOptions: {
-    apiKey: 'AIzaSyAZTmRXL83WY-KjmtAhsE-ERAdWRkEEKMY',
-    authDomain: 'projeto-assis-3qcf6v.firebaseapp.com',
-    projectId: 'projeto-assis-3qcf6v',
-    storageBucket: 'projeto-assis-3qcf6v.appspot.com',
-    messagingSenderId: '269670706726',
-    appId: '1:269670706726:web:5bcb2a2dd730efcb91c0e7',
+    apiKey: 'AIzaSyB46OQK72wBKDBCy538oiCd0sC_08KWd6E',
+    authDomain: 'tecnogame-c7e46.firebaseapp.com',
+    projectId: 'tecnogame-c7e46',
+    storageBucket: 'tecnogame-c7e46.firebasestorage.app',
+    messagingSenderId: '373113273748',
+    appId: '1:373113273748:web:c78fb6538edd0da32ae381',
   },
 
   /**

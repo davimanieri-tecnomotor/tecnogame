@@ -1,11 +1,36 @@
 # Infra do Firebase
 
 Regras e índices do Firestore usados pelo TecGame, em versão controlada junto do
-código que os consome. O projeto é `projeto-assis-3qcf6v`.
+código que os consome. O projeto é **`tecnogame-c7e46`** — o da Tecnomotor. O
+`projeto-assis-3qcf6v`, que vinha do FlutterFlow original, está morto (o bucket
+dele responde 402) e não é mais usado por nada.
 
 ```bash
+cd firebase
 firebase deploy --only firestore:rules,firestore:indexes
 ```
+
+## Antes do primeiro uso — duas coisas só existem pelo console
+
+Sem elas a publicação do baralho na nuvem não funciona, e o painel avisa.
+
+1. **Criar o Firestore** em `tecnogame-c7e46` (Build → Firestore Database →
+   Criar banco de dados). Pode escolher *produção*: as regras deste repositório
+   substituem as do assistente no `deploy` acima.
+2. **Habilitar o login por e-mail/senha** (Build → Authentication → Sign-in
+   method) e **criar a conta do operador** em Users. É essa conta que o botão
+   "Entrar" do painel pede, e é ela que a regra de `conteudo` exige para
+   escrever.
+
+A senha `2040` do painel não tem nada a ver com isso: aquela é a tranca de
+gaveta que esconde a tela (`web/js/admin/porta.js`) e viaja no JavaScript de
+todo mundo. Esta é a credencial de verdade, e mora na conta de vocês.
+
+> **O totem precisa abrir por HTTP.** O SDK do Firebase é módulo ES vindo da
+> CDN, e `file://` recusa módulo ES — o mesmo motivo de existir o `bundle.js`.
+> Aberto do disco, o jogo continua jogando, mas só com o baralho guardado
+> naquele navegador. Para receber o que o admin publica, o totem tem de abrir
+> pelo endereço do GitHub Pages.
 
 ## Por que as regras mudaram
 

@@ -13,6 +13,8 @@ web/                  o jogo portado (é isto que se publica)
   css/fonts.css         gerado: as cinco famílias auto-hospedadas
   js/                   os módulos ES — o código-fonte
   js/admin/             a administração: porta.js, painel.js, editor.js, ui.js
+  js/firebase.js        o SDK, carregado sob demanda (recusado por file://)
+  js/nuvem.js           o baralho no Firestore + o login do operador
   js/bundle.js          gerado: tudo isso em um script clássico
   assets/               imagens, áudios, fontes e vídeos do original
 firebase/             regras e índices do Firestore
@@ -142,14 +144,49 @@ O que dá para fazer:
   correspondente; **publicar fica bloqueado** enquanto houver problema;
 - **restaurar o original** a qualquer momento.
 
-O baralho publicado vai para o `localStorage` do navegador, na chave
-`tecgame:baralho`. Estando os dois no mesmo documento, a origem é a mesma por
-construção — o que antes era uma pegadinha (abrir o admin numa porta e o jogo
-noutra e não entender por que um não via o outro) deixou de existir.
+### Um veículo, várias perguntas
 
-O que **continua** valendo: o baralho é do navegador, não da internet. Publicar
-no seu notebook não alcança o totem. Enquanto o Firestore estiver desligado, a
-travessia é levar o `localStorage` junto, ou usar Exportar/Importar.
+Até a v1 do baralho, um veículo tinha exatamente uma pergunta grudada nele:
+caiu no VW Delivery, era sempre aquela — e numa feira o segundo da fila já sabia
+a resposta. Agora cada veículo tem um **banco**, e quando a roleta para nele o
+jogo **sorteia uma das ligadas**.
+
+A marca ao lado de cada pergunta na lista liga e desliga. Desligada, ela fica no
+banco como rascunho: não cai em partida, e campo vazio nela **não** impede
+publicar. O que impede é um veículo ficar sem nenhuma ligada — aí a roleta
+cairia num carro sem jogo.
+
+Gabarito e equipamentos pertencem à **pergunta**, não ao veículo: duas perguntas
+do mesmo carro podem ter resposta certa diferente e pedir scanners diferentes.
+
+O baralho publicado antes desta mudança continua abrindo — `carregarBaralho()`
+converte v1 em v2 na leitura, transformando a pergunta solta num banco de uma.
+
+### Onde o baralho mora
+
+Em dois lugares, e a ordem importa:
+
+| | |
+| --- | --- |
+| `localStorage`, chave `tecgame:baralho` | o que o jogo **lê**. Publicar grava aqui primeiro. |
+| Firestore, `conteudo/baralho` | o que **atravessa máquinas**. Publicar envia depois. |
+
+Publicar grava local primeiro de propósito: se a internet da feira estiver fora,
+o que foi editado não se perde e o painel diz o que faltou. O totem puxa da
+nuvem quando a tela de cadastro monta — sem esperar, para a partida não ficar
+refém da conexão — e, se vier conteúdo novo, ele vale já na partida seguinte.
+
+Isso é o que mantém o totem jogando com a internet caída: ele fica com a última
+cópia que baixou.
+
+> **Para publicar para todos os totens é preciso entrar.** O botão "Entrar" na
+> barra pede a conta do **Firebase** — é ela que a regra de escrita de
+> `conteudo` exige. Não é a senha `2040`: aquela só destranca a tela e viaja no
+> JavaScript de todo mundo. Sem entrar, publicar grava só neste navegador, e a
+> barra diz isso (`nuvem: desconectado`).
+>
+> As duas coisas que só existem pelo console do Firebase — criar o Firestore e
+> habilitar o login por e-mail/senha — estão em [`firebase/README.md`](firebase/README.md).
 
 O jogo relê o baralho quando o **cadastro** monta, e não a cada tela — publicar
 no meio de uma partida não pode trocar o carro debaixo do jogador. Sair pelo

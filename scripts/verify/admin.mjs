@@ -166,7 +166,7 @@ await page.waitForSelector('#adm .barra', { timeout: 10000 });
 await wait(900);
 
 const inicial = await page.evaluate(() => ({
-  itens: document.querySelectorAll('.itens .item').length,
+  itens: document.querySelectorAll('.itens .item.veiculo').length,
   rodada: document.querySelector('.editor-cabecalho h2')?.textContent,
   primeiroNome: document.querySelector('.veiculo-campos .campo-entrada')?.value,
   situacao: [...document.querySelectorAll('.situacao')].map((n) => n.textContent),
@@ -202,7 +202,7 @@ await wait(400);
 const comErro = await page.evaluate(() => ({
   problemas: [...document.querySelectorAll('.situacao')].map((n) => n.textContent).find((t) => /problema/.test(t)),
   campoAceso: document.querySelectorAll('.textos .campo.tem-erro').length,
-  seloNaLista: document.querySelector('.itens .item.com-problema .item-selo')?.textContent,
+  seloNaLista: document.querySelector('.itens .item.veiculo.com-problema .item-selo')?.textContent,
 }));
 console.log('3. com enunciado vazio ->', JSON.stringify(comErro));
 if (!comErro.problemas) falhas.push('a validacao nao acusou o enunciado vazio');
@@ -231,9 +231,9 @@ await wait(400);
 
 /* ---------------------------------------------------- 4. adiciona rodada -- */
 
-await clicar('Adicionar');
+await clicar('Veículo');
 const apos = await page.evaluate(() => ({
-  itens: document.querySelectorAll('.itens .item').length,
+  itens: document.querySelectorAll('.itens .item.veiculo').length,
   rodada: document.querySelector('.editor-cabecalho h2')?.textContent,
   problemas: [...document.querySelectorAll('.situacao')].map((n) => n.textContent).find((t) => /problema/.test(t)),
 }));
@@ -291,7 +291,8 @@ const publicado = await page.evaluate(() => {
     gravou: Boolean(deck),
     slots: deck?.slots?.length ?? 0,
     ultimo: deck?.slots?.[deck.slots.length - 1]?.veiculo?.nome ?? null,
-    primeiraPergunta: deck?.slots?.[0]?.pt?.pergunta ?? null,
+    // v2: a pergunta mora no banco do veiculo, e nao mais solta no slot.
+    primeiraPergunta: deck?.slots?.[0]?.perguntas?.[0]?.pt?.pergunta ?? null,
     situacao: [...document.querySelectorAll('.situacao')].map((n) => n.textContent),
   };
 });
@@ -330,17 +331,17 @@ if (!/11 ve/.test(naRoleta.rotulo ?? '')) falhas.push(`rotulo da roleta: ${naRol
 /* ----------------------------------------- 7. remover e restaurar fabrica -- */
 
 await abrirAdmin();
-await page.evaluate(() => document.querySelectorAll('.itens .item')[10].querySelector('.item-acoes button:last-child').click());
+await page.evaluate(() => document.querySelectorAll('.itens .item.veiculo')[10].querySelector('.item-acoes button:last-child').click());
 await wait(300);
 await confirmarModal();
-const removido = await page.evaluate(() => document.querySelectorAll('.itens .item').length);
+const removido = await page.evaluate(() => document.querySelectorAll('.itens .item.veiculo').length);
 console.log('7. removeu ->', removido, 'rodadas');
 if (removido !== 10) falhas.push(`apos remover tem ${removido} rodadas`);
 
 await clicar('Restaurar fábrica');
 await confirmarModal();
 const restaurado = await page.evaluate(() => ({
-  itens: document.querySelectorAll('.itens .item').length,
+  itens: document.querySelectorAll('.itens .item.veiculo').length,
   primeiro: document.querySelector('.veiculo-campos .campo-entrada')?.value,
   arteOriginal: ![...document.querySelectorAll('.situacao')].some((n) => /roleta desenhada/.test(n.textContent)),
 }));

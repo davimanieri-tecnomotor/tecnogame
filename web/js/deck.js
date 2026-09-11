@@ -10,11 +10,27 @@
 // Aqui as três coisas viram um `slot`, e o baralho tem N slots. Isso é o que
 // permite a área administrativa adicionar e remover rodadas.
 //
+// VERSÃO 2 — UM VEÍCULO, VÁRIAS PERGUNTAS
+// Até a v1 um slot tinha exatamente uma pergunta grudada nele: caiu no VW
+// Delivery, era sempre aquela. Numa feira, o segundo jogador da fila já sabia a
+// resposta. Agora o slot tem um BANCO: `perguntas: [...]`, cada uma com o seu
+// gabarito, os seus equipamentos e os seus três idiomas, e uma marca de `ativa`.
+// Quando a roleta para num veículo, o jogo sorteia entre as ativas daquele
+// veículo.
+//
+// O que subiu e o que desceu: `veiculo` fica no slot (é a fatia da roleta e a
+// foto do carro); `gabarito`, `scanners` e os textos descem para a pergunta,
+// porque duas perguntas do mesmo carro podem ter resposta certa diferente e
+// pedir equipamentos diferentes.
+//
+// `normalizar()` converte v1 em v2 na leitura, então baralho publicado antes
+// desta mudança continua abrindo.
+//
 // FIDELIDADE
 // Enquanto ninguém publicar um baralho, `carregarBaralho()` devolve
 // `SLOTS_ORIGINAIS` — derivado de questions.js e das tabelas do Dart — e o jogo
-// se comporta exatamente como antes. scripts/verify/baralho.mjs falha se essa
-// derivação divergir dos valores originais.
+// se comporta exatamente como antes, com uma pergunta por veículo.
+// scripts/verify/baralho.mjs falha se essa derivação divergir dos originais.
 
 import { QUESTIONS } from './questions.js';
 import { readJson, writeJson } from './storage.js';
@@ -82,19 +98,39 @@ export const VEICULOS_ORIGINAIS = [
   { nome: 'Mercedes Accelo 917', imagem: 'assets/images/ACCELO__1117.png', largura: 1012.17, altura: 781.1, fit: 'cover' },
 ];
 
-/** Um slot vazio, para o admin criar uma rodada nova. */
-export function slotVazio() {
+/**
+ * Identificador de pergunta. Serve para a lista do admin não se perder ao
+ * reordenar e para o sorteio poder ser conferido; não vai para a tela.
+ */
+let contadorDeId = 0;
+export const novoIdDePergunta = () =>
+  `p${Date.now().toString(36)}${(contadorDeId++).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+/** Uma pergunta vazia, para o admin acrescentar ao banco de um veículo. */
+export function perguntaVazia() {
   const textos = {};
   for (const lang of IDIOMAS) {
     textos[lang] = Object.fromEntries(CAMPOS_QUESTAO.map((c) => [c, '']));
   }
   return {
-    veiculo: { nome: '', imagem: '', largura: 1235.0, altura: 674.0, fit: 'cover' },
+    id: novoIdDePergunta(),
+    ativa: true,
     scanners: { raster3S: true, rasher4: true, xtool: true },
     gabarito: '1',
     ...textos,
   };
 }
+
+/** Um slot vazio, para o admin criar uma rodada nova. */
+export function slotVazio() {
+  return {
+    veiculo: { nome: '', imagem: '', largura: 1235.0, altura: 674.0, fit: 'cover' },
+    perguntas: [perguntaVazia()],
+  };
+}
+
+/** As perguntas que podem cair numa partida. */
+export const perguntasAtivas = (slot) => (slot?.perguntas ?? []).filter((p) => p.ativa !== false);
 
 /**
  * O baralho embutido, derivado das mesmas fontes que o jogo usava.
@@ -103,8 +139,12 @@ export function slotVazio() {
  */
 export const SLOTS_ORIGINAIS = VEICULOS_ORIGINAIS.map((veiculo, i) => {
   const base = QUESTIONS.pt[i];
-  const slot = {
-    veiculo: { ...veiculo },
+  const pergunta = {
+    // Id fixo, e não sorteado: o baralho embutido é comparado byte a byte com
+    // questions.js pelo verify/baralho.mjs, e um id aleatório o tornaria
+    // diferente a cada carga.
+    id: `orig-${i}`,
+    ativa: true,
     scanners: {
       raster3S: Boolean(base.raster3S),
       rasher4: Boolean(base.rasher4),
@@ -114,12 +154,12 @@ export const SLOTS_ORIGINAIS = VEICULOS_ORIGINAIS.map((veiculo, i) => {
   };
   for (const lang of IDIOMAS) {
     const q = QUESTIONS[lang][i] ?? {};
-    slot[lang] = Object.fromEntries(CAMPOS_QUESTAO.map((c) => [c, q[c] ?? '']));
+    pergunta[lang] = Object.fromEntries(CAMPOS_QUESTAO.map((c) => [c, q[c] ?? '']));
   }
-  return slot;
+  return { veiculo: { ...veiculo }, perguntas: [pergunta] };
 });
 
-export const BARALHO_ORIGINAL = { versao: 1, slots: SLOTS_ORIGINAIS };
+export const BARALHO_ORIGINAL = { versao: 2, slots: SLOTS_ORIGINAIS };
 
 /* ------------------------------------------------------------- validação -- */
 
@@ -136,20 +176,37 @@ export function validarBaralho(deck) {
     const onde = `rodada ${i + 1}`;
     if (!slot.veiculo?.nome?.trim()) erros.push(`${onde}: o veículo está sem nome`);
     if (!slot.veiculo?.imagem?.trim()) erros.push(`${onde}: o veículo está sem imagem`);
-    if (!['1', '2', '3', '4'].includes(String(slot.gabarito))) {
-      erros.push(`${onde}: gabarito precisa ser 1, 2, 3 ou 4 (está "${slot.gabarito}")`);
+
+    const perguntas = slot.perguntas ?? [];
+    if (perguntas.length === 0) {
+      erros.push(`${onde}: o veículo não tem nenhuma pergunta`);
+    } else if (perguntasAtivas(slot).length === 0) {
+      erros.push(`${onde}: todas as perguntas estão desligadas — a roleta cairia num veículo sem jogo`);
     }
-    const flags = SCANNERS.map((s) => Boolean(slot.scanners?.[s.chave]));
-    if (!flags.some(Boolean)) {
-      erros.push(`${onde}: nenhum equipamento resolve esta rodada — o jogador ficaria travado`);
-    }
-    for (const lang of IDIOMAS) {
-      for (const campo of CAMPOS_OBRIGATORIOS) {
-        if (!String(slot[lang]?.[campo] ?? '').trim()) {
-          erros.push(`${onde}: ${campo} vazio em ${lang.toUpperCase()}`);
+
+    perguntas.forEach((pergunta, j) => {
+      // A pergunta desligada não entra em jogo, então um campo vazio nela não
+      // trava ninguém: ela fica no banco como rascunho até ser ligada.
+      if (pergunta.ativa === false) return;
+      // Com uma pergunta só, dizer "pergunta 1" é ruído; com banco, é o que
+      // localiza o problema.
+      const ondeP = perguntas.length > 1 ? `${onde}, pergunta ${j + 1}` : onde;
+
+      if (!['1', '2', '3', '4'].includes(String(pergunta.gabarito))) {
+        erros.push(`${ondeP}: gabarito precisa ser 1, 2, 3 ou 4 (está "${pergunta.gabarito}")`);
+      }
+      const flags = SCANNERS.map((s) => Boolean(pergunta.scanners?.[s.chave]));
+      if (!flags.some(Boolean)) {
+        erros.push(`${ondeP}: nenhum equipamento resolve esta pergunta — o jogador ficaria travado`);
+      }
+      for (const lang of IDIOMAS) {
+        for (const campo of CAMPOS_OBRIGATORIOS) {
+          if (!String(pergunta[lang]?.[campo] ?? '').trim()) {
+            erros.push(`${ondeP}: ${campo} vazio em ${lang.toUpperCase()}`);
+          }
         }
       }
-    }
+    });
   });
 
   return erros;
@@ -157,22 +214,42 @@ export function validarBaralho(deck) {
 
 /* ---------------------------------------------------------- persistência -- */
 
-/** Normaliza o que veio do armazenamento, para o jogo não quebrar com dado velho. */
+/**
+ * Normaliza o que veio do armazenamento, para o jogo não quebrar com dado velho
+ * — e é aqui que o baralho v1 vira v2.
+ *
+ * Na v1 a pergunta era o próprio slot: `gabarito`, `scanners` e os três idiomas
+ * ficavam soltos nele. Um slot assim vira um slot com UMA pergunta no banco,
+ * feita desses mesmos campos. Quem publicou antes desta mudança não perde nada
+ * e não precisa fazer nada.
+ */
+function normalizarPergunta(bruta, molde) {
+  const pergunta = {
+    id: typeof bruta?.id === 'string' && bruta.id ? bruta.id : novoIdDePergunta(),
+    ativa: bruta?.ativa !== false,
+    scanners: { ...molde.scanners, ...(bruta?.scanners ?? {}) },
+    gabarito: String(bruta?.gabarito ?? '1'),
+  };
+  for (const lang of IDIOMAS) {
+    pergunta[lang] = { ...molde[lang], ...(bruta?.[lang] ?? {}) };
+  }
+  return pergunta;
+}
+
 function normalizar(deck) {
   if (!deck || !Array.isArray(deck.slots) || deck.slots.length === 0) return null;
-  const vazio = slotVazio();
+  const molde = perguntaVazia();
+  const veiculoVazio = slotVazio().veiculo;
+
   return {
-    versao: deck.versao ?? 1,
+    versao: 2,
     slots: deck.slots.map((s) => {
-      const slot = {
-        veiculo: { ...vazio.veiculo, ...(s.veiculo ?? {}) },
-        scanners: { ...vazio.scanners, ...(s.scanners ?? {}) },
-        gabarito: String(s.gabarito ?? '1'),
+      // v2 traz o banco; v1 traz a pergunta espalhada pelo próprio slot.
+      const brutas = Array.isArray(s?.perguntas) && s.perguntas.length ? s.perguntas : [s];
+      return {
+        veiculo: { ...veiculoVazio, ...(s?.veiculo ?? {}) },
+        perguntas: brutas.map((b) => normalizarPergunta(b, molde)),
       };
-      for (const lang of IDIOMAS) {
-        slot[lang] = { ...vazio[lang], ...(s[lang] ?? {}) };
-      }
-      return slot;
     }),
   };
 }

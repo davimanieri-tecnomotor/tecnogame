@@ -4,7 +4,7 @@
 // the Dart used, so a browser that already has them keeps them; anything else
 // falls back to the values compiled into the app.
 
-import { carregarBaralho, CAMPOS_QUESTAO } from './deck.js';
+import { carregarBaralho, perguntasAtivas, CAMPOS_QUESTAO } from './deck.js';
 import { escolhaParaIndice } from './functions.js';
 
 /** CadastroStruct */
@@ -59,6 +59,12 @@ class FFAppStateClass {
      */
     this.baralho = carregarBaralho();
 
+    /**
+     * Qual pergunta de cada veículo está valendo nesta partida — um índice por
+     * slot, dentro de `slot.perguntas`. Ver `sortearPerguntas()`.
+     */
+    this.sorteio = [];
+
     this.scannerEscolhido = '';
     this.tempoAcabando = false;
     this.escolha = 1.5;
@@ -90,6 +96,7 @@ class FFAppStateClass {
   /** initializePersistedState() */
   initializePersistedState() {
     this.baralho = carregarBaralho();
+    this.sortearPerguntas();
   }
 
   /**
@@ -100,6 +107,30 @@ class FFAppStateClass {
    */
   recarregarBaralho() {
     this.baralho = carregarBaralho();
+    this.sortearPerguntas();
+  }
+
+  /**
+   * Sorteia, para CADA veículo, qual das suas perguntas ativas vale nesta
+   * partida. Um veículo pode ter várias (ver deck.js); sem isto, o segundo
+   * jogador da fila receberia a mesma pergunta do primeiro.
+   *
+   * É sorteado no começo da partida, e não na hora de mostrar, porque três
+   * telas leem a mesma pergunta em momentos diferentes — a escolha do
+   * equipamento usa os `scanners` dela, a tela da ação usa o enunciado, a de
+   * fim usa o gabarito. Sortear a cada leitura daria respostas diferentes na
+   * mesma partida.
+   *
+   * Todos os slots de uma vez, e não só o que a roleta vai tirar, porque a
+   * roleta ainda não girou quando o cadastro monta.
+   */
+  sortearPerguntas() {
+    this.sorteio = (this.baralho?.slots ?? []).map((slot) => {
+      const ativas = perguntasAtivas(slot);
+      if (ativas.length <= 1) return 0;
+      const escolhida = ativas[Math.floor(Math.random() * ativas.length)];
+      return Math.max(0, slot.perguntas.indexOf(escolhida));
+    });
   }
 
   /** Quantas rodadas o baralho tem — o número de fatias da roleta. */
@@ -127,15 +158,15 @@ class FFAppStateClass {
    * dados não tocou em nenhuma delas.
    */
   get questoesBrasil() {
-    return vistaPorIdioma(this.baralho, 'pt');
+    return vistaPorIdioma(this.baralho, 'pt', this.sorteio);
   }
 
   get questoesEnglish() {
-    return vistaPorIdioma(this.baralho, 'en');
+    return vistaPorIdioma(this.baralho, 'en', this.sorteio);
   }
 
   get questoesSpanish() {
-    return vistaPorIdioma(this.baralho, 'es');
+    return vistaPorIdioma(this.baralho, 'es', this.sorteio);
   }
 
   addToListaEscolhas(value) {
@@ -151,26 +182,41 @@ class FFAppStateClass {
 /** Cache da projeção: as telas leem estes getters muitas vezes por quadro. */
 const vistaCache = new WeakMap();
 
-function vistaPorIdioma(deck, lang) {
+/**
+ * O baralho na forma que as telas de jogo leem: uma lista por idioma, indexada
+ * por slot, cada entrada com os campos que o Dart tinha
+ * (`{pergunta, respostaUm, ..., gabarito, raster3S, rasher4, xtool}`).
+ *
+ * Manter esta forma foi deliberado desde a v1, e é o que segurou a mudança para
+ * banco de perguntas: a projeção passou a resolver QUAL pergunta do veículo
+ * está valendo (`sorteio[i]`), e nenhuma tela de jogo precisou mudar.
+ *
+ * A chave do cache inclui o sorteio: sortear de novo tem de produzir uma vista
+ * nova, senão a partida seguinte joga com a pergunta da anterior.
+ */
+function vistaPorIdioma(deck, lang, sorteio) {
   if (!deck) return [];
-  let porIdioma = vistaCache.get(deck);
-  if (!porIdioma) {
-    porIdioma = {};
-    vistaCache.set(deck, porIdioma);
+  let porChave = vistaCache.get(deck);
+  if (!porChave) {
+    porChave = {};
+    vistaCache.set(deck, porChave);
   }
-  if (!porIdioma[lang]) {
-    porIdioma[lang] = (deck.slots ?? []).map((slot) => {
+  const chave = `${lang}|${(sorteio ?? []).join(',')}`;
+  if (!porChave[chave]) {
+    porChave[chave] = (deck.slots ?? []).map((slot, i) => {
+      const perguntas = slot.perguntas ?? [];
+      const escolhida = perguntas[sorteio?.[i] ?? 0] ?? perguntas[0] ?? {};
       const q = {};
-      for (const campo of CAMPOS_QUESTAO) q[campo] = slot[lang]?.[campo] ?? '';
-      q.gabarito = String(slot.gabarito ?? '');
-      q.raster3S = Boolean(slot.scanners?.raster3S);
-      q.rasher4 = Boolean(slot.scanners?.rasher4);
-      q.xtool = Boolean(slot.scanners?.xtool);
+      for (const campo of CAMPOS_QUESTAO) q[campo] = escolhida[lang]?.[campo] ?? '';
+      q.gabarito = String(escolhida.gabarito ?? '');
+      q.raster3S = Boolean(escolhida.scanners?.raster3S);
+      q.rasher4 = Boolean(escolhida.scanners?.rasher4);
+      q.xtool = Boolean(escolhida.scanners?.xtool);
       q.nome = slot.veiculo?.nome ?? '';
       return q;
     });
   }
-  return porIdioma[lang];
+  return porChave[chave];
 }
 
 export const FFAppState = new FFAppStateClass();

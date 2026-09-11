@@ -134,6 +134,61 @@ export function confirmar({ titulo, texto, confirmarTexto = 'Confirmar', perigos
   });
 }
 
+/**
+ * Pede e-mail e senha do operador (a conta do Firebase, não a senha da porta).
+ * Resolve com `{email, senha}` ou `null` se desistiu.
+ */
+export function pedirCredenciais() {
+  return new Promise((resolve) => {
+    const email = entradaSimples({ tipo: 'email', rotulo: 'E-mail', auto: 'username' });
+    const senha = entradaSimples({ tipo: 'password', rotulo: 'Senha', auto: 'current-password' });
+
+    const fechar = (r) => {
+      fundo.remove();
+      document.removeEventListener('keydown', onTecla);
+      resolve(r);
+    };
+    const enviar = () => {
+      const e = email.entrada.value.trim();
+      const s = senha.entrada.value;
+      if (!e || !s) return;
+      fechar({ email: e, senha: s });
+    };
+    const onTecla = (ev) => {
+      if (ev.key === 'Escape') fechar(null);
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        enviar();
+      }
+    };
+
+    const caixa = el('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Entrar' }, [
+      el('h2', { text: 'Entrar para publicar' }),
+      el('p', {
+        text: 'A conta do Firebase do projeto. É ela que autoriza escrever o baralho que todos os totens leem — não a senha que abriu este painel.',
+      }),
+      email,
+      senha,
+      el('div', { class: 'modal-acoes' }, [
+        botao('Cancelar', { onClick: () => fechar(null) }),
+        botao('Entrar', { tipo: 'primario', onClick: enviar }),
+      ]),
+    ]);
+    const fundo = el('div', { class: 'modal-fundo', onClick: (ev) => ev.target === fundo && fechar(null) }, caixa);
+    document.body.appendChild(fundo);
+    document.addEventListener('keydown', onTecla);
+    email.entrada.focus();
+  });
+}
+
+/** Um campo de texto simples para os modais — sem a validação do editor. */
+function entradaSimples({ tipo, rotulo, auto }) {
+  const entrada = el('input', { class: 'campo-entrada', type: tipo, autocomplete: auto });
+  const raiz = el('label', { class: 'campo' }, [el('span', { class: 'campo-rotulo', text: rotulo }), entrada]);
+  raiz.entrada = entrada;
+  return raiz;
+}
+
 /** Faz o navegador salvar um arquivo, sem servidor. */
 export function baixarArquivo(nome, conteudo, tipo = 'application/json') {
   const blob = new Blob([conteudo], { type: `${tipo};charset=utf-8` });

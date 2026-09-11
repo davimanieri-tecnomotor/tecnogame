@@ -1,5 +1,10 @@
-// O editor de uma rodada: o veículo, os equipamentos que a resolvem, o gabarito
-// e os doze campos de texto em cada um dos três idiomas.
+// O editor: o veículo em cima, e embaixo UMA pergunta do banco dele — os
+// equipamentos que a resolvem, o gabarito e os doze campos de texto em cada um
+// dos três idiomas.
+//
+// Veículo e pergunta são objetos separados desde a v2 do baralho (ver deck.js):
+// o mesmo carro pode ter várias perguntas, e quem escolhe qual está aberta é a
+// lista do painel.
 
 import { el, campo, selecao, caixaDeMarcar, limpar, botao, entradaDeImagem } from './ui.js';
 import { CAMPOS_QUESTAO, CAMPOS_OBRIGATORIOS, IDIOMAS, SCANNERS, VEICULOS_ORIGINAIS } from '../deck.js';
@@ -26,12 +31,13 @@ const ROTULOS = {
 const CAMPO_DA_ALTERNATIVA = ['respostaUm', 'respostaDois', 'respostaTres', 'respostaQuatro'];
 
 /**
- * @param {object} props
- * @param {object} props.slot a rodada, mutada no lugar
- * @param {number} props.indice posição no baralho (é a fatia da roleta)
- * @param {Function} props.onChange chamado a cada edição, para revalidar
+ * @param {object}   props
+ * @param {object}   props.slot      o veículo (a fatia da roleta), mutado no lugar
+ * @param {object}   props.pergunta  a pergunta do banco que está sendo editada
+ * @param {number}   props.indice    posição no baralho
+ * @param {Function} props.onChange  chamado a cada edição, para revalidar
  */
-export function editorDeSlot({ slot, indice, onChange }) {
+export function editorDeSlot({ slot, pergunta, indice, posicao = 0, total = 1, onChange }) {
   const mudou = () => onChange?.();
 
   /* ------------------------------------------------------------- veículo -- */
@@ -199,29 +205,29 @@ export function editorDeSlot({ slot, indice, onChange }) {
 
   const opcoesGabarito = () =>
     CAMPO_DA_ALTERNATIVA.map((c, i) => {
-      const texto = (slot.pt?.[c] ?? '').trim();
+      const texto = (pergunta.pt?.[c] ?? '').trim();
       const resumo = texto ? `: ${texto.slice(0, 46)}${texto.length > 46 ? '…' : ''}` : ' (vazia)';
       return { valor: String(i + 1), rotulo: `Alternativa ${i + 1}${resumo}` };
     });
 
   const campoGabarito = selecao({
     rotulo: 'Resposta correta',
-    valor: String(slot.gabarito),
+    valor: String(pergunta.gabarito),
     opcoes: opcoesGabarito(),
     onChange: (v) => {
-      slot.gabarito = v;
+      pergunta.gabarito = v;
       mudou();
     },
   });
 
   const blocoRegras = el('section', { class: 'bloco' }, [
-    el('h3', { text: 'Regras da rodada' }),
+    el('h3', { text: 'Regras desta pergunta' }),
     campoGabarito,
     el('div', { class: 'campo' }, [
-      el('span', { class: 'campo-rotulo', text: 'Equipamentos que resolvem esta rodada' }),
+      el('span', { class: 'campo-rotulo', text: 'Equipamentos que resolvem esta pergunta' }),
       el('span', {
         class: 'campo-dica',
-        text: 'Os não marcados abrem "equipamento inválido" quando o jogador escolhe. Ao menos um precisa estar marcado.',
+        text: 'Os não marcados abrem "equipamento inválido" quando o jogador escolhe. Ao menos um precisa estar marcado. Vale só para esta pergunta — outra do mesmo veículo pode pedir equipamentos diferentes.',
       }),
       el(
         'div',
@@ -229,9 +235,9 @@ export function editorDeSlot({ slot, indice, onChange }) {
         SCANNERS.map((s) =>
           caixaDeMarcar({
             rotulo: s.rotulo,
-            marcado: slot.scanners[s.chave],
+            marcado: pergunta.scanners[s.chave],
             onChange: (v) => {
-              slot.scanners[s.chave] = v;
+              pergunta.scanners[s.chave] = v;
               mudou();
             },
           })
@@ -258,9 +264,9 @@ export function editorDeSlot({ slot, indice, onChange }) {
         dica,
         obrigatorio,
         multilinha: nome === 'pergunta' || nome.startsWith('ajuda') || nome === 'maisInformacoes',
-        valor: slot[lang][nome],
+        valor: pergunta[lang][nome],
         onInput: (v) => {
-          slot[lang][nome] = v;
+          pergunta[lang][nome] = v;
           // O rótulo do gabarito mostra o começo de cada alternativa em pt.
           if (lang === 'pt' && CAMPO_DA_ALTERNATIVA.includes(nome)) {
             const atual = campoGabarito.entrada.value;
@@ -341,8 +347,10 @@ export function editorDeSlot({ slot, indice, onChange }) {
 
   const raiz = el('div', { class: 'editor' }, [
     el('div', { class: 'editor-cabecalho' }, [
-      el('h2', { text: `Rodada ${indice + 1}` }),
+      el('h2', { text: slot.veiculo?.nome?.trim() || `Rodada ${indice + 1}` }),
       el('span', { class: 'selo-fatia', text: `fatia ${indice + 1} da roleta` }),
+      total > 1 ? el('span', { class: 'selo-fatia', text: `pergunta ${posicao + 1} de ${total}` }) : null,
+      pergunta.ativa === false ? el('span', { class: 'selo-fatia selo-desligado', text: 'desligada' }) : null,
     ]),
     blocoVeiculo,
     blocoRegras,

@@ -233,6 +233,62 @@
 
 .item.com-problema { border-color: #ef535055; }
 
+/* ------------------------------------- o banco de perguntas de um veículo -- */
+/* Recuadas e mais baixas que a linha do veículo: a lista tem dois níveis, e o
+   olho precisa ver de quem cada pergunta é sem ler. */
+
+.item.pergunta {
+  margin-left: 22px;
+  border-left: 2px solid var(--borda);
+  border-radius: 0 8px 8px 0;
+  background: transparent;
+}
+
+.item.pergunta .item-botao {
+  padding: 7px 10px;
+  gap: 8px;
+}
+
+.item.pergunta .item-pergunta {
+  font-size: 0.8rem;
+}
+
+.item.pergunta.selecionado {
+  border-left-color: var(--azul-claro);
+  background: #0053b61f;
+}
+
+/* Desligada continua legível — é rascunho, não lixo —, mas sai do primeiro
+   plano e o texto ganha o risco que diz "isto não cai em partida". */
+.item.pergunta.desligada .item-pergunta {
+  color: var(--texto-2);
+  text-decoration: line-through;
+  text-decoration-color: var(--texto-2);
+}
+
+.pq-marca {
+  flex: none;
+  margin-left: 10px;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--azul-claro);
+  cursor: pointer;
+}
+
+.pq-marca:focus-visible {
+  outline: 2px solid var(--azul-claro);
+  outline-offset: 2px;
+}
+
+.item.pergunta.acrescentar {
+  border-left-style: dashed;
+  padding: 4px 0 4px 10px;
+}
+
+.item.pergunta.acrescentar .botao {
+  font-size: 0.8rem;
+}
+
 .item-botao {
   flex: 1 1 auto;
   display: flex;
@@ -338,6 +394,11 @@
   border: 1px solid var(--borda);
   font-size: 0.75rem;
   color: var(--texto-2);
+}
+
+.selo-desligado {
+  border-color: #f0b42955;
+  color: var(--atencao);
 }
 
 .bloco {

@@ -1611,11 +1611,27 @@
   // Aqui as três coisas viram um `slot`, e o baralho tem N slots. Isso é o que
   // permite a área administrativa adicionar e remover rodadas.
   //
+  // VERSÃO 2 — UM VEÍCULO, VÁRIAS PERGUNTAS
+  // Até a v1 um slot tinha exatamente uma pergunta grudada nele: caiu no VW
+  // Delivery, era sempre aquela. Numa feira, o segundo jogador da fila já sabia a
+  // resposta. Agora o slot tem um BANCO: `perguntas: [...]`, cada uma com o seu
+  // gabarito, os seus equipamentos e os seus três idiomas, e uma marca de `ativa`.
+  // Quando a roleta para num veículo, o jogo sorteia entre as ativas daquele
+  // veículo.
+  //
+  // O que subiu e o que desceu: `veiculo` fica no slot (é a fatia da roleta e a
+  // foto do carro); `gabarito`, `scanners` e os textos descem para a pergunta,
+  // porque duas perguntas do mesmo carro podem ter resposta certa diferente e
+  // pedir equipamentos diferentes.
+  //
+  // `normalizar()` converte v1 em v2 na leitura, então baralho publicado antes
+  // desta mudança continua abrindo.
+  //
   // FIDELIDADE
   // Enquanto ninguém publicar um baralho, `carregarBaralho()` devolve
   // `SLOTS_ORIGINAIS` — derivado de questions.js e das tabelas do Dart — e o jogo
-  // se comporta exatamente como antes. scripts/verify/baralho.mjs falha se essa
-  // derivação divergir dos valores originais.
+  // se comporta exatamente como antes, com uma pergunta por veículo.
+  // scripts/verify/baralho.mjs falha se essa derivação divergir dos originais.
   
   const { QUESTIONS } = __require("questions.js");
   const { readJson, writeJson } = __require("storage.js");
@@ -1683,19 +1699,39 @@
     { nome: 'Mercedes Accelo 917', imagem: 'assets/images/ACCELO__1117.png', largura: 1012.17, altura: 781.1, fit: 'cover' },
   ];
   
-  /** Um slot vazio, para o admin criar uma rodada nova. */
-  function slotVazio() {
+  /**
+   * Identificador de pergunta. Serve para a lista do admin não se perder ao
+   * reordenar e para o sorteio poder ser conferido; não vai para a tela.
+   */
+  let contadorDeId = 0;
+  const novoIdDePergunta = () =>
+    `p${Date.now().toString(36)}${(contadorDeId++).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  
+  /** Uma pergunta vazia, para o admin acrescentar ao banco de um veículo. */
+  function perguntaVazia() {
     const textos = {};
     for (const lang of IDIOMAS) {
       textos[lang] = Object.fromEntries(CAMPOS_QUESTAO.map((c) => [c, '']));
     }
     return {
-      veiculo: { nome: '', imagem: '', largura: 1235.0, altura: 674.0, fit: 'cover' },
+      id: novoIdDePergunta(),
+      ativa: true,
       scanners: { raster3S: true, rasher4: true, xtool: true },
       gabarito: '1',
       ...textos,
     };
   }
+  
+  /** Um slot vazio, para o admin criar uma rodada nova. */
+  function slotVazio() {
+    return {
+      veiculo: { nome: '', imagem: '', largura: 1235.0, altura: 674.0, fit: 'cover' },
+      perguntas: [perguntaVazia()],
+    };
+  }
+  
+  /** As perguntas que podem cair numa partida. */
+  const perguntasAtivas = (slot) => (slot?.perguntas ?? []).filter((p) => p.ativa !== false);
   
   /**
    * O baralho embutido, derivado das mesmas fontes que o jogo usava.
@@ -1704,8 +1740,12 @@
    */
   const SLOTS_ORIGINAIS = VEICULOS_ORIGINAIS.map((veiculo, i) => {
     const base = QUESTIONS.pt[i];
-    const slot = {
-      veiculo: { ...veiculo },
+    const pergunta = {
+      // Id fixo, e não sorteado: o baralho embutido é comparado byte a byte com
+      // questions.js pelo verify/baralho.mjs, e um id aleatório o tornaria
+      // diferente a cada carga.
+      id: `orig-${i}`,
+      ativa: true,
       scanners: {
         raster3S: Boolean(base.raster3S),
         rasher4: Boolean(base.rasher4),
@@ -1715,12 +1755,12 @@
     };
     for (const lang of IDIOMAS) {
       const q = QUESTIONS[lang][i] ?? {};
-      slot[lang] = Object.fromEntries(CAMPOS_QUESTAO.map((c) => [c, q[c] ?? '']));
+      pergunta[lang] = Object.fromEntries(CAMPOS_QUESTAO.map((c) => [c, q[c] ?? '']));
     }
-    return slot;
+    return { veiculo: { ...veiculo }, perguntas: [pergunta] };
   });
   
-  const BARALHO_ORIGINAL = { versao: 1, slots: SLOTS_ORIGINAIS };
+  const BARALHO_ORIGINAL = { versao: 2, slots: SLOTS_ORIGINAIS };
   
   /* ------------------------------------------------------------- validação -- */
   
@@ -1737,20 +1777,37 @@
       const onde = `rodada ${i + 1}`;
       if (!slot.veiculo?.nome?.trim()) erros.push(`${onde}: o veículo está sem nome`);
       if (!slot.veiculo?.imagem?.trim()) erros.push(`${onde}: o veículo está sem imagem`);
-      if (!['1', '2', '3', '4'].includes(String(slot.gabarito))) {
-        erros.push(`${onde}: gabarito precisa ser 1, 2, 3 ou 4 (está "${slot.gabarito}")`);
+  
+      const perguntas = slot.perguntas ?? [];
+      if (perguntas.length === 0) {
+        erros.push(`${onde}: o veículo não tem nenhuma pergunta`);
+      } else if (perguntasAtivas(slot).length === 0) {
+        erros.push(`${onde}: todas as perguntas estão desligadas — a roleta cairia num veículo sem jogo`);
       }
-      const flags = SCANNERS.map((s) => Boolean(slot.scanners?.[s.chave]));
-      if (!flags.some(Boolean)) {
-        erros.push(`${onde}: nenhum equipamento resolve esta rodada — o jogador ficaria travado`);
-      }
-      for (const lang of IDIOMAS) {
-        for (const campo of CAMPOS_OBRIGATORIOS) {
-          if (!String(slot[lang]?.[campo] ?? '').trim()) {
-            erros.push(`${onde}: ${campo} vazio em ${lang.toUpperCase()}`);
+  
+      perguntas.forEach((pergunta, j) => {
+        // A pergunta desligada não entra em jogo, então um campo vazio nela não
+        // trava ninguém: ela fica no banco como rascunho até ser ligada.
+        if (pergunta.ativa === false) return;
+        // Com uma pergunta só, dizer "pergunta 1" é ruído; com banco, é o que
+        // localiza o problema.
+        const ondeP = perguntas.length > 1 ? `${onde}, pergunta ${j + 1}` : onde;
+  
+        if (!['1', '2', '3', '4'].includes(String(pergunta.gabarito))) {
+          erros.push(`${ondeP}: gabarito precisa ser 1, 2, 3 ou 4 (está "${pergunta.gabarito}")`);
+        }
+        const flags = SCANNERS.map((s) => Boolean(pergunta.scanners?.[s.chave]));
+        if (!flags.some(Boolean)) {
+          erros.push(`${ondeP}: nenhum equipamento resolve esta pergunta — o jogador ficaria travado`);
+        }
+        for (const lang of IDIOMAS) {
+          for (const campo of CAMPOS_OBRIGATORIOS) {
+            if (!String(pergunta[lang]?.[campo] ?? '').trim()) {
+              erros.push(`${ondeP}: ${campo} vazio em ${lang.toUpperCase()}`);
+            }
           }
         }
-      }
+      });
     });
   
     return erros;
@@ -1758,22 +1815,42 @@
   
   /* ---------------------------------------------------------- persistência -- */
   
-  /** Normaliza o que veio do armazenamento, para o jogo não quebrar com dado velho. */
+  /**
+   * Normaliza o que veio do armazenamento, para o jogo não quebrar com dado velho
+   * — e é aqui que o baralho v1 vira v2.
+   *
+   * Na v1 a pergunta era o próprio slot: `gabarito`, `scanners` e os três idiomas
+   * ficavam soltos nele. Um slot assim vira um slot com UMA pergunta no banco,
+   * feita desses mesmos campos. Quem publicou antes desta mudança não perde nada
+   * e não precisa fazer nada.
+   */
+  function normalizarPergunta(bruta, molde) {
+    const pergunta = {
+      id: typeof bruta?.id === 'string' && bruta.id ? bruta.id : novoIdDePergunta(),
+      ativa: bruta?.ativa !== false,
+      scanners: { ...molde.scanners, ...(bruta?.scanners ?? {}) },
+      gabarito: String(bruta?.gabarito ?? '1'),
+    };
+    for (const lang of IDIOMAS) {
+      pergunta[lang] = { ...molde[lang], ...(bruta?.[lang] ?? {}) };
+    }
+    return pergunta;
+  }
+  
   function normalizar(deck) {
     if (!deck || !Array.isArray(deck.slots) || deck.slots.length === 0) return null;
-    const vazio = slotVazio();
+    const molde = perguntaVazia();
+    const veiculoVazio = slotVazio().veiculo;
+  
     return {
-      versao: deck.versao ?? 1,
+      versao: 2,
       slots: deck.slots.map((s) => {
-        const slot = {
-          veiculo: { ...vazio.veiculo, ...(s.veiculo ?? {}) },
-          scanners: { ...vazio.scanners, ...(s.scanners ?? {}) },
-          gabarito: String(s.gabarito ?? '1'),
+        // v2 traz o banco; v1 traz a pergunta espalhada pelo próprio slot.
+        const brutas = Array.isArray(s?.perguntas) && s.perguntas.length ? s.perguntas : [s];
+        return {
+          veiculo: { ...veiculoVazio, ...(s?.veiculo ?? {}) },
+          perguntas: brutas.map((b) => normalizarPergunta(b, molde)),
         };
-        for (const lang of IDIOMAS) {
-          slot[lang] = { ...vazio[lang], ...(s[lang] ?? {}) };
-        }
-        return slot;
       }),
     };
   }
@@ -1817,7 +1894,10 @@
   Object.defineProperty(__exports, "IDIOMAS", { get: () => IDIOMAS, enumerable: true });
   Object.defineProperty(__exports, "SCANNERS", { get: () => SCANNERS, enumerable: true });
   Object.defineProperty(__exports, "VEICULOS_ORIGINAIS", { get: () => VEICULOS_ORIGINAIS, enumerable: true });
+  Object.defineProperty(__exports, "novoIdDePergunta", { get: () => novoIdDePergunta, enumerable: true });
+  Object.defineProperty(__exports, "perguntaVazia", { get: () => perguntaVazia, enumerable: true });
   Object.defineProperty(__exports, "slotVazio", { get: () => slotVazio, enumerable: true });
+  Object.defineProperty(__exports, "perguntasAtivas", { get: () => perguntasAtivas, enumerable: true });
   Object.defineProperty(__exports, "SLOTS_ORIGINAIS", { get: () => SLOTS_ORIGINAIS, enumerable: true });
   Object.defineProperty(__exports, "BARALHO_ORIGINAL", { get: () => BARALHO_ORIGINAL, enumerable: true });
   Object.defineProperty(__exports, "validarBaralho", { get: () => validarBaralho, enumerable: true });
@@ -2255,7 +2335,7 @@
   // the Dart used, so a browser that already has them keeps them; anything else
   // falls back to the values compiled into the app.
   
-  const { carregarBaralho, CAMPOS_QUESTAO } = __require("deck.js");
+  const { carregarBaralho, perguntasAtivas, CAMPOS_QUESTAO } = __require("deck.js");
   const { escolhaParaIndice } = __require("functions.js");
   
   /** CadastroStruct */
@@ -2310,6 +2390,12 @@
        */
       this.baralho = carregarBaralho();
   
+      /**
+       * Qual pergunta de cada veículo está valendo nesta partida — um índice por
+       * slot, dentro de `slot.perguntas`. Ver `sortearPerguntas()`.
+       */
+      this.sorteio = [];
+  
       this.scannerEscolhido = '';
       this.tempoAcabando = false;
       this.escolha = 1.5;
@@ -2341,6 +2427,7 @@
     /** initializePersistedState() */
     initializePersistedState() {
       this.baralho = carregarBaralho();
+      this.sortearPerguntas();
     }
   
     /**
@@ -2351,6 +2438,30 @@
      */
     recarregarBaralho() {
       this.baralho = carregarBaralho();
+      this.sortearPerguntas();
+    }
+  
+    /**
+     * Sorteia, para CADA veículo, qual das suas perguntas ativas vale nesta
+     * partida. Um veículo pode ter várias (ver deck.js); sem isto, o segundo
+     * jogador da fila receberia a mesma pergunta do primeiro.
+     *
+     * É sorteado no começo da partida, e não na hora de mostrar, porque três
+     * telas leem a mesma pergunta em momentos diferentes — a escolha do
+     * equipamento usa os `scanners` dela, a tela da ação usa o enunciado, a de
+     * fim usa o gabarito. Sortear a cada leitura daria respostas diferentes na
+     * mesma partida.
+     *
+     * Todos os slots de uma vez, e não só o que a roleta vai tirar, porque a
+     * roleta ainda não girou quando o cadastro monta.
+     */
+    sortearPerguntas() {
+      this.sorteio = (this.baralho?.slots ?? []).map((slot) => {
+        const ativas = perguntasAtivas(slot);
+        if (ativas.length <= 1) return 0;
+        const escolhida = ativas[Math.floor(Math.random() * ativas.length)];
+        return Math.max(0, slot.perguntas.indexOf(escolhida));
+      });
     }
   
     /** Quantas rodadas o baralho tem — o número de fatias da roleta. */
@@ -2378,15 +2489,15 @@
      * dados não tocou em nenhuma delas.
      */
     get questoesBrasil() {
-      return vistaPorIdioma(this.baralho, 'pt');
+      return vistaPorIdioma(this.baralho, 'pt', this.sorteio);
     }
   
     get questoesEnglish() {
-      return vistaPorIdioma(this.baralho, 'en');
+      return vistaPorIdioma(this.baralho, 'en', this.sorteio);
     }
   
     get questoesSpanish() {
-      return vistaPorIdioma(this.baralho, 'es');
+      return vistaPorIdioma(this.baralho, 'es', this.sorteio);
     }
   
     addToListaEscolhas(value) {
@@ -2402,26 +2513,41 @@
   /** Cache da projeção: as telas leem estes getters muitas vezes por quadro. */
   const vistaCache = new WeakMap();
   
-  function vistaPorIdioma(deck, lang) {
+  /**
+   * O baralho na forma que as telas de jogo leem: uma lista por idioma, indexada
+   * por slot, cada entrada com os campos que o Dart tinha
+   * (`{pergunta, respostaUm, ..., gabarito, raster3S, rasher4, xtool}`).
+   *
+   * Manter esta forma foi deliberado desde a v1, e é o que segurou a mudança para
+   * banco de perguntas: a projeção passou a resolver QUAL pergunta do veículo
+   * está valendo (`sorteio[i]`), e nenhuma tela de jogo precisou mudar.
+   *
+   * A chave do cache inclui o sorteio: sortear de novo tem de produzir uma vista
+   * nova, senão a partida seguinte joga com a pergunta da anterior.
+   */
+  function vistaPorIdioma(deck, lang, sorteio) {
     if (!deck) return [];
-    let porIdioma = vistaCache.get(deck);
-    if (!porIdioma) {
-      porIdioma = {};
-      vistaCache.set(deck, porIdioma);
+    let porChave = vistaCache.get(deck);
+    if (!porChave) {
+      porChave = {};
+      vistaCache.set(deck, porChave);
     }
-    if (!porIdioma[lang]) {
-      porIdioma[lang] = (deck.slots ?? []).map((slot) => {
+    const chave = `${lang}|${(sorteio ?? []).join(',')}`;
+    if (!porChave[chave]) {
+      porChave[chave] = (deck.slots ?? []).map((slot, i) => {
+        const perguntas = slot.perguntas ?? [];
+        const escolhida = perguntas[sorteio?.[i] ?? 0] ?? perguntas[0] ?? {};
         const q = {};
-        for (const campo of CAMPOS_QUESTAO) q[campo] = slot[lang]?.[campo] ?? '';
-        q.gabarito = String(slot.gabarito ?? '');
-        q.raster3S = Boolean(slot.scanners?.raster3S);
-        q.rasher4 = Boolean(slot.scanners?.rasher4);
-        q.xtool = Boolean(slot.scanners?.xtool);
+        for (const campo of CAMPOS_QUESTAO) q[campo] = escolhida[lang]?.[campo] ?? '';
+        q.gabarito = String(escolhida.gabarito ?? '');
+        q.raster3S = Boolean(escolhida.scanners?.raster3S);
+        q.rasher4 = Boolean(escolhida.scanners?.rasher4);
+        q.xtool = Boolean(escolhida.scanners?.xtool);
         q.nome = slot.veiculo?.nome ?? '';
         return q;
       });
     }
-    return porIdioma[lang];
+    return porChave[chave];
   }
   
   const FFAppState = new FFAppStateClass();
@@ -3589,20 +3715,36 @@
   // browser's localStorage and the ranking screens work exactly the same way.
   
   const CONFIG = {
-    /** Read/write the `usuarios` collection in Firestore. */
-    useFirestore: false,
+    /**
+     * Liga o Firebase: o ranking compartilhado (`usuarios`) e o baralho na nuvem
+     * (`conteudo`, ver nuvem.js).
+     *
+     * Ligado aponta para `tecnogame-c7e46`, o projeto da Tecnomotor — e não mais
+     * para o `projeto-assis-3qcf6v` do FlutterFlow original, que está morto (o
+     * bucket dele responde 402). Como o projeto novo nasceu vazio, ligar isto não
+     * arrisca dado de ninguém.
+     *
+     * Vale saber: `file://` recusa o SDK, então o jogo aberto do disco continua
+     * jogando só com o que tem guardado no próprio navegador.
+     */
+    useFirestore: true,
   
     /** POST the "you finished TECNOGAME" WhatsApp message on the end screens. */
     useWhatsApp: false,
   
-    // lib/backend/firebase/firebase_config.dart
+    /**
+     * A chave web do Firebase pode ficar aqui: ela é identificador público por
+     * design, não credencial. Quem defende os dados são as regras em
+     * firebase/firestore.rules — leitura do ranking sem telefone, escrita do
+     * conteúdo só autenticada.
+     */
     firebaseOptions: {
-      apiKey: 'AIzaSyAZTmRXL83WY-KjmtAhsE-ERAdWRkEEKMY',
-      authDomain: 'projeto-assis-3qcf6v.firebaseapp.com',
-      projectId: 'projeto-assis-3qcf6v',
-      storageBucket: 'projeto-assis-3qcf6v.appspot.com',
-      messagingSenderId: '269670706726',
-      appId: '1:269670706726:web:5bcb2a2dd730efcb91c0e7',
+      apiKey: 'AIzaSyB46OQK72wBKDBCy538oiCd0sC_08KWd6E',
+      authDomain: 'tecnogame-c7e46.firebaseapp.com',
+      projectId: 'tecnogame-c7e46',
+      storageBucket: 'tecnogame-c7e46.firebasestorage.app',
+      messagingSenderId: '373113273748',
+      appId: '1:373113273748:web:c78fb6538edd0da32ae381',
     },
   
     /**
@@ -3634,20 +3776,85 @@
   Object.defineProperty(__exports, "CONFIG", { get: () => CONFIG, enumerable: true });
   });
 
+  /* ===== firebase.js ===== */
+  __define("firebase.js", function (__exports, __require) {
+  // O Firebase, carregado sob demanda.
+  //
+  // Um lugar só para subir o SDK, porque dois assuntos diferentes o usam: o
+  // ranking (`backend.js`, coleção `usuarios`) e o conteúdo do jogo (`nuvem.js`,
+  // coleção `conteudo` + login do operador).
+  //
+  // POR QUE `import()` DINÂMICO E NÃO UM ARQUIVO NO REPOSITÓRIO
+  // O SDK do Firebase vem da CDN do Google como módulo ES. Isso tem uma
+  // consequência que vale saber antes de contar com ela: `file://` recusa módulo
+  // ES (origem nula), então **o jogo aberto direto do disco nunca alcança o
+  // Firestore**. É o mesmo motivo de existir o `bundle.js`.
+  //
+  // Na prática: o totem precisa abrir pelo HTTP (o GitHub Pages) para receber o
+  // baralho publicado de outra máquina. Aberto do disco ele continua jogando —
+  // com o último baralho que tiver guardado no próprio navegador. Todas as
+  // funções daqui falham em silêncio nesse caso, e quem chama cai no local.
+  
+  const { CONFIG } = __require("config.js");
+  
+  const VERSAO_SDK = '10.12.2';
+  const CDN = `https://www.gstatic.com/firebasejs/${VERSAO_SDK}`;
+  
+  let promessa = null;
+  
+  /** `true` quando vale a pena tentar: ligado na config e fora do disco. */
+  const podeUsarNuvem = () =>
+    Boolean(CONFIG.useFirestore) && typeof location !== 'undefined' && location.protocol !== 'file:';
+  
+  /**
+   * Sobe o SDK e devolve `{ app, db, fs, auth, fa }`, ou `null` se não der.
+   *
+   * `fs` e `fa` são os módulos inteiros (firestore e auth): o SDK v10 é modular,
+   * então quem chama usa `fs.collection(db, ...)`, `fa.signInWithEmailAndPassword(auth, ...)`.
+   */
+  function firebase() {
+    if (!podeUsarNuvem()) return Promise.resolve(null);
+    if (promessa) return promessa;
+  
+    promessa = (async () => {
+      const [{ initializeApp }, fs, fa] = await Promise.all([
+        import(`${CDN}/firebase-app.js`),
+        import(`${CDN}/firebase-firestore.js`),
+        import(`${CDN}/firebase-auth.js`),
+      ]);
+      const app = initializeApp(CONFIG.firebaseOptions);
+      return { app, db: fs.getFirestore(app), fs, auth: fa.getAuth(app), fa };
+    })().catch((erro) => {
+      console.warn('Firebase indisponível; seguindo só com o armazenamento local.', erro);
+      // Zera para uma próxima tentativa poder acontecer (rede que voltou).
+      promessa = null;
+      return null;
+    });
+  
+    return promessa;
+  }
+  Object.defineProperty(__exports, "podeUsarNuvem", { get: () => podeUsarNuvem, enumerable: true });
+  Object.defineProperty(__exports, "firebase", { get: () => firebase, enumerable: true });
+  });
+
   /* ===== backend.js ===== */
   __define("backend.js", function (__exports, __require) {
   // Port of the Firestore layer (lib/backend/backend.dart, usuarios_record.dart)
   // and the two HTTP calls in lib/backend/api_requests/api_calls.dart.
   //
-  // The Dart app talks to the Firebase project `projeto-assis-3qcf6v` and to
-  // z-api.io for the WhatsApp message. Both are kept here with their original
-  // configuration but are OFF by default, so running this port does not write
-  // into the live collection or send messages from the production WhatsApp
-  // instance. Flip the flags in config.js to switch them on; with Firestore off,
-  // the ranking is stored in this browser instead and every query keeps the same
-  // semantics (`where venceu == true`, `orderBy tempo desc`, `limit n`).
+  // O ranking vai para o Firestore de `tecnogame-c7e46` (o projeto do Dart,
+  // `projeto-assis-3qcf6v`, está morto) E para o armazenamento deste navegador.
+  // Os dois, e não um ou outro: ver `addUsuario`.
+  //
+  // O disparo de WhatsApp pela z-api continua DESLIGADO (`useWhatsApp` em
+  // config.js), porque a credencial dele não pode viajar no cliente.
+  //
+  // Com o Firestore desligado, ou sem rede, a consulta cai no local e mantém a
+  // mesma semântica do Dart (`where venceu == true`, `orderBy tempo desc`,
+  // `limit n`).
   
   const { CONFIG } = __require("config.js");
+  const { firebase } = __require("firebase.js");
   const { getRecords, putRecord } = __require("storage.js");
   
   const LOCAL_KEY = 'usuarios';
@@ -3680,17 +3887,27 @@
   
   /* ------------------------------------------------------------- Firestore -- */
   
+  /**
+   * PACIÊNCIA COM A REDE. Um `getDocs`/`addDoc` do Firestore não falha quando não
+   * há conexão (ou quando o banco nem foi criado no console): ele fica
+   * PENDENTE, esperando o servidor, e o SDK guarda a escrita para reenviar.
+   *
+   * Isso é bom para um app comum e péssimo para um totem de feira: a tela de fim
+   * ficaria em branco esperando um ranking que nunca chega, e o resultado da
+   * partida nunca seria gravado em lugar nenhum. Por isso toda chamada daqui tem
+   * prazo, e o local é o chão que sempre existe.
+   */
+  const PRAZO_MS = 2500;
+  
+  const comPrazo = (promessa, ms = PRAZO_MS) =>
+    Promise.race([promessa, new Promise((_, rejeitar) => setTimeout(() => rejeitar(new Error('prazo')), ms))]);
+  
   let firestore = null;
   
   async function ensureFirestore() {
-    if (!CONFIG.useFirestore) return null;
-    if (firestore) return firestore;
-    const [{ initializeApp }, fs] = await Promise.all([
-      import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js'),
-      import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'),
-    ]);
-    const app = initializeApp(CONFIG.firebaseOptions);
-    firestore = { db: fs.getFirestore(app), fs };
+    const fb = await firebase();
+    if (!fb) return null;
+    firestore = { db: fb.db, fs: fb.fs };
     return firestore;
   }
   
@@ -3718,25 +3935,31 @@
   
     const contato = telefone ? { nome: partida.nome ?? '', telefone, ...(row.data ? { data: row.data } : {}) } : null;
   
-    if (CONFIG.useFirestore) {
-      try {
-        const { db, fs } = await ensureFirestore();
-        const payload = { ...row };
-        if (serverTimestamp) payload.data = fs.serverTimestamp();
-        await fs.addDoc(fs.collection(db, 'usuarios'), payload);
-        if (contato) {
-          const c = { ...contato };
-          if (serverTimestamp) c.data = fs.serverTimestamp();
-          await fs.addDoc(fs.collection(db, 'contatos'), c);
-        }
-        return;
-      } catch (error) {
-        console.warn('Firestore write failed, falling back to local storage.', error);
-      }
-    }
-  
+    // O LOCAL PRIMEIRO, SEMPRE. Antes isto era o "senão" do Firestore, e o
+    // resultado era que uma escrita pendente (rede ruim, banco ainda não criado)
+    // não gravava em lugar nenhum: o `addDoc` não rejeita, fica pendurado, e o
+    // caminho local nunca chegava a rodar. A partida do jogador sumia.
     putRecord(LOCAL_KEY, row);
     if (contato) putRecord(CONTACT_KEY, contato);
+  
+    if (!CONFIG.useFirestore) return;
+    try {
+      const alvo = await ensureFirestore();
+      if (!alvo) return;
+      const { db, fs } = alvo;
+      const payload = { ...row };
+      if (serverTimestamp) payload.data = fs.serverTimestamp();
+      await comPrazo(fs.addDoc(fs.collection(db, 'usuarios'), payload));
+      if (contato) {
+        const c = { ...contato };
+        if (serverTimestamp) c.data = fs.serverTimestamp();
+        await comPrazo(fs.addDoc(fs.collection(db, 'contatos'), c));
+      }
+    } catch (error) {
+      // O SDK guarda a escrita e reenvia quando a rede voltar; e a cópia local já
+      // está gravada de qualquer forma. Nada a fazer além de registrar.
+      console.warn('Firestore demorou ou recusou; o resultado ficou gravado localmente.', error);
+    }
   }
   
   /**
@@ -3749,18 +3972,25 @@
   async function queryUsuariosVencedores({ limit = 15 } = {}) {
     if (CONFIG.useFirestore) {
       try {
-        const { db, fs } = await ensureFirestore();
-        const snapshot = await fs.getDocs(
-          fs.query(
-            fs.collection(db, 'usuarios'),
-            fs.where('venceu', '==', true),
-            fs.orderBy('tempo', 'desc'),
-            fs.limit(limit)
-          )
-        );
-        return snapshot.docs.map((doc) => normalize(doc.data()));
+        const alvo = await comPrazo(ensureFirestore());
+        if (alvo) {
+          const { db, fs } = alvo;
+          const snapshot = await comPrazo(
+            fs.getDocs(
+              fs.query(
+                fs.collection(db, 'usuarios'),
+                fs.where('venceu', '==', true),
+                fs.orderBy('tempo', 'desc'),
+                fs.limit(limit)
+              )
+            )
+          );
+          return snapshot.docs.map((doc) => normalize(doc.data()));
+        }
       } catch (error) {
-        console.warn('Firestore read failed, falling back to local storage.', error);
+        // Com prazo estourado a tela de fim mostra o ranking local em vez de
+        // ficar em branco esperando.
+        console.warn('Firestore não respondeu a tempo; mostrando o ranking local.', error);
       }
     }
   
@@ -5220,6 +5450,61 @@
     });
   }
   
+  /**
+   * Pede e-mail e senha do operador (a conta do Firebase, não a senha da porta).
+   * Resolve com `{email, senha}` ou `null` se desistiu.
+   */
+  function pedirCredenciais() {
+    return new Promise((resolve) => {
+      const email = entradaSimples({ tipo: 'email', rotulo: 'E-mail', auto: 'username' });
+      const senha = entradaSimples({ tipo: 'password', rotulo: 'Senha', auto: 'current-password' });
+  
+      const fechar = (r) => {
+        fundo.remove();
+        document.removeEventListener('keydown', onTecla);
+        resolve(r);
+      };
+      const enviar = () => {
+        const e = email.entrada.value.trim();
+        const s = senha.entrada.value;
+        if (!e || !s) return;
+        fechar({ email: e, senha: s });
+      };
+      const onTecla = (ev) => {
+        if (ev.key === 'Escape') fechar(null);
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          enviar();
+        }
+      };
+  
+      const caixa = el('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Entrar' }, [
+        el('h2', { text: 'Entrar para publicar' }),
+        el('p', {
+          text: 'A conta do Firebase do projeto. É ela que autoriza escrever o baralho que todos os totens leem — não a senha que abriu este painel.',
+        }),
+        email,
+        senha,
+        el('div', { class: 'modal-acoes' }, [
+          botao('Cancelar', { onClick: () => fechar(null) }),
+          botao('Entrar', { tipo: 'primario', onClick: enviar }),
+        ]),
+      ]);
+      const fundo = el('div', { class: 'modal-fundo', onClick: (ev) => ev.target === fundo && fechar(null) }, caixa);
+      document.body.appendChild(fundo);
+      document.addEventListener('keydown', onTecla);
+      email.entrada.focus();
+    });
+  }
+  
+  /** Um campo de texto simples para os modais — sem a validação do editor. */
+  function entradaSimples({ tipo, rotulo, auto }) {
+    const entrada = el('input', { class: 'campo-entrada', type: tipo, autocomplete: auto });
+    const raiz = el('label', { class: 'campo' }, [el('span', { class: 'campo-rotulo', text: rotulo }), entrada]);
+    raiz.entrada = entrada;
+    return raiz;
+  }
+  
   /** Faz o navegador salvar um arquivo, sem servidor. */
   function baixarArquivo(nome, conteudo, tipo = 'application/json') {
     const blob = new Blob([conteudo], { type: `${tipo};charset=utf-8` });
@@ -5360,6 +5645,7 @@
   Object.defineProperty(__exports, "caixaDeMarcar", { get: () => caixaDeMarcar, enumerable: true });
   Object.defineProperty(__exports, "aviso", { get: () => aviso, enumerable: true });
   Object.defineProperty(__exports, "confirmar", { get: () => confirmar, enumerable: true });
+  Object.defineProperty(__exports, "pedirCredenciais", { get: () => pedirCredenciais, enumerable: true });
   Object.defineProperty(__exports, "baixarArquivo", { get: () => baixarArquivo, enumerable: true });
   Object.defineProperty(__exports, "escolherArquivo", { get: () => escolherArquivo, enumerable: true });
   Object.defineProperty(__exports, "reduzirImagem", { get: () => reduzirImagem, enumerable: true });
@@ -5368,8 +5654,13 @@
 
   /* ===== admin/editor.js ===== */
   __define("admin/editor.js", function (__exports, __require) {
-  // O editor de uma rodada: o veículo, os equipamentos que a resolvem, o gabarito
-  // e os doze campos de texto em cada um dos três idiomas.
+  // O editor: o veículo em cima, e embaixo UMA pergunta do banco dele — os
+  // equipamentos que a resolvem, o gabarito e os doze campos de texto em cada um
+  // dos três idiomas.
+  //
+  // Veículo e pergunta são objetos separados desde a v2 do baralho (ver deck.js):
+  // o mesmo carro pode ter várias perguntas, e quem escolhe qual está aberta é a
+  // lista do painel.
   
   const { el, campo, selecao, caixaDeMarcar, limpar, botao, entradaDeImagem } = __require("admin/ui.js");
   const { CAMPOS_QUESTAO, CAMPOS_OBRIGATORIOS, IDIOMAS, SCANNERS, VEICULOS_ORIGINAIS } = __require("deck.js");
@@ -5396,12 +5687,13 @@
   const CAMPO_DA_ALTERNATIVA = ['respostaUm', 'respostaDois', 'respostaTres', 'respostaQuatro'];
   
   /**
-   * @param {object} props
-   * @param {object} props.slot a rodada, mutada no lugar
-   * @param {number} props.indice posição no baralho (é a fatia da roleta)
-   * @param {Function} props.onChange chamado a cada edição, para revalidar
+   * @param {object}   props
+   * @param {object}   props.slot      o veículo (a fatia da roleta), mutado no lugar
+   * @param {object}   props.pergunta  a pergunta do banco que está sendo editada
+   * @param {number}   props.indice    posição no baralho
+   * @param {Function} props.onChange  chamado a cada edição, para revalidar
    */
-  function editorDeSlot({ slot, indice, onChange }) {
+  function editorDeSlot({ slot, pergunta, indice, posicao = 0, total = 1, onChange }) {
     const mudou = () => onChange?.();
   
     /* ------------------------------------------------------------- veículo -- */
@@ -5569,29 +5861,29 @@
   
     const opcoesGabarito = () =>
       CAMPO_DA_ALTERNATIVA.map((c, i) => {
-        const texto = (slot.pt?.[c] ?? '').trim();
+        const texto = (pergunta.pt?.[c] ?? '').trim();
         const resumo = texto ? `: ${texto.slice(0, 46)}${texto.length > 46 ? '…' : ''}` : ' (vazia)';
         return { valor: String(i + 1), rotulo: `Alternativa ${i + 1}${resumo}` };
       });
   
     const campoGabarito = selecao({
       rotulo: 'Resposta correta',
-      valor: String(slot.gabarito),
+      valor: String(pergunta.gabarito),
       opcoes: opcoesGabarito(),
       onChange: (v) => {
-        slot.gabarito = v;
+        pergunta.gabarito = v;
         mudou();
       },
     });
   
     const blocoRegras = el('section', { class: 'bloco' }, [
-      el('h3', { text: 'Regras da rodada' }),
+      el('h3', { text: 'Regras desta pergunta' }),
       campoGabarito,
       el('div', { class: 'campo' }, [
-        el('span', { class: 'campo-rotulo', text: 'Equipamentos que resolvem esta rodada' }),
+        el('span', { class: 'campo-rotulo', text: 'Equipamentos que resolvem esta pergunta' }),
         el('span', {
           class: 'campo-dica',
-          text: 'Os não marcados abrem "equipamento inválido" quando o jogador escolhe. Ao menos um precisa estar marcado.',
+          text: 'Os não marcados abrem "equipamento inválido" quando o jogador escolhe. Ao menos um precisa estar marcado. Vale só para esta pergunta — outra do mesmo veículo pode pedir equipamentos diferentes.',
         }),
         el(
           'div',
@@ -5599,9 +5891,9 @@
           SCANNERS.map((s) =>
             caixaDeMarcar({
               rotulo: s.rotulo,
-              marcado: slot.scanners[s.chave],
+              marcado: pergunta.scanners[s.chave],
               onChange: (v) => {
-                slot.scanners[s.chave] = v;
+                pergunta.scanners[s.chave] = v;
                 mudou();
               },
             })
@@ -5628,9 +5920,9 @@
           dica,
           obrigatorio,
           multilinha: nome === 'pergunta' || nome.startsWith('ajuda') || nome === 'maisInformacoes',
-          valor: slot[lang][nome],
+          valor: pergunta[lang][nome],
           onInput: (v) => {
-            slot[lang][nome] = v;
+            pergunta[lang][nome] = v;
             // O rótulo do gabarito mostra o começo de cada alternativa em pt.
             if (lang === 'pt' && CAMPO_DA_ALTERNATIVA.includes(nome)) {
               const atual = campoGabarito.entrada.value;
@@ -5711,8 +6003,10 @@
   
     const raiz = el('div', { class: 'editor' }, [
       el('div', { class: 'editor-cabecalho' }, [
-        el('h2', { text: `Rodada ${indice + 1}` }),
+        el('h2', { text: slot.veiculo?.nome?.trim() || `Rodada ${indice + 1}` }),
         el('span', { class: 'selo-fatia', text: `fatia ${indice + 1} da roleta` }),
+        total > 1 ? el('span', { class: 'selo-fatia', text: `pergunta ${posicao + 1} de ${total}` }) : null,
+        pergunta.ativa === false ? el('span', { class: 'selo-fatia selo-desligado', text: 'desligada' }) : null,
       ]),
       blocoVeiculo,
       blocoRegras,
@@ -5722,6 +6016,163 @@
     return raiz;
   }
   Object.defineProperty(__exports, "editorDeSlot", { get: () => editorDeSlot, enumerable: true });
+  });
+
+  /* ===== nuvem.js ===== */
+  __define("nuvem.js", function (__exports, __require) {
+  // O baralho na nuvem: um documento no Firestore que a área administrativa
+  // escreve e todo totem lê.
+  //
+  // O PROBLEMA QUE ISTO RESOLVE
+  // Até aqui o baralho vivia no `localStorage` do navegador que o publicou.
+  // Editar no notebook não alcançava o totem: a travessia era exportar um JSON,
+  // levar num pendrive e importar do outro lado. Agora o admin publica num lugar
+  // só e qualquer totem com internet pega na partida seguinte.
+  //
+  // O DESENHO
+  //   conteudo/baralho   leitura pública (o jogo precisa, e não tem servidor)
+  //                      escrita só autenticada (senão qualquer visitante reescreve o jogo)
+  //
+  // O `localStorage` NÃO sai de cena: continua sendo o que o jogo lê, agora como
+  // cópia do que veio da nuvem. Isso é o que mantém o totem jogando quando a
+  // internet cai no meio da feira — e é o único modo possível quando ele abre do
+  // disco (ver firebase.js).
+  //
+  // A SENHA 2040 NÃO É ESTA. Aquela é a tranca da gaveta que esconde o painel
+  // (porta.js); esta é a credencial de verdade que o Firestore exige para
+  // escrever, e vive na conta de vocês, não no código.
+  
+  const { firebase, podeUsarNuvem } = __require("firebase.js");
+  const { publicarBaralho, carregarBaralho } = __require("deck.js");
+  
+  /** O documento único. Coleção e id fixos: é um baralho por instalação. */
+  const COLECAO = 'conteudo';
+  const DOCUMENTO = 'baralho';
+  
+  /* ------------------------------------------------------------ sincronia -- */
+  
+  /**
+   * Puxa o baralho publicado e guarda como cópia local.
+   *
+   * Fire-and-forget de propósito: quem chama (o boot e a tela de cadastro) não
+   * espera. Se a rede estiver fora, ou o jogo tiver aberto do disco, a função
+   * devolve `false` e o jogo segue com o que já tinha.
+   *
+   * @returns {Promise<boolean>} se a cópia local mudou
+   */
+  async function sincronizarBaralho() {
+    const fb = await firebase();
+    if (!fb) return false;
+  
+    try {
+      const { db, fs } = fb;
+      const snap = await fs.getDoc(fs.doc(db, COLECAO, DOCUMENTO));
+      if (!snap.exists()) return false;
+  
+      const remoto = snap.data()?.baralho;
+      if (!remoto || !Array.isArray(remoto.slots) || remoto.slots.length === 0) return false;
+  
+      // Comparar o texto evita reescrever (e invalidar o cache da projeção de
+      // estado) a cada partida quando nada mudou.
+      const atual = JSON.stringify(carregarBaralho());
+      if (JSON.stringify(remoto) === atual) return false;
+  
+      publicarBaralho(remoto);
+      return true;
+    } catch (erro) {
+      console.warn('não deu para ler o baralho da nuvem; seguindo com o local.', erro);
+      return false;
+    }
+  }
+  
+  /**
+   * Publica o baralho para todos os totens. Exige estar logado.
+   *
+   * @returns {Promise<{ok: boolean, motivo?: string}>}
+   */
+  async function publicarNaNuvem(deck) {
+    const fb = await firebase();
+    if (!fb) {
+      return {
+        ok: false,
+        motivo: podeUsarNuvem()
+          ? 'não deu para falar com o Firebase.'
+          : 'a nuvem está desligada ou o jogo foi aberto do disco.',
+      };
+    }
+    if (!fb.auth.currentUser) return { ok: false, motivo: 'é preciso entrar para publicar.' };
+  
+    try {
+      const { db, fs } = fb;
+      await fs.setDoc(fs.doc(db, COLECAO, DOCUMENTO), {
+        baralho: deck,
+        atualizadoEm: fs.serverTimestamp(),
+        publicadoPor: fb.auth.currentUser.email ?? fb.auth.currentUser.uid,
+      });
+      return { ok: true };
+    } catch (erro) {
+      // A mensagem crua do Firestore ("Missing or insufficient permissions") não
+      // diz ao operador o que fazer.
+      const permissao = String(erro?.code ?? '').includes('permission');
+      return {
+        ok: false,
+        motivo: permissao
+          ? 'esta conta não tem permissão de escrita no baralho.'
+          : `o Firestore recusou: ${erro?.message ?? erro}`,
+      };
+    }
+  }
+  
+  /* ---------------------------------------------------------------- login -- */
+  
+  async function entrar(email, senha) {
+    const fb = await firebase();
+    if (!fb) return { ok: false, motivo: 'a nuvem está desligada ou o jogo foi aberto do disco.' };
+    try {
+      await fb.fa.signInWithEmailAndPassword(fb.auth, email, senha);
+      return { ok: true };
+    } catch (erro) {
+      const codigo = String(erro?.code ?? '');
+      if (codigo.includes('invalid-credential') || codigo.includes('wrong-password') || codigo.includes('user-not-found')) {
+        return { ok: false, motivo: 'e-mail ou senha não conferem.' };
+      }
+      if (codigo.includes('operation-not-allowed')) {
+        return { ok: false, motivo: 'o login por e-mail/senha não está habilitado no projeto do Firebase.' };
+      }
+      if (codigo.includes('network')) return { ok: false, motivo: 'sem conexão com o Firebase.' };
+      return { ok: false, motivo: erro?.message ?? String(erro) };
+    }
+  }
+  
+  async function sair() {
+    const fb = await firebase();
+    if (fb) await fb.fa.signOut(fb.auth).catch(() => {});
+  }
+  
+  /** O e-mail de quem está logado, ou `null`. Síncrono: só olha o que já existe. */
+  async function operadorAtual() {
+    const fb = await firebase();
+    return fb?.auth?.currentUser?.email ?? null;
+  }
+  
+  /**
+   * Avisa quando o login muda. O SDK restaura a sessão de forma assíncrona no
+   * carregamento, então a barra do admin não pode desenhar "deslogado" e parar
+   * por aí — ela se redesenha quando isto dispara.
+   *
+   * @returns {Promise<Function>} uma função que cancela a inscrição
+   */
+  async function aoMudarOperador(fn) {
+    const fb = await firebase();
+    if (!fb) return () => {};
+    return fb.fa.onAuthStateChanged(fb.auth, (u) => fn(u?.email ?? null));
+  }
+  Object.defineProperty(__exports, "sincronizarBaralho", { get: () => sincronizarBaralho, enumerable: true });
+  Object.defineProperty(__exports, "publicarNaNuvem", { get: () => publicarNaNuvem, enumerable: true });
+  Object.defineProperty(__exports, "entrar", { get: () => entrar, enumerable: true });
+  Object.defineProperty(__exports, "sair", { get: () => sair, enumerable: true });
+  Object.defineProperty(__exports, "operadorAtual", { get: () => operadorAtual, enumerable: true });
+  Object.defineProperty(__exports, "aoMudarOperador", { get: () => aoMudarOperador, enumerable: true });
   });
 
   /* ===== admin/painel.js ===== */
@@ -5744,10 +6195,12 @@
   // Editar aqui não mexe no totem até você clicar em Publicar. Publicar grava o
   // baralho, e o jogo o relê quando a próxima partida começa.
   
-  const { el, botao, aviso, confirmar, limpar, baixarArquivo, escolherArquivo } = __require("admin/ui.js");
+  const { el, botao, aviso, confirmar, limpar, baixarArquivo, escolherArquivo, pedirCredenciais } = __require("admin/ui.js");
   const { editorDeSlot } = __require("admin/editor.js");
-  const { BARALHO_ORIGINAL, SLOTS_ORIGINAIS, carregarBaralho, publicarBaralho, restaurarOriginal, slotVazio, temBaralhoPublicado, usaArteOriginal, validarBaralho } = __require("deck.js");
+  const { BARALHO_ORIGINAL, SLOTS_ORIGINAIS, carregarBaralho, novoIdDePergunta, perguntaVazia, publicarBaralho, restaurarOriginal, slotVazio, temBaralhoPublicado, usaArteOriginal, validarBaralho } = __require("deck.js");
   const { motivoDaFalha } = __require("storage.js");
+  const { podeUsarNuvem } = __require("firebase.js");
+  const { aoMudarOperador, entrar, publicarNaNuvem, sair, sincronizarBaralho } = __require("nuvem.js");
   
   /* -------------------------------------------------------------- o estado -- */
   
@@ -5759,8 +6212,13 @@
   // faria todo jogador pagar por uma tela que ele nunca vai abrir.
   const estado = {
     baralho: null,
+    /** O veículo aberto (índice do slot). */
     selecionado: 0,
+    /** Qual pergunta do banco desse veículo está no editor. */
+    pergunta: 0,
     sujo: false,
+    /** O e-mail de quem está logado no Firebase, ou null. */
+    operador: null,
   };
   
   /** A raiz que `montarAdmin` recebe. Fora da camada aberta, é null. */
@@ -5768,23 +6226,40 @@
   
   /* -------------------------------------------------------------- validação -- */
   
-  /** Agrupa as mensagens de validarBaralho por rodada, que é como a UI mostra. */
+  /**
+   * Agrupa as mensagens de validarBaralho por rodada, que é como a UI mostra.
+   *
+   * Desde o banco de perguntas a mensagem pode vir com duas coordenadas —
+   * "rodada 3, pergunta 2: ..." —, então o erro é guardado nas duas: por veículo
+   * (para o selo na lista) e por pergunta (para acender a certa).
+   */
   function errosPorRodada(deck) {
     const todos = validarBaralho(deck);
     const porRodada = new Map();
+    const porPergunta = new Map();
     const gerais = [];
     for (const m of todos) {
-      const n = m.match(/^rodada (\d+): (.*)$/);
+      const n = m.match(/^rodada (\d+)(?:, pergunta (\d+))?: (.*)$/);
       if (n) {
         const i = Number(n[1]) - 1;
+        const j = n[2] ? Number(n[2]) - 1 : 0;
         if (!porRodada.has(i)) porRodada.set(i, []);
-        porRodada.get(i).push(n[2]);
+        porRodada.get(i).push(n[3]);
+        const chave = `${i}:${j}`;
+        if (!porPergunta.has(chave)) porPergunta.set(chave, []);
+        porPergunta.get(chave).push(n[3]);
       } else {
         gerais.push(m);
       }
     }
-    return { total: todos.length, porRodada, gerais };
+    return { total: todos.length, porRodada, porPergunta, gerais };
   }
+  
+  /** Um resumo curto da pergunta, para a lista. */
+  const resumoDaPergunta = (pergunta, j) => {
+    const texto = (pergunta?.pt?.pergunta ?? '').trim();
+    return texto ? texto.slice(0, 58) : `pergunta ${j + 1} (sem enunciado)`;
+  };
   
   /* ------------------------------------------------------------------ ações -- */
   
@@ -5819,8 +6294,47 @@
       return;
     }
     estado.sujo = false;
-    aviso('Publicado. A próxima partida já usa este baralho.');
+    aviso('Publicado neste navegador. A próxima partida aqui já usa este baralho.');
     desenhar();
+  
+    // E sobe para a nuvem, que é o que alcança os OUTROS totens. Depois do
+    // gravado local de propósito: se a internet estiver fora, o que foi editado
+    // não se perde, e o operador é avisado do que ficou faltando.
+    if (!podeUsarNuvem()) {
+      aviso('Sem nuvem aqui (jogo aberto do disco ou Firebase desligado): este baralho vale só neste navegador.');
+      return;
+    }
+    if (!estado.operador) {
+      aviso('Para alcançar os outros totens, entre com a conta do operador e publique de novo.', 'erro');
+      return;
+    }
+    const r = await publicarNaNuvem(estado.baralho);
+    aviso(
+      r.ok ? 'Enviado para a nuvem. Todo totem com internet pega na próxima partida.' : `A nuvem recusou: ${r.motivo}`,
+      r.ok ? 'ok' : 'erro'
+    );
+  }
+  
+  /* ----------------------------------------------------------------- login -- */
+  
+  async function entrarNaNuvem() {
+    const dados = await pedirCredenciais();
+    if (!dados) return;
+    const r = await entrar(dados.email, dados.senha);
+    if (!r.ok) {
+      aviso(`Não entrou: ${r.motivo}`, 'erro');
+      return;
+    }
+    estado.operador = dados.email;
+    atualizarChrome();
+    aviso(`Conectado como ${dados.email}.`);
+  }
+  
+  async function sairDaNuvem() {
+    await sair();
+    estado.operador = null;
+    atualizarChrome();
+    aviso('Desconectado. O que você publicar daqui vale só neste navegador.');
   }
   
   async function descartar() {
@@ -5854,9 +6368,67 @@
   function adicionarRodada() {
     estado.baralho.slots.push(slotVazio());
     estado.selecionado = estado.baralho.slots.length - 1;
+    estado.pergunta = 0;
     estado.sujo = true;
     desenhar();
-    aviso('Rodada adicionada. Preencha o veículo e os três idiomas.');
+    aviso('Veículo adicionado. Preencha o veículo e a primeira pergunta.');
+  }
+  
+  /* ---------------------------------------------- o banco de um veículo ----- */
+  
+  function adicionarPergunta(i) {
+    const slot = estado.baralho.slots[i];
+    slot.perguntas.push(perguntaVazia());
+    estado.selecionado = i;
+    estado.pergunta = slot.perguntas.length - 1;
+    estado.sujo = true;
+    desenhar();
+    aviso('Pergunta nova no banco deste veículo. Preencha os três idiomas.');
+  }
+  
+  function duplicarPergunta(i, j) {
+    const slot = estado.baralho.slots[i];
+    const copia = clonar(slot.perguntas[j]);
+    copia.id = novoIdDePergunta();
+    slot.perguntas.splice(j + 1, 0, copia);
+    estado.selecionado = i;
+    estado.pergunta = j + 1;
+    estado.sujo = true;
+    desenhar();
+  }
+  
+  async function removerPergunta(i, j) {
+    const slot = estado.baralho.slots[i];
+    if (slot.perguntas.length <= 1) {
+      aviso('Cada veículo precisa de pelo menos uma pergunta.', 'erro');
+      return;
+    }
+    const resumo = resumoDaPergunta(slot.perguntas[j], j);
+    if (
+      !(await confirmar({
+        titulo: 'Remover pergunta?',
+        texto: `"${resumo}" sai do banco de ${slot.veiculo.nome || 'este veículo'}.`,
+        perigoso: true,
+        confirmarTexto: 'Remover',
+      }))
+    ) {
+      return;
+    }
+    slot.perguntas.splice(j, 1);
+    estado.pergunta = Math.max(0, Math.min(j, slot.perguntas.length - 1));
+    estado.sujo = true;
+    desenhar();
+  }
+  
+  /**
+   * Liga/desliga uma pergunta. Desligada, ela fica no banco mas nunca cai em
+   * partida — é como se guarda rascunho sem travar a publicação.
+   */
+  function alternarPergunta(i, j, ativa) {
+    const slot = estado.baralho.slots[i];
+    slot.perguntas[j].ativa = ativa;
+    estado.sujo = true;
+    atualizarChrome();
   }
   
   function duplicarRodada(i) {
@@ -5959,7 +6531,15 @@
       ]),
       el('div', { class: 'barra-info' }, [
         el('span', { class: `situacao situacao-${situacao.tipo}`, text: situacao.texto }),
-        el('span', { class: 'contador', text: `${estado.baralho.slots.length} rodadas` }),
+        el('span', {
+          class: 'contador',
+          // "N rodadas" virou ambíguo quando um veículo passou a ter várias
+          // perguntas: os dois números é que dizem o tamanho do baralho.
+          text: `${estado.baralho.slots.length} veículos · ${estado.baralho.slots.reduce(
+            (n, s) => n + (s.perguntas?.length ?? 0),
+            0
+          )} perguntas`,
+        }),
         total > 0
           ? el('span', { class: 'situacao situacao-erro', text: `${total} problema(s)` })
           : el('span', { class: 'situacao situacao-ok', text: 'pronto para publicar' }),
@@ -5977,61 +6557,158 @@
               text: 'roleta desenhada pelo jogo',
             })
           : null,
+        // O que decide se publicar alcança outros totens ou morre neste
+        // navegador. É a informação mais fácil de o operador errar sem perceber.
+        !podeUsarNuvem()
+          ? el('span', {
+              class: 'situacao situacao-neutra',
+              title: 'O jogo foi aberto do disco, ou o Firebase está desligado na config. O baralho vale só neste navegador.',
+              text: 'sem nuvem',
+            })
+          : estado.operador
+            ? el('span', {
+                class: 'situacao situacao-ok',
+                title: `Publicar envia para todos os totens. Conectado como ${estado.operador}.`,
+                text: `nuvem: ${estado.operador}`,
+              })
+            : el('span', {
+                class: 'situacao situacao-atencao',
+                title: 'Sem entrar, publicar grava só neste navegador.',
+                text: 'nuvem: desconectado',
+              }),
       ]),
       el('div', { class: 'barra-acoes' }, [
         botao('Importar', { onClick: importar, titulo: 'Carregar um baralho de um arquivo JSON' }),
         botao('Exportar', { onClick: exportar, titulo: 'Salvar este baralho num arquivo JSON' }),
         botao('Restaurar fábrica', { onClick: voltarAoOriginal, tipo: 'perigo' }),
         estado.sujo ? botao('Descartar', { onClick: descartar }) : null,
+        podeUsarNuvem()
+          ? estado.operador
+            ? botao('Sair da nuvem', { onClick: sairDaNuvem, titulo: `Conectado como ${estado.operador}` })
+            : botao('Entrar', { onClick: entrarNaNuvem, titulo: 'Conta do Firebase, para publicar para todos os totens' })
+          : null,
         botao('Publicar', { onClick: publicar, tipo: 'primario' }),
         botao('Voltar ao jogo', { onClick: voltarAoJogo, titulo: 'Fecha a administração e volta para a tela do jogador' }),
       ]),
     ]);
   }
   
+  /**
+   * A lateral: todos os veículos e, debaixo de cada um, o banco de perguntas
+   * dele.
+   *
+   * Todos abertos de propósito. O painel existe para responder "quais perguntas
+   * cada veículo pode ter" de relance — esconder o banco atrás de um clique
+   * desfaz isso. A marca de cada linha liga e desliga a pergunta; desligada, ela
+   * fica de rascunho e nunca cai em partida.
+   */
   function lista() {
-    const { porRodada } = errosPorRodada(estado.baralho);
+    const { porRodada, porPergunta } = errosPorRodada(estado.baralho);
   
-    const itens = estado.baralho.slots.map((slot, i) => {
+    const itens = estado.baralho.slots.flatMap((slot, i) => {
       const problemas = porRodada.get(i)?.length ?? 0;
       const nome = slot.veiculo.nome?.trim() || '(sem nome)';
-      const pergunta = (slot.pt?.pergunta ?? '').trim();
+      const perguntas = slot.perguntas ?? [];
+      const ativas = perguntas.filter((p) => p.ativa !== false).length;
   
-      return el(
+      const cabeca = el(
         'li',
-        { class: ['item', i === estado.selecionado ? 'selecionado' : null, problemas ? 'com-problema' : null] },
+        { class: ['item', 'veiculo', i === estado.selecionado ? 'selecionado' : null, problemas ? 'com-problema' : null] },
         [
           el('button', {
             type: 'button',
             class: 'item-botao',
             onClick: () => {
               estado.selecionado = i;
+              estado.pergunta = 0;
               desenhar();
             },
           }, [
             el('span', { class: 'item-indice', text: String(i + 1) }),
             el('span', { class: 'item-texto' }, [
               el('strong', { text: nome }),
-              el('span', { class: 'item-pergunta', text: pergunta ? pergunta.slice(0, 70) : 'sem enunciado' }),
+              el('span', {
+                class: 'item-pergunta',
+                text:
+                  perguntas.length === 1
+                    ? `${ativas === 1 ? '1 pergunta' : '1 pergunta desligada'}`
+                    : `${ativas} de ${perguntas.length} perguntas ativas`,
+              }),
             ]),
             problemas ? el('span', { class: 'item-selo', text: String(problemas) }) : null,
           ]),
           el('span', { class: 'item-acoes' }, [
             botao('', { icone: '↑', titulo: 'Subir', onClick: () => mover(i, -1) }),
             botao('', { icone: '↓', titulo: 'Descer', onClick: () => mover(i, 1) }),
-            botao('', { icone: '⧉', titulo: 'Duplicar', onClick: () => duplicarRodada(i) }),
-            botao('', { icone: '✕', titulo: 'Remover', tipo: 'perigo', onClick: () => removerRodada(i) }),
+            botao('', { icone: '⧉', titulo: 'Duplicar veículo', onClick: () => duplicarRodada(i) }),
+            botao('', { icone: '✕', titulo: 'Remover veículo', tipo: 'perigo', onClick: () => removerRodada(i) }),
           ]),
         ]
       );
+  
+      const banco = perguntas.map((pergunta, j) => {
+        const comProblema = (porPergunta.get(`${i}:${j}`)?.length ?? 0) > 0;
+        const aberta = i === estado.selecionado && j === estado.pergunta;
+        const marca = el('input', {
+          type: 'checkbox',
+          class: 'pq-marca',
+          title: pergunta.ativa !== false ? 'Ligada — pode cair em partida' : 'Desligada — fica só de rascunho',
+          'aria-label': `Pergunta ${j + 1} de ${nome} ativa`,
+          onChange: (e) => alternarPergunta(i, j, e.currentTarget.checked),
+        });
+        marca.checked = pergunta.ativa !== false;
+  
+        return el(
+          'li',
+          {
+            class: [
+              'item',
+              'pergunta',
+              aberta ? 'selecionado' : null,
+              comProblema ? 'com-problema' : null,
+              pergunta.ativa === false ? 'desligada' : null,
+            ],
+          },
+          [
+            marca,
+            el('button', {
+              type: 'button',
+              class: 'item-botao pq-botao',
+              onClick: () => {
+                estado.selecionado = i;
+                estado.pergunta = j;
+                desenhar();
+              },
+            }, [
+              el('span', { class: 'item-texto' }, [
+                el('span', { class: 'item-pergunta', text: resumoDaPergunta(pergunta, j) }),
+              ]),
+              comProblema ? el('span', { class: 'item-selo', text: String(porPergunta.get(`${i}:${j}`).length) }) : null,
+            ]),
+            el('span', { class: 'item-acoes' }, [
+              botao('', { icone: '⧉', titulo: 'Duplicar pergunta', onClick: () => duplicarPergunta(i, j) }),
+              botao('', { icone: '✕', titulo: 'Remover pergunta', tipo: 'perigo', onClick: () => removerPergunta(i, j) }),
+            ]),
+          ]
+        );
+      });
+  
+      const acrescentar = el('li', { class: 'item pergunta acrescentar' }, [
+        botao('Pergunta', { icone: '+', titulo: `Nova pergunta para ${nome}`, onClick: () => adicionarPergunta(i) }),
+      ]);
+  
+      return [cabeca, ...banco, acrescentar];
     });
   
     return el('aside', { class: 'lateral' }, [
       el('div', { class: 'lateral-topo' }, [
-        el('h2', { text: 'Rodadas' }),
-        botao('Adicionar', { onClick: adicionarRodada, tipo: 'primario', icone: '+' }),
+        el('h2', { text: 'Veículos' }),
+        botao('Veículo', { onClick: adicionarRodada, tipo: 'primario', icone: '+' }),
       ]),
-      el('p', { class: 'nota', text: 'A ordem é a ordem das fatias da roleta.' }),
+      el('p', {
+        class: 'nota',
+        text: 'A ordem dos veículos é a ordem das fatias da roleta. Cada veículo pode ter várias perguntas: quando a roleta para nele, o jogo sorteia uma das ligadas.',
+      }),
       el('ul', { class: 'itens' }, itens),
     ]);
   }
@@ -6041,21 +6718,30 @@
     app.appendChild(barra());
   
     const slot = estado.baralho.slots[estado.selecionado];
-    const editor = slot
-      ? editorDeSlot({
-          slot,
-          indice: estado.selecionado,
-          onChange: () => {
-            estado.sujo = true;
-            // Só a barra e a lista precisam reagir a cada tecla; redesenhar o
-            // editor inteiro tiraria o foco do campo que está sendo digitado.
-            atualizarChrome();
-          },
-        })
-      : el('p', { text: 'Nenhuma rodada.' });
+    // A pergunta aberta pode ter sumido (removida, ou veículo trocado); volta
+    // para a primeira em vez de abrir vazio.
+    if (slot && !slot.perguntas[estado.pergunta]) estado.pergunta = 0;
+    const pergunta = slot?.perguntas?.[estado.pergunta];
   
-    const { porRodada } = errosPorRodada(estado.baralho);
-    editor.marcarErros?.(porRodada.get(estado.selecionado) ?? []);
+    const editor =
+      slot && pergunta
+        ? editorDeSlot({
+            slot,
+            pergunta,
+            indice: estado.selecionado,
+            posicao: estado.pergunta,
+            total: slot.perguntas.length,
+            onChange: () => {
+              estado.sujo = true;
+              // Só a barra e a lista precisam reagir a cada tecla; redesenhar o
+              // editor inteiro tiraria o foco do campo que está sendo digitado.
+              atualizarChrome();
+            },
+          })
+        : el('p', { text: 'Nenhum veículo.' });
+  
+    const { porPergunta } = errosPorRodada(estado.baralho);
+    editor.marcarErros?.(porPergunta.get(`${estado.selecionado}:${estado.pergunta}`) ?? []);
   
     app.appendChild(el('main', { class: 'corpo' }, [lista(), el('div', { class: 'painel' }, editor)]));
     app.__editor = editor;
@@ -6067,14 +6753,17 @@
     const listaAntiga = app.querySelector('.lateral');
     if (barraAntiga) barraAntiga.replaceWith(barra());
     if (listaAntiga) listaAntiga.replaceWith(lista());
-    const { porRodada } = errosPorRodada(estado.baralho);
-    app.__editor?.marcarErros?.(porRodada.get(estado.selecionado) ?? []);
+    const { porPergunta } = errosPorRodada(estado.baralho);
+    app.__editor?.marcarErros?.(porPergunta.get(`${estado.selecionado}:${estado.pergunta}`) ?? []);
   }
   
   /* --------------------------------------------------------- montar e sair -- */
   
   /** O que `porta.js` quer que aconteça quando o operador pede para sair. */
   let fecharCamada = null;
+  
+  /** Cancela a inscrição no estado de login, ao fechar a camada. */
+  let pararDeOuvirLogin = null;
   
   /** Avisa o navegador antes de recarregar/fechar com edição por publicar. */
   function aoDescarregar(e) {
@@ -6118,7 +6807,30 @@
     if (!estado.baralho || !estado.sujo) {
       estado.baralho = clonar(carregarBaralho());
       estado.selecionado = 0;
+      estado.pergunta = 0;
     }
+  
+    // Puxa o que está publicado na nuvem antes de deixar editar: sem isto o
+    // operador editaria por cima de uma cópia velha e republicaria desfazendo o
+    // que outra máquina publicou. Sem rede, segue com a cópia local.
+    if (!estado.sujo) {
+      sincronizarBaralho().then((mudou) => {
+        if (mudou && app && !estado.sujo) {
+          estado.baralho = clonar(carregarBaralho());
+          desenhar();
+          aviso('Baralho atualizado com o que está publicado na nuvem.');
+        }
+      });
+    }
+  
+    // O SDK restaura a sessão de forma assíncrona, então a barra nasce dizendo
+    // "desconectado" e se corrige quando isto dispara.
+    aoMudarOperador((email) => {
+      estado.operador = email;
+      if (app) atualizarChrome();
+    }).then((cancelar) => {
+      pararDeOuvirLogin = cancelar;
+    });
   
     // Aviso honesto: o baralho vive no armazenamento DESTE navegador. Publicar
     // aqui não alcança outro computador enquanto o Firestore estiver desligado.
@@ -6133,6 +6845,8 @@
   /** Esvazia a camada e solta o que ela tinha preso no documento. */
   function desmontarAdmin() {
     window.removeEventListener('beforeunload', aoDescarregar);
+    pararDeOuvirLogin?.();
+    pararDeOuvirLogin = null;
     if (app) limpar(app);
     app = null;
     fecharCamada = null;
@@ -6381,6 +7095,7 @@
   const { PoliticaPrivacidadeWidget } = __require("components/politica_privacidade.js");
   const { RankingWidget } = __require("components/ranking.js");
   const { registrarToqueSecreto } = __require("admin/porta.js");
+  const { sincronizarBaralho } = __require("nuvem.js");
   const { goNamed, TransitionInfo, PageTransitionType, Alignment } = __require("router.js");
   const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
   const { FlutterFlowTimer, FlutterFlowTimerController, InstantTimer, StopWatchMode, StopWatchTimer } = __require("timer.js");
@@ -6831,6 +7546,12 @@
     // Um jogador novo comecando e o momento de pegar o que a area administrativa
     // publicou desde a ultima partida.
     FFAppState.recarregarBaralho();
+    // E puxa da nuvem em paralelo. Sem esperar: a tela não pode ficar refém da
+    // internet da feira. Se vier conteúdo novo enquanto o jogador ainda está se
+    // cadastrando, ele já vale para esta partida; senão, para a próxima.
+    sincronizarBaralho().then((mudou) => {
+      if (mudou && root.isConnected) FFAppState.recarregarBaralho();
+    });
     FFAppState.finalizou = false;
     playSound(model, 'soundPlayer1', 'assets/audios/adriantnt_u_click.mp3', 1.0);
     model.timerController.onStartTimer();
