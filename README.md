@@ -210,13 +210,17 @@ fica com a última cópia que baixou.
 > mexer no conteúdo, não para semear `usuarios` e `contatos` com partidas de
 > teste. E `?semNuvem=1` desliga tudo em qualquer lugar.
 
-> **Para salvar para todos os totens é preciso entrar.** O botão "Entrar" na
-> barra pede a conta do **Firebase** — é ela que a regra de escrita de
-> `conteudo` exige. Não é a senha `2040`: aquela só destranca a tela e viaja no
-> JavaScript de todo mundo. Sem entrar, salvar grava só neste navegador.
+> **Salvar não pede login.** A escrita do baralho no Firestore é aberta, por
+> decisão do projeto: o endereço do jogo não será divulgado. O custo está
+> registrado em [`firebase/firestore.rules`](firebase/firestore.rules) e não é
+> pequeno — **quem descobrir a URL reescreve o jogo**. As regras ainda validam o
+> formato, então a coleção não vira depósito de dados quaisquer.
 >
-> As duas coisas que só existem pelo console do Firebase — criar o Firestore e
-> habilitar o login por e-mail/senha — estão em [`firebase/README.md`](firebase/README.md).
+> O que **não** foi afrouxado junto: `contatos`, com nome e telefone dos
+> jogadores. Nenhum cliente lê de lá.
+>
+> A única coisa que ainda só existe pelo console do Firebase — criar o Firestore
+> — está em [`firebase/README.md`](firebase/README.md).
 
 E há um teto: **o Firestore recusa documento acima de 1 MB**. O baralho de
 fábrica inteiro dá 38 KB, então texto não chega perto; quem estoura é foto

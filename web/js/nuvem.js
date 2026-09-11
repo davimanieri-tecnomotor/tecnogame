@@ -9,7 +9,7 @@
 //
 // O DESENHO
 //   conteudo/baralho   leitura pública (o jogo precisa, e não tem servidor)
-//                      escrita só autenticada (senão qualquer visitante reescreve o jogo)
+//                      escrita livre, com o formato validado pelas regras
 //
 // O BARALHO INTEIRO VAI. Veículo, regras e perguntas — as dez de fábrica
 // incluídas, mesmo intocadas. Houve uma versão que subia só o que diferia da
@@ -24,9 +24,15 @@
 // internet cai no meio da feira — e é o único modo possível quando ele abre do
 // disco (ver firebase.js).
 //
-// A SENHA 2040 NÃO É ESTA. Aquela é a tranca da gaveta que esconde o painel
-// (porta.js); esta é a credencial de verdade que o Firestore exige para
-// escrever, e vive na conta de vocês, não no código.
+// SEM LOGIN, POR DECISÃO DO PROJETO (11/09/2026). Antes salvar exigia uma conta
+// do Firebase; agora a regra de `conteudo` aceita escrita de qualquer um, com a
+// justificativa de que o endereço não será divulgado. O que isso custa está
+// escrito em firebase/firestore.rules, e não é pouco: quem descobrir a URL
+// reescreve o jogo. A senha 2040 do painel não muda nada disso — ela viaja no
+// mesmo JavaScript que o jogador recebe.
+//
+// O que continua fechado é `contatos`: nome e telefone de jogador não são
+// conteúdo de jogo, e nenhum cliente os lê.
 
 import { firebase, podeUsarNuvem } from './firebase.js';
 import { publicarBaralho, carregarBaralho } from './deck.js';
@@ -97,9 +103,9 @@ export async function sincronizarBaralho() {
 }
 
 /**
- * Publica o baralho para todos os totens. Exige estar logado.
+ * Salva o baralho para todos os totens.
  *
- * @returns {Promise<{ok: boolean, motivo?: string}>}
+ * @returns {Promise<{ok: boolean, kb?: number, motivo?: string}>}
  */
 export async function publicarNaNuvem(deck) {
   const fb = await firebase();
@@ -111,8 +117,6 @@ export async function publicarNaNuvem(deck) {
         : 'a nuvem está desligada ou o jogo foi aberto do disco.',
     };
   }
-  if (!fb.auth.currentUser) return { ok: false, motivo: 'é preciso entrar para publicar.' };
-
   const cabe = cabeNaNuvem(deck);
   if (!cabe.ok) return { ok: false, motivo: cabe.motivo };
 
@@ -121,7 +125,9 @@ export async function publicarNaNuvem(deck) {
     await fs.setDoc(fs.doc(db, COLECAO, DOCUMENTO), {
       baralho: deck,
       atualizadoEm: fs.serverTimestamp(),
-      publicadoPor: fb.auth.currentUser.email ?? fb.auth.currentUser.uid,
+      // Sem login não há quem: fica de onde, que é o que ainda ajuda a
+      // rastrear qual máquina salvou por último.
+      publicadoPor: typeof location === 'undefined' ? '' : location.hostname,
     });
     return { ok: true, kb: cabe.kb };
   } catch (erro) {
@@ -131,18 +137,19 @@ export async function publicarNaNuvem(deck) {
     return {
       ok: false,
       motivo: permissao
-        ? 'esta conta não tem permissão de escrita no baralho.'
+        ? 'as regras do Firestore recusaram a escrita — confira se o deploy das regras foi feito.'
         : `o Firestore recusou: ${erro?.message ?? erro}`,
     };
   }
 }
 
 /**
- * Quando e por quem o baralho foi salvo na nuvem pela última vez.
+ * Quando e de onde o baralho foi salvo na nuvem pela última vez.
  *
  * É o que a barra do painel mostra no lugar de "publicado no totem": aquilo
  * dizia respeito só a este navegador, e o operador precisa saber se o que ele
- * salvou chegou ao Firebase — e se alguém em outra máquina salvou depois dele.
+ * salvou chegou ao Firebase — e se outra máquina salvou depois dele. Sem login,
+ * `quem` é o host de onde a gravação saiu.
  *
  * @returns {Promise<{quando: Date|null, quem: string|null}|null>}
  */
@@ -162,43 +169,4 @@ export async function ultimaPublicacao() {
   } catch (_) {
     return null;
   }
-}
-
-/* ---------------------------------------------------------------- login -- */
-
-export async function entrar(email, senha) {
-  const fb = await firebase();
-  if (!fb) return { ok: false, motivo: 'a nuvem está desligada ou o jogo foi aberto do disco.' };
-  try {
-    await fb.fa.signInWithEmailAndPassword(fb.auth, email, senha);
-    return { ok: true };
-  } catch (erro) {
-    const codigo = String(erro?.code ?? '');
-    if (codigo.includes('invalid-credential') || codigo.includes('wrong-password') || codigo.includes('user-not-found')) {
-      return { ok: false, motivo: 'e-mail ou senha não conferem.' };
-    }
-    if (codigo.includes('operation-not-allowed')) {
-      return { ok: false, motivo: 'o login por e-mail/senha não está habilitado no projeto do Firebase.' };
-    }
-    if (codigo.includes('network')) return { ok: false, motivo: 'sem conexão com o Firebase.' };
-    return { ok: false, motivo: erro?.message ?? String(erro) };
-  }
-}
-
-export async function sair() {
-  const fb = await firebase();
-  if (fb) await fb.fa.signOut(fb.auth).catch(() => {});
-}
-
-/**
- * Avisa quando o login muda. O SDK restaura a sessão de forma assíncrona no
- * carregamento, então a barra do admin não pode desenhar "deslogado" e parar
- * por aí — ela se redesenha quando isto dispara.
- *
- * @returns {Promise<Function>} uma função que cancela a inscrição
- */
-export async function aoMudarOperador(fn) {
-  const fb = await firebase();
-  if (!fb) return () => {};
-  return fb.fa.onAuthStateChanged(fb.auth, (u) => fn(u?.email ?? null));
 }

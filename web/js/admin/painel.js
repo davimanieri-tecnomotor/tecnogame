@@ -13,10 +13,14 @@
 // da porta viaja no mesmo JavaScript que o jogador recebe, e quem abrir o
 // código a lê. Ver a nota em `porta.js`: é tranca de gaveta, não cofre.
 //
-// Editar aqui não mexe no totem até você clicar em Publicar. Publicar grava o
-// baralho, e o jogo o relê quando a próxima partida começa.
+// Editar aqui não mexe no totem até você clicar em Salvar. Salvar grava o
+// baralho neste navegador e, se houver nuvem, no Firebase; o jogo o relê quando
+// a próxima partida começa.
+//
+// Salvar não pede login. A escrita do baralho no Firestore é aberta por decisão
+// do projeto — ver a nota em firebase/firestore.rules, que diz o que isso custa.
 
-import { el, botao, aviso, confirmar, limpar, pedirCredenciais } from './ui.js';
+import { el, botao, aviso, confirmar, limpar } from './ui.js';
 import { editorDeSlot } from './editor.js';
 import {
   BARALHO_ORIGINAL,
@@ -33,7 +37,7 @@ import {
 } from '../deck.js';
 import { motivoDaFalha, removerChave } from '../storage.js';
 import { podeUsarNuvem } from '../firebase.js';
-import { aoMudarOperador, entrar, publicarNaNuvem, sair, sincronizarBaralho, ultimaPublicacao } from '../nuvem.js';
+import { publicarNaNuvem, sincronizarBaralho, ultimaPublicacao } from '../nuvem.js';
 
 /* -------------------------------------------------------------- o estado -- */
 
@@ -50,8 +54,6 @@ const estado = {
   /** Qual pergunta do banco desse veículo está no editor. */
   pergunta: 0,
   sujo: false,
-  /** O e-mail de quem está logado no Firebase, ou null. */
-  operador: null,
   /** `{quando, quem}` da última gravação no Firebase, ou null. */
   ultimaNuvem: null,
   /**
@@ -127,9 +129,7 @@ async function publicar() {
     // diferença entre "foi para todo mundo" e "ficou nesta máquina" importa.
     !podeUsarNuvem()
       ? 'Atenção: esta cópia não fala com o Firebase, então o baralho vai valer só neste navegador. Para salvar na nuvem daqui, abra o jogo com ?comNuvem=1 no endereço.'
-      : !estado.operador
-        ? 'Atenção: você não está conectado, então o baralho vai valer só neste navegador. Entre com a conta do operador para alcançar os outros totens.'
-        : 'Vai para o Firebase: todo totem com internet pega na próxima partida.',
+      : 'Vai para o Firebase: todo totem com internet pega na próxima partida.',
     'A próxima partida aqui já usa este conteúdo.',
   ].filter(Boolean);
 
@@ -161,10 +161,6 @@ async function publicar() {
     );
     return;
   }
-  if (!estado.operador) {
-    aviso('Para alcançar os outros totens, entre com a conta do operador e salve de novo.', 'erro');
-    return;
-  }
   const r = await publicarNaNuvem(estado.baralho);
   if (!r.ok) {
     aviso(`A nuvem recusou: ${r.motivo}`, 'erro');
@@ -182,30 +178,8 @@ async function atualizarUltimaNuvem() {
   atualizarChrome();
 }
 
-/* ----------------------------------------------------------------- login -- */
-
-async function entrarNaNuvem() {
-  const dados = await pedirCredenciais();
-  if (!dados) return;
-  const r = await entrar(dados.email, dados.senha);
-  if (!r.ok) {
-    aviso(`Não entrou: ${r.motivo}`, 'erro');
-    return;
-  }
-  estado.operador = dados.email;
-  atualizarChrome();
-  aviso(`Conectado como ${dados.email}.`);
-}
-
-async function sairDaNuvem() {
-  await sair();
-  estado.operador = null;
-  atualizarChrome();
-  aviso('Desconectado. O que você publicar daqui vale só neste navegador.');
-}
-
 async function descartar() {
-  if (!(await confirmar({ titulo: 'Descartar alterações?', texto: 'Volta ao que está publicado no totem agora.', perigoso: true, confirmarTexto: 'Descartar' }))) return;
+  if (!(await confirmar({ titulo: 'Descartar alterações?', texto: 'Volta ao baralho salvo agora.', perigoso: true, confirmarTexto: 'Descartar' }))) return;
   estado.baralho = clonar(carregarBaralho());
   estado.selecionado = Math.min(estado.selecionado, estado.baralho.slots.length - 1);
   estado.sujo = false;
@@ -433,11 +407,6 @@ function barra() {
     el('div', { class: 'barra-acoes' }, [
       botao('Resetar todos os dados', { onClick: resetarTudo, tipo: 'perigo' }),
       estado.sujo ? botao('Descartar', { onClick: descartar }) : null,
-      podeUsarNuvem()
-        ? estado.operador
-          ? botao('Sair da nuvem', { onClick: sairDaNuvem, titulo: `Conectado como ${estado.operador}` })
-          : botao('Entrar', { onClick: entrarNaNuvem, titulo: 'Conta do Firebase, para salvar para todos os totens' })
-        : null,
       botao('Salvar', { onClick: publicar, tipo: 'primario' }),
       botao('Voltar ao jogo', { onClick: voltarAoJogo, titulo: 'Fecha a administração e volta para a tela do jogador' }),
     ]),
@@ -635,9 +604,6 @@ function atualizarChrome() {
 /** O que `porta.js` quer que aconteça quando o operador pede para sair. */
 let fecharCamada = null;
 
-/** Cancela a inscrição no estado de login, ao fechar a camada. */
-let pararDeOuvirLogin = null;
-
 /** Avisa o navegador antes de recarregar/fechar com edição por publicar. */
 function aoDescarregar(e) {
   if (!estado.sujo) return;
@@ -670,49 +636,40 @@ export function montarAdmin(raiz, { aoSair = null } = {}) {
   fecharCamada = aoSair;
 
   // O baralho é relido a cada abertura: entre uma e outra o jogo pode ter
-  // publicado, importado ou restaurado, e abrir com a cópia velha faria o
-  // operador republicar por cima sem perceber.
+  // salvo ou resetado, e abrir com a cópia velha faria o
+  // operador salvar por cima sem perceber.
   //
   // Salvo com edição pendente. Fechar a camada pelo "voltar" do navegador é
   // síncrono e não dá para perguntar nada (ver porta.js); recarregar ali
   // apagaria o trabalho em silêncio. Então ele espera, e a barra continua
-  // dizendo "alterações não publicadas".
+  // dizendo "alterações não salvas".
   if (!estado.baralho || !estado.sujo) {
     estado.baralho = clonar(carregarBaralho());
     estado.selecionado = 0;
     estado.pergunta = 0;
   }
 
-  // Puxa o que está publicado na nuvem antes de deixar editar: sem isto o
-  // operador editaria por cima de uma cópia velha e republicaria desfazendo o
-  // que outra máquina publicou. Sem rede, segue com a cópia local.
+  // Puxa o que está salvo na nuvem antes de deixar editar: sem isto o operador
+  // editaria por cima de uma cópia velha e salvaria desfazendo o que outra
+  // máquina salvou. Sem rede, segue com a cópia local.
   if (!estado.sujo) {
     sincronizarBaralho().then((mudou) => {
       if (mudou && app && !estado.sujo) {
         estado.baralho = clonar(carregarBaralho());
         desenhar();
-        aviso('Baralho atualizado com o que está publicado na nuvem.');
+        aviso('Baralho atualizado com o que está salvo na nuvem.');
       }
     });
   }
 
-  // Quando o baralho foi salvo na nuvem pela última vez, e por quem. Sem
+  // Quando e de onde o baralho foi salvo na nuvem pela última vez. Sem
   // esperar: a barra nasce sem o selo e o ganha quando a resposta chega.
   atualizarUltimaNuvem();
 
-  // O SDK restaura a sessão de forma assíncrona, então a barra nasce dizendo
-  // "desconectado" e se corrige quando isto dispara.
-  aoMudarOperador((email) => {
-    estado.operador = email;
-    if (app) atualizarChrome();
-  }).then((cancelar) => {
-    pararDeOuvirLogin = cancelar;
-  });
-
-  // Aviso honesto: o baralho vive no armazenamento DESTE navegador. Publicar
-  // aqui não alcança outro computador enquanto o Firestore estiver desligado.
+  // Aviso honesto na primeira abertura: nada foi salvo ainda, e o que está na
+  // tela é o conteúdo que veio com o jogo.
   if (!temBaralhoPublicado() && estado.baralho.slots.length === SLOTS_ORIGINAIS.length) {
-    setTimeout(() => aviso('Você está vendo o baralho de fábrica. Edite e clique em Publicar.'), 400);
+    setTimeout(() => aviso('Você está vendo o baralho de fábrica. Edite e clique em Salvar.'), 400);
   }
 
   window.addEventListener('beforeunload', aoDescarregar);
@@ -722,8 +679,6 @@ export function montarAdmin(raiz, { aoSair = null } = {}) {
 /** Esvazia a camada e solta o que ela tinha preso no documento. */
 export function desmontarAdmin() {
   window.removeEventListener('beforeunload', aoDescarregar);
-  pararDeOuvirLogin?.();
-  pararDeOuvirLogin = null;
   if (app) limpar(app);
   app = null;
   fecharCamada = null;

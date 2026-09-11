@@ -3877,23 +3877,25 @@
     Boolean(CONFIG.useFirestore) && typeof location !== 'undefined' && location.protocol !== 'file:';
   
   /**
-   * Sobe o SDK e devolve `{ app, db, fs, auth, fa }`, ou `null` se não der.
+   * Sobe o SDK e devolve `{ app, db, fs }`, ou `null` se não der.
    *
-   * `fs` e `fa` são os módulos inteiros (firestore e auth): o SDK v10 é modular,
-   * então quem chama usa `fs.collection(db, ...)`, `fa.signInWithEmailAndPassword(auth, ...)`.
+   * `fs` é o módulo inteiro do Firestore: o SDK v10 é modular, então quem chama
+   * usa `fs.collection(db, ...)`, `fs.getDoc(...)`.
+   *
+   * O módulo de autenticação não é carregado: desde que a escrita do baralho
+   * deixou de exigir login, ninguém o usa (ver nuvem.js).
    */
   function firebase() {
     if (!podeUsarNuvem()) return Promise.resolve(null);
     if (promessa) return promessa;
   
     promessa = (async () => {
-      const [{ initializeApp }, fs, fa] = await Promise.all([
+      const [{ initializeApp }, fs] = await Promise.all([
         import(`${CDN}/firebase-app.js`),
         import(`${CDN}/firebase-firestore.js`),
-        import(`${CDN}/firebase-auth.js`),
       ]);
       const app = initializeApp(CONFIG.firebaseOptions);
-      return { app, db: fs.getFirestore(app), fs, auth: fa.getAuth(app), fa };
+      return { app, db: fs.getFirestore(app), fs };
     })().catch((erro) => {
       console.warn('Firebase indisponível; seguindo só com o armazenamento local.', erro);
       // Zera para uma próxima tentativa poder acontecer (rede que voltou).
@@ -5520,60 +5522,6 @@
     });
   }
   
-  /**
-   * Pede e-mail e senha do operador (a conta do Firebase, não a senha da porta).
-   * Resolve com `{email, senha}` ou `null` se desistiu.
-   */
-  function pedirCredenciais() {
-    return new Promise((resolve) => {
-      const email = entradaSimples({ tipo: 'email', rotulo: 'E-mail', auto: 'username' });
-      const senha = entradaSimples({ tipo: 'password', rotulo: 'Senha', auto: 'current-password' });
-  
-      const fechar = (r) => {
-        fundo.remove();
-        document.removeEventListener('keydown', onTecla);
-        resolve(r);
-      };
-      const enviar = () => {
-        const e = email.entrada.value.trim();
-        const s = senha.entrada.value;
-        if (!e || !s) return;
-        fechar({ email: e, senha: s });
-      };
-      const onTecla = (ev) => {
-        if (ev.key === 'Escape') fechar(null);
-        if (ev.key === 'Enter') {
-          ev.preventDefault();
-          enviar();
-        }
-      };
-  
-      const caixa = el('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Entrar' }, [
-        el('h2', { text: 'Entrar para salvar na nuvem' }),
-        el('p', {
-          text: 'A conta do Firebase do projeto. É ela que autoriza escrever o baralho que todos os totens leem — não a senha que abriu este painel.',
-        }),
-        email,
-        senha,
-        el('div', { class: 'modal-acoes' }, [
-          botao('Cancelar', { onClick: () => fechar(null) }),
-          botao('Entrar', { tipo: 'primario', onClick: enviar }),
-        ]),
-      ]);
-      const fundo = el('div', { class: 'modal-fundo', onClick: (ev) => ev.target === fundo && fechar(null) }, caixa);
-      document.body.appendChild(fundo);
-      document.addEventListener('keydown', onTecla);
-      email.entrada.focus();
-    });
-  }
-  
-  /** Um campo de texto simples para os modais — sem a validação do editor. */
-  function entradaSimples({ tipo, rotulo, auto }) {
-    const entrada = el('input', { class: 'campo-entrada', type: tipo, autocomplete: auto });
-    const raiz = el('label', { class: 'campo' }, [el('span', { class: 'campo-rotulo', text: rotulo }), entrada]);
-    raiz.entrada = entrada;
-    return raiz;
-  }
   
   
   /* ------------------------------------------------------- imagem embutida -- */
@@ -5687,7 +5635,6 @@
   Object.defineProperty(__exports, "caixaDeMarcar", { get: () => caixaDeMarcar, enumerable: true });
   Object.defineProperty(__exports, "aviso", { get: () => aviso, enumerable: true });
   Object.defineProperty(__exports, "confirmar", { get: () => confirmar, enumerable: true });
-  Object.defineProperty(__exports, "pedirCredenciais", { get: () => pedirCredenciais, enumerable: true });
   Object.defineProperty(__exports, "reduzirImagem", { get: () => reduzirImagem, enumerable: true });
   Object.defineProperty(__exports, "entradaDeImagem", { get: () => entradaDeImagem, enumerable: true });
   });
@@ -6071,7 +6018,7 @@
   //
   // O DESENHO
   //   conteudo/baralho   leitura pública (o jogo precisa, e não tem servidor)
-  //                      escrita só autenticada (senão qualquer visitante reescreve o jogo)
+  //                      escrita livre, com o formato validado pelas regras
   //
   // O BARALHO INTEIRO VAI. Veículo, regras e perguntas — as dez de fábrica
   // incluídas, mesmo intocadas. Houve uma versão que subia só o que diferia da
@@ -6086,9 +6033,15 @@
   // internet cai no meio da feira — e é o único modo possível quando ele abre do
   // disco (ver firebase.js).
   //
-  // A SENHA 2040 NÃO É ESTA. Aquela é a tranca da gaveta que esconde o painel
-  // (porta.js); esta é a credencial de verdade que o Firestore exige para
-  // escrever, e vive na conta de vocês, não no código.
+  // SEM LOGIN, POR DECISÃO DO PROJETO (11/09/2026). Antes salvar exigia uma conta
+  // do Firebase; agora a regra de `conteudo` aceita escrita de qualquer um, com a
+  // justificativa de que o endereço não será divulgado. O que isso custa está
+  // escrito em firebase/firestore.rules, e não é pouco: quem descobrir a URL
+  // reescreve o jogo. A senha 2040 do painel não muda nada disso — ela viaja no
+  // mesmo JavaScript que o jogador recebe.
+  //
+  // O que continua fechado é `contatos`: nome e telefone de jogador não são
+  // conteúdo de jogo, e nenhum cliente os lê.
   
   const { firebase, podeUsarNuvem } = __require("firebase.js");
   const { publicarBaralho, carregarBaralho } = __require("deck.js");
@@ -6159,9 +6112,9 @@
   }
   
   /**
-   * Publica o baralho para todos os totens. Exige estar logado.
+   * Salva o baralho para todos os totens.
    *
-   * @returns {Promise<{ok: boolean, motivo?: string}>}
+   * @returns {Promise<{ok: boolean, kb?: number, motivo?: string}>}
    */
   async function publicarNaNuvem(deck) {
     const fb = await firebase();
@@ -6173,8 +6126,6 @@
           : 'a nuvem está desligada ou o jogo foi aberto do disco.',
       };
     }
-    if (!fb.auth.currentUser) return { ok: false, motivo: 'é preciso entrar para publicar.' };
-  
     const cabe = cabeNaNuvem(deck);
     if (!cabe.ok) return { ok: false, motivo: cabe.motivo };
   
@@ -6183,7 +6134,9 @@
       await fs.setDoc(fs.doc(db, COLECAO, DOCUMENTO), {
         baralho: deck,
         atualizadoEm: fs.serverTimestamp(),
-        publicadoPor: fb.auth.currentUser.email ?? fb.auth.currentUser.uid,
+        // Sem login não há quem: fica de onde, que é o que ainda ajuda a
+        // rastrear qual máquina salvou por último.
+        publicadoPor: typeof location === 'undefined' ? '' : location.hostname,
       });
       return { ok: true, kb: cabe.kb };
     } catch (erro) {
@@ -6193,18 +6146,19 @@
       return {
         ok: false,
         motivo: permissao
-          ? 'esta conta não tem permissão de escrita no baralho.'
+          ? 'as regras do Firestore recusaram a escrita — confira se o deploy das regras foi feito.'
           : `o Firestore recusou: ${erro?.message ?? erro}`,
       };
     }
   }
   
   /**
-   * Quando e por quem o baralho foi salvo na nuvem pela última vez.
+   * Quando e de onde o baralho foi salvo na nuvem pela última vez.
    *
    * É o que a barra do painel mostra no lugar de "publicado no totem": aquilo
    * dizia respeito só a este navegador, e o operador precisa saber se o que ele
-   * salvou chegou ao Firebase — e se alguém em outra máquina salvou depois dele.
+   * salvou chegou ao Firebase — e se outra máquina salvou depois dele. Sem login,
+   * `quem` é o host de onde a gravação saiu.
    *
    * @returns {Promise<{quando: Date|null, quem: string|null}|null>}
    */
@@ -6225,52 +6179,10 @@
       return null;
     }
   }
-  
-  /* ---------------------------------------------------------------- login -- */
-  
-  async function entrar(email, senha) {
-    const fb = await firebase();
-    if (!fb) return { ok: false, motivo: 'a nuvem está desligada ou o jogo foi aberto do disco.' };
-    try {
-      await fb.fa.signInWithEmailAndPassword(fb.auth, email, senha);
-      return { ok: true };
-    } catch (erro) {
-      const codigo = String(erro?.code ?? '');
-      if (codigo.includes('invalid-credential') || codigo.includes('wrong-password') || codigo.includes('user-not-found')) {
-        return { ok: false, motivo: 'e-mail ou senha não conferem.' };
-      }
-      if (codigo.includes('operation-not-allowed')) {
-        return { ok: false, motivo: 'o login por e-mail/senha não está habilitado no projeto do Firebase.' };
-      }
-      if (codigo.includes('network')) return { ok: false, motivo: 'sem conexão com o Firebase.' };
-      return { ok: false, motivo: erro?.message ?? String(erro) };
-    }
-  }
-  
-  async function sair() {
-    const fb = await firebase();
-    if (fb) await fb.fa.signOut(fb.auth).catch(() => {});
-  }
-  
-  /**
-   * Avisa quando o login muda. O SDK restaura a sessão de forma assíncrona no
-   * carregamento, então a barra do admin não pode desenhar "deslogado" e parar
-   * por aí — ela se redesenha quando isto dispara.
-   *
-   * @returns {Promise<Function>} uma função que cancela a inscrição
-   */
-  async function aoMudarOperador(fn) {
-    const fb = await firebase();
-    if (!fb) return () => {};
-    return fb.fa.onAuthStateChanged(fb.auth, (u) => fn(u?.email ?? null));
-  }
   Object.defineProperty(__exports, "cabeNaNuvem", { get: () => cabeNaNuvem, enumerable: true });
   Object.defineProperty(__exports, "sincronizarBaralho", { get: () => sincronizarBaralho, enumerable: true });
   Object.defineProperty(__exports, "publicarNaNuvem", { get: () => publicarNaNuvem, enumerable: true });
   Object.defineProperty(__exports, "ultimaPublicacao", { get: () => ultimaPublicacao, enumerable: true });
-  Object.defineProperty(__exports, "entrar", { get: () => entrar, enumerable: true });
-  Object.defineProperty(__exports, "sair", { get: () => sair, enumerable: true });
-  Object.defineProperty(__exports, "aoMudarOperador", { get: () => aoMudarOperador, enumerable: true });
   });
 
   /* ===== admin/painel.js ===== */
@@ -6290,15 +6202,19 @@
   // da porta viaja no mesmo JavaScript que o jogador recebe, e quem abrir o
   // código a lê. Ver a nota em `porta.js`: é tranca de gaveta, não cofre.
   //
-  // Editar aqui não mexe no totem até você clicar em Publicar. Publicar grava o
-  // baralho, e o jogo o relê quando a próxima partida começa.
+  // Editar aqui não mexe no totem até você clicar em Salvar. Salvar grava o
+  // baralho neste navegador e, se houver nuvem, no Firebase; o jogo o relê quando
+  // a próxima partida começa.
+  //
+  // Salvar não pede login. A escrita do baralho no Firestore é aberta por decisão
+  // do projeto — ver a nota em firebase/firestore.rules, que diz o que isso custa.
   
-  const { el, botao, aviso, confirmar, limpar, pedirCredenciais } = __require("admin/ui.js");
+  const { el, botao, aviso, confirmar, limpar } = __require("admin/ui.js");
   const { editorDeSlot } = __require("admin/editor.js");
   const { BARALHO_ORIGINAL, SLOTS_ORIGINAIS, carregarBaralho, novoIdDePergunta, perguntaVazia, publicarBaralho, restaurarOriginal, slotVazio, temBaralhoPublicado, usaArteOriginal, validarBaralho } = __require("deck.js");
   const { motivoDaFalha, removerChave } = __require("storage.js");
   const { podeUsarNuvem } = __require("firebase.js");
-  const { aoMudarOperador, entrar, publicarNaNuvem, sair, sincronizarBaralho, ultimaPublicacao } = __require("nuvem.js");
+  const { publicarNaNuvem, sincronizarBaralho, ultimaPublicacao } = __require("nuvem.js");
   
   /* -------------------------------------------------------------- o estado -- */
   
@@ -6315,8 +6231,6 @@
     /** Qual pergunta do banco desse veículo está no editor. */
     pergunta: 0,
     sujo: false,
-    /** O e-mail de quem está logado no Firebase, ou null. */
-    operador: null,
     /** `{quando, quem}` da última gravação no Firebase, ou null. */
     ultimaNuvem: null,
     /**
@@ -6392,9 +6306,7 @@
       // diferença entre "foi para todo mundo" e "ficou nesta máquina" importa.
       !podeUsarNuvem()
         ? 'Atenção: esta cópia não fala com o Firebase, então o baralho vai valer só neste navegador. Para salvar na nuvem daqui, abra o jogo com ?comNuvem=1 no endereço.'
-        : !estado.operador
-          ? 'Atenção: você não está conectado, então o baralho vai valer só neste navegador. Entre com a conta do operador para alcançar os outros totens.'
-          : 'Vai para o Firebase: todo totem com internet pega na próxima partida.',
+        : 'Vai para o Firebase: todo totem com internet pega na próxima partida.',
       'A próxima partida aqui já usa este conteúdo.',
     ].filter(Boolean);
   
@@ -6426,10 +6338,6 @@
       );
       return;
     }
-    if (!estado.operador) {
-      aviso('Para alcançar os outros totens, entre com a conta do operador e salve de novo.', 'erro');
-      return;
-    }
     const r = await publicarNaNuvem(estado.baralho);
     if (!r.ok) {
       aviso(`A nuvem recusou: ${r.motivo}`, 'erro');
@@ -6447,30 +6355,8 @@
     atualizarChrome();
   }
   
-  /* ----------------------------------------------------------------- login -- */
-  
-  async function entrarNaNuvem() {
-    const dados = await pedirCredenciais();
-    if (!dados) return;
-    const r = await entrar(dados.email, dados.senha);
-    if (!r.ok) {
-      aviso(`Não entrou: ${r.motivo}`, 'erro');
-      return;
-    }
-    estado.operador = dados.email;
-    atualizarChrome();
-    aviso(`Conectado como ${dados.email}.`);
-  }
-  
-  async function sairDaNuvem() {
-    await sair();
-    estado.operador = null;
-    atualizarChrome();
-    aviso('Desconectado. O que você publicar daqui vale só neste navegador.');
-  }
-  
   async function descartar() {
-    if (!(await confirmar({ titulo: 'Descartar alterações?', texto: 'Volta ao que está publicado no totem agora.', perigoso: true, confirmarTexto: 'Descartar' }))) return;
+    if (!(await confirmar({ titulo: 'Descartar alterações?', texto: 'Volta ao baralho salvo agora.', perigoso: true, confirmarTexto: 'Descartar' }))) return;
     estado.baralho = clonar(carregarBaralho());
     estado.selecionado = Math.min(estado.selecionado, estado.baralho.slots.length - 1);
     estado.sujo = false;
@@ -6698,11 +6584,6 @@
       el('div', { class: 'barra-acoes' }, [
         botao('Resetar todos os dados', { onClick: resetarTudo, tipo: 'perigo' }),
         estado.sujo ? botao('Descartar', { onClick: descartar }) : null,
-        podeUsarNuvem()
-          ? estado.operador
-            ? botao('Sair da nuvem', { onClick: sairDaNuvem, titulo: `Conectado como ${estado.operador}` })
-            : botao('Entrar', { onClick: entrarNaNuvem, titulo: 'Conta do Firebase, para salvar para todos os totens' })
-          : null,
         botao('Salvar', { onClick: publicar, tipo: 'primario' }),
         botao('Voltar ao jogo', { onClick: voltarAoJogo, titulo: 'Fecha a administração e volta para a tela do jogador' }),
       ]),
@@ -6900,9 +6781,6 @@
   /** O que `porta.js` quer que aconteça quando o operador pede para sair. */
   let fecharCamada = null;
   
-  /** Cancela a inscrição no estado de login, ao fechar a camada. */
-  let pararDeOuvirLogin = null;
-  
   /** Avisa o navegador antes de recarregar/fechar com edição por publicar. */
   function aoDescarregar(e) {
     if (!estado.sujo) return;
@@ -6935,49 +6813,40 @@
     fecharCamada = aoSair;
   
     // O baralho é relido a cada abertura: entre uma e outra o jogo pode ter
-    // publicado, importado ou restaurado, e abrir com a cópia velha faria o
-    // operador republicar por cima sem perceber.
+    // salvo ou resetado, e abrir com a cópia velha faria o
+    // operador salvar por cima sem perceber.
     //
     // Salvo com edição pendente. Fechar a camada pelo "voltar" do navegador é
     // síncrono e não dá para perguntar nada (ver porta.js); recarregar ali
     // apagaria o trabalho em silêncio. Então ele espera, e a barra continua
-    // dizendo "alterações não publicadas".
+    // dizendo "alterações não salvas".
     if (!estado.baralho || !estado.sujo) {
       estado.baralho = clonar(carregarBaralho());
       estado.selecionado = 0;
       estado.pergunta = 0;
     }
   
-    // Puxa o que está publicado na nuvem antes de deixar editar: sem isto o
-    // operador editaria por cima de uma cópia velha e republicaria desfazendo o
-    // que outra máquina publicou. Sem rede, segue com a cópia local.
+    // Puxa o que está salvo na nuvem antes de deixar editar: sem isto o operador
+    // editaria por cima de uma cópia velha e salvaria desfazendo o que outra
+    // máquina salvou. Sem rede, segue com a cópia local.
     if (!estado.sujo) {
       sincronizarBaralho().then((mudou) => {
         if (mudou && app && !estado.sujo) {
           estado.baralho = clonar(carregarBaralho());
           desenhar();
-          aviso('Baralho atualizado com o que está publicado na nuvem.');
+          aviso('Baralho atualizado com o que está salvo na nuvem.');
         }
       });
     }
   
-    // Quando o baralho foi salvo na nuvem pela última vez, e por quem. Sem
+    // Quando e de onde o baralho foi salvo na nuvem pela última vez. Sem
     // esperar: a barra nasce sem o selo e o ganha quando a resposta chega.
     atualizarUltimaNuvem();
   
-    // O SDK restaura a sessão de forma assíncrona, então a barra nasce dizendo
-    // "desconectado" e se corrige quando isto dispara.
-    aoMudarOperador((email) => {
-      estado.operador = email;
-      if (app) atualizarChrome();
-    }).then((cancelar) => {
-      pararDeOuvirLogin = cancelar;
-    });
-  
-    // Aviso honesto: o baralho vive no armazenamento DESTE navegador. Publicar
-    // aqui não alcança outro computador enquanto o Firestore estiver desligado.
+    // Aviso honesto na primeira abertura: nada foi salvo ainda, e o que está na
+    // tela é o conteúdo que veio com o jogo.
     if (!temBaralhoPublicado() && estado.baralho.slots.length === SLOTS_ORIGINAIS.length) {
-      setTimeout(() => aviso('Você está vendo o baralho de fábrica. Edite e clique em Publicar.'), 400);
+      setTimeout(() => aviso('Você está vendo o baralho de fábrica. Edite e clique em Salvar.'), 400);
     }
   
     window.addEventListener('beforeunload', aoDescarregar);
@@ -6987,8 +6856,6 @@
   /** Esvazia a camada e solta o que ela tinha preso no documento. */
   function desmontarAdmin() {
     window.removeEventListener('beforeunload', aoDescarregar);
-    pararDeOuvirLogin?.();
-    pararDeOuvirLogin = null;
     if (app) limpar(app);
     app = null;
     fecharCamada = null;

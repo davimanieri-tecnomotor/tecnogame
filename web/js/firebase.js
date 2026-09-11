@@ -27,23 +27,25 @@ export const podeUsarNuvem = () =>
   Boolean(CONFIG.useFirestore) && typeof location !== 'undefined' && location.protocol !== 'file:';
 
 /**
- * Sobe o SDK e devolve `{ app, db, fs, auth, fa }`, ou `null` se não der.
+ * Sobe o SDK e devolve `{ app, db, fs }`, ou `null` se não der.
  *
- * `fs` e `fa` são os módulos inteiros (firestore e auth): o SDK v10 é modular,
- * então quem chama usa `fs.collection(db, ...)`, `fa.signInWithEmailAndPassword(auth, ...)`.
+ * `fs` é o módulo inteiro do Firestore: o SDK v10 é modular, então quem chama
+ * usa `fs.collection(db, ...)`, `fs.getDoc(...)`.
+ *
+ * O módulo de autenticação não é carregado: desde que a escrita do baralho
+ * deixou de exigir login, ninguém o usa (ver nuvem.js).
  */
 export function firebase() {
   if (!podeUsarNuvem()) return Promise.resolve(null);
   if (promessa) return promessa;
 
   promessa = (async () => {
-    const [{ initializeApp }, fs, fa] = await Promise.all([
+    const [{ initializeApp }, fs] = await Promise.all([
       import(`${CDN}/firebase-app.js`),
       import(`${CDN}/firebase-firestore.js`),
-      import(`${CDN}/firebase-auth.js`),
     ]);
     const app = initializeApp(CONFIG.firebaseOptions);
-    return { app, db: fs.getFirestore(app), fs, auth: fa.getAuth(app), fa };
+    return { app, db: fs.getFirestore(app), fs };
   })().catch((erro) => {
     console.warn('Firebase indisponível; seguindo só com o armazenamento local.', erro);
     // Zera para uma próxima tentativa poder acontecer (rede que voltou).
