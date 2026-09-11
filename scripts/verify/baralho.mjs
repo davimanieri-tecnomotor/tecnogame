@@ -545,76 +545,58 @@ console.log(
 banco.slice(0, 10).forEach((p) => console.log('   - ' + p));
 falhas.push(...banco);
 
-/* ------------- 8: o que sobe para a nuvem e so o que nao e de fabrica ------ */
+/* ------------- 8: para a nuvem vai o baralho inteiro ---------------------- */
 
-// O que vai para o Firestore troca por referencia tudo que for identico ao de
-// fabrica. E compressao, nao edicao: a ida e volta tem de devolver exatamente o
-// mesmo baralho, senao o totem joga com conteudo diferente do que o operador
-// publicou.
+// Veiculo, regras e perguntas, tudo por extenso. Houve uma versao que subia so o
+// que diferia da fabrica; ela economizava 37 KB num teto de 1 MB e em troca
+// fazia o texto de uma pergunta original vir do questions.js do totem em vez do
+// que estava gravado. O que se afirma aqui e que isso acabou.
 
 const nuvem = await page.evaluate(async () => {
   const carregar = async (nome) =>
     window.__tecgameRequire ? window.__tecgameRequire(nome) : await import(`./js/${nome}`);
 
   const deck = await carregar('deck.js');
+  const { cabeNaNuvem } = await carregar('nuvem.js');
   const problemas = [];
   const clonar = (x) => JSON.parse(JSON.stringify(x));
-  const kb = (x) => JSON.stringify(x).length / 1024;
-  const refs = (d) => d.slots.flatMap((s) => s.perguntas).filter((p) => p.deFabrica).length;
 
-  // (a) so o de fabrica: tudo vira referencia, e sobra quase nada.
+  // (a) nada de referencia: cada pergunta sobe com os seus tres idiomas, o seu
+  //     gabarito e os seus equipamentos, e cada veiculo com os seus campos.
   const original = deck.BARALHO_ORIGINAL;
-  const soFabrica = deck.comprimirParaNuvem(original);
-  if (refs(soFabrica) !== 10) problemas.push(`o de fabrica deveria virar 10 referencias, virou ${refs(soFabrica)}`);
-  if (soFabrica.slots.some((s) => !Number.isInteger(s.veiculo?.deFabrica))) {
-    problemas.push('veiculo de fabrica nao virou referencia');
-  }
-  if (kb(soFabrica) > 3) problemas.push(`o de fabrica comprimido ficou com ${kb(soFabrica).toFixed(1)} KB`);
-
-  // (b) pergunta nova sobe inteira; de fabrica editada, desligada ou com id
-  //     trocado deixa de bater e tambem sobe inteira.
-  const mexido = clonar(original);
-  const nova = clonar(original.slots[0].perguntas[0]);
-  nova.id = 'nova-1';
-  nova.pt.pergunta = 'Pergunta criada pelo operador';
-  mexido.slots[0].perguntas.push(nova);
-  mexido.slots[3].perguntas[0].pt.pergunta = 'editei a de fabrica';
-  mexido.slots[5].perguntas[0].ativa = false;
-  mexido.slots[7].veiculo.nome = 'Veiculo renomeado';
-
-  const comprimido = deck.comprimirParaNuvem(mexido);
-  const porExtenso = comprimido.slots.flatMap((s) => s.perguntas).filter((p) => !p.deFabrica);
-  if (porExtenso.length !== 3) {
-    problemas.push(`esperava 3 perguntas por extenso (nova, editada, desligada), vieram ${porExtenso.length}`);
-  }
-  if (Number.isInteger(comprimido.slots[7].veiculo?.deFabrica)) {
-    problemas.push('veiculo renomeado nao deveria ter virado referencia');
-  }
-  if (!Number.isInteger(comprimido.slots[1].veiculo?.deFabrica)) {
-    problemas.push('veiculo intocado deveria ter virado referencia');
+  for (const [i, slot] of original.slots.entries()) {
+    if (!slot.veiculo?.nome || !slot.veiculo?.imagem) problemas.push(`slot ${i}: veiculo incompleto`);
+    for (const [j, p] of slot.perguntas.entries()) {
+      if (!p.gabarito) problemas.push(`slot ${i} pergunta ${j}: sem gabarito`);
+      if (!p.scanners) problemas.push(`slot ${i} pergunta ${j}: sem equipamentos`);
+      for (const lang of deck.IDIOMAS) {
+        if (!p[lang]?.pergunta) problemas.push(`slot ${i} pergunta ${j}: sem enunciado em ${lang}`);
+      }
+      if ('deFabrica' in p) problemas.push(`slot ${i} pergunta ${j}: virou referencia`);
+    }
   }
 
-  // (c) ida e volta exata.
-  const volta = deck.expandirDaNuvem(comprimido);
-  if (JSON.stringify(volta) !== JSON.stringify({ versao: 2, slots: mexido.slots })) {
-    problemas.push('a ida e volta pela nuvem nao devolveu o mesmo baralho');
-  }
+  // (b) o baralho de fabrica cabe no documento com folga larga.
+  const cabe = cabeNaNuvem(original);
+  if (!cabe.ok) problemas.push(`o baralho de fabrica nao cabe: ${cabe.motivo}`);
+  if (cabe.kb > 120) problemas.push(`o de fabrica ficou com ${cabe.kb} KB, mais do que o esperado`);
 
-  // (d) referencia que nao existe mais some sem derrubar o resto.
-  const quebrado = clonar(soFabrica);
-  quebrado.slots[2].perguntas = [{ deFabrica: 'orig-nao-existe' }];
-  const salvo = deck.expandirDaNuvem(quebrado);
-  if (salvo.slots.length !== 9) {
-    problemas.push(`veiculo sem pergunta valida deveria sair; sobraram ${salvo.slots.length} de 10`);
+  // (c) mas fotos enviadas do computador estouram, e a recusa tem de dizer por
+  //     que — o operador precisa saber o que trocar.
+  const pesado = clonar(original);
+  const fotoFalsa = `data:image/webp;base64,${'A'.repeat(120 * 1024)}`;
+  for (const slot of pesado.slots) slot.veiculo.imagem = fotoFalsa;
+  const naoCabe = cabeNaNuvem(pesado);
+  if (naoCabe.ok) problemas.push('um baralho de mais de 1 MB passou pela conferencia');
+  if (naoCabe.ok === false && !/Imagens enviadas/.test(naoCabe.motivo)) {
+    problemas.push(`a recusa nao aponta a causa: ${naoCabe.motivo}`);
   }
 
   return problemas;
 });
 
 console.log(
-  nuvem.length
-    ? '8. COMPRESSAO PARA A NUVEM FALHOU:'
-    : '8. para a nuvem vai so o que nao e de fabrica, e a ida e volta e exata'
+  nuvem.length ? '8. O QUE VAI PARA A NUVEM FALHOU:' : '8. para a nuvem vai o baralho inteiro, e o que nao cabe e recusado com o motivo'
 );
 nuvem.slice(0, 10).forEach((p) => console.log('   - ' + p));
 falhas.push(...nuvem);

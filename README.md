@@ -178,44 +178,38 @@ Em dois lugares, e a ordem importa:
 | | |
 | --- | --- |
 | `localStorage`, chave `tecgame:baralho` | o que o jogo **lê**, inteiro. Publicar grava aqui primeiro. |
-| Firestore, `conteudo/baralho` | o que **atravessa máquinas** — e só o que **não é de fábrica**. |
+| Firestore, `conteudo/baralho` | o que **atravessa máquinas**: o baralho inteiro. |
 
-Para a nuvem sobe apenas o que difere do embutido: pergunta ou veículo intocado
-vira uma referência (`{deFabrica: 'orig-3'}`), e o resto vai inteiro. As dez
-originais já estão no código de todo totem — repeti-las custaria 38 KB à toa.
-Com o baralho de fábrica o documento fica em **1 KB**; com uma pergunta nova e
-uma original editada, em 8 KB.
+Para a nuvem vai **tudo** — veículo, regras e perguntas, as dez de fábrica
+incluídas, mesmo intocadas. O que está gravado lá é o que o jogo joga, por
+extenso, e é isso que o painel mostra quando abre.
 
-Não existe meio-termo: ou a pergunta bate exatamente com a de fábrica, ou sobe
-por extenso. Editar, desligar ou renomear já a faz subir inteira, então nada se
-perde. `verify/baralho.mjs` afirma que a ida e volta devolve o mesmo baralho.
+> Houve uma versão que subia só o que diferia da fábrica e guardava o resto por
+> referência. Economizava 37 KB num teto de 1 MB e, em troca, fazia o texto de
+> uma pergunta original vir do `questions.js` do totem em vez do que estava
+> gravado — e quem abrisse o Firestore não via o conteúdo do jogo. Não valia o
+> que custava.
 
-Isso tem um efeito de propósito: corrigir um acento em `questions.js` chega aos
-totens sem ninguém republicar, porque o que está guardado é a referência. Vale
-saber antes de reescrever uma pergunta original.
-
-E há um teto: **o Firestore recusa documento acima de 1 MB**. Texto não chega
-perto (cabem ~245 perguntas), mas cada foto enviada do computador vira um
-`data:` URL de ~88 KB dentro do baralho. O painel confere antes de enviar e diz
-o tamanho e o motivo em vez de deixar o Firestore recusar com uma mensagem
-críptica.
-
-Publicar grava local primeiro de propósito: se a internet da feira estiver fora,
-o que foi editado não se perde e o painel diz o que faltou. O totem puxa da
-nuvem quando a tela de cadastro monta — sem esperar, para a partida não ficar
-refém da conexão — e, se vier conteúdo novo, ele vale já na partida seguinte.
-
-Isso é o que mantém o totem jogando com a internet caída: ele fica com a última
-cópia que baixou.
+Salvar grava local primeiro e sobe depois, de propósito: se a internet da feira
+estiver fora, o que foi editado não se perde e o painel diz o que faltou. O
+totem puxa da nuvem quando a tela de cadastro monta — sem esperar, para a
+partida não ficar refém da conexão — e, se vier conteúdo novo, ele vale já na
+partida seguinte. Isso é o que mantém o totem jogando com a internet caída: ele
+fica com a última cópia que baixou.
 
 > **Para salvar para todos os totens é preciso entrar.** O botão "Entrar" na
 > barra pede a conta do **Firebase** — é ela que a regra de escrita de
 > `conteudo` exige. Não é a senha `2040`: aquela só destranca a tela e viaja no
-> JavaScript de todo mundo. Sem entrar, publicar grava só neste navegador, e a
-> barra diz isso (`nuvem: desconectado`).
+> JavaScript de todo mundo. Sem entrar, salvar grava só neste navegador.
 >
 > As duas coisas que só existem pelo console do Firebase — criar o Firestore e
 > habilitar o login por e-mail/senha — estão em [`firebase/README.md`](firebase/README.md).
+
+E há um teto: **o Firestore recusa documento acima de 1 MB**. O baralho de
+fábrica inteiro dá 38 KB, então texto não chega perto; quem estoura é foto
+enviada do computador, que vira um `data:` URL de ~88 KB dentro do baralho. O
+painel confere antes de enviar e diz o tamanho e o motivo, em vez de deixar o
+Firestore recusar com uma mensagem críptica.
 
 O jogo relê o baralho quando o **cadastro** monta, e não a cada tela — publicar
 no meio de uma partida não pode trocar o carro debaixo do jogador. Sair pelo

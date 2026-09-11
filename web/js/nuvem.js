@@ -11,6 +11,14 @@
 //   conteudo/baralho   leitura pública (o jogo precisa, e não tem servidor)
 //                      escrita só autenticada (senão qualquer visitante reescreve o jogo)
 //
+// O BARALHO INTEIRO VAI. Veículo, regras e perguntas — as dez de fábrica
+// incluídas, mesmo intocadas. Houve uma versão que subia só o que diferia da
+// fábrica e guardava o resto por referência: economizava 37 KB num teto de
+// 1 MB, e em troca criava uma regra que ninguém adivinha — o texto de uma
+// pergunta original passava a vir do `questions.js` do totem, não do que estava
+// gravado. Quem abrisse o Firestore não veria o conteúdo do jogo. Não valia o
+// que custava. O que está lá é o que o jogo joga, por extenso.
+//
 // O `localStorage` NÃO sai de cena: continua sendo o que o jogo lê, agora como
 // cópia do que veio da nuvem. Isso é o que mantém o totem jogando quando a
 // internet cai no meio da feira — e é o único modo possível quando ele abre do
@@ -21,7 +29,7 @@
 // escrever, e vive na conta de vocês, não no código.
 
 import { firebase, podeUsarNuvem } from './firebase.js';
-import { publicarBaralho, carregarBaralho, comprimirParaNuvem, expandirDaNuvem } from './deck.js';
+import { publicarBaralho, carregarBaralho } from './deck.js';
 
 /** O documento único. Coleção e id fixos: é um baralho por instalação. */
 const COLECAO = 'conteudo';
@@ -36,6 +44,22 @@ const DOCUMENTO = 'baralho';
 const TETO_KB = 900;
 
 const pesoEmKb = (obj) => Math.round(JSON.stringify(obj).length / 1024);
+
+/**
+ * O baralho inteiro cabe num documento? Separada de `publicarNaNuvem` porque
+ * esta parte é pura — dá para afirmá-la em teste sem Firebase nenhum.
+ */
+export function cabeNaNuvem(deck) {
+  const kb = pesoEmKb(deck);
+  if (kb <= TETO_KB) return { ok: true, kb };
+  return {
+    ok: false,
+    kb,
+    motivo:
+      `o baralho ficou com ${kb} KB e o Firestore aceita no máximo ${TETO_KB} por documento. ` +
+      'Imagens enviadas do computador são o que mais ocupa — troque alguma por um caminho em assets/images.',
+  };
+}
 
 /* ------------------------------------------------------------ sincronia -- */
 
@@ -57,13 +81,8 @@ export async function sincronizarBaralho() {
     const snap = await fs.getDoc(fs.doc(db, COLECAO, DOCUMENTO));
     if (!snap.exists()) return false;
 
-    const bruto = snap.data()?.baralho;
-    if (!bruto || !Array.isArray(bruto.slots) || bruto.slots.length === 0) return false;
-
-    // O que está guardado lá traz o de fábrica por referência; aqui ele volta a
-    // ser conteúdo (ver comprimirParaNuvem).
-    const remoto = expandirDaNuvem(bruto);
-    if (!remoto.slots.length) return false;
+    const remoto = snap.data()?.baralho;
+    if (!remoto || !Array.isArray(remoto.slots) || remoto.slots.length === 0) return false;
 
     // Comparar o texto evita reescrever (e invalidar o cache da projeção de
     // estado) a cada partida quando nada mudou.
@@ -94,27 +113,17 @@ export async function publicarNaNuvem(deck) {
   }
   if (!fb.auth.currentUser) return { ok: false, motivo: 'é preciso entrar para publicar.' };
 
-  // Só o que difere da fábrica: as dez originais já estão no código de todo
-  // totem, e repeti-las aqui é peso à toa.
-  const enxuto = comprimirParaNuvem(deck);
-  const kb = pesoEmKb(enxuto);
-  if (kb > TETO_KB) {
-    return {
-      ok: false,
-      motivo:
-        `o baralho ficou com ${kb} KB e o Firestore aceita no máximo ${TETO_KB} por documento. ` +
-        'Imagens enviadas do computador são o que mais ocupa — troque alguma por um caminho em assets/images.',
-    };
-  }
+  const cabe = cabeNaNuvem(deck);
+  if (!cabe.ok) return { ok: false, motivo: cabe.motivo };
 
   try {
     const { db, fs } = fb;
     await fs.setDoc(fs.doc(db, COLECAO, DOCUMENTO), {
-      baralho: enxuto,
+      baralho: deck,
       atualizadoEm: fs.serverTimestamp(),
       publicadoPor: fb.auth.currentUser.email ?? fb.auth.currentUser.uid,
     });
-    return { ok: true, kb };
+    return { ok: true, kb: cabe.kb };
   } catch (erro) {
     // A mensagem crua do Firestore ("Missing or insufficient permissions") não
     // diz ao operador o que fazer.
@@ -179,12 +188,6 @@ export async function entrar(email, senha) {
 export async function sair() {
   const fb = await firebase();
   if (fb) await fb.fa.signOut(fb.auth).catch(() => {});
-}
-
-/** O e-mail de quem está logado, ou `null`. Síncrono: só olha o que já existe. */
-export async function operadorAtual() {
-  const fb = await firebase();
-  return fb?.auth?.currentUser?.email ?? null;
 }
 
 /**

@@ -1894,81 +1894,6 @@
   
   const temBaralhoPublicado = () => readJson(DECK_KEY, null) != null;
   
-  /* ------------------------------------------------- o que vai para a nuvem -- */
-  
-  /**
-   * O QUE SOBE E O QUE FICA DE FÁBRICA.
-   *
-   * O baralho publicado carrega as dez perguntas originais junto, palavra por
-   * palavra, mesmo quando ninguém encostou nelas. Elas já estão no código de todo
-   * totem — subir de novo é repetir 38 KB à toa.
-   *
-   * Então o que vai para o Firestore é só o que DIFERE da fábrica: pergunta ou
-   * veículo intocado viram uma referência (`{deFabrica: 'orig-3'}`), e o resto vai
-   * inteiro. Pergunta nova sobe inteira; pergunta de fábrica que alguém editou,
-   * desligou ou reordenou deixa de ser idêntica e também sobe inteira. Não há
-   * "meio referência": ou bate exatamente, ou vai por extenso.
-   *
-   * Dois ganhos além do tamanho:
-   *  - o conteúdo de fábrica continua com uma fonte de verdade só, o
-   *    `questions.js`. Corrigir um acento lá chega aos totens sem republicar.
-   *  - o documento fica pequeno, e o teto de 1 MB por documento do Firestore
-   *    passa a ser um problema só de quem enviar muitas fotos do computador.
-   *
-   * O preço, dito: se o `questions.js` mudar, o texto que o totem mostra para uma
-   * pergunta referenciada muda junto. É o comportamento que se quer para conserto
-   * de digitação, e é o que se precisa saber antes de reescrever uma original.
-   */
-  const ORIGINAIS_POR_ID = new Map(SLOTS_ORIGINAIS.map((s) => [s.perguntas[0].id, s.perguntas[0]]));
-  
-  const mesmo = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-  
-  const indiceDoVeiculoDeFabrica = (veiculo) => VEICULOS_ORIGINAIS.findIndex((v) => mesmo(v, veiculo));
-  
-  /** Troca por referência tudo que for idêntico ao de fábrica. */
-  function comprimirParaNuvem(deck) {
-    return {
-      versao: 2,
-      slots: (deck?.slots ?? []).map((slot) => {
-        const iVeiculo = indiceDoVeiculoDeFabrica(slot.veiculo);
-        return {
-          veiculo: iVeiculo >= 0 ? { deFabrica: iVeiculo } : slot.veiculo,
-          perguntas: (slot.perguntas ?? []).map((p) =>
-            ORIGINAIS_POR_ID.has(p.id) && mesmo(ORIGINAIS_POR_ID.get(p.id), p) ? { deFabrica: p.id } : p
-          ),
-        };
-      }),
-    };
-  }
-  
-  /** O inverso: devolve as referências ao conteúdo de fábrica. */
-  function expandirDaNuvem(deck) {
-    if (!deck || !Array.isArray(deck.slots)) return deck;
-    const perdidas = [];
-  
-    const slots = deck.slots.map((slot) => {
-      const ref = slot.veiculo?.deFabrica;
-      const veiculo = Number.isInteger(ref) ? VEICULOS_ORIGINAIS[ref] : slot.veiculo;
-      const perguntas = (slot.perguntas ?? [])
-        .map((p) => {
-          if (!p?.deFabrica) return p;
-          const original = ORIGINAIS_POR_ID.get(p.deFabrica);
-          // Só acontece se alguém tirar uma rodada do questions.js depois de um
-          // baralho já ter apontado para ela. Some a pergunta, não o veículo.
-          if (!original) perdidas.push(p.deFabrica);
-          return original ?? null;
-        })
-        .filter(Boolean);
-      return { veiculo: veiculo ?? slot.veiculo, perguntas };
-    });
-  
-    if (perdidas.length) {
-      console.warn(`baralho da nuvem aponta para perguntas de fábrica que não existem mais: ${perdidas.join(', ')}`);
-    }
-    // Veículo que ficou sem nenhuma pergunta sai: a roleta cairia nele sem jogo.
-    return { versao: 2, slots: slots.filter((s) => s.perguntas.length > 0) };
-  }
-  
   /* ----------------------------------------------------------------- arte --- */
   
   /**
@@ -2000,8 +1925,6 @@
   Object.defineProperty(__exports, "publicarBaralho", { get: () => publicarBaralho, enumerable: true });
   Object.defineProperty(__exports, "restaurarOriginal", { get: () => restaurarOriginal, enumerable: true });
   Object.defineProperty(__exports, "temBaralhoPublicado", { get: () => temBaralhoPublicado, enumerable: true });
-  Object.defineProperty(__exports, "comprimirParaNuvem", { get: () => comprimirParaNuvem, enumerable: true });
-  Object.defineProperty(__exports, "expandirDaNuvem", { get: () => expandirDaNuvem, enumerable: true });
   Object.defineProperty(__exports, "usaArteOriginal", { get: () => usaArteOriginal, enumerable: true });
   });
 
@@ -6121,6 +6044,14 @@
   //   conteudo/baralho   leitura pública (o jogo precisa, e não tem servidor)
   //                      escrita só autenticada (senão qualquer visitante reescreve o jogo)
   //
+  // O BARALHO INTEIRO VAI. Veículo, regras e perguntas — as dez de fábrica
+  // incluídas, mesmo intocadas. Houve uma versão que subia só o que diferia da
+  // fábrica e guardava o resto por referência: economizava 37 KB num teto de
+  // 1 MB, e em troca criava uma regra que ninguém adivinha — o texto de uma
+  // pergunta original passava a vir do `questions.js` do totem, não do que estava
+  // gravado. Quem abrisse o Firestore não veria o conteúdo do jogo. Não valia o
+  // que custava. O que está lá é o que o jogo joga, por extenso.
+  //
   // O `localStorage` NÃO sai de cena: continua sendo o que o jogo lê, agora como
   // cópia do que veio da nuvem. Isso é o que mantém o totem jogando quando a
   // internet cai no meio da feira — e é o único modo possível quando ele abre do
@@ -6131,7 +6062,7 @@
   // escrever, e vive na conta de vocês, não no código.
   
   const { firebase, podeUsarNuvem } = __require("firebase.js");
-  const { publicarBaralho, carregarBaralho, comprimirParaNuvem, expandirDaNuvem } = __require("deck.js");
+  const { publicarBaralho, carregarBaralho } = __require("deck.js");
   
   /** O documento único. Coleção e id fixos: é um baralho por instalação. */
   const COLECAO = 'conteudo';
@@ -6146,6 +6077,22 @@
   const TETO_KB = 900;
   
   const pesoEmKb = (obj) => Math.round(JSON.stringify(obj).length / 1024);
+  
+  /**
+   * O baralho inteiro cabe num documento? Separada de `publicarNaNuvem` porque
+   * esta parte é pura — dá para afirmá-la em teste sem Firebase nenhum.
+   */
+  function cabeNaNuvem(deck) {
+    const kb = pesoEmKb(deck);
+    if (kb <= TETO_KB) return { ok: true, kb };
+    return {
+      ok: false,
+      kb,
+      motivo:
+        `o baralho ficou com ${kb} KB e o Firestore aceita no máximo ${TETO_KB} por documento. ` +
+        'Imagens enviadas do computador são o que mais ocupa — troque alguma por um caminho em assets/images.',
+    };
+  }
   
   /* ------------------------------------------------------------ sincronia -- */
   
@@ -6167,13 +6114,8 @@
       const snap = await fs.getDoc(fs.doc(db, COLECAO, DOCUMENTO));
       if (!snap.exists()) return false;
   
-      const bruto = snap.data()?.baralho;
-      if (!bruto || !Array.isArray(bruto.slots) || bruto.slots.length === 0) return false;
-  
-      // O que está guardado lá traz o de fábrica por referência; aqui ele volta a
-      // ser conteúdo (ver comprimirParaNuvem).
-      const remoto = expandirDaNuvem(bruto);
-      if (!remoto.slots.length) return false;
+      const remoto = snap.data()?.baralho;
+      if (!remoto || !Array.isArray(remoto.slots) || remoto.slots.length === 0) return false;
   
       // Comparar o texto evita reescrever (e invalidar o cache da projeção de
       // estado) a cada partida quando nada mudou.
@@ -6204,27 +6146,17 @@
     }
     if (!fb.auth.currentUser) return { ok: false, motivo: 'é preciso entrar para publicar.' };
   
-    // Só o que difere da fábrica: as dez originais já estão no código de todo
-    // totem, e repeti-las aqui é peso à toa.
-    const enxuto = comprimirParaNuvem(deck);
-    const kb = pesoEmKb(enxuto);
-    if (kb > TETO_KB) {
-      return {
-        ok: false,
-        motivo:
-          `o baralho ficou com ${kb} KB e o Firestore aceita no máximo ${TETO_KB} por documento. ` +
-          'Imagens enviadas do computador são o que mais ocupa — troque alguma por um caminho em assets/images.',
-      };
-    }
+    const cabe = cabeNaNuvem(deck);
+    if (!cabe.ok) return { ok: false, motivo: cabe.motivo };
   
     try {
       const { db, fs } = fb;
       await fs.setDoc(fs.doc(db, COLECAO, DOCUMENTO), {
-        baralho: enxuto,
+        baralho: deck,
         atualizadoEm: fs.serverTimestamp(),
         publicadoPor: fb.auth.currentUser.email ?? fb.auth.currentUser.uid,
       });
-      return { ok: true, kb };
+      return { ok: true, kb: cabe.kb };
     } catch (erro) {
       // A mensagem crua do Firestore ("Missing or insufficient permissions") não
       // diz ao operador o que fazer.
@@ -6291,12 +6223,6 @@
     if (fb) await fb.fa.signOut(fb.auth).catch(() => {});
   }
   
-  /** O e-mail de quem está logado, ou `null`. Síncrono: só olha o que já existe. */
-  async function operadorAtual() {
-    const fb = await firebase();
-    return fb?.auth?.currentUser?.email ?? null;
-  }
-  
   /**
    * Avisa quando o login muda. O SDK restaura a sessão de forma assíncrona no
    * carregamento, então a barra do admin não pode desenhar "deslogado" e parar
@@ -6309,12 +6235,12 @@
     if (!fb) return () => {};
     return fb.fa.onAuthStateChanged(fb.auth, (u) => fn(u?.email ?? null));
   }
+  Object.defineProperty(__exports, "cabeNaNuvem", { get: () => cabeNaNuvem, enumerable: true });
   Object.defineProperty(__exports, "sincronizarBaralho", { get: () => sincronizarBaralho, enumerable: true });
   Object.defineProperty(__exports, "publicarNaNuvem", { get: () => publicarNaNuvem, enumerable: true });
   Object.defineProperty(__exports, "ultimaPublicacao", { get: () => ultimaPublicacao, enumerable: true });
   Object.defineProperty(__exports, "entrar", { get: () => entrar, enumerable: true });
   Object.defineProperty(__exports, "sair", { get: () => sair, enumerable: true });
-  Object.defineProperty(__exports, "operadorAtual", { get: () => operadorAtual, enumerable: true });
   Object.defineProperty(__exports, "aoMudarOperador", { get: () => aoMudarOperador, enumerable: true });
   });
 
