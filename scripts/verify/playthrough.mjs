@@ -12,7 +12,7 @@ const LOCAL_FILE = BASE.startsWith('file:');
 // On file:// the module boot is expected to fail and index.html falls back to
 // js/bundle.js; that pair of messages is not an app error.
 const isBootNoise = (t) => LOCAL_FILE && /js\/main\.js|net::ERR_FAILED/.test(t);
-const OUT = process.env.OUT ?? 'play';
+const OUT = process.env.OUT ?? 'shots/playthrough';
 fs.mkdirSync(OUT, { recursive: true });
 
 const browser = await puppeteer.launch({

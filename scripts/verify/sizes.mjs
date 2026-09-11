@@ -19,7 +19,7 @@ const BASE = process.env.BASE ?? 'http://127.0.0.1:8099';
 // (file:///.../web/index.html), que e como a build de disco e conferida.
 const pageUrl = (route) => (BASE.endsWith('.html') ? `${BASE}#${route}` : `${BASE}/#${route}`);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-const OUT = process.env.OUT ?? 'shots';
+const OUT = process.env.OUT ?? 'shots/sizes';
 
 /** O minimo que a faixa atendida entrega, em px DE TELA. */
 const PISO_TEXTO = 12;

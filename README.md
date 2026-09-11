@@ -19,6 +19,8 @@ web/                  o jogo portado (é isto que se publica)
   assets/               imagens, áudios, fontes e vídeos do original
 firebase/             regras e índices do Firestore
 scripts/              geradores e verificadores
+shots/                saída dos testes (ignorada pelo git)
+CLAUDE.md             as regras e as armadilhas, para quem for mexer
 ```
 
 ## Como rodar
@@ -446,7 +448,9 @@ npm run verify -- -j 1 corte  # um de cada vez, com a saída ao vivo
 ```
 
 Cada par (teste, transporte) escreve suas imagens em
-`shots/<transporte>/<teste>`, para o `file://` não sobrescrever o do HTTP.
+`shots/<transporte>/<teste>`, para o `file://` não sobrescrever o do HTTP. Um
+teste rodado sozinho escreve em `shots/<teste>`. Tudo dentro de `shots/`, que o
+git ignora.
 
 Os testes individuais, se quiser rodar um de cada vez (precisam do `npm start`
 em outro terminal, ou de `BASE=` apontando para o `file://`):

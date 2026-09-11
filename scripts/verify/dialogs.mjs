@@ -12,7 +12,7 @@ const LOCAL_FILE = BASE.startsWith('file:');
 // On file:// the module boot is expected to fail and index.html falls back to
 // js/bundle.js; that pair of messages is not an app error.
 const isBootNoise = (t) => LOCAL_FILE && /js\/main\.js|net::ERR_FAILED/.test(t);
-const OUT = process.env.OUT ?? 'play2';
+const OUT = process.env.OUT ?? 'shots/dialogs';
 fs.mkdirSync(OUT, { recursive: true });
 
 // Load the generated question bank so the test can work out the right answer.
