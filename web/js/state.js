@@ -72,6 +72,19 @@ class FFAppStateClass {
     this.listaEscolhas = [];
     this.linguagem = '';
     this.finalizou = false;
+
+    /**
+     * O que a partida terminou decidindo, para a tela de fim poder contar.
+     *
+     * O jogo julgava e ia embora sem nunca dizer qual era a resposta certa —
+     * num jogo feito para ensinar técnico a usar scanner, era justamente o
+     * pedaço que faltava. Fica `null` fora de uma partida.
+     *
+     * `{ acertou, numeroCerto, textoCerto, numeroEscolhido, textoEscolhido }`,
+     * onde os números são os que o jogador vê na tela (1 a 4), e não os índices
+     * embaralhados de `ordemNumeros`.
+     */
+    this.resultado = null;
   }
 
   /** initializePersistedState() */

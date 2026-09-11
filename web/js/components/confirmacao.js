@@ -3,6 +3,12 @@
 // "Confirmar resposta?" - Cancelar just pops, Confirmar sets
 // FFAppState().finalizou = true and pops, which is what tells the caller in
 // perguntas_erespostas to score the answer.
+//
+// MUDANÇA DELIBERADA sobre o Dart: o diálogo agora recebe e mostra a
+// alternativa escolhida. No original ele não recebia nada — e ainda por cima
+// abre bem em cima da lista de respostas, então quem se distraiu confirmava sem
+// ver o que tinha tocado. A caixa cresceu para caber o texto, e por isso a
+// altura fixa de 232,6 saiu: com resposta longa ela cortaria.
 
 import {
   Align,
@@ -20,6 +26,7 @@ import {
 } from '../widgets.js';
 import { style } from '../theme.js';
 import { L } from '../i18n.js';
+import { T } from '../textos.js';
 import { pop } from '../dialog.js';
 import { FFAppState } from '../state.js';
 import { playSound } from '../audio.js';
@@ -60,7 +67,12 @@ const BUTTON_GRADIENT = linearGradient({
   end: [-1.0, -0.17],
 });
 
-export function ConfirmacaoWidget() {
+/**
+ * @param {object} escolha
+ * @param {number} [escolha.numero]  o número que o jogador vê no cartão (1 a 4)
+ * @param {string} [escolha.texto]   o enunciado da alternativa escolhida
+ */
+export function ConfirmacaoWidget({ numero = null, texto = null } = {}) {
   const model = {};
   const animationsMap = {
     containerOnPageLoadAnimation1: pulse(),
@@ -90,6 +102,50 @@ export function ConfirmacaoWidget() {
     return node;
   };
 
+  // O que o jogador tocou, repetido aqui porque a caixa cobre a lista.
+  const escolhida =
+    numero != null && texto
+      ? Padding({
+          padding: [48.0, 20.0, 48.0, 4.0],
+          child: Container({
+            width: Infinity,
+            color: color(0x26FFFFFF),
+            borderRadius: 8.0,
+            border: '1px solid rgba(255, 255, 255, 0.45)',
+            child: Padding({
+              padding: [20.0, 14.0, 20.0, 14.0],
+              child: Column({
+                mainAxisSize: 'max',
+                crossAxisAlignment: 'center',
+                children: [
+                  Txt(
+                    `${T('alternativa')} ${numero}`,
+                    style('bodyMedium', {
+                      fontFamily: 'pirulen',
+                      fontSize: 16.0,
+                      letterSpacing: 3.0,
+                      fontWeight: 400,
+                    })
+                  ),
+                  Padding({
+                    padding: [0.0, 8.0, 0.0, 0.0],
+                    child: Txt(
+                      texto,
+                      style('bodyMedium', {
+                        fontFamily: 'Open Sans',
+                        fontWeight: 400,
+                        fontSize: 20.0,
+                        textAlign: 'center',
+                      })
+                    ),
+                  }),
+                ],
+              }),
+            }),
+          }),
+        })
+      : null;
+
   return Align({
     alignment: [0.0, 0.0],
     child: Column({
@@ -98,7 +154,6 @@ export function ConfirmacaoWidget() {
       children: [
         Container({
           width: 749.9,
-          height: 232.6,
           color: color(0xFF0051FF),
           borderRadius: 8.0,
           child: Stack({
@@ -114,10 +169,11 @@ export function ConfirmacaoWidget() {
                         L('ut066twm') /* Confirmar resposta? */,
                         style('bodyMedium', { fontFamily: 'pirulen', fontSize: 32.0 })
                       ),
+                      escolhida,
                       Padding({
-                        padding: [0.0, 8.0, 0.0, 0.0],
+                        padding: [0.0, 12.0, 0.0, 0.0],
                         child: Txt(
-                          L('8lqt2gtq') /* Você deseja confirma sua resposta? ... */,
+                          L('8lqt2gtq') /* Você deseja confirmar sua resposta? ... */,
                           style('bodyMedium', { fontFamily: 'Open Sans', fontWeight: 200, fontSize: 18.0 })
                         ),
                       }),

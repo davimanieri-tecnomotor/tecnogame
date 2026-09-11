@@ -2323,6 +2323,19 @@
       this.listaEscolhas = [];
       this.linguagem = '';
       this.finalizou = false;
+  
+      /**
+       * O que a partida terminou decidindo, para a tela de fim poder contar.
+       *
+       * O jogo julgava e ia embora sem nunca dizer qual era a resposta certa —
+       * num jogo feito para ensinar técnico a usar scanner, era justamente o
+       * pedaço que faltava. Fica `null` fora de uma partida.
+       *
+       * `{ acertou, numeroCerto, textoCerto, numeroEscolhido, textoEscolhido }`,
+       * onde os números são os que o jogador vê na tela (1 a 4), e não os índices
+       * embaralhados de `ordemNumeros`.
+       */
+      this.resultado = null;
     }
   
     /** initializePersistedState() */
@@ -3325,6 +3338,7 @@
     unlocked = true;
     for (const player of pending) player.play();
     pending.clear();
+    contexto?.resume?.().catch(() => {});
   }
   
   for (const type of ['pointerdown', 'keydown', 'touchstart']) {
@@ -3377,6 +3391,59 @@
     }
   }
   
+  /* -------------------------------------------------- sons sintetizados ----- */
+  
+  /**
+   * O tique dos últimos segundos não é arquivo: é uma nota curta gerada na hora
+   * pela Web Audio API.
+   *
+   * Por que sintetizar em vez de gravar: não precisa de asset novo, não pesa no
+   * bundle, e toca por `file://` — o que o navegador recusa na origem nula é
+   * *buscar* arquivo, não gerar som. E o tom pode acompanhar a urgência sem
+   * precisar de uma faixa por segundo.
+   */
+  let contexto = null;
+  
+  function contextoDeAudio() {
+    if (contexto) return contexto;
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) return null;
+    try {
+      contexto = new Ctor();
+    } catch (_) {
+      return null;
+    }
+    return contexto;
+  }
+  
+  /**
+   * Um estalo curto. `frequencia` em Hz, `duracao` em segundos.
+   *
+   * O envelope é o que separa "relógio" de "bipe de forno": ataque quase
+   * instantâneo (5ms) e queda exponencial. Uma nota de volume constante soa como
+   * alarme; esta soa como ponteiro.
+   */
+  function tique({ frequencia = 1040, duracao = 0.07, volume = 0.16 } = {}) {
+    const ctx = contextoDeAudio();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  
+    const agora = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const ganho = ctx.createGain();
+  
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(frequencia, agora);
+    // exponentialRampToValueAtTime não aceita zero, daí o 0.0001 nas pontas.
+    ganho.gain.setValueAtTime(0.0001, agora);
+    ganho.gain.exponentialRampToValueAtTime(Math.max(volume, 0.0002), agora + 0.005);
+    ganho.gain.exponentialRampToValueAtTime(0.0001, agora + duracao);
+  
+    osc.connect(ganho).connect(ctx.destination);
+    osc.start(agora);
+    osc.stop(agora + duracao + 0.02);
+  }
+  
   /** The one-liner the Dart repeats everywhere, as a single call. */
   function playSound(holder, key, asset, volume = 1.0) {
     let player = holder[key];
@@ -3390,6 +3457,7 @@
     return player;
   }
   Object.defineProperty(__exports, "AudioPlayer", { get: () => AudioPlayer, enumerable: true });
+  Object.defineProperty(__exports, "tique", { get: () => tique, enumerable: true });
   Object.defineProperty(__exports, "playSound", { get: () => playSound, enumerable: true });
   });
 
@@ -8014,6 +8082,18 @@
   //
   // Reveals the car the wheel landed on, then fades out and moves to the scanner
   // picker after 6s.
+  //
+  // A ENTRADA. O Dart escalava de [-1, -1] até [1, 1]: escala negativa é
+  // ESPELHAMENTO, então o carro nascia invertido, encolhia até sumir num ponto e
+  // voltava desvirado — era isso o "o carro vem ao contrário". Trocamos por uma
+  // entrada que tem a ver com o que acabou de acontecer na tela anterior: a roda
+  // parou, e o prêmio chega.
+  //
+  //   - o carro entra pela direita com velocidade e freia, passando um pouco do
+  //     ponto e voltando (o mesmo excesso amortecido do recuo da roleta);
+  //   - a placa com o nome bate depois, como carimbo;
+  //   - pousado, o carro respira devagar, para os segundos que sobram até a
+  //     próxima tela não serem uma foto parada.
   
   const { Align, Column, Container, Padding, Txt, decorationImage, el, color, unfocus } = __require("widgets.js");
   const { style } = __require("theme.js");
@@ -8027,13 +8107,33 @@
     let left = false;
   
     const animationsMap = {
-      columnOnPageLoadAnimation: new AnimationInfo({
+      // A chegada: entra pela direita, freia passando do ponto e volta.
+      //
+      // O excesso é o que faz parecer massa em movimento e não uma imagem sendo
+      // posicionada — o mesmo motivo do recuo da roleta. São três trechos porque
+      // o motor de efeitos interpola por pedaço: corrida, passagem do ponto,
+      // acomodação.
+      carroOnPageLoadAnimation: new AnimationInfo({
         trigger: AnimationTrigger.onPageLoad,
         applyInitialState: true,
         effectsBuilder: () => [
-          ScaleEffect({ curve: Curves.easeInOut, delay: 600.0, duration: 2000.0, begin: [-1.0, -1.0], end: [1.0, 1.0] }),
-          FadeEffect({ curve: Curves.easeInOut, delay: 600.0, duration: 2000.0, begin: 0.0, end: 1.0 }),
-          MoveEffect({ curve: Curves.easeInOut, delay: 600.0, duration: 2000.0, begin: [0.0, 100.0], end: [0.0, 0.0] }),
+          FadeEffect({ curve: Curves.easeOut, delay: 120.0, duration: 260.0, begin: 0.0, end: 1.0 }),
+          MoveEffect({ curve: Curves.easeOut, delay: 120.0, duration: 620.0, begin: [620.0, 0.0], end: [-26.0, 0.0] }),
+          MoveEffect({ curve: Curves.easeInOut, delay: 740.0, duration: 260.0, begin: [-26.0, 0.0], end: [9.0, 0.0] }),
+          MoveEffect({ curve: Curves.easeInOut, delay: 1000.0, duration: 220.0, begin: [9.0, 0.0], end: [0.0, 0.0] }),
+          // Um respiro de 1,02 enquanto o carro corre: dá peso à frenagem.
+          ScaleEffect({ curve: Curves.easeOut, delay: 120.0, duration: 620.0, begin: [1.05, 1.05], end: [1.02, 1.02] }),
+          ScaleEffect({ curve: Curves.easeInOut, delay: 740.0, duration: 480.0, begin: [1.02, 1.02], end: [1.0, 1.0] }),
+        ],
+      }),
+      // A placa do nome, batendo depois que o carro para.
+      nomeOnPageLoadAnimation: new AnimationInfo({
+        trigger: AnimationTrigger.onPageLoad,
+        applyInitialState: true,
+        effectsBuilder: () => [
+          FadeEffect({ curve: Curves.easeOut, delay: 900.0, duration: 180.0, begin: 0.0, end: 1.0 }),
+          ScaleEffect({ curve: Curves.easeOut, delay: 900.0, duration: 300.0, begin: [1.32, 1.32], end: [0.98, 0.98] }),
+          ScaleEffect({ curve: Curves.easeInOut, delay: 1200.0, duration: 180.0, begin: [0.98, 0.98], end: [1.0, 1.0] }),
         ],
       }),
       columnOnActionTriggerAnimation: new AnimationInfo({
@@ -8045,28 +8145,33 @@
       }),
     };
   
+    const foto = CarroFotoWidget();
+    animateOnPageLoad(foto, animationsMap.carroOnPageLoadAnimation);
+  
+    // O respiro parado fica NO INVÓLUCRO, e não na foto: a entrada escreve
+    // `transform` na foto pela Web Animations API, e uma animação CSS de
+    // transform no mesmo elemento seria simplesmente ignorada. Em pai e filho as
+    // duas se compõem.
+    const carro = el('div', { class: 'ff-carro-respira' }, foto);
+  
+    // O nome vinha de uma tabela fixa por indice no Dart (que, aliás, nao era o
+    // campo `nome` da questao — esse o jogo nunca exibia). Agora e o nome do
+    // veiculo da rodada.
+    const nome = Txt(FFAppState.slotAtual?.veiculo?.nome || 'SEM CARRO SELECIONADO', {
+      ...style('bodyMedium', {
+        fontFamily: 'Roboto',
+        fontWeight: 700,
+        color: '#FFFFFF',
+        fontSize: 70.0,
+        letterSpacing: 5.0,
+      }),
+    });
+    animateOnPageLoad(nome, animationsMap.nomeOnPageLoadAnimation);
+  
     const content = Column({
       mainAxisSize: 'max',
-      children: [
-        CarroFotoWidget(),
-        Padding({
-          padding: [0.0, 52.0, 0.0, 0.0],
-                  // O nome vinha de uma tabela fixa por indice no Dart (que, aliás, nao
-          // era o campo `nome` da questao — esse o jogo nunca exibia). Agora e o
-          // nome do veiculo da rodada.
-          child: Txt(FFAppState.slotAtual?.veiculo?.nome || 'SEM CARRO SELECIONADO', {
-            ...style('bodyMedium', {
-              fontFamily: 'Roboto',
-              fontWeight: 700,
-              color: '#FFFFFF',
-              fontSize: 70.0,
-              letterSpacing: 5.0,
-            }),
-          }),
-        }),
-      ],
+      children: [carro, Padding({ padding: [0.0, 52.0, 0.0, 0.0], child: nome })],
     });
-    animateOnPageLoad(content, animationsMap.columnOnPageLoadAnimation);
     animateOnActionTrigger(content, animationsMap.columnOnActionTriggerAnimation);
   
     const root = el(
@@ -8519,6 +8624,37 @@
   Object.defineProperty(__exports, "TelaVideoScannerWidget", { get: () => TelaVideoScannerWidget, enumerable: true });
   });
 
+  /* ===== textos.js ===== */
+  __define("textos.js", function (__exports, __require) {
+  // Os textos que não vieram do FlutterFlow.
+  //
+  // As traduções do Dart vivem em `translations.js`, que é GERADO por
+  // `scripts/gen_data.py` a partir do projeto original — a CI roda o gerador e
+  // falha se o arquivo tiver sido editado à mão. Então tudo que este porte
+  // acrescenta de texto novo mora aqui, na mesma forma (pt/en/es) e lido pelo
+  // mesmo `FFLocalizations`, para a troca de idioma continuar valendo para o
+  // jogo inteiro.
+  //
+  // Se um dia isto crescer, o lugar certo é o baralho (área administrativa), não
+  // este arquivo — aqui ficam só as palavras de interface.
+  
+  const { FFLocalizations } = __require("i18n.js");
+  
+  const TEXTOS = {
+    alternativa: { pt: 'Alternativa', en: 'Answer', es: 'Alternativa' },
+    respostaCerta: { pt: 'A resposta certa', en: 'The right answer', es: 'La respuesta correcta' },
+    voceRespondeu: { pt: 'Você respondeu', en: 'You answered', es: 'Respondiste' },
+  };
+  
+  /** `T('alternativa')` — o mesmo formato de `L()`, para as strings daqui. */
+  function T(chave) {
+    const linha = TEXTOS[chave];
+    if (!linha) return '';
+    return FFLocalizations.getVariableText({ ptText: linha.pt, enText: linha.en, esText: linha.es });
+  }
+  Object.defineProperty(__exports, "T", { get: () => T, enumerable: true });
+  });
+
   /* ===== components/confirmacao.js ===== */
   __define("components/confirmacao.js", function (__exports, __require) {
   // Port of lib/pages/components/confirmacao/confirmacao_widget.dart
@@ -8526,10 +8662,17 @@
   // "Confirmar resposta?" - Cancelar just pops, Confirmar sets
   // FFAppState().finalizou = true and pops, which is what tells the caller in
   // perguntas_erespostas to score the answer.
+  //
+  // MUDANÇA DELIBERADA sobre o Dart: o diálogo agora recebe e mostra a
+  // alternativa escolhida. No original ele não recebia nada — e ainda por cima
+  // abre bem em cima da lista de respostas, então quem se distraiu confirmava sem
+  // ver o que tinha tocado. A caixa cresceu para caber o texto, e por isso a
+  // altura fixa de 232,6 saiu: com resposta longa ela cortaria.
   
   const { Align, Column, Container, Icon, InkWell, Padding, Row, Stack, StackAlign, Txt, color, linearGradient } = __require("widgets.js");
   const { style } = __require("theme.js");
   const { L } = __require("i18n.js");
+  const { T } = __require("textos.js");
   const { pop } = __require("dialog.js");
   const { FFAppState } = __require("state.js");
   const { playSound } = __require("audio.js");
@@ -8563,7 +8706,12 @@
     end: [-1.0, -0.17],
   });
   
-  function ConfirmacaoWidget() {
+  /**
+   * @param {object} escolha
+   * @param {number} [escolha.numero]  o número que o jogador vê no cartão (1 a 4)
+   * @param {string} [escolha.texto]   o enunciado da alternativa escolhida
+   */
+  function ConfirmacaoWidget({ numero = null, texto = null } = {}) {
     const model = {};
     const animationsMap = {
       containerOnPageLoadAnimation1: pulse(),
@@ -8593,6 +8741,50 @@
       return node;
     };
   
+    // O que o jogador tocou, repetido aqui porque a caixa cobre a lista.
+    const escolhida =
+      numero != null && texto
+        ? Padding({
+            padding: [48.0, 20.0, 48.0, 4.0],
+            child: Container({
+              width: Infinity,
+              color: color(0x26FFFFFF),
+              borderRadius: 8.0,
+              border: '1px solid rgba(255, 255, 255, 0.45)',
+              child: Padding({
+                padding: [20.0, 14.0, 20.0, 14.0],
+                child: Column({
+                  mainAxisSize: 'max',
+                  crossAxisAlignment: 'center',
+                  children: [
+                    Txt(
+                      `${T('alternativa')} ${numero}`,
+                      style('bodyMedium', {
+                        fontFamily: 'pirulen',
+                        fontSize: 16.0,
+                        letterSpacing: 3.0,
+                        fontWeight: 400,
+                      })
+                    ),
+                    Padding({
+                      padding: [0.0, 8.0, 0.0, 0.0],
+                      child: Txt(
+                        texto,
+                        style('bodyMedium', {
+                          fontFamily: 'Open Sans',
+                          fontWeight: 400,
+                          fontSize: 20.0,
+                          textAlign: 'center',
+                        })
+                      ),
+                    }),
+                  ],
+                }),
+              }),
+            }),
+          })
+        : null;
+  
     return Align({
       alignment: [0.0, 0.0],
       child: Column({
@@ -8601,7 +8793,6 @@
         children: [
           Container({
             width: 749.9,
-            height: 232.6,
             color: color(0xFF0051FF),
             borderRadius: 8.0,
             child: Stack({
@@ -8617,10 +8808,11 @@
                           L('ut066twm') /* Confirmar resposta? */,
                           style('bodyMedium', { fontFamily: 'pirulen', fontSize: 32.0 })
                         ),
+                        escolhida,
                         Padding({
-                          padding: [0.0, 8.0, 0.0, 0.0],
+                          padding: [0.0, 12.0, 0.0, 0.0],
                           child: Txt(
-                            L('8lqt2gtq') /* Você deseja confirma sua resposta? ... */,
+                            L('8lqt2gtq') /* Você deseja confirmar sua resposta? ... */,
                             style('bodyMedium', { fontFamily: 'Open Sans', fontWeight: 200, fontSize: 18.0 })
                           ),
                         }),
@@ -8844,13 +9036,13 @@
   const { TH, style } = __require("theme.js");
   const { FFLocalizations, L } = __require("i18n.js");
   const { FFAppState } = __require("state.js");
-  const { playSound } = __require("audio.js");
+  const { playSound, tique } = __require("audio.js");
   const { showDialog } = __require("dialog.js");
   const { ConfirmacaoWidget } = __require("components/confirmacao.js");
   const { PopUpWidget } = __require("components/pop_up.js");
   const { goNamed, TransitionInfo, PageTransitionType } = __require("router.js");
   const { addUsuario, createUsuariosRecordData } = __require("backend.js");
-  const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
+  const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnActionTrigger, animateOnPageLoad, delayed, menosMovimento } = __require("anim.js");
   const { FlutterFlowTimer, FlutterFlowTimerController, InstantTimer, StopWatchMode, StopWatchTimer } = __require("timer.js");
   
   /* ------------------------------------------------------- scanner skinning -- */
@@ -9041,7 +9233,13 @@
     return pergunta(field, { enField });
   }
   
-  function PerguntasErespostasWidget() {
+  /**
+   * @param {object}   [opcoes]
+   * @param {Function} [opcoes.aoEntrarNaRetaFinal]  chamado uma vez quando o
+   *   relógio cruza os 15s. Quem desenha a moldura do defeito é a tela (o painel
+   *   só tem a metade direita), então a tela pede para ser avisada.
+   */
+  function PerguntasErespostasWidget({ aoEntrarNaRetaFinal = null } = {}) {
     const model = {
       apoio: false,
       youtube: false,
@@ -9050,6 +9248,7 @@
       representante: false,
       numeroDicas: 0,
       apertou: false,
+      revelando: false,
       timerMilliseconds: 60000,
       timerValue: StopWatchTimer.getDisplayTime(60000, { hours: false }),
       timerController: new FlutterFlowTimerController({ mode: StopWatchMode.countDown }),
@@ -9089,6 +9288,8 @@
   
       const card = InkWell({
         onTap: async () => {
+          // Durante a revelação a tela está congelada de propósito.
+          if (model.revelando) return;
           // Slots 0, 1 and 3 guard on `_model.apertou`; slot 2 guards on
           // FFAppState().finalizou instead - kept exactly as written.
           if (slot === 2 ? FFAppState.finalizou : model.apertou) return;
@@ -9096,11 +9297,18 @@
           model.apertou = true;
           playSound(model, sound, 'assets/audios/undertale-select-sound.mp3', 0.53);
           animation.controller.forward();
-          await showDialog({ builder: () => ConfirmacaoWidget() });
+          marcarEscolha(slot);
+          await showDialog({ builder: () => ConfirmacaoWidget({ numero: slot + 1, texto: text }) });
   
           if (FFAppState.finalizou) {
+            model.revelando = true;
             model.soundPlayer1?.stop();
             model.timerController.onStopTimer();
+            // O relógio não pode mandar para "Perdeu" no meio da revelação. No
+            // Dart só o slot 0 cancelava este timer — com a tela trocando na
+            // mesma batida da confirmação isso nunca aparecia; agora que existe
+            // uma pausa entre uma coisa e outra, aparece.
+            model.instantTimer?.cancel();
   
             const gabarito = valueOrDefault(
               FFAppState.questoesBrasil[FFAppState.indiceAtual]?.gabarito,
@@ -9118,6 +9326,21 @@
               invalido: FFAppState.cadastro.invalido,
             });
   
+            // A tela de fim precisa saber o que era certo para poder contar.
+            const slotCerto = FFAppState.ordemNumeros.findIndex((n) => String(n) === String(gabarito));
+            FFAppState.resultado = {
+              acertou,
+              numeroCerto: slotCerto >= 0 ? slotCerto + 1 : null,
+              textoCerto: slotCerto >= 0 ? respostaText(slotCerto, FFAppState.ordemNumeros[slotCerto]) : null,
+              numeroEscolhido: slot + 1,
+              textoEscolhido: text,
+            };
+  
+            // A pausa antes do veredito. É o pedaço do Jogo do Milhão que faltava
+            // aqui: sem ela o jogo julga e troca de tela na mesma batida, e
+            // ninguém chega a ver o que era certo.
+            await revelar({ slotEscolhido: slot, slotCerto });
+  
             goNamed(acertou ? 'Ganhou' : 'Perdeu', {
               extra: {
                 __transition_info__: new TransitionInfo({
@@ -9134,9 +9357,10 @@
             model.treinamento = false;
             model.representante = false;
             model.timerController.onResetTimer();
-            // Only the first answer cancels the tick timer in the Dart.
-            if (slot === 0) model.instantTimer?.cancel();
             FFAppState.finalizou = false;
+          } else {
+            // Cancelou: o cartão volta a ser um cartão como os outros.
+            marcarEscolha(null);
           }
           model.apertou = false;
         },
@@ -9166,6 +9390,8 @@
         }),
       });
   
+      card.classList.add('ff-resposta-cartao');
+  
       const stack = Stack({
         alignment: [-1.0, 0.0],
         children: [
@@ -9184,7 +9410,40 @@
         ],
       });
   
+      stack.dataset.resposta = String(slot);
       return animateOnActionTrigger(stack, animation);
+    }
+  
+    /* ------------------------------------------------------------ revelação -- */
+  
+    /** Quanto o veredito fica na tela antes de trocar de página. */
+    const PAUSA_DA_REVELACAO = 1500;
+  
+    const cartoes = () => [...root.querySelectorAll('[data-resposta]')];
+  
+    /** Acende o cartão que o jogador tocou; `null` apaga todos. */
+    function marcarEscolha(slot) {
+      for (const no of cartoes()) {
+        no.classList.toggle('ff-resposta--escolhida', Number(no.dataset.resposta) === slot);
+      }
+    }
+  
+    /**
+     * Congela a tela, apaga as alternativas descartadas, acende a certa em verde
+     * e — se foi o caso — a errada em vermelho. Devolve quando a pausa acabou.
+     */
+    function revelar({ slotEscolhido, slotCerto }) {
+      root.classList.add('ff-revelando');
+      for (const no of cartoes()) {
+        const slot = Number(no.dataset.resposta);
+        no.classList.remove('ff-resposta--escolhida');
+        if (slot === slotCerto) no.classList.add('ff-resposta--certa');
+        else if (slot === slotEscolhido) no.classList.add('ff-resposta--errada');
+        else no.classList.add('ff-resposta--fria');
+      }
+      // Sem movimento ligado, o veredito ainda precisa ser lido: as cores ficam,
+      // só a espera encurta.
+      return delayed(menosMovimento() ? 700 : PAUSA_DA_REVELACAO);
     }
   
     /* -------------------------------------------------------- support hints -- */
@@ -9298,14 +9557,48 @@
   
     /* ----------------------------------------------------------- the timer -- */
   
+    /**
+     * A reta final.
+     *
+     * `FFAppState.tempoAcabando` existia desde o Dart e ninguém a lia: a tela da
+     * pergunta a ligava aos 15s DE TELA e a tela de fim a zerava. Agora ela é
+     * ligada pelos 15s QUE FALTAM, que é onde a tensão mora, e tem dois ouvintes:
+     * o CSS (relógio vermelho pulsando, moldura do defeito quente) e o tique.
+     */
+    const RETA_FINAL_MS = 15000;
+    const TIQUE_MS = 10000;
+  
+    // A caixa branca do relógio, presa mais abaixo na árvore. Fica `null` até lá;
+    // o relógio só cruza os 15s muito depois da árvore existir.
+    let caixaDoRelogio = null;
+  
+    function olharORelogio(value, deveAtualizar) {
+      if (model.revelando) return;
+  
+      if (!FFAppState.tempoAcabando && value <= RETA_FINAL_MS) {
+        FFAppState.tempoAcabando = true;
+        caixaDoRelogio?.classList.add('ff-cronometro--reta-final');
+        aoEntrarNaRetaFinal?.();
+      }
+  
+      // `deveAtualizar` vem do próprio FlutterFlowTimer e é verdadeiro uma vez por
+      // segundo — é o batimento que o tique quer, e não o quadro.
+      if (!deveAtualizar || value > TIQUE_MS || value <= 0) return;
+      // Sobe meio tom por segundo nos últimos dez: o ouvido percebe a subida sem
+      // precisar contar.
+      const restantes = Math.max(0, Math.ceil(value / 1000));
+      tique({ frequencia: 880 + (10 - restantes) * 26, duracao: 0.07, volume: 0.16 });
+    }
+  
     const timer = FlutterFlowTimer({
       initialTime: 60000,
       controller: model.timerController,
       getDisplayTime: (value) => StopWatchTimer.getDisplayTime(value, { hours: false }),
       updateStateInterval: 1000,
-      onChanged: (value, displayTime) => {
+      onChanged: (value, displayTime, deveAtualizar) => {
         model.timerMilliseconds = value;
         model.timerValue = displayTime;
+        olharORelogio(value, deveAtualizar);
       },
       textAlign: 'justify',
       style: style('headlineSmall', {
@@ -9515,18 +9808,19 @@
           alignment: [1.0, 1.0],
           child: Padding({
             padding: [0.0, 0.0, 52.0, 32.0],
-            child: Container({
+            child: (caixaDoRelogio = Container({
               width: 385.0,
               height: 90.0,
               color: '#FFFFFF',
               boxShadow: boxShadow({ blurRadius: 10.0, color: color(0x5D000000), offset: [-5.0, 5.0], spreadRadius: 1.0 }),
               borderRadius: 8.0,
               child: Padding({ padding: [8.0, 8.0, 8.0, 8.0], child: timer }),
-            }),
+            })),
           }),
         }),
       ],
     });
+    caixaDoRelogio.classList.add('ff-cronometro');
   
     /* --------------------------------------------------------- on page load -- */
     // Background music, then a 1Hz tick that sends the player to Perdeu when the
@@ -9586,15 +9880,19 @@
   // Port of lib/pages/acao/tela_acao/tela_acao_widget.dart
   //
   // The game screen: the fault brief on the left, the scanner panel with the
-  // answers on the right. A background task flips `tempoAcabando` after 15s
-  // (write-only state in the original) and then waits another 15s.
+  // answers on the right.
+  //
+  // A RETA FINAL. O Dart tinha uma tarefa de fundo que ligava `tempoAcabando`
+  // 15s DEPOIS DA TELA ABRIR e ninguém lia a bandeira — era um recurso desenhado
+  // e nunca ligado. Agora quem a liga é o relógio, aos 15s QUE FALTAM (ver
+  // perguntas_erespostas.js), e ela tem ouvintes: a moldura do defeito esquenta
+  // aqui, o relógio pulsa e o tique começa lá.
   
   const { Align, ClipRRect, Column, Container, Flexible, Img, Padding, Row, Stack, Txt, TransformRotate, color, decorationImage, degrees, el, valueOrDefault } = __require("widgets.js");
   const { style } = __require("theme.js");
   const { FFLocalizations, L } = __require("i18n.js");
   const { FFAppState } = __require("state.js");
   const { PerguntasErespostasWidget } = __require("components/perguntas_erespostas.js");
-  const { delayed } = __require("anim.js");
   
   function TelaAcaoWidget() {
     const index = FFAppState.indiceAtual;
@@ -9605,7 +9903,13 @@
       enText: FFAppState.questoesEnglish[index]?.pergunta,
     });
   
-    const panel = PerguntasErespostasWidget();
+    // A moldura branca em volta do enunciado, presa mais abaixo na árvore: é ela
+    // que esquenta quando o relógio entra na reta final.
+    let molduraDoDefeito = null;
+  
+    const panel = PerguntasErespostasWidget({
+      aoEntrarNaRetaFinal: () => molduraDoDefeito?.classList.add('ff-moldura--reta-final'),
+    });
   
     const root = el(
       'div',
@@ -9632,7 +9936,7 @@
                         Padding({
                           padding: [86.0, 86.0, 68.0, 68.0],
                           style: { width: '100%', height: '100%' },
-                          child: Container({
+                          child: molduraDoDefeito = Container({
                             width: Infinity,
                             height: Infinity,
                             color: color(0x10FFFFFF),
@@ -9717,17 +10021,11 @@
       })
     );
   
-    // Future.wait([...]) on page load: flip tempoAcabando at 15s, then idle.
-    let left = false;
-    (async () => {
-      await delayed(15000);
-      if (left) return;
-      FFAppState.tempoAcabando = true;
-      await delayed(15000);
-    })();
+    // A partida começa com o relógio cheio; quem ligar `tempoAcabando` daqui em
+    // diante é o próprio relógio.
+    FFAppState.tempoAcabando = false;
   
     root.__dispose = () => {
-      left = true;
       panel.__dispose?.();
     };
   
@@ -9746,10 +10044,17 @@
   //
   // Both read the top 5 winners and show the first 3, then REINICIAR sends the
   // WhatsApp message, clears the run state and restarts at the transition video.
+  //
+  // E as duas passaram a CONTAR QUAL ERA A RESPOSTA CERTA. O jogo julgava e ia
+  // embora sem dizer — num jogo feito para ensinar técnico a usar scanner, quem
+  // errava saía sem ter aprendido nada, que é o contrário do ponto. Quem acertou
+  // também ganha a confirmação, que é metade do prazer. O que mostrar vem de
+  // `FFAppState.resultado`, escrito na hora do veredito.
   
   const { Align, ClipRRect, Column, Container, Expanded, FutureBuilder, Img, Padding, Row, Stack, StackAlign, Txt, color, decorationImage, divide, el, maybeHandleOverflow, unfocus, valueOrDefault } = __require("widgets.js");
   const { TH, style } = __require("theme.js");
   const { L } = __require("i18n.js");
+  const { T } = __require("textos.js");
   const { CadastroStruct, FFAppState } = __require("state.js");
   const { formatMillisecondsToTime, transformaNumero } = __require("functions.js");
   const { playSound } = __require("audio.js");
@@ -9812,6 +10117,7 @@
       FFAppState.tempoAcabando = false;
       FFAppState.cadastro = new CadastroStruct();
       FFAppState.ajuda = 0;
+      FFAppState.resultado = null;
   
       goNamed('telaVideoTransisao', {
         queryParameters: { tipo: serializeParam(0) },
@@ -9905,6 +10211,75 @@
         animationsMap.textOnPageLoadAnimation
       );
   
+      // O gabarito, contado ao jogador. Entra atrasado de propósito (1,1s): a
+      // manchete chega primeiro, a explicação depois — na ordem em que a pessoa
+      // quer as duas coisas.
+      const resultado = FFAppState.resultado;
+      const gabarito =
+        resultado?.numeroCerto && resultado?.textoCerto
+          ? animateOnPageLoad(
+              Container({
+                // 520 e não mais: o botão REINICIAR começa em x≈615 do palco, e
+                // o canto de baixo à esquerda é o único vazio das duas telas.
+                width: 520.0,
+                color: color(0xB3000E24),
+                borderRadius: 12.0,
+                border: `2px solid ${resultado.acertou ? '#2FBF71' : '#FF5963'}`,
+                child: Padding({
+                  padding: [28.0, 20.0, 28.0, 20.0],
+                  child: Column({
+                    mainAxisSize: 'max',
+                    crossAxisAlignment: 'start',
+                    children: [
+                      Txt(
+                        `${T('respostaCerta')}: ${T('alternativa')} ${resultado.numeroCerto}`,
+                        style('bodyMedium', {
+                          fontFamily: 'pirulen',
+                          color: resultado.acertou ? '#2FBF71' : '#FF9A94',
+                          fontSize: 22.0,
+                          letterSpacing: 2.0,
+                          fontWeight: 400,
+                          textAlign: 'left',
+                        })
+                      ),
+                      Padding({
+                        padding: [0.0, 10.0, 0.0, 0.0],
+                        child: Txt(
+                          resultado.textoCerto,
+                          style('bodyMedium', {
+                            fontFamily: 'Open Sans',
+                            color: '#FFFFFF',
+                            fontSize: 22.0,
+                            fontWeight: 400,
+                            textAlign: 'left',
+                          })
+                        ),
+                      }),
+                      // Só para quem errou: sem isto a pessoa não liga o que
+                      // escolheu ao que era certo.
+                      !resultado.acertou && resultado.textoEscolhido
+                        ? Padding({
+                            padding: [0.0, 14.0, 0.0, 0.0],
+                            child: Txt(
+                              `${T('voceRespondeu')}: ${T('alternativa')} ${resultado.numeroEscolhido}`,
+                              style('bodyMedium', {
+                                fontFamily: 'Open Sans',
+                                color: '#B9C6DA',
+                                fontSize: 18.0,
+                                fontWeight: 400,
+                                textAlign: 'left',
+                              })
+                            ),
+                          })
+                        : null,
+                    ],
+                  }),
+                }),
+              }),
+              slideIn(1100.0, 700.0)
+            )
+          : null;
+  
       const ranking = animateOnPageLoad(
         Container({
           width: spec.rankingWidth,
@@ -9951,6 +10326,10 @@
             child: Padding({ padding: [0.0, 32.0, 0.0, 40.0], child: headline }),
           }),
           StackAlign({ alignment: spec.rankingAlignment, child: ranking }),
+          // Ancorado por baixo (y perto de 1): o cartão cresce com o tamanho da
+          // resposta e a borda de baixo fica onde está, em vez de descer para
+          // fora do palco.
+          gabarito ? StackAlign({ alignment: [-0.897, 0.93], child: gabarito }) : null,
         ],
       });
     };

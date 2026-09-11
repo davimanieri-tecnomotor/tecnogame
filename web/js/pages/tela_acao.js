@@ -1,8 +1,13 @@
 // Port of lib/pages/acao/tela_acao/tela_acao_widget.dart
 //
 // The game screen: the fault brief on the left, the scanner panel with the
-// answers on the right. A background task flips `tempoAcabando` after 15s
-// (write-only state in the original) and then waits another 15s.
+// answers on the right.
+//
+// A RETA FINAL. O Dart tinha uma tarefa de fundo que ligava `tempoAcabando`
+// 15s DEPOIS DA TELA ABRIR e ninguém lia a bandeira — era um recurso desenhado
+// e nunca ligado. Agora quem a liga é o relógio, aos 15s QUE FALTAM (ver
+// perguntas_erespostas.js), e ela tem ouvintes: a moldura do defeito esquenta
+// aqui, o relógio pulsa e o tique começa lá.
 
 import {
   Align,
@@ -26,7 +31,6 @@ import { style } from '../theme.js';
 import { FFLocalizations, L } from '../i18n.js';
 import { FFAppState } from '../state.js';
 import { PerguntasErespostasWidget } from '../components/perguntas_erespostas.js';
-import { delayed } from '../anim.js';
 
 export function TelaAcaoWidget() {
   const index = FFAppState.indiceAtual;
@@ -37,7 +41,13 @@ export function TelaAcaoWidget() {
     enText: FFAppState.questoesEnglish[index]?.pergunta,
   });
 
-  const panel = PerguntasErespostasWidget();
+  // A moldura branca em volta do enunciado, presa mais abaixo na árvore: é ela
+  // que esquenta quando o relógio entra na reta final.
+  let molduraDoDefeito = null;
+
+  const panel = PerguntasErespostasWidget({
+    aoEntrarNaRetaFinal: () => molduraDoDefeito?.classList.add('ff-moldura--reta-final'),
+  });
 
   const root = el(
     'div',
@@ -64,7 +74,7 @@ export function TelaAcaoWidget() {
                       Padding({
                         padding: [86.0, 86.0, 68.0, 68.0],
                         style: { width: '100%', height: '100%' },
-                        child: Container({
+                        child: molduraDoDefeito = Container({
                           width: Infinity,
                           height: Infinity,
                           color: color(0x10FFFFFF),
@@ -149,17 +159,11 @@ export function TelaAcaoWidget() {
     })
   );
 
-  // Future.wait([...]) on page load: flip tempoAcabando at 15s, then idle.
-  let left = false;
-  (async () => {
-    await delayed(15000);
-    if (left) return;
-    FFAppState.tempoAcabando = true;
-    await delayed(15000);
-  })();
+  // A partida começa com o relógio cheio; quem ligar `tempoAcabando` daqui em
+  // diante é o próprio relógio.
+  FFAppState.tempoAcabando = false;
 
   root.__dispose = () => {
-    left = true;
     panel.__dispose?.();
   };
 
