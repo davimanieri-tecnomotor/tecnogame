@@ -50,6 +50,13 @@
        so every hard-coded size from the Dart source lands on the same pixel. -->
   <div id="viewport">
     <div id="stage">
+      <!-- O chão. Todas as dez telas desenham o mesmo BG_Seleo_Equipamento por
+           conta própria, e entre uma e outra o #pages fica vazio por um
+           instante: com transição de verdade (e não corte seco), esse instante
+           aparece como um piscar. Esta camada fica parada por baixo, com a
+           mesma arte no mesmo enquadramento, então o que atravessa é só o
+           conteúdo. -->
+      <div id="fundo" aria-hidden="true"></div>
       <div id="pages"></div>
       <div id="overlays"></div>
     </div>

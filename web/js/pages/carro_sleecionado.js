@@ -131,7 +131,9 @@ export function CarroSleecionadoWidget() {
         __transition_info__: new TransitionInfo({
           hasTransition: true,
           transitionType: PageTransitionType.fade,
-          duration: 0,
+          // Curto porque o conteúdo desta tela já se apagou sozinho antes de
+          // navegar (a animação de saída acima): o que falta é só a entrada.
+          duration: 280,
         }),
       },
     });

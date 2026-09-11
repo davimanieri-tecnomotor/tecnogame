@@ -6888,7 +6888,7 @@
         __transition_info__: new TransitionInfo({
           hasTransition: true,
           transitionType: PageTransitionType.fade,
-          duration: 0,
+          duration: 300,
         }),
       },
     });
@@ -7933,7 +7933,11 @@
             __transition_info__: new TransitionInfo({
               hasTransition: true,
               transitionType: PageTransitionType.fade,
-              duration: 0,
+              // Era 0, que o roteador trata como SEM transição: a roda parava e a
+              // tela trocava de estalo, no momento mais dramático do jogo. Este é
+              // o mais longo dos quatro de propósito — é o único em que a troca
+              // vale como pausa.
+              duration: 420,
             }),
           },
         });
@@ -8201,7 +8205,9 @@
           __transition_info__: new TransitionInfo({
             hasTransition: true,
             transitionType: PageTransitionType.fade,
-            duration: 0,
+            // Curto porque o conteúdo desta tela já se apagou sozinho antes de
+            // navegar (a animação de saída acima): o que falta é só a entrada.
+            duration: 280,
           }),
         },
       });
@@ -9042,7 +9048,7 @@
   const { PopUpWidget } = __require("components/pop_up.js");
   const { goNamed, TransitionInfo, PageTransitionType } = __require("router.js");
   const { addUsuario, createUsuariosRecordData } = __require("backend.js");
-  const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnActionTrigger, animateOnPageLoad, delayed, menosMovimento } = __require("anim.js");
+  const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad, delayed, menosMovimento } = __require("anim.js");
   const { FlutterFlowTimer, FlutterFlowTimerController, InstantTimer, StopWatchMode, StopWatchTimer } = __require("timer.js");
   
   /* ------------------------------------------------------- scanner skinning -- */
@@ -9192,6 +9198,42 @@
       effectsBuilder: () => [
         ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 200.0, begin: [1.0, 1.0], end: [0.9, 0.9] }),
         ScaleEffect({ curve: Curves.easeInOut, delay: 200.0, duration: 200.0, begin: [0.9, 0.9], end: [1.0, 1.0] }),
+      ],
+    });
+  
+  /**
+   * Relevo: um realce no alto e uma sombra embaixo, sobre a cor lisa do cartão.
+   *
+   * Vai pelo `gradient` do Container, e não por CSS: `color` vira a abreviação
+   * `background` no estilo inline, que zera `background-image` — uma regra de
+   * folha não alcançaria. O `Container` escreve `backgroundImage` depois de
+   * `background`, então o gradiente pousa por cima da cor.
+   *
+   * Em rgba porque o painel troca de pele conforme o scanner escolhido: branco e
+   * preto translúcidos funcionam sobre qualquer uma das cores.
+   */
+  const relevo = () =>
+    linearGradient({
+      colors: ['rgba(255, 255, 255, 0.30)', 'rgba(255, 255, 255, 0.04)', 'rgba(0, 0, 0, 0.07)'],
+      stops: [0.0, 0.46, 1.0],
+      begin: [0.0, -1.0],
+      end: [0.0, 1.0],
+    });
+  
+  /** A entrada das quatro alternativas, uma atrás da outra. */
+  const entradaDaResposta = (ordem) =>
+    new AnimationInfo({
+      trigger: AnimationTrigger.onPageLoad,
+      applyInitialState: true,
+      effectsBuilder: () => [
+        FadeEffect({ curve: Curves.easeOut, delay: 260.0 + ordem * 90.0, duration: 320.0, begin: 0.0, end: 1.0 }),
+        MoveEffect({
+          curve: Curves.easeOut,
+          delay: 260.0 + ordem * 90.0,
+          duration: 420.0,
+          begin: [64.0, 0.0],
+          end: [0.0, 0.0],
+        }),
       ],
     });
   
@@ -9368,6 +9410,7 @@
           width: 550.0,
           height: 125.0,
           color: cardColor(scanner()),
+          gradient: relevo(),
           boxShadow: boxShadow({ blurRadius: 10.0, color: color(0x5D000000), offset: [-10.0, 10.0], spreadRadius: 1.0 }),
           borderRadius: 12.0,
           child: Padding({
@@ -9411,6 +9454,9 @@
       });
   
       stack.dataset.resposta = String(slot);
+      // As quatro chegavam de uma vez, prontas. Entrando uma atrás da outra, o
+      // olho as lê na ordem em que vai precisar delas — e é a batida do gênero.
+      animateOnPageLoad(stack, entradaDaResposta(slot));
       return animateOnActionTrigger(stack, animation);
     }
   
@@ -9436,6 +9482,12 @@
       root.classList.add('ff-revelando');
       for (const no of cartoes()) {
         const slot = Number(no.dataset.resposta);
+        // Solta as animações que ainda seguram este cartão — a entrada e o aperto
+        // do toque. As duas têm `fill: both`, e animação preenchida ganha de
+        // regra de folha: sem soltar, o `opacity` que apaga as descartadas
+        // simplesmente não valeria. Cancelar devolve o elemento ao CSS, e o
+        // estado final das duas já era a identidade, então nada salta.
+        for (const animacao of no.getAnimations()) animacao.cancel();
         no.classList.remove('ff-resposta--escolhida');
         if (slot === slotCerto) no.classList.add('ff-resposta--certa');
         else if (slot === slotEscolhido) no.classList.add('ff-resposta--errada');
@@ -9780,6 +9832,7 @@
                                 }),
                                 Container({
                                   color: cardColor(scanner()),
+                                  gradient: relevo(),
                                   boxShadow: boxShadow({
                                     blurRadius: 10.0,
                                     color: color(0x5D000000),
@@ -9812,6 +9865,7 @@
               width: 385.0,
               height: 90.0,
               color: '#FFFFFF',
+              gradient: relevo(),
               boxShadow: boxShadow({ blurRadius: 10.0, color: color(0x5D000000), offset: [-5.0, 5.0], spreadRadius: 1.0 }),
               borderRadius: 8.0,
               child: Padding({ padding: [8.0, 8.0, 8.0, 8.0], child: timer }),
@@ -10125,7 +10179,7 @@
           __transition_info__: new TransitionInfo({
             hasTransition: true,
             transitionType: PageTransitionType.fade,
-            duration: 0,
+            duration: 300,
           }),
         },
       });

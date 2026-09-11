@@ -316,6 +316,18 @@ body {
   pointer-events: auto;
 }
 
+/* O chão do palco: a mesma arte que cada tela desenha, parada por baixo de
+   todas. Existe para a transição entre telas não piscar — o roteador desmonta a
+   página que sai antes de montar a que entra, e sem isto o intervalo mostra o
+   vazio. Fica antes de #pages no DOM, os dois absolutos, então a ordem de
+   pintura já resolve: nada de z-index. */
+#fundo {
+  position: absolute;
+  inset: 0;
+  background: #000B18 url('../assets/images/BG_Seleo_Equipamento.png') center / cover no-repeat;
+  pointer-events: none;
+}
+
 #overlays {
   pointer-events: none;
 }

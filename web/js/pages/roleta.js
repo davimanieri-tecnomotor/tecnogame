@@ -205,7 +205,11 @@ export function RoletaWidget() {
           __transition_info__: new TransitionInfo({
             hasTransition: true,
             transitionType: PageTransitionType.fade,
-            duration: 0,
+            // Era 0, que o roteador trata como SEM transição: a roda parava e a
+            // tela trocava de estalo, no momento mais dramático do jogo. Este é
+            // o mais longo dos quatro de propósito — é o único em que a troca
+            // vale como pausa.
+            duration: 420,
           }),
         },
       });

@@ -43,7 +43,7 @@ const NEXT = () =>
       __transition_info__: new TransitionInfo({
         hasTransition: true,
         transitionType: PageTransitionType.fade,
-        duration: 0,
+        duration: 300,
       }),
     },
   });
