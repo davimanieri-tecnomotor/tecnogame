@@ -15,9 +15,15 @@ import { TelaVideoScannerWidget } from './pages/tela_video_scanner.js';
 import { TelaAcaoWidget } from './pages/tela_acao.js';
 import { GanhouWidget } from './pages/ganhou.js';
 import { PerdeuWidget } from './pages/perdeu.js';
+import { PortaDoAdmWidget } from './admin/porta.js';
 
 // GoRouter's initialLocation is '/', which builds CadastroWidget - as does the
 // errorBuilder, so an unknown path lands on the registration screen too.
+//
+// `/adm` nao vem do Dart: e a administracao, que desde a v2 mora neste mesmo
+// documento (um endereco so, para o GitHub Pages). Ela nao desenha no palco --
+// levanta a propria camada por fora --, entao o builder devolve uma casca
+// vazia. Ver web/js/admin/porta.js.
 const ROUTES = [
   { name: '_initialize', path: '/', builder: CadastroWidget },
   { name: 'roleta', path: '/roleta', builder: RoletaWidget },
@@ -30,6 +36,7 @@ const ROUTES = [
   { name: 'telaVideoScanner', path: '/telaVideoScanner', builder: TelaVideoScannerWidget },
   { name: 'instrucoes', path: '/instrucoes', builder: InstrucoesWidget },
   { name: 'carroSleecionado', path: '/carro', builder: CarroSleecionadoWidget },
+  { name: 'adm', path: '/adm', builder: PortaDoAdmWidget },
 ];
 
 function main() {

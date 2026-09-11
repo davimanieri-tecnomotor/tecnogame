@@ -1,6 +1,20 @@
 /* Área administrativa. Nada aqui imita o Flutter: é uma ferramenta de trabalho
    num navegador de notebook, então layout fluido e alvos de tamanho normal. As
-   cores conversam com a marca do jogo (azul Tecnomotor sobre fundo escuro). */
+   cores conversam com a marca do jogo (azul Tecnomotor sobre fundo escuro).
+
+   Esta folha divide o documento com o css/app.css desde que o admin passou a
+   morar dentro do index.html. As duas só não brigam porque tudo aqui está preso
+   em `.adm`:
+
+     - nenhuma classe tem o mesmo nome nos dois lados (as do jogo são `ff-*` e
+       `roleta-*`), então as regras de classe já estavam separadas;
+     - o que precisava de trava era o resto: `* { box-sizing }` saiu porque o
+       app.css já tem o mesmo; `html, body` virou o próprio `.adm`; e os
+       seletores de elemento (h1..h3, code) ganharam o prefixo.
+
+   Variáveis ficam em `:root`: os nomes daqui (--azul, --fundo, --texto...) não
+   existem no app.css, e assim a caixa de senha, que é desenhada na camada do
+   jogo, pinta com as mesmas cores do painel. */
 
 :root {
   --azul: #0053B6;
@@ -16,29 +30,28 @@
   --erro: #ef5350;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-html,
-body {
-  margin: 0;
+/* A raiz da camada. O jogo prende a rolagem no `html, body` (totem não rola sob
+   o dedo); com o admin aberto o `data-modo="adm"` solta isso no app.css, e é
+   este bloco que passa a mandar no tamanho e na tipografia. */
+.adm {
   min-height: 100%;
   background: var(--fundo);
   color: var(--texto);
   font: 15px/1.5 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
-h1, h2, h3 {
+.adm h1,
+.adm h2,
+.adm h3 {
   margin: 0;
   font-family: 'Inter Tight', 'Inter', sans-serif;
   font-weight: 600;
 }
 
-h2 { font-size: 1.05rem; }
-h3 { font-size: 0.95rem; letter-spacing: 0.02em; text-transform: uppercase; color: var(--texto-2); }
+.adm h2 { font-size: 1.05rem; }
+.adm h3 { font-size: 0.95rem; letter-spacing: 0.02em; text-transform: uppercase; color: var(--texto-2); }
 
-code {
+.adm code {
   font-family: 'Roboto Mono', ui-monospace, monospace;
   font-size: 0.9em;
   background: #00000055;
@@ -50,23 +63,6 @@ code {
   margin: 0 0 12px;
   font-size: 0.85rem;
   color: var(--texto-2);
-}
-
-.sem-js {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 6vw;
-  text-align: center;
-  background: var(--fundo);
-  color: var(--texto);
-}
-
-.sem-js strong {
-  display: block;
-  margin-bottom: 10px;
-  font-size: 1.3em;
 }
 
 /* ----------------------------------------------------------------- barra -- */
@@ -514,6 +510,16 @@ code {
 
 /* ---------------------------------------------------------------- avisos -- */
 
+/* Os avisos e o diálogo são pendurados no `document.body`, e não dentro de
+   `.adm`: são `position: fixed` e precisam escapar de qualquer rolagem do
+   painel. Fora do `.adm` eles não herdam a tipografia dele, então repetem-na
+   aqui — sem isso saem com a fonte do jogo, que é de totem. */
+.avisos,
+.modal-fundo {
+  font: 15px/1.5 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--texto);
+}
+
 .avisos {
   position: fixed;
   right: 16px;
@@ -572,6 +578,14 @@ code {
   display: grid;
   gap: 12px;
   box-shadow: 0 20px 60px #000c;
+}
+
+/* Repetido porque o diálogo mora fora do `.adm` (ver a nota em `.avisos`). */
+.modal h2 {
+  margin: 0;
+  font-family: 'Inter Tight', 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 1.05rem;
 }
 
 .modal p {

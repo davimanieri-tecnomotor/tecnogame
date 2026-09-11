@@ -39,11 +39,11 @@ jobs:
           npm run gen
           git diff --exit-code -- web/js/questions.js web/js/translations.js web/js/offensive_words.js
 
-      # Mesma checagem para os dois bundles: regerar não pode mudar nada.
-      - name: Bundles estão em sincronia
+      # Mesma checagem para o bundle: regerar não pode mudar nada.
+      - name: Bundle está em sincronia
         run: |
           npm run bundle
-          git diff --exit-code -- web/js/bundle.js web/js/admin/bundle.js
+          git diff --exit-code -- web/js/bundle.js
 
       # A suíte inteira, nos dois transportes, subindo o servidor por conta.
       #

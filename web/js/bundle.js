@@ -5014,6 +5014,1286 @@
   Object.defineProperty(__exports, "RankingWidget", { get: () => RankingWidget, enumerable: true });
   });
 
+  /* ===== admin/ui.js ===== */
+  __define("admin/ui.js", function (__exports, __require) {
+  // Helpers de DOM da área administrativa.
+  //
+  // Aqui NÃO se imita widget do Flutter. O jogo vive num palco de 1920x1080
+  // escalado, com medidas absolutas, porque é um totem; o admin é usado por um
+  // funcionário num notebook, então é HTML e CSS normais, responsivos.
+  
+  function el(tag, props = {}, children = []) {
+    const node = document.createElement(tag);
+    for (const [k, v] of Object.entries(props)) {
+      if (v == null || v === false) continue;
+      if (k === 'class') node.className = Array.isArray(v) ? v.filter(Boolean).join(' ') : v;
+      else if (k === 'text') node.textContent = v;
+      else if (k === 'style') Object.assign(node.style, v);
+      else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2).toLowerCase(), v);
+      else if (v === true) node.setAttribute(k, '');
+      else node.setAttribute(k, String(v));
+    }
+    for (const c of [children].flat(4)) {
+      if (c == null || c === false) continue;
+      node.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
+    }
+    return node;
+  }
+  
+  const limpar = (node) => {
+    while (node.firstChild) node.removeChild(node.firstChild);
+    return node;
+  };
+  
+  /* ------------------------------------------------------------- controles -- */
+  
+  function campo({ rotulo, valor = '', multilinha = false, onInput, dica, obrigatorio = false, id }) {
+    const entrada = multilinha
+      ? el('textarea', { rows: 3, id, class: 'campo-entrada' })
+      : el('input', { type: 'text', id, class: 'campo-entrada' });
+    entrada.value = valor ?? '';
+    if (onInput) entrada.addEventListener('input', () => onInput(entrada.value, entrada));
+  
+    const erro = el('span', { class: 'campo-erro', role: 'alert' });
+    erro.hidden = true;
+  
+    const raiz = el('label', { class: ['campo', obrigatorio ? 'campo-obrigatorio' : null] }, [
+      el('span', { class: 'campo-rotulo', text: rotulo }),
+      entrada,
+      dica ? el('span', { class: 'campo-dica', text: dica }) : null,
+      erro,
+    ]);
+    raiz.entrada = entrada;
+    raiz.marcarErro = (msg) => {
+      erro.textContent = msg ?? '';
+      erro.hidden = !msg;
+      raiz.classList.toggle('tem-erro', Boolean(msg));
+    };
+    return raiz;
+  }
+  
+  function botao(texto, { onClick, tipo = 'normal', titulo, icone } = {}) {
+    return el(
+      'button',
+      { type: 'button', class: `botao botao-${tipo}`, onClick, title: titulo, 'aria-label': titulo },
+      [icone ? el('span', { class: 'botao-icone', 'aria-hidden': 'true', text: icone }) : null, el('span', { text: texto })]
+    );
+  }
+  
+  function selecao({ rotulo, opcoes, valor, onChange, id }) {
+    const sel = el('select', { class: 'campo-entrada', id });
+    for (const o of opcoes) {
+      const opt = el('option', { value: o.valor, text: o.rotulo });
+      if (String(o.valor) === String(valor)) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    if (onChange) sel.addEventListener('change', () => onChange(sel.value));
+    const raiz = el('label', { class: 'campo' }, [el('span', { class: 'campo-rotulo', text: rotulo }), sel]);
+    raiz.entrada = sel;
+    return raiz;
+  }
+  
+  function caixaDeMarcar({ rotulo, marcado, onChange }) {
+    const input = el('input', { type: 'checkbox' });
+    input.checked = Boolean(marcado);
+    if (onChange) input.addEventListener('change', () => onChange(input.checked));
+    const raiz = el('label', { class: 'marcar' }, [input, el('span', { text: rotulo })]);
+    raiz.entrada = input;
+    return raiz;
+  }
+  
+  /* ------------------------------------------------------------------ aviso -- */
+  
+  let pilhaDeAvisos = null;
+  
+  function aviso(texto, tipo = 'ok') {
+    if (!pilhaDeAvisos) {
+      pilhaDeAvisos = el('div', { class: 'avisos', role: 'status', 'aria-live': 'polite' });
+      document.body.appendChild(pilhaDeAvisos);
+    }
+    const node = el('div', { class: `aviso aviso-${tipo}`, text: texto });
+    pilhaDeAvisos.appendChild(node);
+    setTimeout(() => {
+      node.classList.add('saindo');
+      setTimeout(() => node.remove(), 300);
+    }, tipo === 'erro' ? 6000 : 3000);
+  }
+  
+  /* ---------------------------------------------------------------- diálogo -- */
+  
+  /**
+   * Diálogo modal. Resolve com `true` no confirmar e `false` no cancelar, então
+   * quem chama faz `if (await confirmar(...))`.
+   */
+  function confirmar({ titulo, texto, confirmarTexto = 'Confirmar', perigoso = false }) {
+    return new Promise((resolve) => {
+      const fechar = (r) => {
+        fundo.remove();
+        document.removeEventListener('keydown', onTecla);
+        resolve(r);
+      };
+      const onTecla = (e) => {
+        if (e.key === 'Escape') fechar(false);
+      };
+  
+      const botaoOk = botao(confirmarTexto, { tipo: perigoso ? 'perigo' : 'primario', onClick: () => fechar(true) });
+      const caixa = el('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': titulo }, [
+        el('h2', { text: titulo }),
+        el('p', { text: texto }),
+        el('div', { class: 'modal-acoes' }, [
+          botao('Cancelar', { onClick: () => fechar(false) }),
+          botaoOk,
+        ]),
+      ]);
+      const fundo = el('div', { class: 'modal-fundo', onClick: (e) => e.target === fundo && fechar(false) }, caixa);
+      document.body.appendChild(fundo);
+      document.addEventListener('keydown', onTecla);
+      botaoOk.focus();
+    });
+  }
+  
+  /** Faz o navegador salvar um arquivo, sem servidor. */
+  function baixarArquivo(nome, conteudo, tipo = 'application/json') {
+    const blob = new Blob([conteudo], { type: `${tipo};charset=utf-8` });
+    const url = URL.createObjectURL(blob);
+    const a = el('a', { href: url, download: nome });
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  
+  /** Lê um arquivo escolhido pelo usuário como texto. */
+  function escolherArquivo({ accept = '.json' } = {}) {
+    return new Promise((resolve) => {
+      const input = el('input', { type: 'file', accept, style: { display: 'none' } });
+      input.addEventListener('change', () => {
+        const f = input.files?.[0];
+        if (!f) return resolve(null);
+        const leitor = new FileReader();
+        leitor.onload = () => resolve({ nome: f.name, texto: String(leitor.result) });
+        leitor.onerror = () => resolve(null);
+        leitor.readAsText(f, 'utf-8');
+        input.remove();
+      });
+      document.body.appendChild(input);
+      input.click();
+    });
+  }
+  
+  /* ------------------------------------------------------- imagem embutida -- */
+  
+  /** O maior lado que uma imagem enviada do computador pode ter, em px. */
+  const MAX_LADO = 1280;
+  
+  /**
+   * Le uma imagem escolhida pelo operador e devolve uma versao pronta para
+   * caber no baralho.
+   *
+   * Por que reduzir: o baralho vive no localStorage, que tem alguns megabytes no
+   * total. Uma foto de celular de 4000px passa de 4 MB e sozinha estoura a cota,
+   * levando embora tambem as perguntas. Reduzida para 1280px de maior lado, uma
+   * foto de veiculo fica na casa das centenas de KB.
+   *
+   * Prefere WebP porque as fotos originais do jogo sao recortes com fundo
+   * transparente, e JPEG nao tem canal alfa -- sairia uma caixa branca em cima
+   * da fatia da roleta. Se o navegador nao souber gravar WebP, cai para PNG.
+   *
+   * Guarda o original quando ele ja e menor que o reprocessado, para nao inflar
+   * um PNG pequeno de proposito.
+   *
+   * @param {File} arquivo
+   * @returns {Promise<{dataUrl: string, largura: number, altura: number, kb: number, reduziu: boolean}>}
+   */
+  async function reduzirImagem(arquivo, { maxLado = MAX_LADO, qualidade = 0.85 } = {}) {
+    const original = await new Promise((ok, falhou) => {
+      const r = new FileReader();
+      r.onload = () => ok(String(r.result));
+      r.onerror = () => falhou(new Error('não foi possível ler o arquivo'));
+      r.readAsDataURL(arquivo);
+    });
+  
+    const img = await new Promise((ok, falhou) => {
+      const i = new Image();
+      i.onload = () => ok(i);
+      i.onerror = () => falhou(new Error('o arquivo não é uma imagem que o navegador saiba abrir'));
+      i.src = original;
+    });
+  
+    const escala = Math.min(1, maxLado / Math.max(img.naturalWidth, img.naturalHeight));
+    const largura = Math.max(1, Math.round(img.naturalWidth * escala));
+    const altura = Math.max(1, Math.round(img.naturalHeight * escala));
+  
+    const tela = el('canvas', { width: largura, height: altura });
+    const ctx = tela.getContext('2d');
+    ctx.drawImage(img, 0, 0, largura, altura);
+  
+    let reprocessada = tela.toDataURL('image/webp', qualidade);
+    if (!reprocessada.startsWith('data:image/webp')) reprocessada = tela.toDataURL('image/png');
+  
+    const usarOriginal = original.length <= reprocessada.length;
+    const dataUrl = usarOriginal ? original : reprocessada;
+  
+    return {
+      dataUrl,
+      largura: usarOriginal ? img.naturalWidth : largura,
+      altura: usarOriginal ? img.naturalHeight : altura,
+      kb: Math.round(dataUrl.length / 1024),
+      reduziu: !usarOriginal && escala < 1,
+    };
+  }
+  
+  /**
+   * Um seletor de imagem visivel de verdade (nao um input escondido atras de um
+   * clique sintetico), para dar para alcancar por teclado e para os testes
+   * conseguirem entregar um arquivo a ele.
+   *
+   * @param {object} props
+   * @param {Function} props.onEscolha recebe (resultado, arquivo); resultado e
+   *   null quando a leitura falhou, e o terceiro argumento traz o erro
+   */
+  function entradaDeImagem({ rotulo, dica, onEscolha }) {
+    const entrada = el('input', { type: 'file', accept: 'image/*', class: 'campo-arquivo' });
+    const estado = el('span', { class: 'campo-dica campo-arquivo-estado', role: 'status' });
+  
+    entrada.addEventListener('change', async () => {
+      const arquivo = entrada.files?.[0];
+      if (!arquivo) return;
+      estado.textContent = 'processando…';
+      try {
+        const r = await reduzirImagem(arquivo);
+        estado.textContent = r.reduziu
+          ? `${arquivo.name} — reduzida para ${r.largura}x${r.altura}, cerca de ${r.kb} KB`
+          : `${arquivo.name} — cerca de ${r.kb} KB`;
+        onEscolha(r, arquivo);
+      } catch (e) {
+        estado.textContent = e?.message ?? 'não foi possível usar este arquivo';
+        onEscolha(null, arquivo, e);
+      } finally {
+        // Zerar deixa escolher o MESMO arquivo de novo depois de um erro.
+        entrada.value = '';
+      }
+    });
+  
+    const raiz = el('label', { class: 'campo campo-arquivo-campo' }, [
+      el('span', { class: 'campo-rotulo', text: rotulo }),
+      entrada,
+      dica ? el('span', { class: 'campo-dica', text: dica }) : null,
+      estado,
+    ]);
+    raiz.entrada = entrada;
+    return raiz;
+  }
+  Object.defineProperty(__exports, "el", { get: () => el, enumerable: true });
+  Object.defineProperty(__exports, "limpar", { get: () => limpar, enumerable: true });
+  Object.defineProperty(__exports, "campo", { get: () => campo, enumerable: true });
+  Object.defineProperty(__exports, "botao", { get: () => botao, enumerable: true });
+  Object.defineProperty(__exports, "selecao", { get: () => selecao, enumerable: true });
+  Object.defineProperty(__exports, "caixaDeMarcar", { get: () => caixaDeMarcar, enumerable: true });
+  Object.defineProperty(__exports, "aviso", { get: () => aviso, enumerable: true });
+  Object.defineProperty(__exports, "confirmar", { get: () => confirmar, enumerable: true });
+  Object.defineProperty(__exports, "baixarArquivo", { get: () => baixarArquivo, enumerable: true });
+  Object.defineProperty(__exports, "escolherArquivo", { get: () => escolherArquivo, enumerable: true });
+  Object.defineProperty(__exports, "reduzirImagem", { get: () => reduzirImagem, enumerable: true });
+  Object.defineProperty(__exports, "entradaDeImagem", { get: () => entradaDeImagem, enumerable: true });
+  });
+
+  /* ===== admin/editor.js ===== */
+  __define("admin/editor.js", function (__exports, __require) {
+  // O editor de uma rodada: o veículo, os equipamentos que a resolvem, o gabarito
+  // e os doze campos de texto em cada um dos três idiomas.
+  
+  const { el, campo, selecao, caixaDeMarcar, limpar, botao, entradaDeImagem } = __require("admin/ui.js");
+  const { CAMPOS_QUESTAO, CAMPOS_OBRIGATORIOS, IDIOMAS, SCANNERS, VEICULOS_ORIGINAIS } = __require("deck.js");
+  
+  const NOME_IDIOMA = { pt: 'Português', en: 'English', es: 'Español' };
+  
+  /** Rótulo e ajuda de cada campo, para o operador não precisar adivinhar. */
+  const ROTULOS = {
+    pergunta: ['Enunciado', 'O defeito que aparece na tela grande, à esquerda'],
+    respostaUm: ['Alternativa 1', null],
+    respostaDois: ['Alternativa 2', null],
+    respostaTres: ['Alternativa 3', null],
+    respostaQuatro: ['Alternativa 4', null],
+    ajudaApoio: ['Dica — Apoio Técnico', null],
+    ajudaTreinamentoEad: ['Dica — Cursos EAD', null],
+    ajudaTecnomotorTv: ['Dica — TecnomotorTV', null],
+    ajudaComunidade: ['Dica — Comunidade', null],
+    ajudaRepresentanteComercial: ['Dica — Representante comercial', null],
+    relatoPreliminar: ['Relato preliminar', 'Não aparece no jogo — o original guardava e nunca exibia'],
+    maisInformacoes: ['Mais informações', 'Não aparece no jogo — o original guardava e nunca exibia'],
+  };
+  
+  /** As alternativas na ordem em que o gabarito as numera. */
+  const CAMPO_DA_ALTERNATIVA = ['respostaUm', 'respostaDois', 'respostaTres', 'respostaQuatro'];
+  
+  /**
+   * @param {object} props
+   * @param {object} props.slot a rodada, mutada no lugar
+   * @param {number} props.indice posição no baralho (é a fatia da roleta)
+   * @param {Function} props.onChange chamado a cada edição, para revalidar
+   */
+  function editorDeSlot({ slot, indice, onChange }) {
+    const mudou = () => onChange?.();
+  
+    /* ------------------------------------------------------------- veículo -- */
+  
+    /** Uma imagem enviada do computador vive dentro do baralho, como data URL. */
+    const embutida = (src) => typeof src === 'string' && src.startsWith('data:');
+  
+    const previaFoto = el('img', { class: 'previa-foto', alt: '' });
+    const semFoto = el('div', { class: 'previa-vazia', text: 'sem imagem' });
+    const resumoEmbutida = el('span', { class: 'embutida-texto' });
+    const blocoEmbutida = el('div', { class: 'embutida' }, [
+      resumoEmbutida,
+      botao('Trocar por um caminho de arquivo', {
+        onClick: () => {
+          slot.veiculo.imagem = '';
+          campoImagem.entrada.value = '';
+          atualizarPrevia();
+          mudou();
+        },
+      }),
+    ]);
+  
+    const atualizarPrevia = () => {
+      // admin.html fica em web/, ao lado de assets/ — o caminho e relativo direto.
+      // Com `../` funcionava por acidente no HTTP (nao se sobe acima da raiz) e
+      // quebrava por file://, onde `../` sai mesmo da pasta.
+      const src = slot.veiculo.imagem;
+      previaFoto.src = src || '';
+      previaFoto.hidden = !src;
+      semFoto.hidden = Boolean(src);
+  
+      // Um data URL tem centenas de milhares de caracteres: dentro de um campo de
+      // texto ele e inutil e ainda dispara `input` a cada tecla. Some o campo e
+      // mostra o tamanho, com a saida para voltar ao modo caminho.
+      const dentro = embutida(src);
+      campoImagem.hidden = dentro;
+      blocoEmbutida.hidden = !dentro;
+      if (dentro) {
+        resumoEmbutida.textContent = `Imagem enviada do computador — cerca de ${Math.round(src.length / 1024)} KB, guardada dentro do baralho`;
+      }
+    };
+  
+    const campoNome = campo({
+      rotulo: 'Nome do veículo',
+      valor: slot.veiculo.nome,
+      obrigatorio: true,
+      dica: 'É o texto grande da tela "carro sorteado"',
+      onInput: (v) => {
+        slot.veiculo.nome = v;
+        mudou();
+      },
+    });
+  
+    const campoImagem = campo({
+      rotulo: 'Imagem',
+      valor: slot.veiculo.imagem,
+      obrigatorio: true,
+      dica: 'Caminho dentro de web/, por exemplo assets/images/BMW.png',
+      onInput: (v) => {
+        slot.veiculo.imagem = v.trim();
+        atualizarPrevia();
+        mudou();
+      },
+    });
+  
+    // Atalho para as dez fotos que já vêm no projeto, para o caso comum de
+    // reaproveitar um veículo existente sem digitar caminho.
+    const atalhoImagem = selecao({
+      rotulo: 'Usar uma imagem que já existe',
+      valor: '',
+      opcoes: [
+        { valor: '', rotulo: '— escolher —' },
+        ...VEICULOS_ORIGINAIS.map((v) => ({ valor: v.imagem, rotulo: v.nome })),
+      ],
+      onChange: (v) => {
+        if (!v) return;
+        const original = VEICULOS_ORIGINAIS.find((x) => x.imagem === v);
+        slot.veiculo.imagem = v;
+        if (original) {
+          slot.veiculo.largura = original.largura;
+          slot.veiculo.altura = original.altura;
+          slot.veiculo.fit = original.fit;
+          if (!slot.veiculo.nome.trim()) {
+            slot.veiculo.nome = original.nome;
+            campoNome.entrada.value = original.nome;
+          }
+        }
+        campoImagem.entrada.value = v;
+        atualizarPrevia();
+        mudou();
+      },
+    });
+  
+    const envio = entradaDeImagem({
+      rotulo: 'Ou enviar uma imagem do computador',
+      dica: 'Fica guardada dentro do baralho, então funciona no totem sem copiar arquivo nenhum. Reduzida para no máximo 1280px.',
+      onEscolha: (r, arquivo) => {
+        if (!r) return;
+        slot.veiculo.imagem = r.dataUrl;
+        // O aspecto de uma foto qualquer não é o das fotos originais, então
+        // `contain` para ela caber inteira em vez de sair recortada.
+        slot.veiculo.fit = 'contain';
+        campoFit.entrada.value = 'contain';
+        if (!slot.veiculo.nome.trim()) {
+          // Sem extensão e com os separadores virando espaço: "bmw_320i.png"
+          // chega como "bmw 320i", que é um chute melhor que vazio.
+          const chute = (arquivo?.name ?? '').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+          if (chute) {
+            slot.veiculo.nome = chute;
+            campoNome.entrada.value = chute;
+          }
+        }
+        atualizarPrevia();
+        mudou();
+      },
+    });
+  
+    const campoLargura = campo({
+      rotulo: 'Largura (px)',
+      valor: String(slot.veiculo.largura ?? 1235),
+      onInput: (v) => {
+        slot.veiculo.largura = Number(v) || 0;
+        mudou();
+      },
+    });
+    const campoAltura = campo({
+      rotulo: 'Altura (px)',
+      valor: String(slot.veiculo.altura ?? 674),
+      onInput: (v) => {
+        slot.veiculo.altura = Number(v) || 0;
+        mudou();
+      },
+    });
+    const campoFit = selecao({
+      rotulo: 'Encaixe',
+      valor: slot.veiculo.fit ?? 'cover',
+      opcoes: [
+        { valor: 'cover', rotulo: 'cover — preenche e recorta' },
+        { valor: 'contain', rotulo: 'contain — cabe inteira' },
+      ],
+      onChange: (v) => {
+        slot.veiculo.fit = v;
+        mudou();
+      },
+    });
+  
+    atualizarPrevia();
+  
+    const blocoVeiculo = el('section', { class: 'bloco' }, [
+      el('h3', { text: 'Veículo' }),
+      el('div', { class: 'veiculo-grade' }, [
+        el('div', { class: 'previa' }, [previaFoto, semFoto]),
+        el('div', { class: 'veiculo-campos' }, [
+          campoNome,
+          atalhoImagem,
+          campoImagem,
+          blocoEmbutida,
+          envio,
+          el('div', { class: 'linha-tres' }, [campoLargura, campoAltura, campoFit]),
+        ]),
+      ]),
+    ]);
+  
+    /* -------------------------------------------------- gabarito e scanners -- */
+  
+    const opcoesGabarito = () =>
+      CAMPO_DA_ALTERNATIVA.map((c, i) => {
+        const texto = (slot.pt?.[c] ?? '').trim();
+        const resumo = texto ? `: ${texto.slice(0, 46)}${texto.length > 46 ? '…' : ''}` : ' (vazia)';
+        return { valor: String(i + 1), rotulo: `Alternativa ${i + 1}${resumo}` };
+      });
+  
+    const campoGabarito = selecao({
+      rotulo: 'Resposta correta',
+      valor: String(slot.gabarito),
+      opcoes: opcoesGabarito(),
+      onChange: (v) => {
+        slot.gabarito = v;
+        mudou();
+      },
+    });
+  
+    const blocoRegras = el('section', { class: 'bloco' }, [
+      el('h3', { text: 'Regras da rodada' }),
+      campoGabarito,
+      el('div', { class: 'campo' }, [
+        el('span', { class: 'campo-rotulo', text: 'Equipamentos que resolvem esta rodada' }),
+        el('span', {
+          class: 'campo-dica',
+          text: 'Os não marcados abrem "equipamento inválido" quando o jogador escolhe. Ao menos um precisa estar marcado.',
+        }),
+        el(
+          'div',
+          { class: 'marcar-grupo' },
+          SCANNERS.map((s) =>
+            caixaDeMarcar({
+              rotulo: s.rotulo,
+              marcado: slot.scanners[s.chave],
+              onChange: (v) => {
+                slot.scanners[s.chave] = v;
+                mudou();
+              },
+            })
+          )
+        ),
+      ]),
+    ]);
+  
+    /* --------------------------------------------------------------- textos -- */
+  
+    let idiomaAtivo = 'pt';
+    const painelTextos = el('div', { class: 'textos' });
+    const camposPorIdioma = {};
+  
+    const desenharTextos = () => {
+      limpar(painelTextos);
+      const lang = idiomaAtivo;
+      camposPorIdioma[lang] = {};
+      for (const nome of CAMPOS_QUESTAO) {
+        const [rotulo, dica] = ROTULOS[nome] ?? [nome, null];
+        const obrigatorio = CAMPOS_OBRIGATORIOS.includes(nome);
+        const c = campo({
+          rotulo,
+          dica,
+          obrigatorio,
+          multilinha: nome === 'pergunta' || nome.startsWith('ajuda') || nome === 'maisInformacoes',
+          valor: slot[lang][nome],
+          onInput: (v) => {
+            slot[lang][nome] = v;
+            // O rótulo do gabarito mostra o começo de cada alternativa em pt.
+            if (lang === 'pt' && CAMPO_DA_ALTERNATIVA.includes(nome)) {
+              const atual = campoGabarito.entrada.value;
+              limpar(campoGabarito.entrada);
+              for (const o of opcoesGabarito()) {
+                const opt = el('option', { value: o.valor, text: o.rotulo });
+                if (o.valor === atual) opt.selected = true;
+                campoGabarito.entrada.appendChild(opt);
+              }
+            }
+            mudou();
+          },
+        });
+        camposPorIdioma[lang][nome] = c;
+        painelTextos.appendChild(c);
+      }
+    };
+  
+    const abas = el(
+      'div',
+      { class: 'abas-idioma', role: 'tablist' },
+      IDIOMAS.map((lang) =>
+        el('button', {
+          type: 'button',
+          role: 'tab',
+          class: ['aba-idioma', lang === idiomaAtivo ? 'ativa' : null],
+          text: NOME_IDIOMA[lang],
+          'aria-selected': lang === idiomaAtivo ? 'true' : 'false',
+          onClick: (e) => {
+            idiomaAtivo = lang;
+            for (const b of abas.children) {
+              const ativa = b === e.currentTarget;
+              b.classList.toggle('ativa', ativa);
+              b.setAttribute('aria-selected', ativa ? 'true' : 'false');
+            }
+            desenharTextos();
+            marcarErros(ultimosErros);
+          },
+        })
+      )
+    );
+  
+    desenharTextos();
+  
+    const blocoTextos = el('section', { class: 'bloco' }, [
+      el('h3', { text: 'Textos' }),
+      el('p', { class: 'nota', text: 'Os três idiomas são independentes: o jogo não tem retorno para o português se um campo ficar vazio — a tela aparece em branco.' }),
+      abas,
+      painelTextos,
+    ]);
+  
+    /* ---------------------------------------------------------- marcar erros -- */
+  
+    let ultimosErros = [];
+  
+    /**
+     * Recebe as mensagens de validarBaralho() desta rodada e acende o campo
+     * correspondente, para o operador não ter de caçar na lista.
+     */
+    function marcarErros(mensagens) {
+      ultimosErros = mensagens ?? [];
+      for (const c of Object.values(camposPorIdioma[idiomaAtivo] ?? {})) c.marcarErro(null);
+      campoNome.marcarErro(null);
+      campoImagem.marcarErro(null);
+  
+      for (const m of ultimosErros) {
+        if (/sem nome/.test(m)) campoNome.marcarErro('Obrigatório');
+        if (/sem imagem/.test(m)) campoImagem.marcarErro('Obrigatório');
+        const vazio = m.match(/(\w+) vazio em (PT|EN|ES)/);
+        if (vazio) {
+          const [, nome, lang] = vazio;
+          if (lang.toLowerCase() === idiomaAtivo) {
+            camposPorIdioma[idiomaAtivo]?.[nome]?.marcarErro('Obrigatório neste idioma');
+          }
+        }
+      }
+    }
+  
+    const raiz = el('div', { class: 'editor' }, [
+      el('div', { class: 'editor-cabecalho' }, [
+        el('h2', { text: `Rodada ${indice + 1}` }),
+        el('span', { class: 'selo-fatia', text: `fatia ${indice + 1} da roleta` }),
+      ]),
+      blocoVeiculo,
+      blocoRegras,
+      blocoTextos,
+    ]);
+    raiz.marcarErros = marcarErros;
+    return raiz;
+  }
+  Object.defineProperty(__exports, "editorDeSlot", { get: () => editorDeSlot, enumerable: true });
+  });
+
+  /* ===== admin/painel.js ===== */
+  __define("admin/painel.js", function (__exports, __require) {
+  // Área administrativa do TecGame: ver, adicionar, editar e remover as rodadas
+  // (pergunta + veículo + equipamentos) que o totem sorteia.
+  //
+  // Vive DENTRO do index.html, numa camada própria por cima do jogo, e não numa
+  // rota do palco: o jogo é um palco de 1920x1080 escalado com medidas absolutas
+  // de totem, e o admin é HTML responsivo comum, usado num notebook. Por isso não
+  // é um widget — é uma raiz separada que `montarAdmin` preenche e
+  // `desmontarAdmin` esvazia. Quem abre e fecha essa camada é o `porta.js`.
+  //
+  // Até a v1 isto era um `admin.html` separado, e esse arquivo a mais era a
+  // proteção de verdade: para o admin não existir no totem, bastava não copiá-lo
+  // para lá. Uma página só, servida pelo GitHub Pages, abre mão disso — a senha
+  // da porta viaja no mesmo JavaScript que o jogador recebe, e quem abrir o
+  // código a lê. Ver a nota em `porta.js`: é tranca de gaveta, não cofre.
+  //
+  // Editar aqui não mexe no totem até você clicar em Publicar. Publicar grava o
+  // baralho, e o jogo o relê quando a próxima partida começa.
+  
+  const { el, botao, aviso, confirmar, limpar, baixarArquivo, escolherArquivo } = __require("admin/ui.js");
+  const { editorDeSlot } = __require("admin/editor.js");
+  const { BARALHO_ORIGINAL, SLOTS_ORIGINAIS, carregarBaralho, publicarBaralho, restaurarOriginal, slotVazio, temBaralhoPublicado, usaArteOriginal, validarBaralho } = __require("deck.js");
+  const { motivoDaFalha } = __require("storage.js");
+  
+  /* -------------------------------------------------------------- o estado -- */
+  
+  /** Uma cópia funda: nada do que se edita aqui vaza para o jogo sem publicar. */
+  const clonar = (x) => JSON.parse(JSON.stringify(x));
+  
+  // `baralho` nasce vazio e só é lido em `montarAdmin`. Este módulo entra no
+  // bundle do jogo (uma página só), e ler o armazenamento na hora do import
+  // faria todo jogador pagar por uma tela que ele nunca vai abrir.
+  const estado = {
+    baralho: null,
+    selecionado: 0,
+    sujo: false,
+  };
+  
+  /** A raiz que `montarAdmin` recebe. Fora da camada aberta, é null. */
+  let app = null;
+  
+  /* -------------------------------------------------------------- validação -- */
+  
+  /** Agrupa as mensagens de validarBaralho por rodada, que é como a UI mostra. */
+  function errosPorRodada(deck) {
+    const todos = validarBaralho(deck);
+    const porRodada = new Map();
+    const gerais = [];
+    for (const m of todos) {
+      const n = m.match(/^rodada (\d+): (.*)$/);
+      if (n) {
+        const i = Number(n[1]) - 1;
+        if (!porRodada.has(i)) porRodada.set(i, []);
+        porRodada.get(i).push(n[2]);
+      } else {
+        gerais.push(m);
+      }
+    }
+    return { total: todos.length, porRodada, gerais };
+  }
+  
+  /* ------------------------------------------------------------------ ações -- */
+  
+  async function publicar() {
+    const { total, gerais, porRodada } = errosPorRodada(estado.baralho);
+    if (total > 0) {
+      const primeira = [...porRodada.keys()].sort((a, b) => a - b)[0];
+      aviso(`${total} problema(s) impedem publicar. ${gerais[0] ?? ''}`.trim(), 'erro');
+      if (primeira != null) {
+        estado.selecionado = primeira;
+        desenhar();
+      }
+      return;
+    }
+  
+    const mudouArte = !usaArteOriginal(estado.baralho);
+    const texto = mudouArte
+      ? 'O baralho não usa mais os dez veículos originais, então a roleta será desenhada pelo jogo em vez de usar a arte pronta. A próxima partida no totem já usa este conteúdo.'
+      : 'A próxima partida no totem já usa este conteúdo.';
+    if (!(await confirmar({ titulo: 'Publicar para o totem?', texto, confirmarTexto: 'Publicar' }))) return;
+  
+    if (!publicarBaralho(estado.baralho)) {
+      // "Cheio" e "recusado" pedem coisas opostas: um pede tirar imagem enviada,
+      // o outro pede liberar o armazenamento do site. Dizer qual dos dois e.
+      const motivo = motivoDaFalha();
+      aviso(
+        motivo === 'cheio'
+          ? `Não caberia: o baralho está com cerca de ${pesoDoBaralho()} KB e o navegador não aceitou. Imagens enviadas do computador são o que mais ocupa — troque alguma por um caminho de arquivo em assets/images.`
+          : 'Não foi possível gravar — o navegador está bloqueando o armazenamento deste site.',
+        'erro'
+      );
+      return;
+    }
+    estado.sujo = false;
+    aviso('Publicado. A próxima partida já usa este baralho.');
+    desenhar();
+  }
+  
+  async function descartar() {
+    if (!(await confirmar({ titulo: 'Descartar alterações?', texto: 'Volta ao que está publicado no totem agora.', perigoso: true, confirmarTexto: 'Descartar' }))) return;
+    estado.baralho = clonar(carregarBaralho());
+    estado.selecionado = Math.min(estado.selecionado, estado.baralho.slots.length - 1);
+    estado.sujo = false;
+    desenhar();
+    aviso('Alterações descartadas.');
+  }
+  
+  async function voltarAoOriginal() {
+    if (
+      !(await confirmar({
+        titulo: 'Restaurar o baralho de fábrica?',
+        texto: 'Traz de volta as dez rodadas e os dez veículos originais, com a arte pronta da roleta. O que você publicou é perdido.',
+        perigoso: true,
+        confirmarTexto: 'Restaurar',
+      }))
+    ) {
+      return;
+    }
+    restaurarOriginal();
+    estado.baralho = clonar(BARALHO_ORIGINAL);
+    estado.selecionado = 0;
+    estado.sujo = false;
+    desenhar();
+    aviso('Baralho de fábrica restaurado.');
+  }
+  
+  function adicionarRodada() {
+    estado.baralho.slots.push(slotVazio());
+    estado.selecionado = estado.baralho.slots.length - 1;
+    estado.sujo = true;
+    desenhar();
+    aviso('Rodada adicionada. Preencha o veículo e os três idiomas.');
+  }
+  
+  function duplicarRodada(i) {
+    const copia = clonar(estado.baralho.slots[i]);
+    copia.veiculo.nome = `${copia.veiculo.nome} (cópia)`;
+    estado.baralho.slots.splice(i + 1, 0, copia);
+    estado.selecionado = i + 1;
+    estado.sujo = true;
+    desenhar();
+  }
+  
+  async function removerRodada(i) {
+    if (estado.baralho.slots.length <= 1) {
+      aviso('O baralho precisa de pelo menos uma rodada.', 'erro');
+      return;
+    }
+    const nome = estado.baralho.slots[i].veiculo.nome || `rodada ${i + 1}`;
+    if (!(await confirmar({ titulo: 'Remover rodada?', texto: `"${nome}" sai do baralho.`, perigoso: true, confirmarTexto: 'Remover' }))) return;
+    estado.baralho.slots.splice(i, 1);
+    estado.selecionado = Math.max(0, Math.min(i, estado.baralho.slots.length - 1));
+    estado.sujo = true;
+    desenhar();
+  }
+  
+  function mover(i, delta) {
+    const j = i + delta;
+    if (j < 0 || j >= estado.baralho.slots.length) return;
+    const s = estado.baralho.slots;
+    [s[i], s[j]] = [s[j], s[i]];
+    estado.selecionado = j;
+    estado.sujo = true;
+    desenhar();
+  }
+  
+  function exportar() {
+    const nome = `tecgame-baralho-${estado.baralho.slots.length}-rodadas.json`;
+    baixarArquivo(nome, JSON.stringify(estado.baralho, null, 2));
+    aviso(`Arquivo ${nome} salvo.`);
+  }
+  
+  async function importar() {
+    const arquivo = await escolherArquivo({ accept: '.json,application/json' });
+    if (!arquivo) return;
+    let deck;
+    try {
+      deck = JSON.parse(arquivo.texto);
+    } catch (e) {
+      aviso('O arquivo não é um JSON válido.', 'erro');
+      return;
+    }
+    if (!deck || !Array.isArray(deck.slots) || deck.slots.length === 0) {
+      aviso('O arquivo não parece um baralho do TecGame (falta a lista de rodadas).', 'erro');
+      return;
+    }
+    estado.baralho = deck;
+    estado.selecionado = 0;
+    estado.sujo = true;
+    desenhar();
+    const { total } = errosPorRodada(deck);
+    aviso(
+      total ? `Importado com ${total} problema(s) a corrigir antes de publicar.` : 'Importado. Revise e publique.',
+      total ? 'erro' : 'ok'
+    );
+  }
+  
+  /* ------------------------------------------------------------------ telas -- */
+  
+  /**
+   * Tamanho do baralho em KB, como ele vai para o localStorage.
+   *
+   * Serve de aviso antecipado: sem isso o operador so descobre que passou da
+   * cota na hora de publicar, depois de ter enviado dez fotos.
+   */
+  function pesoDoBaralho() {
+    try {
+      return Math.round(JSON.stringify(estado.baralho).length / 1024);
+    } catch (_) {
+      return 0;
+    }
+  }
+  
+  /** Acima disso vale avisar: a cota tipica de localStorage fica em poucos MB. */
+  const PESO_DE_ATENCAO_KB = 3000;
+  
+  function barra() {
+    const publicado = temBaralhoPublicado();
+    const { total } = errosPorRodada(estado.baralho);
+    const peso = pesoDoBaralho();
+  
+    const situacao = estado.sujo
+      ? { texto: 'alterações não publicadas', tipo: 'suja' }
+      : publicado
+        ? { texto: 'publicado no totem', tipo: 'ok' }
+        : { texto: 'usando o baralho de fábrica', tipo: 'neutra' };
+  
+    return el('header', { class: 'barra' }, [
+      el('div', { class: 'marca' }, [
+        el('strong', { text: 'TecGame' }),
+        el('span', { text: 'administração' }),
+      ]),
+      el('div', { class: 'barra-info' }, [
+        el('span', { class: `situacao situacao-${situacao.tipo}`, text: situacao.texto }),
+        el('span', { class: 'contador', text: `${estado.baralho.slots.length} rodadas` }),
+        total > 0
+          ? el('span', { class: 'situacao situacao-erro', text: `${total} problema(s)` })
+          : el('span', { class: 'situacao situacao-ok', text: 'pronto para publicar' }),
+        peso >= PESO_DE_ATENCAO_KB
+          ? el('span', {
+              class: 'situacao situacao-atencao',
+              title: 'O baralho vive no armazenamento do navegador, que tem poucos megabytes. Imagens enviadas do computador são o que mais ocupa.',
+              text: `${peso} KB — perto do limite`,
+            })
+          : null,
+        !usaArteOriginal(estado.baralho)
+          ? el('span', {
+              class: 'situacao situacao-atencao',
+              title: 'A arte pronta da roleta mostra os dez veículos originais; com outra lista o jogo desenha a roda.',
+              text: 'roleta desenhada pelo jogo',
+            })
+          : null,
+      ]),
+      el('div', { class: 'barra-acoes' }, [
+        botao('Importar', { onClick: importar, titulo: 'Carregar um baralho de um arquivo JSON' }),
+        botao('Exportar', { onClick: exportar, titulo: 'Salvar este baralho num arquivo JSON' }),
+        botao('Restaurar fábrica', { onClick: voltarAoOriginal, tipo: 'perigo' }),
+        estado.sujo ? botao('Descartar', { onClick: descartar }) : null,
+        botao('Publicar', { onClick: publicar, tipo: 'primario' }),
+        botao('Voltar ao jogo', { onClick: voltarAoJogo, titulo: 'Fecha a administração e volta para a tela do jogador' }),
+      ]),
+    ]);
+  }
+  
+  function lista() {
+    const { porRodada } = errosPorRodada(estado.baralho);
+  
+    const itens = estado.baralho.slots.map((slot, i) => {
+      const problemas = porRodada.get(i)?.length ?? 0;
+      const nome = slot.veiculo.nome?.trim() || '(sem nome)';
+      const pergunta = (slot.pt?.pergunta ?? '').trim();
+  
+      return el(
+        'li',
+        { class: ['item', i === estado.selecionado ? 'selecionado' : null, problemas ? 'com-problema' : null] },
+        [
+          el('button', {
+            type: 'button',
+            class: 'item-botao',
+            onClick: () => {
+              estado.selecionado = i;
+              desenhar();
+            },
+          }, [
+            el('span', { class: 'item-indice', text: String(i + 1) }),
+            el('span', { class: 'item-texto' }, [
+              el('strong', { text: nome }),
+              el('span', { class: 'item-pergunta', text: pergunta ? pergunta.slice(0, 70) : 'sem enunciado' }),
+            ]),
+            problemas ? el('span', { class: 'item-selo', text: String(problemas) }) : null,
+          ]),
+          el('span', { class: 'item-acoes' }, [
+            botao('', { icone: '↑', titulo: 'Subir', onClick: () => mover(i, -1) }),
+            botao('', { icone: '↓', titulo: 'Descer', onClick: () => mover(i, 1) }),
+            botao('', { icone: '⧉', titulo: 'Duplicar', onClick: () => duplicarRodada(i) }),
+            botao('', { icone: '✕', titulo: 'Remover', tipo: 'perigo', onClick: () => removerRodada(i) }),
+          ]),
+        ]
+      );
+    });
+  
+    return el('aside', { class: 'lateral' }, [
+      el('div', { class: 'lateral-topo' }, [
+        el('h2', { text: 'Rodadas' }),
+        botao('Adicionar', { onClick: adicionarRodada, tipo: 'primario', icone: '+' }),
+      ]),
+      el('p', { class: 'nota', text: 'A ordem é a ordem das fatias da roleta.' }),
+      el('ul', { class: 'itens' }, itens),
+    ]);
+  }
+  
+  function desenhar() {
+    limpar(app);
+    app.appendChild(barra());
+  
+    const slot = estado.baralho.slots[estado.selecionado];
+    const editor = slot
+      ? editorDeSlot({
+          slot,
+          indice: estado.selecionado,
+          onChange: () => {
+            estado.sujo = true;
+            // Só a barra e a lista precisam reagir a cada tecla; redesenhar o
+            // editor inteiro tiraria o foco do campo que está sendo digitado.
+            atualizarChrome();
+          },
+        })
+      : el('p', { text: 'Nenhuma rodada.' });
+  
+    const { porRodada } = errosPorRodada(estado.baralho);
+    editor.marcarErros?.(porRodada.get(estado.selecionado) ?? []);
+  
+    app.appendChild(el('main', { class: 'corpo' }, [lista(), el('div', { class: 'painel' }, editor)]));
+    app.__editor = editor;
+  }
+  
+  /** Redesenha só a barra e a lista, preservando o foco no editor. */
+  function atualizarChrome() {
+    const barraAntiga = app.querySelector('.barra');
+    const listaAntiga = app.querySelector('.lateral');
+    if (barraAntiga) barraAntiga.replaceWith(barra());
+    if (listaAntiga) listaAntiga.replaceWith(lista());
+    const { porRodada } = errosPorRodada(estado.baralho);
+    app.__editor?.marcarErros?.(porRodada.get(estado.selecionado) ?? []);
+  }
+  
+  /* --------------------------------------------------------- montar e sair -- */
+  
+  /** O que `porta.js` quer que aconteça quando o operador pede para sair. */
+  let fecharCamada = null;
+  
+  /** Avisa o navegador antes de recarregar/fechar com edição por publicar. */
+  function aoDescarregar(e) {
+    if (!estado.sujo) return;
+    e.preventDefault();
+    e.returnValue = '';
+  }
+  
+  async function voltarAoJogo() {
+    if (estado.sujo) {
+      const segue = await confirmar({
+        titulo: 'Sair sem publicar?',
+        texto: 'Há alterações que o totem ainda não recebeu. Sair agora as descarta.',
+        confirmarTexto: 'Sair e descartar',
+        perigoso: true,
+      });
+      if (!segue) return;
+      estado.baralho = clonar(carregarBaralho());
+      estado.sujo = false;
+    }
+    fecharCamada?.();
+  }
+  
+  /**
+   * Preenche `raiz` com a administração. `aoSair` é chamado quando o operador
+   * clica em "Voltar ao jogo" — quem fecha a camada é o chamador, porque é ele
+   * que sabe para onde o jogo volta.
+   */
+  function montarAdmin(raiz, { aoSair = null } = {}) {
+    app = raiz;
+    fecharCamada = aoSair;
+  
+    // O baralho é relido a cada abertura: entre uma e outra o jogo pode ter
+    // publicado, importado ou restaurado, e abrir com a cópia velha faria o
+    // operador republicar por cima sem perceber.
+    //
+    // Salvo com edição pendente. Fechar a camada pelo "voltar" do navegador é
+    // síncrono e não dá para perguntar nada (ver porta.js); recarregar ali
+    // apagaria o trabalho em silêncio. Então ele espera, e a barra continua
+    // dizendo "alterações não publicadas".
+    if (!estado.baralho || !estado.sujo) {
+      estado.baralho = clonar(carregarBaralho());
+      estado.selecionado = 0;
+    }
+  
+    // Aviso honesto: o baralho vive no armazenamento DESTE navegador. Publicar
+    // aqui não alcança outro computador enquanto o Firestore estiver desligado.
+    if (!temBaralhoPublicado() && estado.baralho.slots.length === SLOTS_ORIGINAIS.length) {
+      setTimeout(() => aviso('Você está vendo o baralho de fábrica. Edite e clique em Publicar.'), 400);
+    }
+  
+    window.addEventListener('beforeunload', aoDescarregar);
+    desenhar();
+  }
+  
+  /** Esvazia a camada e solta o que ela tinha preso no documento. */
+  function desmontarAdmin() {
+    window.removeEventListener('beforeunload', aoDescarregar);
+    if (app) limpar(app);
+    app = null;
+    fecharCamada = null;
+  }
+  Object.defineProperty(__exports, "montarAdmin", { get: () => montarAdmin, enumerable: true });
+  Object.defineProperty(__exports, "desmontarAdmin", { get: () => desmontarAdmin, enumerable: true });
+  });
+
+  /* ===== admin/porta.js ===== */
+  __define("admin/porta.js", function (__exports, __require) {
+  // A porta da administração: o gesto que a chama, a senha que a abre, e a
+  // camada que ela levanta por cima do jogo.
+  //
+  // ATÉ ONDE ISTO PROTEGE — leia antes de confiar. O jogo e o admin agora moram
+  // no mesmo index.html, para o GitHub Pages servir um endereço só. Isso quer
+  // dizer que o código da administração viaja para todo navegador que abre o
+  // jogo, a senha abaixo inclusive: quem apertar F12 a lê em dez segundos. É
+  // tranca de gaveta — impede o curioso e o toque errado do visitante numa feira,
+  // e não impede mais que isso. Proteção de verdade mora no servidor, e este jogo
+  // não tem servidor: o baralho vive no armazenamento do próprio navegador.
+  //
+  // Enquanto era `admin.html`, a proteção era outra e era real: bastava não
+  // copiar aquele arquivo para o totem. Trocamos isso por um endereço único, de
+  // propósito e com o custo sabido.
+  //
+  // O caminho: cinco toques no selo do cadastro (ou `#/adm` na barra do
+  // navegador) -> a caixa de senha -> a camada do admin. Sair volta ao cadastro.
+  
+  const { el } = __require("widgets.js");
+  const { go } = __require("router.js");
+  const { montarAdmin, desmontarAdmin } = __require("admin/painel.js");
+  
+  const SENHA = '2040';
+  
+  /** Quantos toques no selo chamam a porta, e em quanto tempo. */
+  const TOQUES = 5;
+  const JANELA_MS = 3000;
+  
+  /**
+   * Uma vez aberta, a porta fica destrancada até a aba fechar. Sem isso o
+   * operador redigita 2040 a cada ida e volta entre o admin e o jogo, e os
+   * testes teriam de reencenar a senha em toda navegação.
+   */
+  const CHAVE_LIBERADA = 'tecgame:adm-liberado';
+  
+  const liberado = () => {
+    try {
+      return sessionStorage.getItem(CHAVE_LIBERADA) === '1';
+    } catch (_) {
+      return false;
+    }
+  };
+  
+  const liberar = () => {
+    try {
+      sessionStorage.setItem(CHAVE_LIBERADA, '1');
+    } catch (_) {
+      /* navegador sem armazenamento: a senha volta a ser pedida, e tudo bem */
+    }
+  };
+  
+  /* ------------------------------------------------------------ o gesto ----- */
+  
+  /**
+   * Cinco toques no mesmo elemento, dentro de 3s, levam a `#/adm`.
+   *
+   * A janela existe para o contador não ser cumulativo: num totem de feira o selo
+   * leva toque o dia inteiro, e sem ela a porta abriria sozinha em algum momento
+   * da tarde. Toques espaçados reiniciam a contagem.
+   */
+  function registrarToqueSecreto(node) {
+    if (!node) return node;
+    let contados = 0;
+    let primeiro = 0;
+  
+    node.addEventListener('click', async () => {
+      const agora = Date.now();
+      if (agora - primeiro > JANELA_MS) {
+        contados = 0;
+        primeiro = agora;
+      }
+      contados += 1;
+      if (contados < TOQUES) return;
+      contados = 0;
+      // Pergunta ANTES de navegar. Navegar primeiro desmontava a tela do
+      // cadastro, e a caixa de senha aparecia sobre um palco vazio — quem tocou
+      // cinco vezes sem querer via o jogo sumir.
+      if (await pedirEntrada()) go('/adm');
+    });
+  
+    return node;
+  }
+  
+  /* ------------------------------------------------------ a caixa de senha -- */
+  
+  /** Resolve com true quando a senha confere, false quando o operador desiste. */
+  function pedirSenha() {
+    return new Promise((resolve) => {
+      const campo = el('input', {
+        class: 'porta-campo',
+        type: 'password',
+        // `inputmode: numeric` faz o teclado do totem abrir no teclado numérico.
+        inputmode: 'numeric',
+        autocomplete: 'off',
+        'aria-label': 'Senha da administração',
+        maxlength: '8',
+      });
+      const erro = el('p', { class: 'porta-erro', role: 'alert' });
+  
+      const fechar = (ok) => {
+        document.removeEventListener('keydown', onTecla);
+        fundo.remove();
+        resolve(ok);
+      };
+  
+      const tentar = () => {
+        if (campo.value === SENHA) return fechar(true);
+        erro.textContent = 'Senha incorreta.';
+        campo.value = '';
+        campo.focus();
+      };
+  
+      const onTecla = (e) => {
+        if (e.key === 'Escape') fechar(false);
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          tentar();
+        }
+      };
+  
+      const caixa = el('div', { class: 'porta-caixa', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Administração' }, [
+        el('h2', { class: 'porta-titulo', text: 'Administração' }),
+        el('p', { class: 'porta-texto', text: 'Digite a senha para abrir o painel de rodadas.' }),
+        campo,
+        erro,
+        el('div', { class: 'porta-acoes' }, [
+          el('button', { type: 'button', class: 'porta-botao', text: 'Cancelar', onClick: () => fechar(false) }),
+          el('button', { type: 'button', class: 'porta-botao porta-botao--ok', text: 'Entrar', onClick: tentar }),
+        ]),
+      ]);
+  
+      const fundo = el('div', {
+        class: 'porta-fundo',
+        onClick: (e) => e.target === fundo && fechar(false),
+      }, caixa);
+  
+      document.body.appendChild(fundo);
+      document.addEventListener('keydown', onTecla);
+      campo.focus();
+    });
+  }
+  
+  /**
+   * Destranca a porta, pedindo a senha se ainda não foi pedida nesta aba.
+   * Resolve com `true` quando pode entrar.
+   */
+  async function pedirEntrada() {
+    if (liberado()) return true;
+    if (!(await pedirSenha())) return false;
+    liberar();
+    return true;
+  }
+  
+  /* ------------------------------------------------------------- a camada --- */
+  
+  const raizDoAdmin = () => document.getElementById('adm');
+  const molduraDoJogo = () => document.getElementById('viewport');
+  
+  let aberta = false;
+  
+  function abrirCamada() {
+    if (aberta) return;
+    aberta = true;
+  
+    // `data-modo` solta o documento: o jogo tranca a rolagem e a seleção de texto
+    // para o totem não rolar sob o dedo, e o admin precisa das duas.
+    document.documentElement.dataset.modo = 'adm';
+    molduraDoJogo().hidden = true;
+  
+    const raiz = raizDoAdmin();
+    raiz.hidden = false;
+    montarAdmin(raiz, { aoSair: () => go('/cadastro') });
+  }
+  
+  function fecharCamada() {
+    if (!aberta) return;
+    aberta = false;
+  
+    desmontarAdmin();
+    raizDoAdmin().hidden = true;
+    molduraDoJogo().hidden = false;
+    delete document.documentElement.dataset.modo;
+  }
+  
+  /* --------------------------------------------------------------- a rota --- */
+  
+  /**
+   * Builder da rota `/adm`. Devolve um nó vazio de propósito: o admin não desenha
+   * no palco de 1920x1080, ele levanta a própria camada por fora. O que fica no
+   * `#pages` é só a casca que o roteador precisa para ter o que descartar.
+   */
+  function PortaDoAdmWidget() {
+    const casca = el('div');
+  
+    // Chegar por aqui sem ter passado pelo gesto quer dizer `#/adm` digitado na
+    // barra do navegador: a senha é pedida agora, sobre o palco já vazio. Pelo
+    // gesto do selo ela já foi pedida antes de navegar, e `pedirEntrada` volta
+    // na hora.
+    (async () => {
+      if (!(await pedirEntrada())) return go('/cadastro');
+      // Entre o pedido de senha e agora o operador pode ter navegado; só abre se
+      // a rota do admin ainda é a rota atual.
+      if (location.hash.slice(1).split('?')[0] !== '/adm') return;
+      abrirCamada();
+    })();
+  
+    // Fechar por aqui é síncrono — o roteador não espera promessa no dispose —,
+    // então não dá para perguntar nada a quem apertou o "voltar" do navegador. Em
+    // vez de perder o trabalho em silêncio, a edição pendente fica guardada e
+    // reaparece na próxima abertura (ver `montarAdmin`). O botão "Voltar ao jogo"
+    // continua perguntando, porque ali dá tempo.
+    casca.__dispose = fecharCamada;
+  
+    return casca;
+  }
+  Object.defineProperty(__exports, "registrarToqueSecreto", { get: () => registrarToqueSecreto, enumerable: true });
+  Object.defineProperty(__exports, "PortaDoAdmWidget", { get: () => PortaDoAdmWidget, enumerable: true });
+  });
+
   /* ===== pages/cadastro.js ===== */
   __define("pages/cadastro.js", function (__exports, __require) {
   // Port of lib/pages/escolha/cadastro/cadastro_widget.dart
@@ -5032,6 +6312,7 @@
   const { NomeOfensivoWidget } = __require("components/nome_ofensivo.js");
   const { PoliticaPrivacidadeWidget } = __require("components/politica_privacidade.js");
   const { RankingWidget } = __require("components/ranking.js");
+  const { registrarToqueSecreto } = __require("admin/porta.js");
   const { goNamed, TransitionInfo, PageTransitionType, Alignment } = __require("router.js");
   const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
   const { FlutterFlowTimer, FlutterFlowTimerController, InstantTimer, StopWatchMode, StopWatchTimer } = __require("timer.js");
@@ -5427,12 +6708,17 @@
                 mainAxisSize: 'max',
                 mainAxisAlignment: 'center',
                 children: [
-                  animateOnPageLoad(
-                    ClipRRect({
-                      borderRadius: 8.0,
-                      child: Img('assets/images/Selo_2.png', { width: SW * 0.23, height: SH * 0.25, fit: 'cover' }),
-                    }),
-                    animationsMap.imageOnPageLoadAnimation
+                  // O selo é também a porta da administração: cinco toques nele,
+                  // dentro de 3s, pedem a senha. Não tem marca nenhuma de
+                  // propósito — é para o operador, não para o jogador.
+                  registrarToqueSecreto(
+                    animateOnPageLoad(
+                      ClipRRect({
+                        borderRadius: 8.0,
+                        child: Img('assets/images/Selo_2.png', { width: SW * 0.23, height: SH * 0.25, fit: 'cover' }),
+                      }),
+                      animationsMap.imageOnPageLoadAnimation
+                    )
                   ),
                   Container({
                     width: SW * 0.574,
@@ -8762,9 +10048,15 @@
   const { TelaAcaoWidget } = __require("pages/tela_acao.js");
   const { GanhouWidget } = __require("pages/ganhou.js");
   const { PerdeuWidget } = __require("pages/perdeu.js");
+  const { PortaDoAdmWidget } = __require("admin/porta.js");
   
   // GoRouter's initialLocation is '/', which builds CadastroWidget - as does the
   // errorBuilder, so an unknown path lands on the registration screen too.
+  //
+  // `/adm` nao vem do Dart: e a administracao, que desde a v2 mora neste mesmo
+  // documento (um endereco so, para o GitHub Pages). Ela nao desenha no palco --
+  // levanta a propria camada por fora --, entao o builder devolve uma casca
+  // vazia. Ver web/js/admin/porta.js.
   const ROUTES = [
     { name: '_initialize', path: '/', builder: CadastroWidget },
     { name: 'roleta', path: '/roleta', builder: RoletaWidget },
@@ -8777,6 +10069,7 @@
     { name: 'telaVideoScanner', path: '/telaVideoScanner', builder: TelaVideoScannerWidget },
     { name: 'instrucoes', path: '/instrucoes', builder: InstrucoesWidget },
     { name: 'carroSleecionado', path: '/carro', builder: CarroSleecionadoWidget },
+    { name: 'adm', path: '/adm', builder: PortaDoAdmWidget },
   ];
   
   function main() {

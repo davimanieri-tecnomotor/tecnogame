@@ -39,6 +39,10 @@
        Google, e o totem de feira sem internet caia para a fonte do sistema. -->
   <link rel="stylesheet" href="css/fonts.css">
   <link rel="stylesheet" href="css/app.css">
+  <!-- A administração mora neste mesmo documento (um endereço só, para o
+       GitHub Pages). O CSS dela vive inteiro sob `.adm`, então não alcança o
+       palco do jogo; ver o cabeçalho de css/admin.css. -->
+  <link rel="stylesheet" href="css/admin.css">
 </head>
 <body>
   <!-- The whole app is laid out on a fixed 1920x1080 stage (the resolution the
@@ -67,6 +71,13 @@
       </div>
     </noscript>
   </div>
+
+  <!-- A camada da administração. Fica vazia e escondida até alguém passar pela
+       porta (cinco toques no selo do cadastro, ou #/adm, mais a senha); é
+       js/admin/porta.js que a levanta. Vive FORA do #viewport de propósito: o
+       jogo é um palco de 1920x1080 escalado, e o admin é HTML responsivo
+       comum, que precisa da janela inteira e da rolagem. -->
+  <div id="adm" class="adm" hidden></div>
 
   <script>
     // Boot with the readable ES modules in js/. Opening this file straight from

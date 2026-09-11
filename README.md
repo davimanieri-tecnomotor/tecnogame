@@ -7,14 +7,13 @@ CSS e JavaScript puros — sem framework, sem build, sem dependências de runtim
 tec_game.zip          o projeto Flutter original (intocado)
 src_game/             o zip extraído, usado como fonte pelos scripts
 web/                  o jogo portado (é isto que se publica)
-  index.html            o jogo
-  admin.html            a administração do baralho
+  index.html            o jogo E a administração, num documento só
   css/app.css           o jogo
-  css/admin.css         a administração
+  css/admin.css         a administração (tudo preso em `.adm`)
   css/fonts.css         gerado: as cinco famílias auto-hospedadas
   js/                   os módulos ES — o código-fonte
-  js/bundle.js          gerado: os módulos do jogo em um script clássico
-  js/admin/bundle.js    gerado: idem, para a administração
+  js/admin/             a administração: porta.js, painel.js, editor.js, ui.js
+  js/bundle.js          gerado: tudo isso em um script clássico
   assets/               imagens, áudios, fontes e vídeos do original
 firebase/             regras e índices do Firestore
 scripts/              geradores e verificadores
@@ -31,8 +30,13 @@ npm start                         # http://localhost:8099
 # ou: cd web && python -m http.server 8080
 ```
 
-Para publicar, sobe a pasta `web/` inteira — não há passo de build.
-(Uma exceção: veja **Administração** abaixo se o totem for público.)
+Para publicar, sobe a pasta `web/` inteira — não há passo de build. É o que o
+`.github/workflows/pages.yml` faz a cada push na `main`: manda `web/` para o
+GitHub Pages tal como está. Antes do primeiro uso, em **Settings → Pages**,
+escolha **Source: GitHub Actions**.
+
+Como todo caminho é relativo, o mesmo `web/` serve na raiz de um domínio, em
+`/<repo>/` (que é onde o Pages de projeto publica) e num pendrive.
 
 ### Por que existem dois modos de boot
 
@@ -47,7 +51,9 @@ código concatenado em **um script clássico**, que o `file://` permite.
 - Se os dois falharem, aparece uma mensagem explicando o que fazer, em vez de
   tela preta.
 
-O `admin.html` tem o mesmo par (`js/admin/main.js` → `js/admin/bundle.js`).
+Há um documento e um bundle só: a administração entra no mesmo grafo. Um
+`import()` dinâmico separaria os pesos, mas `import()` é recusado por `file://`
+como qualquer módulo ES, e o totem abre o jogo do disco.
 
 > **Ao editar qualquer coisa em `web/js/`, rode `npm run bundle`**, senão o
 > modo `file://` continua rodando a versão antiga. O `npm run check` avisa
@@ -70,6 +76,7 @@ host estático:
 | `/telaAcao` | `#/telaAcao` | pergunta e respostas |
 | `/ganhou` | `#/ganhou` | vitória |
 | `/perdeu` | `#/perdeu` | derrota |
+| — | `#/adm` | administração (não vem do Dart; pede senha) |
 
 ## O baralho
 
@@ -112,8 +119,15 @@ suposto (`npm run verify:baralho`).
 
 ## Administração
 
-`web/admin.html` é a tela de operação do baralho — uma página separada, fora do
-palco de 1920x1080, porque não é uma tela do jogo:
+A administração é a tela de operação do baralho. Mora no mesmo `index.html`,
+mas **fora** do palco de 1920x1080 — numa camada por cima dele —, porque não é
+uma tela do jogo: é uma ferramenta de notebook, com layout fluido e rolagem.
+
+**Como entrar:** cinco toques no selo do cadastro, dentro de 3 segundos, ou
+`#/adm` na barra do navegador. Os dois caminhos pedem a senha **2040**. Uma vez
+aberta, a porta fica destrancada até a aba fechar.
+
+O que dá para fazer:
 
 - **ver** as rodadas, com a foto, o gabarito e os 12 campos nos 3 idiomas;
 - **editar** qualquer texto, com aba por idioma;
@@ -129,9 +143,18 @@ palco de 1920x1080, porque não é uma tela do jogo:
 - **restaurar o original** a qualquer momento.
 
 O baralho publicado vai para o `localStorage` do navegador, na chave
-`tecgame:baralho`. Ou seja: **o admin e o jogo precisam ser abertos na mesma
-origem** (o mesmo `http://host:porta`, ou os dois pelo mesmo caminho de disco)
-para que um veja o que o outro gravou. Não há servidor no meio.
+`tecgame:baralho`. Estando os dois no mesmo documento, a origem é a mesma por
+construção — o que antes era uma pegadinha (abrir o admin numa porta e o jogo
+noutra e não entender por que um não via o outro) deixou de existir.
+
+O que **continua** valendo: o baralho é do navegador, não da internet. Publicar
+no seu notebook não alcança o totem. Enquanto o Firestore estiver desligado, a
+travessia é levar o `localStorage` junto, ou usar Exportar/Importar.
+
+O jogo relê o baralho quando o **cadastro** monta, e não a cada tela — publicar
+no meio de uma partida não pode trocar o carro debaixo do jogador. Sair pelo
+"Voltar ao jogo" cai no cadastro, então a partida seguinte já usa o que você
+acabou de publicar.
 
 Uma imagem enviada do computador vira um `data:` URL dentro do baralho, e por
 isso é reduzida para no máximo 1280px de maior lado e regravada em **WebP** —
@@ -143,10 +166,17 @@ só alguns megabytes, a barra do admin acende `KB — perto do limite` a partir 
 — são problemas com soluções opostas. Para muitas fotos, o caminho barato
 continua sendo copiá-las para `web/assets/images/` e referenciar pelo caminho.
 
-> **Se o totem ficar acessível a estranhos, não copie o `admin.html` nem a
-> pasta `js/admin/` para ele.** Não há senha — a proteção é a página não estar
-> lá. Edite o baralho na sua máquina e leve o `localStorage`, ou sirva o admin
-> em outra porta atrás da sua própria autenticação.
+> **Até onde a senha protege.** Até a v1 a administração era um `admin.html`
+> separado, e a proteção era real: bastava não copiar aquele arquivo para o
+> totem. Um endereço único no GitHub Pages custou isso. Agora o código do admin
+> viaja para todo navegador que abre o jogo, a senha `2040` inclusive — quem
+> apertar F12 a lê em dez segundos.
+>
+> É **tranca de gaveta**: impede o curioso e o toque errado do visitante numa
+> feira, e nada além disso. Proteção de verdade mora no servidor, e este jogo
+> não tem servidor — o baralho vive no armazenamento do próprio navegador. Se
+> um dia o conteúdo passar a valer alguma coisa, o lugar de resolver isso é o
+> Firestore, com regra de escrita e login de verdade.
 
 Os três idiomas são independentes, e o jogo **não** tem retorno para o
 português quando um campo fica vazio — a tela aparece em branco. É por isso que

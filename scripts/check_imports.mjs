@@ -75,18 +75,18 @@ for (const [file, src] of sources) {
   }
 }
 
-// Os bundle.js sao a versao em script classico usada pelo fallback de file://;
-// se um modulo estiver mais novo que eles, o build clicavel roda codigo antigo.
-for (const rel of ['bundle.js', 'admin/bundle.js']) {
+// O bundle.js e a versao em script classico usada pelo fallback de file://; se
+// um modulo estiver mais novo que ele, o build clicavel roda codigo antigo.
+// Era um por documento HTML; desde que o admin passou a morar dentro do
+// index.html, ha um documento e um bundle so.
+for (const rel of ['bundle.js']) {
   const bundlePath = path.join(ROOT, ...rel.split('/'));
-  // O bundle do admin so passa a existir depois que a pagina existe.
   if (!fs.existsSync(bundlePath)) {
-    if (rel === 'bundle.js') problems.push('web/js/bundle.js nao existe - rode `node scripts/bundle.mjs`');
+    problems.push(`web/js/${rel} nao existe - rode \`node scripts/bundle.mjs\``);
     continue;
   }
   const bundleTime = fs.statSync(bundlePath).mtimeMs;
-  // So os modulos que ESTE bundle contem. Comparar com todos apontava o bundle
-  // do jogo como velho por causa de um arquivo do admin, que nao entra nele.
+  // So os modulos que ESTE bundle contem.
   const contidos = new Set(
     [...fs.readFileSync(bundlePath, 'utf8').matchAll(/^\s*\/\* ===== (.+?) ===== \*\/$/gm)].map((m) => m[1])
   );

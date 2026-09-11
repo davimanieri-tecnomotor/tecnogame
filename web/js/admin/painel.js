@@ -1,13 +1,17 @@
 // Área administrativa do TecGame: ver, adicionar, editar e remover as rodadas
 // (pergunta + veículo + equipamentos) que o totem sorteia.
 //
-// É uma PÁGINA SEPARADA de propósito, e não uma rota do jogo:
+// Vive DENTRO do index.html, numa camada própria por cima do jogo, e não numa
+// rota do palco: o jogo é um palco de 1920x1080 escalado com medidas absolutas
+// de totem, e o admin é HTML responsivo comum, usado num notebook. Por isso não
+// é um widget — é uma raiz separada que `montarAdmin` preenche e
+// `desmontarAdmin` esvazia. Quem abre e fecha essa camada é o `porta.js`.
 //
-//  - o jogo vive num palco de 1920x1920 escalado, com medidas absolutas de
-//    totem; o admin é usado num notebook e é HTML responsivo normal;
-//  - e, principalmente, isso é a proteção que funciona: para o admin não
-//    existir no totem, basta não copiar admin.html para lá. Nenhuma senha no
-//    cliente chega perto disso, porque o código todo vai no navegador.
+// Até a v1 isto era um `admin.html` separado, e esse arquivo a mais era a
+// proteção de verdade: para o admin não existir no totem, bastava não copiá-lo
+// para lá. Uma página só, servida pelo GitHub Pages, abre mão disso — a senha
+// da porta viaja no mesmo JavaScript que o jogador recebe, e quem abrir o
+// código a lê. Ver a nota em `porta.js`: é tranca de gaveta, não cofre.
 //
 // Editar aqui não mexe no totem até você clicar em Publicar. Publicar grava o
 // baralho, e o jogo o relê quando a próxima partida começa.
@@ -32,13 +36,17 @@ import { motivoDaFalha } from '../storage.js';
 /** Uma cópia funda: nada do que se edita aqui vaza para o jogo sem publicar. */
 const clonar = (x) => JSON.parse(JSON.stringify(x));
 
+// `baralho` nasce vazio e só é lido em `montarAdmin`. Este módulo entra no
+// bundle do jogo (uma página só), e ler o armazenamento na hora do import
+// faria todo jogador pagar por uma tela que ele nunca vai abrir.
 const estado = {
-  baralho: clonar(carregarBaralho()),
+  baralho: null,
   selecionado: 0,
   sujo: false,
 };
 
-const app = document.getElementById('app');
+/** A raiz que `montarAdmin` recebe. Fora da camada aberta, é null. */
+let app = null;
 
 /* -------------------------------------------------------------- validação -- */
 
@@ -258,9 +266,7 @@ function barra() {
       botao('Restaurar fábrica', { onClick: voltarAoOriginal, tipo: 'perigo' }),
       estado.sujo ? botao('Descartar', { onClick: descartar }) : null,
       botao('Publicar', { onClick: publicar, tipo: 'primario' }),
-      el('a', { class: 'botao botao-normal', href: 'index.html', target: '_blank', rel: 'noopener' }, [
-        el('span', { text: 'Abrir o jogo' }),
-      ]),
+      botao('Voltar ao jogo', { onClick: voltarAoJogo, titulo: 'Fecha a administração e volta para a tela do jogador' }),
     ]),
   ]);
 }
@@ -347,11 +353,54 @@ function atualizarChrome() {
   app.__editor?.marcarErros?.(porRodada.get(estado.selecionado) ?? []);
 }
 
-/* ------------------------------------------------------------------- boot -- */
+/* --------------------------------------------------------- montar e sair -- */
 
-function main() {
-  if (window.__tecgameAdminBooted) return;
-  window.__tecgameAdminBooted = true;
+/** O que `porta.js` quer que aconteça quando o operador pede para sair. */
+let fecharCamada = null;
+
+/** Avisa o navegador antes de recarregar/fechar com edição por publicar. */
+function aoDescarregar(e) {
+  if (!estado.sujo) return;
+  e.preventDefault();
+  e.returnValue = '';
+}
+
+async function voltarAoJogo() {
+  if (estado.sujo) {
+    const segue = await confirmar({
+      titulo: 'Sair sem publicar?',
+      texto: 'Há alterações que o totem ainda não recebeu. Sair agora as descarta.',
+      confirmarTexto: 'Sair e descartar',
+      perigoso: true,
+    });
+    if (!segue) return;
+    estado.baralho = clonar(carregarBaralho());
+    estado.sujo = false;
+  }
+  fecharCamada?.();
+}
+
+/**
+ * Preenche `raiz` com a administração. `aoSair` é chamado quando o operador
+ * clica em "Voltar ao jogo" — quem fecha a camada é o chamador, porque é ele
+ * que sabe para onde o jogo volta.
+ */
+export function montarAdmin(raiz, { aoSair = null } = {}) {
+  app = raiz;
+  fecharCamada = aoSair;
+
+  // O baralho é relido a cada abertura: entre uma e outra o jogo pode ter
+  // publicado, importado ou restaurado, e abrir com a cópia velha faria o
+  // operador republicar por cima sem perceber.
+  //
+  // Salvo com edição pendente. Fechar a camada pelo "voltar" do navegador é
+  // síncrono e não dá para perguntar nada (ver porta.js); recarregar ali
+  // apagaria o trabalho em silêncio. Então ele espera, e a barra continua
+  // dizendo "alterações não publicadas".
+  if (!estado.baralho || !estado.sujo) {
+    estado.baralho = clonar(carregarBaralho());
+    estado.selecionado = 0;
+  }
 
   // Aviso honesto: o baralho vive no armazenamento DESTE navegador. Publicar
   // aqui não alcança outro computador enquanto o Firestore estiver desligado.
@@ -359,13 +408,14 @@ function main() {
     setTimeout(() => aviso('Você está vendo o baralho de fábrica. Edite e clique em Publicar.'), 400);
   }
 
-  window.addEventListener('beforeunload', (e) => {
-    if (!estado.sujo) return;
-    e.preventDefault();
-    e.returnValue = '';
-  });
-
+  window.addEventListener('beforeunload', aoDescarregar);
   desenhar();
 }
 
-main();
+/** Esvazia a camada e solta o que ela tinha preso no documento. */
+export function desmontarAdmin() {
+  window.removeEventListener('beforeunload', aoDescarregar);
+  if (app) limpar(app);
+  app = null;
+  fecharCamada = null;
+}

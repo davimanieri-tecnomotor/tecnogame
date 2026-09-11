@@ -986,3 +986,129 @@ body {
     animation: none;
   }
 }
+
+/* --- administração: a porta e o modo --- */
+
+/* Com o painel aberto o documento deixa de ser um totem e volta a ser uma
+   página: o jogo tranca rolagem, seleção e gesto de toque para o dedo não
+   arrastar o palco, e uma ferramenta de edição precisa dos três de volta. O
+   `data-modo` é posto e tirado por js/admin/porta.js. */
+html[data-modo="adm"],
+html[data-modo="adm"] body {
+  height: auto;
+  min-height: 100%;
+  overflow: auto;
+  touch-action: auto;
+  overscroll-behavior: auto;
+  -webkit-user-select: text;
+  user-select: text;
+  background: var(--fundo);
+}
+
+/* A caixa de senha é desenhada por fora do palco, para não ser escalada junto
+   com ele: senha se digita em px de tela, não em px de totem. As cores vêm das
+   variáveis do admin (css/admin.css), para a porta e o painel combinarem. */
+.porta-fundo {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  /* Escurece o jogo sem apagá-lo: a tela do cadastro já é escura, e um véu de
+     80% preto fazia parecer que o jogo tinha caído. Mesma densidade do
+     barrierColor dos diálogos do próprio jogo (Colors.black54). */
+  background: rgba(0, 11, 24, 0.66);
+  font: 15px/1.5 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--texto);
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.porta-caixa {
+  width: min(340px, 100%);
+  display: grid;
+  gap: 10px;
+  padding: 22px;
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  background: var(--fundo-2);
+  box-shadow: 0 20px 60px #000c;
+}
+
+.porta-titulo {
+  margin: 0;
+  font-family: 'Inter Tight', 'Inter', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.porta-texto {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--texto-2);
+}
+
+.porta-campo {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--fundo-3);
+  color: var(--texto);
+  font: inherit;
+  /* Senha curta e numérica: espaçar ajuda a conferir o que foi digitado. */
+  letter-spacing: 0.35em;
+  text-align: center;
+}
+
+.porta-campo:focus-visible {
+  outline: 2px solid var(--azul-claro);
+  outline-offset: 1px;
+}
+
+/* `:empty` some sozinho: sem erro não há espaço reservado empurrando o botão. */
+.porta-erro {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--erro);
+}
+
+.porta-erro:empty {
+  display: none;
+}
+
+.porta-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.porta-botao {
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--fundo-3);
+  color: var(--texto);
+  font: inherit;
+  cursor: pointer;
+}
+
+.porta-botao:hover {
+  border-color: var(--azul-claro);
+}
+
+.porta-botao:focus-visible {
+  outline: 2px solid var(--azul-claro);
+  outline-offset: 2px;
+}
+
+.porta-botao--ok {
+  border-color: transparent;
+  background: var(--azul);
+}
+
+.porta-botao--ok:hover {
+  background: var(--azul-claro);
+}

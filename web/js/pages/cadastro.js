@@ -35,6 +35,7 @@ import { showDialog } from '../dialog.js';
 import { NomeOfensivoWidget } from '../components/nome_ofensivo.js';
 import { PoliticaPrivacidadeWidget } from '../components/politica_privacidade.js';
 import { RankingWidget } from '../components/ranking.js';
+import { registrarToqueSecreto } from '../admin/porta.js';
 import { goNamed, TransitionInfo, PageTransitionType, Alignment } from '../router.js';
 import {
   AnimationInfo,
@@ -447,12 +448,17 @@ export function CadastroWidget() {
               mainAxisSize: 'max',
               mainAxisAlignment: 'center',
               children: [
-                animateOnPageLoad(
-                  ClipRRect({
-                    borderRadius: 8.0,
-                    child: Img('assets/images/Selo_2.png', { width: SW * 0.23, height: SH * 0.25, fit: 'cover' }),
-                  }),
-                  animationsMap.imageOnPageLoadAnimation
+                // O selo é também a porta da administração: cinco toques nele,
+                // dentro de 3s, pedem a senha. Não tem marca nenhuma de
+                // propósito — é para o operador, não para o jogador.
+                registrarToqueSecreto(
+                  animateOnPageLoad(
+                    ClipRRect({
+                      borderRadius: 8.0,
+                      child: Img('assets/images/Selo_2.png', { width: SW * 0.23, height: SH * 0.25, fit: 'cover' }),
+                    }),
+                    animationsMap.imageOnPageLoadAnimation
+                  )
                 ),
                 Container({
                   width: SW * 0.574,

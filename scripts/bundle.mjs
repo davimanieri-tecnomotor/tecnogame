@@ -2,8 +2,7 @@
 // que aquele documento usa, para as paginas abrirem por file:// tambem — que
 // recusa modulo ES com erro de CORS (origem null).
 //
-//   web/js/bundle.js         a partir de main.js        -> web/index.html
-//   web/js/admin/bundle.js   a partir de admin/main.js  -> web/admin.html
+//   web/js/bundle.js   a partir de main.js   -> web/index.html
 //
 // Cada modulo fica no seu proprio escopo dentro de uma factory, para helpers
 // privados de mesmo nome em arquivos diferentes (slideIn, tapFeedback,
@@ -20,13 +19,12 @@ import path from 'node:path';
 const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
 const ROOT = path.join(HERE, '..', 'web', 'js');
 
-// Uma entrada por documento HTML. O jogo e o admin sao paginas separadas — o
-// admin nao vive dentro do palco de 1920x1080 — e cada uma ganha o seu bundle
-// classico, para as duas abrirem por file:// tambem.
-const BUNDLES = [
-  { entry: 'main.js', out: path.join(ROOT, 'bundle.js') },
-  { entry: 'admin/main.js', out: path.join(ROOT, 'admin', 'bundle.js') },
-];
+// Uma entrada por documento HTML — e ha um so. O admin tinha o seu proprio
+// admin.html e o seu proprio bundle ate a v2; agora ele mora dentro do
+// index.html, numa camada por cima do jogo, e entra neste mesmo grafo. Um
+// import() dinamico separaria os dois pesos, mas por file:// import() e
+// recusado como qualquer modulo ES, e o totem abre o jogo do disco.
+const BUNDLES = [{ entry: 'main.js', out: path.join(ROOT, 'bundle.js') }];
 
 /* ------------------------------------------------------------- discovery -- */
 
