@@ -142,7 +142,9 @@ O que dá para fazer:
   rodada (os não marcados abrem *"equipamento inválido"*);
 - **validação ao vivo** — cada problema aparece na lista e acende o campo
   correspondente; **publicar fica bloqueado** enquanto houver problema;
-- **restaurar o original** a qualquer momento.
+- **resetar todos os dados**: volta ao baralho de fábrica e apaga deste
+  navegador o ranking e os telefones das partidas já jogadas. O que já foi para
+  o Firebase só sai pelo console.
 
 ### Um veículo, várias perguntas
 
@@ -151,7 +153,8 @@ caiu no VW Delivery, era sempre aquela — e numa feira o segundo da fila já sa
 a resposta. Agora cada veículo tem um **banco**, e quando a roleta para nele o
 jogo **sorteia uma das ligadas**.
 
-A marca ao lado de cada pergunta na lista liga e desliga. Desligada, ela fica no
+A seta ao lado de cada veículo abre e fecha o banco dele; fechado, ele mostra
+só a contagem. A marca ao lado de cada pergunta liga e desliga. Desligada, ela fica no
 banco como rascunho: não cai em partida, e campo vazio nela **não** impede
 publicar. O que impede é um veículo ficar sem nenhuma ligada — aí a roleta
 cairia num carro sem jogo.
@@ -199,7 +202,7 @@ refém da conexão — e, se vier conteúdo novo, ele vale já na partida seguin
 Isso é o que mantém o totem jogando com a internet caída: ele fica com a última
 cópia que baixou.
 
-> **Para publicar para todos os totens é preciso entrar.** O botão "Entrar" na
+> **Para salvar para todos os totens é preciso entrar.** O botão "Entrar" na
 > barra pede a conta do **Firebase** — é ela que a regra de escrita de
 > `conteudo` exige. Não é a senha `2040`: aquela só destranca a tela e viaja no
 > JavaScript de todo mundo. Sem entrar, publicar grava só neste navegador, e a

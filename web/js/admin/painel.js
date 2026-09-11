@@ -16,7 +16,7 @@
 // Editar aqui não mexe no totem até você clicar em Publicar. Publicar grava o
 // baralho, e o jogo o relê quando a próxima partida começa.
 
-import { el, botao, aviso, confirmar, limpar, baixarArquivo, escolherArquivo, pedirCredenciais } from './ui.js';
+import { el, botao, aviso, confirmar, limpar, pedirCredenciais } from './ui.js';
 import { editorDeSlot } from './editor.js';
 import {
   BARALHO_ORIGINAL,
@@ -31,9 +31,9 @@ import {
   usaArteOriginal,
   validarBaralho,
 } from '../deck.js';
-import { motivoDaFalha } from '../storage.js';
+import { motivoDaFalha, removerChave } from '../storage.js';
 import { podeUsarNuvem } from '../firebase.js';
-import { aoMudarOperador, entrar, publicarNaNuvem, sair, sincronizarBaralho } from '../nuvem.js';
+import { aoMudarOperador, entrar, publicarNaNuvem, sair, sincronizarBaralho, ultimaPublicacao } from '../nuvem.js';
 
 /* -------------------------------------------------------------- o estado -- */
 
@@ -52,6 +52,16 @@ const estado = {
   sujo: false,
   /** O e-mail de quem está logado no Firebase, ou null. */
   operador: null,
+  /** `{quando, quem}` da última gravação no Firebase, ou null. */
+  ultimaNuvem: null,
+  /**
+   * Quais veículos estão com o banco de perguntas aberto.
+   *
+   * Começaram todos abertos, e com dez veículos a lateral virava um rolo. O
+   * aberto é o veículo em que se está trabalhando; os outros mostram só a
+   * contagem, que já responde "quantas perguntas este carro tem".
+   */
+  abertos: new Set([0]),
 };
 
 /** A raiz que `montarAdmin` recebe. Fora da camada aberta, é null. */
@@ -100,9 +110,10 @@ async function publicar() {
   const { total, gerais, porRodada } = errosPorRodada(estado.baralho);
   if (total > 0) {
     const primeira = [...porRodada.keys()].sort((a, b) => a - b)[0];
-    aviso(`${total} problema(s) impedem publicar. ${gerais[0] ?? ''}`.trim(), 'erro');
+    aviso(`${total} problema(s) impedem salvar. ${gerais[0] ?? ''}`.trim(), 'erro');
     if (primeira != null) {
       estado.selecionado = primeira;
+      estado.pergunta = 0;
       desenhar();
     }
     return;
@@ -110,9 +121,9 @@ async function publicar() {
 
   const mudouArte = !usaArteOriginal(estado.baralho);
   const texto = mudouArte
-    ? 'O baralho não usa mais os dez veículos originais, então a roleta será desenhada pelo jogo em vez de usar a arte pronta. A próxima partida no totem já usa este conteúdo.'
-    : 'A próxima partida no totem já usa este conteúdo.';
-  if (!(await confirmar({ titulo: 'Publicar para o totem?', texto, confirmarTexto: 'Publicar' }))) return;
+    ? 'O baralho não usa mais os dez veículos originais, então a roleta será desenhada pelo jogo em vez de usar a arte pronta. A próxima partida já usa este conteúdo.'
+    : 'A próxima partida já usa este conteúdo.';
+  if (!(await confirmar({ titulo: 'Salvar o baralho?', texto, confirmarTexto: 'Salvar' }))) return;
 
   if (!publicarBaralho(estado.baralho)) {
     // "Cheio" e "recusado" pedem coisas opostas: um pede tirar imagem enviada,
@@ -127,27 +138,35 @@ async function publicar() {
     return;
   }
   estado.sujo = false;
-  aviso('Publicado neste navegador. A próxima partida aqui já usa este baralho.');
+  aviso('Salvo neste navegador. A próxima partida aqui já usa este baralho.');
   desenhar();
 
   // E sobe para a nuvem, que é o que alcança os OUTROS totens. Depois do
   // gravado local de propósito: se a internet estiver fora, o que foi editado
   // não se perde, e o operador é avisado do que ficou faltando.
   if (!podeUsarNuvem()) {
-    aviso('Sem nuvem aqui (jogo aberto do disco ou Firebase desligado): este baralho vale só neste navegador.');
+    aviso('Esta cópia não fala com o Firebase: o baralho vale só neste navegador.');
     return;
   }
   if (!estado.operador) {
-    aviso('Para alcançar os outros totens, entre com a conta do operador e publique de novo.', 'erro');
+    aviso('Para alcançar os outros totens, entre com a conta do operador e salve de novo.', 'erro');
     return;
   }
   const r = await publicarNaNuvem(estado.baralho);
-  aviso(
-    r.ok
-      ? `Enviado para a nuvem (${r.kb} KB). Todo totem com internet pega na próxima partida.`
-      : `A nuvem recusou: ${r.motivo}`,
-    r.ok ? 'ok' : 'erro'
-  );
+  if (!r.ok) {
+    aviso(`A nuvem recusou: ${r.motivo}`, 'erro');
+    return;
+  }
+  aviso(`Salvo na nuvem (${r.kb} KB). Todo totem com internet pega na próxima partida.`);
+  await atualizarUltimaNuvem();
+}
+
+/** Relê quando o baralho foi salvo na nuvem, e redesenha o selo da barra. */
+async function atualizarUltimaNuvem() {
+  const info = await ultimaPublicacao();
+  if (!app) return;
+  estado.ultimaNuvem = info;
+  atualizarChrome();
 }
 
 /* ----------------------------------------------------------------- login -- */
@@ -181,29 +200,40 @@ async function descartar() {
   aviso('Alterações descartadas.');
 }
 
-async function voltarAoOriginal() {
-  if (
-    !(await confirmar({
-      titulo: 'Restaurar o baralho de fábrica?',
-      texto: 'Traz de volta as dez rodadas e os dez veículos originais, com a arte pronta da roleta. O que você publicou é perdido.',
-      perigoso: true,
-      confirmarTexto: 'Restaurar',
-    }))
-  ) {
-    return;
-  }
+/**
+ * Zera a instalação: volta ao baralho de fábrica E apaga o que as partidas
+ * deixaram gravado neste navegador (ranking e contatos).
+ *
+ * É o botão de antes da feira — inclusive para varrer as partidas de teste. O
+ * que ele NÃO alcança está dito no próprio diálogo: o que já foi para o
+ * Firebase só sai pelo console, porque as regras não dão apagar ao cliente.
+ */
+async function resetarTudo() {
+  const ok = await confirmar({
+    titulo: 'Resetar todos os dados?',
+    texto:
+      'Volta ao baralho de fábrica (dez veículos, uma pergunta cada) e apaga deste navegador o ranking e os telefones das partidas já jogadas. O que já foi salvo no Firebase continua lá — isso só se apaga pelo console do Firebase.',
+    perigoso: true,
+    confirmarTexto: 'Resetar tudo',
+  });
+  if (!ok) return;
+
   restaurarOriginal();
+  removerChave('usuarios');
+  removerChave('contatos');
   estado.baralho = clonar(BARALHO_ORIGINAL);
   estado.selecionado = 0;
+  estado.pergunta = 0;
   estado.sujo = false;
   desenhar();
-  aviso('Baralho de fábrica restaurado.');
+  aviso('Baralho de fábrica de volta, e o ranking deste navegador apagado.');
 }
 
 function adicionarRodada() {
   estado.baralho.slots.push(slotVazio());
   estado.selecionado = estado.baralho.slots.length - 1;
   estado.pergunta = 0;
+  estado.abertos.add(estado.selecionado);
   estado.sujo = true;
   desenhar();
   aviso('Veículo adicionado. Preencha o veículo e a primeira pergunta.');
@@ -216,6 +246,7 @@ function adicionarPergunta(i) {
   slot.perguntas.push(perguntaVazia());
   estado.selecionado = i;
   estado.pergunta = slot.perguntas.length - 1;
+  estado.abertos.add(i);
   estado.sujo = true;
   desenhar();
   aviso('Pergunta nova no banco deste veículo. Preencha os três idiomas.');
@@ -228,6 +259,7 @@ function duplicarPergunta(i, j) {
   slot.perguntas.splice(j + 1, 0, copia);
   estado.selecionado = i;
   estado.pergunta = j + 1;
+  estado.abertos.add(i);
   estado.sujo = true;
   desenhar();
 }
@@ -298,36 +330,6 @@ function mover(i, delta) {
   desenhar();
 }
 
-function exportar() {
-  const nome = `tecgame-baralho-${estado.baralho.slots.length}-rodadas.json`;
-  baixarArquivo(nome, JSON.stringify(estado.baralho, null, 2));
-  aviso(`Arquivo ${nome} salvo.`);
-}
-
-async function importar() {
-  const arquivo = await escolherArquivo({ accept: '.json,application/json' });
-  if (!arquivo) return;
-  let deck;
-  try {
-    deck = JSON.parse(arquivo.texto);
-  } catch (e) {
-    aviso('O arquivo não é um JSON válido.', 'erro');
-    return;
-  }
-  if (!deck || !Array.isArray(deck.slots) || deck.slots.length === 0) {
-    aviso('O arquivo não parece um baralho do TecGame (falta a lista de rodadas).', 'erro');
-    return;
-  }
-  estado.baralho = deck;
-  estado.selecionado = 0;
-  estado.sujo = true;
-  desenhar();
-  const { total } = errosPorRodada(deck);
-  aviso(
-    total ? `Importado com ${total} problema(s) a corrigir antes de publicar.` : 'Importado. Revise e publique.',
-    total ? 'erro' : 'ok'
-  );
-}
 
 /* ------------------------------------------------------------------ telas -- */
 
@@ -348,16 +350,48 @@ function pesoDoBaralho() {
 /** Acima disso vale avisar: a cota tipica de localStorage fica em poucos MB. */
 const PESO_DE_ATENCAO_KB = 3000;
 
+/** "há 3 min", "há 2 h", "ontem" — quando foi a última gravação na nuvem. */
+function faz(quando) {
+  const s = Math.max(0, Math.round((Date.now() - quando.getTime()) / 1000));
+  if (s < 60) return 'agora há pouco';
+  const min = Math.round(s / 60);
+  if (min < 60) return `há ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `há ${h} h`;
+  const d = Math.round(h / 24);
+  return d === 1 ? 'ontem' : `há ${d} dias`;
+}
+
+/**
+ * A situação do baralho, numa frase.
+ *
+ * Antes o selo dizia "publicado no totem", que só falava deste navegador — e
+ * era justamente a pergunta errada: o operador precisa saber se o que ele
+ * salvou chegou ao Firebase, e se alguém em outra máquina salvou depois dele.
+ */
+function seloDaSituacao() {
+  if (estado.sujo) return { texto: 'alterações não salvas', tipo: 'suja' };
+
+  const nuvem = estado.ultimaNuvem;
+  if (nuvem?.quando) {
+    return {
+      tipo: 'ok',
+      texto: `salvo ${faz(nuvem.quando)}`,
+      titulo: `Última gravação no Firebase: ${nuvem.quando.toLocaleString('pt-BR')}${
+        nuvem.quem ? ` — por ${nuvem.quem}` : ''
+      }`,
+    };
+  }
+  if (temBaralhoPublicado()) {
+    return { texto: 'salvo só neste navegador', tipo: 'atencao', titulo: 'Nada foi gravado no Firebase ainda.' };
+  }
+  return { texto: 'usando o baralho de fábrica', tipo: 'neutra' };
+}
+
 function barra() {
-  const publicado = temBaralhoPublicado();
   const { total } = errosPorRodada(estado.baralho);
   const peso = pesoDoBaralho();
-
-  const situacao = estado.sujo
-    ? { texto: 'alterações não publicadas', tipo: 'suja' }
-    : publicado
-      ? { texto: 'publicado no totem', tipo: 'ok' }
-      : { texto: 'usando o baralho de fábrica', tipo: 'neutra' };
+  const situacao = seloDaSituacao();
 
   return el('header', { class: 'barra' }, [
     el('div', { class: 'marca' }, [
@@ -365,78 +399,53 @@ function barra() {
       el('span', { text: 'administração' }),
     ]),
     el('div', { class: 'barra-info' }, [
-      el('span', { class: `situacao situacao-${situacao.tipo}`, text: situacao.texto }),
       el('span', {
-        class: 'contador',
-        // "N rodadas" virou ambíguo quando um veículo passou a ter várias
-        // perguntas: os dois números é que dizem o tamanho do baralho.
-        text: `${estado.baralho.slots.length} veículos · ${estado.baralho.slots.reduce(
-          (n, s) => n + (s.perguntas?.length ?? 0),
-          0
-        )} perguntas`,
+        class: `situacao situacao-${situacao.tipo}`,
+        text: situacao.texto,
+        title: situacao.titulo ?? null,
       }),
       total > 0
         ? el('span', { class: 'situacao situacao-erro', text: `${total} problema(s)` })
-        : el('span', { class: 'situacao situacao-ok', text: 'pronto para publicar' }),
+        : el('span', { class: 'situacao situacao-ok', text: 'pronto para salvar' }),
+      // Este fica: é um aviso de verdade, e só aparece quando há o que avisar.
       peso >= PESO_DE_ATENCAO_KB
         ? el('span', {
             class: 'situacao situacao-atencao',
-            title: 'O baralho vive no armazenamento do navegador, que tem poucos megabytes. Imagens enviadas do computador são o que mais ocupa.',
+            title:
+              'O baralho vive no armazenamento do navegador, que tem poucos megabytes. Imagens enviadas do computador são o que mais ocupa.',
             text: `${peso} KB — perto do limite`,
           })
         : null,
-      !usaArteOriginal(estado.baralho)
-        ? el('span', {
-            class: 'situacao situacao-atencao',
-            title: 'A arte pronta da roleta mostra os dez veículos originais; com outra lista o jogo desenha a roda.',
-            text: 'roleta desenhada pelo jogo',
-          })
-        : null,
-      // O que decide se publicar alcança outros totens ou morre neste
-      // navegador. É a informação mais fácil de o operador errar sem perceber.
-      !podeUsarNuvem()
-        ? el('span', {
-            class: 'situacao situacao-neutra',
-            title:
-              'Cópia de desenvolvimento (aberta do disco, de localhost, ou com ?semNuvem=1): nada daqui sobe para o Firebase, e o baralho vale só neste navegador.',
-            text: 'sem nuvem',
-          })
-        : estado.operador
-          ? el('span', {
-              class: 'situacao situacao-ok',
-              title: `Publicar envia para todos os totens. Conectado como ${estado.operador}.`,
-              text: `nuvem: ${estado.operador}`,
-            })
-          : el('span', {
-              class: 'situacao situacao-atencao',
-              title: 'Sem entrar, publicar grava só neste navegador.',
-              text: 'nuvem: desconectado',
-            }),
     ]),
     el('div', { class: 'barra-acoes' }, [
-      botao('Importar', { onClick: importar, titulo: 'Carregar um baralho de um arquivo JSON' }),
-      botao('Exportar', { onClick: exportar, titulo: 'Salvar este baralho num arquivo JSON' }),
-      botao('Restaurar fábrica', { onClick: voltarAoOriginal, tipo: 'perigo' }),
+      botao('Resetar todos os dados', { onClick: resetarTudo, tipo: 'perigo' }),
       estado.sujo ? botao('Descartar', { onClick: descartar }) : null,
       podeUsarNuvem()
         ? estado.operador
           ? botao('Sair da nuvem', { onClick: sairDaNuvem, titulo: `Conectado como ${estado.operador}` })
-          : botao('Entrar', { onClick: entrarNaNuvem, titulo: 'Conta do Firebase, para publicar para todos os totens' })
+          : botao('Entrar', { onClick: entrarNaNuvem, titulo: 'Conta do Firebase, para salvar para todos os totens' })
         : null,
-      botao('Publicar', { onClick: publicar, tipo: 'primario' }),
+      botao('Salvar', { onClick: publicar, tipo: 'primario' }),
       botao('Voltar ao jogo', { onClick: voltarAoJogo, titulo: 'Fecha a administração e volta para a tela do jogador' }),
     ]),
   ]);
 }
 
+/** Abre ou fecha o banco de um veículo. */
+function alternarAberto(i) {
+  if (estado.abertos.has(i)) estado.abertos.delete(i);
+  else estado.abertos.add(i);
+  atualizarChrome();
+}
+
 /**
- * A lateral: todos os veículos e, debaixo de cada um, o banco de perguntas
- * dele.
+ * A lateral: todos os veículos e, debaixo do que estiver aberto, o banco de
+ * perguntas dele.
  *
- * Todos abertos de propósito. O painel existe para responder "quais perguntas
- * cada veículo pode ter" de relance — esconder o banco atrás de um clique
- * desfaz isso. A marca de cada linha liga e desliga a pergunta; desligada, ela
- * fica de rascunho e nunca cai em partida.
+ * O veículo fechado mostra a contagem ("2 de 3 ativas"), que já responde
+ * "quantas perguntas este carro tem" sem esticar a lista. O aberto mostra cada
+ * uma, com a marca que liga e desliga — desligada, ela fica de rascunho e nunca
+ * cai em partida.
  */
 function lista() {
   const { porRodada, porPergunta } = errosPorRodada(estado.baralho);
@@ -447,16 +456,29 @@ function lista() {
     const perguntas = slot.perguntas ?? [];
     const ativas = perguntas.filter((p) => p.ativa !== false).length;
 
+    const aberto = estado.abertos.has(i);
+
     const cabeca = el(
       'li',
       { class: ['item', 'veiculo', i === estado.selecionado ? 'selecionado' : null, problemas ? 'com-problema' : null] },
       [
         el('button', {
           type: 'button',
+          class: ['seta-banco', aberto ? 'aberta' : null],
+          title: aberto ? 'Recolher as perguntas' : 'Expandir as perguntas',
+          'aria-expanded': aberto ? 'true' : 'false',
+          'aria-label': `${aberto ? 'Recolher' : 'Expandir'} as perguntas de ${nome}`,
+          text: '▸',
+          onClick: () => alternarAberto(i),
+        }),
+        el('button', {
+          type: 'button',
           class: 'item-botao',
           onClick: () => {
             estado.selecionado = i;
             estado.pergunta = 0;
+            // Escolher um veículo abre o banco dele: é o que a pessoa veio ver.
+            estado.abertos.add(i);
             desenhar();
           },
         }, [
@@ -528,6 +550,8 @@ function lista() {
         ]
       );
     });
+
+    if (!aberto) return [cabeca];
 
     const acrescentar = el('li', { class: 'item pergunta acrescentar' }, [
       botao('Pergunta', { icone: '+', titulo: `Nova pergunta para ${nome}`, onClick: () => adicionarPergunta(i) }),
@@ -658,6 +682,10 @@ export function montarAdmin(raiz, { aoSair = null } = {}) {
       }
     });
   }
+
+  // Quando o baralho foi salvo na nuvem pela última vez, e por quem. Sem
+  // esperar: a barra nasce sem o selo e o ganha quando a resposta chega.
+  atualizarUltimaNuvem();
 
   // O SDK restaura a sessão de forma assíncrona, então a barra nasce dizendo
   // "desconectado" e se corrige quando isto dispara.

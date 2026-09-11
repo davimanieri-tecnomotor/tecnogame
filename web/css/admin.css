@@ -233,6 +233,34 @@
 
 .item.com-problema { border-color: #ef535055; }
 
+/* A seta que abre e fecha o banco de um veículo. */
+.seta-banco {
+  flex: none;
+  width: 26px;
+  align-self: stretch;
+  border: 0;
+  background: none;
+  color: var(--texto-2);
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 140ms ease-out, color 140ms ease-out;
+}
+
+.seta-banco:hover { color: var(--texto); }
+
+.seta-banco.aberta { transform: rotate(90deg); }
+
+.seta-banco:focus-visible {
+  outline: 2px solid var(--azul-claro);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seta-banco { transition: color 140ms ease-out; }
+}
+
 /* ------------------------------------- o banco de perguntas de um veículo -- */
 /* Recuadas e mais baixas que a linha do veículo: a lista tem dois níveis, e o
    olho precisa ver de quem cada pergunta é sem ler. */
@@ -372,7 +400,19 @@
 
 /* ---------------------------------------------------------------- painel -- */
 
-.painel { min-width: 0; }
+/* A direita rola sozinha, como a esquerda. Antes o editor crescia e quem rolava
+   era a pagina inteira: a barra de acoes subia para fora da tela justamente
+   quando o formulario estava longo, que e quando se quer salvar. Agora as duas
+   colunas rolam no proprio espaco e a barra fica sempre a vista. */
+.painel {
+  min-width: 0;
+  position: sticky;
+  top: 78px;
+  max-height: calc(100vh - 100px);
+  overflow: auto;
+  /* Sem isto o anel de foco do campo mais alto fica recortado pela rolagem. */
+  padding: 2px;
+}
 
 .editor {
   display: grid;

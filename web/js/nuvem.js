@@ -128,6 +128,33 @@ export async function publicarNaNuvem(deck) {
   }
 }
 
+/**
+ * Quando e por quem o baralho foi salvo na nuvem pela última vez.
+ *
+ * É o que a barra do painel mostra no lugar de "publicado no totem": aquilo
+ * dizia respeito só a este navegador, e o operador precisa saber se o que ele
+ * salvou chegou ao Firebase — e se alguém em outra máquina salvou depois dele.
+ *
+ * @returns {Promise<{quando: Date|null, quem: string|null}|null>}
+ */
+export async function ultimaPublicacao() {
+  const fb = await firebase();
+  if (!fb) return null;
+  try {
+    const snap = await fb.fs.getDoc(fb.fs.doc(fb.db, COLECAO, DOCUMENTO));
+    if (!snap.exists()) return null;
+    const dados = snap.data();
+    return {
+      // `serverTimestamp` volta como Timestamp do Firestore; fica `null` no
+      // instante entre gravar e o servidor responder.
+      quando: dados.atualizadoEm?.toDate?.() ?? null,
+      quem: dados.publicadoPor ?? null,
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
 /* ---------------------------------------------------------------- login -- */
 
 export async function entrar(email, senha) {

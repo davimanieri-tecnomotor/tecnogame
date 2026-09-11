@@ -178,7 +178,7 @@ if (inicial.itens !== 10) falhas.push(`listou ${inicial.itens} rodadas, esperava
 if (inicial.primeiroNome !== 'FIAT TORO - 10GF') falhas.push(`primeiro veiculo: ${inicial.primeiroNome}`);
 if (inicial.abas.length !== 3) falhas.push('faltam abas de idioma');
 if (inicial.campos !== 12) falhas.push(`${inicial.campos} campos de texto, esperava 12`);
-if (!inicial.situacao.some((s) => /pronto para publicar/.test(s))) falhas.push('o baralho de fabrica deveria estar valido');
+if (!inicial.situacao.some((s) => /pronto para salvar/.test(s))) falhas.push('o baralho de fabrica deveria estar valido');
 
 /* ------------------------------------------- 2. troca de idioma nas abas -- */
 
@@ -209,8 +209,8 @@ if (!comErro.problemas) falhas.push('a validacao nao acusou o enunciado vazio');
 if (!comErro.campoAceso) falhas.push('o campo vazio nao foi marcado');
 if (!comErro.seloNaLista) falhas.push('a rodada com problema nao foi selada na lista');
 
-// Publicar tem de ser bloqueado.
-await clicar('Publicar');
+// Salvar tem de ser bloqueado.
+await clicar('Salvar');
 const bloqueou = await page.evaluate(() => ({
   aviso: document.querySelector('.aviso-erro')?.textContent ?? null,
   modal: Boolean(document.querySelector('.modal')),
@@ -272,17 +272,15 @@ await wait(400);
 
 const preenchida = await page.evaluate(() => ({
   problemas: [...document.querySelectorAll('.situacao')].map((n) => n.textContent).find((t) => /problema/.test(t)) ?? null,
-  pronto: [...document.querySelectorAll('.situacao')].some((n) => /pronto para publicar/.test(n.textContent)),
-  arte: [...document.querySelectorAll('.situacao')].some((n) => /roleta desenhada/.test(n.textContent)),
+  pronto: [...document.querySelectorAll('.situacao')].some((n) => /pronto para salvar/.test(n.textContent)),
 }));
 console.log('   preenchida ->', JSON.stringify(preenchida));
 if (preenchida.problemas) falhas.push('ainda ha problemas depois de preencher: ' + preenchida.problemas);
-if (!preenchida.pronto) falhas.push('deveria estar pronto para publicar');
-if (!preenchida.arte) falhas.push('com 11 veiculos a arte pronta nao serve, e a barra deveria avisar');
+if (!preenchida.pronto) falhas.push('deveria estar pronto para salvar');
 
 /* ---------------------------------------------------------- 5. publica --- */
 
-await clicar('Publicar');
+await clicar('Salvar');
 await confirmarModal();
 const publicado = await page.evaluate(() => {
   const raw = localStorage.getItem('tecgame:baralho');
@@ -338,17 +336,15 @@ const removido = await page.evaluate(() => document.querySelectorAll('.itens .it
 console.log('7. removeu ->', removido, 'rodadas');
 if (removido !== 10) falhas.push(`apos remover tem ${removido} rodadas`);
 
-await clicar('Restaurar fábrica');
+await clicar('Resetar todos os dados');
 await confirmarModal();
 const restaurado = await page.evaluate(() => ({
   itens: document.querySelectorAll('.itens .item.veiculo').length,
   primeiro: document.querySelector('.veiculo-campos .campo-entrada')?.value,
-  arteOriginal: ![...document.querySelectorAll('.situacao')].some((n) => /roleta desenhada/.test(n.textContent)),
 }));
 console.log('   restaurou ->', JSON.stringify(restaurado));
 if (restaurado.itens !== 10) falhas.push('restaurar nao voltou para 10 rodadas');
 if (restaurado.primeiro !== 'FIAT TORO - 10GF') falhas.push('restaurar nao trouxe o veiculo original');
-if (!restaurado.arteOriginal) falhas.push('com o baralho de fabrica a arte pronta da roleta deveria voltar');
 
 /* --------------------------------- 8. enviar uma imagem do computador ----- */
 
@@ -387,7 +383,7 @@ if (!entradaArquivo) {
   if (enviada.encaixe !== 'contain') falhas.push(`encaixe apos envio: ${enviada.encaixe}`);
   if (!enviada.chipVisivel) falhas.push('o campo de caminho deveria dar lugar ao resumo da imagem enviada');
 
-  await clicar('Publicar');
+  await clicar('Salvar');
   await wait(300);
   await confirmarModal();
   await wait(700);
@@ -425,7 +421,7 @@ if (!entradaArquivo) {
   }
 
   await abrirAdmin();
-  await clicar('Restaurar fábrica');
+  await clicar('Resetar todos os dados');
   await confirmarModal();
 }
 

@@ -163,7 +163,7 @@ export function pedirCredenciais() {
     };
 
     const caixa = el('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Entrar' }, [
-      el('h2', { text: 'Entrar para publicar' }),
+      el('h2', { text: 'Entrar para salvar na nuvem' }),
       el('p', {
         text: 'A conta do Firebase do projeto. É ela que autoriza escrever o baralho que todos os totens leem — não a senha que abriu este painel.',
       }),
@@ -189,34 +189,6 @@ function entradaSimples({ tipo, rotulo, auto }) {
   return raiz;
 }
 
-/** Faz o navegador salvar um arquivo, sem servidor. */
-export function baixarArquivo(nome, conteudo, tipo = 'application/json') {
-  const blob = new Blob([conteudo], { type: `${tipo};charset=utf-8` });
-  const url = URL.createObjectURL(blob);
-  const a = el('a', { href: url, download: nome });
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-/** Lê um arquivo escolhido pelo usuário como texto. */
-export function escolherArquivo({ accept = '.json' } = {}) {
-  return new Promise((resolve) => {
-    const input = el('input', { type: 'file', accept, style: { display: 'none' } });
-    input.addEventListener('change', () => {
-      const f = input.files?.[0];
-      if (!f) return resolve(null);
-      const leitor = new FileReader();
-      leitor.onload = () => resolve({ nome: f.name, texto: String(leitor.result) });
-      leitor.onerror = () => resolve(null);
-      leitor.readAsText(f, 'utf-8');
-      input.remove();
-    });
-    document.body.appendChild(input);
-    input.click();
-  });
-}
 
 /* ------------------------------------------------------- imagem embutida -- */
 
