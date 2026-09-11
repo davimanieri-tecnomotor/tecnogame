@@ -1159,11 +1159,20 @@ html[data-modo="adm"] body {
 
 /* Apaga o cartao INTEIRO, numero junto: e o conjunto que sai de cena. Uma
    opacidade no cartao e outra no involucro se multiplicariam, e o resultado
-   some de vez. */
+   some de vez.
+
+   A OPACIDADE NAO ESTA AQUI de proposito: ela e escrita inline por revelar()
+   em perguntas_erespostas.js. Neste elemento ela e disputada por duas animacoes
+   preenchidas e pelo quadro 0 do `applyInitialState`, e a regra de folha perdia
+   em silencio. O que fica aqui e so o que ninguem mais escreve. */
+/* O cartao descartado recua por FILTRO, e nao por opacidade.
+
+   Opacidade neste elemento e propriedade disputada: a entrada a anima, o
+   `applyInitialState` escreve o quadro 0 inline, e animacao ganha de inline no
+   cascade. O resultado era um cartao frio saindo apagado e o outro nao, na
+   mesma revelacao. `filter` ninguem mais toca, entao a regra vale sempre. */
 .ff-resposta--fria {
-  opacity: 0.3;
-  filter: saturate(0.35);
-  transition: opacity 320ms ease-out, filter 320ms ease-out;
+  filter: saturate(0.15) brightness(0.62) contrast(0.9);
 }
 
 .ff-resposta--certa .ff-resposta-cartao {

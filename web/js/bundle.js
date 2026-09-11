@@ -10334,10 +10334,24 @@
         // Solta as animações que ainda seguram este cartão — a entrada e o aperto
         // do toque. As duas têm `fill: both`, e animação preenchida ganha de
         // regra de folha: sem soltar, o `opacity` que apaga as descartadas
-        // simplesmente não valeria. Cancelar devolve o elemento ao CSS, e o
-        // estado final das duas já era a identidade, então nada salta.
+        // simplesmente não valeria.
+        //
+        // Mas cancelar não basta, e foi assim que a resposta certa sumia da tela:
+        // `applyInitialState` escreve o QUADRO 0 no estilo inline — para a
+        // entrada, `opacity: 0` e `translate(64px)` — e nunca o apaga. Enquanto a
+        // animação corria ela mascarava isso; cancelada, o quadro 0 voltava a
+        // valer e o cartão desaparecia 64px fora do lugar. Limpar as duas
+        // propriedades é o que devolve o elemento ao CSS.
         for (const animacao of no.getAnimations()) animacao.cancel();
+        no.style.transform = no.dataset.baseTransform ?? '';
         no.classList.remove('ff-resposta--escolhida');
+  
+        // Opacidade cheia, escrita INLINE. Não é enfeite: sem isto o cartão fica
+        // com o `opacity: 0` que o `applyInitialState` deixou, e some — era esse
+        // o defeito. Quem recua é o filtro da classe `--fria`, que ninguém mais
+        // disputa. Aqui não há espaço para "quase": ou o jogador vê qual era a
+        // certa, ou o veredito não serviu para nada.
+        no.style.opacity = '1';
         if (slot === slotCerto) no.classList.add('ff-resposta--certa');
         else if (slot === slotEscolhido) no.classList.add('ff-resposta--errada');
         else no.classList.add('ff-resposta--fria');
