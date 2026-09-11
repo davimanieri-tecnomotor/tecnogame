@@ -395,7 +395,8 @@ function barra() {
       !podeUsarNuvem()
         ? el('span', {
             class: 'situacao situacao-neutra',
-            title: 'O jogo foi aberto do disco, ou o Firebase está desligado na config. O baralho vale só neste navegador.',
+            title:
+              'Cópia de desenvolvimento (aberta do disco, de localhost, ou com ?semNuvem=1): nada daqui sobe para o Firebase, e o baralho vale só neste navegador.',
             text: 'sem nuvem',
           })
         : estado.operador
