@@ -765,3 +765,224 @@ body {
   align-items: center;
   justify-content: flex-end;
 }
+
+/* ------------------------------------------------------------- roleta ----- */
+/* A roda de verdade. O giro, a seta batendo nas divisas e o borrao estao em
+   js/giro.js, que explica a fisica; aqui fica o que e desenho: a luz que NAO
+   gira com o disco e o rastro que ele deixa quando corre.
+
+   Todas as camadas tem o tamanho da caixa da roda e recebem de pages/roleta.js
+   onde o disco acaba (--disco-x/y, o raio das fatias) e onde o aro de lampadas
+   passa (--aro-x/y), porque a arte pronta e a roda desenhada nao tem o mesmo
+   diametro — um aro fora de lugar aparece como anel solto em cima da arte. */
+
+.roleta-camada {
+  position: relative;
+  flex: none;
+  pointer-events: none;
+  /* Nao entra na ordem de leitura: e luz, nao conteudo. */
+  user-select: none;
+}
+
+/* Atras do disco. A sombra vive no vao que sobra embaixo dele — o Stack recorta
+   com Clip.hardEdge e nao ha um pixel de folga fora da caixa —, e o halo das
+   lampadas fica logo depois do aro, morrendo antes da borda para o recorte nao
+   cortar o brilho num risco reto. */
+.roleta-fundo {
+  background: radial-gradient(
+    ellipse 36% 3.1% at 50% 96%,
+    rgba(2, 6, 18, 0.5) 0%,
+    rgba(2, 6, 18, 0.2) 42%,
+    rgba(2, 6, 18, 0) 78%
+  );
+}
+
+.roleta-fundo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse var(--aro-x) var(--aro-y) at 50% 50%,
+    rgba(255, 188, 86, 0) 99%,
+    rgba(255, 188, 86, 0.26) 101.8%,
+    rgba(255, 188, 86, 0) 105%
+  );
+  /* A roda parada com a luz fixa parece desligada. Este respiro e a unica coisa
+     que se mexe enquanto ninguem toca em nada. */
+  animation: roleta-respira 3.4s ease-in-out infinite alternate;
+}
+
+@keyframes roleta-respira {
+  from {
+    opacity: 0.55;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* Na frente do disco, e PARADA: e o que separa um objeto de um desenho girando.
+   Brilho no alto a esquerda, sombra de forma no baixo a direita, e a vinheta
+   que arredonda o aro. As duas primeiras sao maiores que o disco de proposito,
+   mas ja chegam em zero antes da borda dele — nao ha o que vazar para o fundo. */
+.roleta-luz {
+  background:
+    radial-gradient(
+      ellipse 46% 40% at 34% 26%,
+      rgba(255, 255, 255, 0.15) 0%,
+      rgba(255, 255, 255, 0.05) 40%,
+      rgba(255, 255, 255, 0) 72%
+    ),
+    radial-gradient(
+      ellipse 50% 46% at 68% 80%,
+      rgba(2, 8, 24, 0.24) 0%,
+      rgba(2, 8, 24, 0.08) 44%,
+      rgba(2, 8, 24, 0) 76%
+    ),
+    radial-gradient(
+      ellipse var(--disco-x) var(--disco-y) at 50% 50%,
+      rgba(2, 6, 18, 0) 78%,
+      rgba(2, 6, 18, 0.13) 92%,
+      rgba(2, 6, 18, 0.22) 98.5%,
+      rgba(2, 6, 18, 0) 100%
+    );
+}
+
+/* A ronda: um arco de luz dando a volta no aro, que e o que roleta de parque
+   faz o dia inteiro. Ele nao precisa saber onde cada lampada esta — passa por
+   cima do aro inteiro e acende o que encontra, e as lampadas ja sao o que ha de
+   mais claro ali. A mascara e que o prende ao aro; sem ela o cone de luz cobria
+   o disco todo, entao pages/roleta.js so monta esta camada onde ha mascara. */
+.roleta-ronda {
+  /* O arco gira, e caixa girada tem moldura maior que a caixa parada: o Stack
+     passava a ter conteudo mais alto que ele e o teste de recorte acusava a
+     roleta. Quem gira e o ::after; a camada em volta e so uma caixa parada que
+     promete nao pintar fora de si — que e verdade, o anel cabe nela — e assim a
+     moldura girada nao chega ao Stack. */
+  contain: paint;
+}
+
+.roleta-ronda::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: conic-gradient(
+    from 0deg,
+    rgba(255, 232, 170, 0) 0deg,
+    rgba(255, 232, 170, 0.85) 24deg,
+    rgba(255, 232, 170, 0.24) 50deg,
+    rgba(255, 232, 170, 0) 74deg,
+    rgba(255, 232, 170, 0) 174deg,
+    rgba(255, 232, 170, 0.55) 198deg,
+    rgba(255, 232, 170, 0.16) 222deg,
+    rgba(255, 232, 170, 0) 244deg,
+    rgba(255, 232, 170, 0) 360deg
+  );
+  -webkit-mask-image: radial-gradient(
+    ellipse var(--aro-x) var(--aro-y) at 50% 50%,
+    transparent 0 88%,
+    #000 94%,
+    #000 99%,
+    transparent 106%
+  );
+  mask-image: radial-gradient(
+    ellipse var(--aro-x) var(--aro-y) at 50% 50%,
+    transparent 0 88%,
+    #000 94%,
+    #000 99%,
+    transparent 106%
+  );
+  animation: roleta-ronda 4.4s linear infinite;
+}
+
+@keyframes roleta-ronda {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* O acender do giro: o giro.js sobe a opacidade com a velocidade. */
+.roleta-faisca {
+  opacity: 0;
+  background:
+    radial-gradient(
+      ellipse var(--disco-x) var(--disco-y) at 50% 50%,
+      rgba(255, 214, 138, 0) 76%,
+      rgba(255, 214, 138, 0.15) 95%,
+      rgba(255, 214, 138, 0) 100%
+    ),
+    radial-gradient(
+      ellipse var(--aro-x) var(--aro-y) at 50% 50%,
+      rgba(255, 190, 90, 0) 99%,
+      rgba(255, 190, 90, 0.38) 102%,
+      rgba(255, 190, 90, 0) 105.5%
+    );
+}
+
+/* Parou: um estalo de luz, uma vez so, como o aro comemorando o resultado. Ele
+   cabe na sobra de 1s entre a roda parar e o jogo abrir o carro sorteado. */
+.roleta-faisca--parou {
+  animation: roleta-estalo 680ms ease-out 1;
+}
+
+@keyframes roleta-estalo {
+  0% {
+    opacity: 0.75;
+  }
+
+  32% {
+    opacity: 0.45;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+/* A caixa que bambeia. O `transform` do disco e do motor de animacao, entao a
+   folga do eixo precisa de uma caixa propria para nao brigar com ele. */
+.roleta-eixo {
+  display: flex;
+  flex: none;
+  will-change: transform;
+}
+
+/* A pista carrega a arte e, so enquanto a roda corre, as copias do borrao. */
+.roleta-pista {
+  position: relative;
+  display: flex;
+  flex: none;
+}
+
+/* Uma copia atrasada alguns graus. Sobrepostas, elas cobrem o arco que o disco
+   varre em um quadro — que e o que uma camera registra, e nao desfoque. */
+.roleta-eco {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  opacity: 0;
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roleta-fundo::after {
+    animation: none;
+    opacity: 0.8;
+  }
+
+  /* A ronda e movimento em loop, e loop e justamente o que sai aqui. */
+  .roleta-ronda::after {
+    animation: none;
+    opacity: 0;
+  }
+
+  .roleta-faisca--parou {
+    animation: none;
+  }
+}

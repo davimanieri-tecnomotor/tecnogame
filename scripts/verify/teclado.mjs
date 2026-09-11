@@ -74,8 +74,13 @@ const giro = async (reduzido) => {
   await wait(800);
   const estado = await aba.evaluate(() => ({
     reduzido: matchMedia('(prefers-reduced-motion: reduce)').matches,
-    // o giro e a unica animacao longa da tela
-    longas: document.getAnimations().filter((a) => (a.effect?.getTiming?.().duration ?? 0) >= 3000).length,
+    // O giro e a unica animacao longa DE UM DISPARO SO. As luzes da roleta (o
+    // halo que respira e o arco que ronda o aro) tambem sao longas, mas rodam
+    // em loop; contar elas junto fazia esta conta dar 3 com a roda girando.
+    longas: document
+      .getAnimations()
+      .filter((a) => (a.effect?.getTiming?.().duration ?? 0) >= 3000)
+      .filter((a) => (a.effect?.getTiming?.().iterations ?? 1) !== Infinity).length,
   }));
   // Com o giro desligado a tela segue sozinha para o carro sorteado.
   await wait(1600);

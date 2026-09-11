@@ -1,8 +1,12 @@
 // Port of lib/pages/escolha/roleta/roleta_widget.dart
 //
 // The prize wheel. Pressing GIRAR draws a new `escolha` (1.0 - 1.9, never one
-// of the last five), spins the wheel by that many turns over 5s, remembers the
-// draw and moves on to the selected car.
+// of the last five), spins the wheel by that many turns, remembers the draw and
+// moves on to the selected car.
+//
+// O sorteio e a navegacao sao os do Dart. O que a roda FAZ enquanto gira nao e:
+// a fisica do giro, a seta batendo nas divisas, o borrao e a luz que nao gira
+// junto moram em giro.js, e esta tela so monta as pecas e as entrega a ele.
 
 import {
   Align,
@@ -19,6 +23,7 @@ import {
   decorationImage,
   el,
   linearGradient,
+  px,
   unfocus,
 } from '../widgets.js';
 import { style } from '../theme.js';
@@ -27,6 +32,7 @@ import { FFAppState } from '../state.js';
 import { numeroAleatorio } from '../functions.js';
 import { usaArteOriginal } from '../deck.js';
 import { rodaGerada } from '../roda.js';
+import { criarVida, efeitosDoGiro } from '../giro.js';
 import { playSound } from '../audio.js';
 import { goNamed, TransitionInfo, PageTransitionType } from '../router.js';
 import {
@@ -34,7 +40,6 @@ import {
   AnimationTrigger,
   Curves,
   FadeEffect,
-  RotateEffect,
   ScaleEffect,
   animateOnActionTrigger,
   animateOnPageLoad,
@@ -88,12 +93,65 @@ export function RoletaWidget() {
   const RODA_LARGURA = 836.1;
   const RODA_ALTURA = 839.8;
 
-  const arte = usaArteOriginal(FFAppState.baralho)
+  const arteOriginal = usaArteOriginal(FFAppState.baralho);
+  const arte = arteOriginal
     ? ClipRRect({
         borderRadius: 20.0,
         child: Img('assets/images/Roleta.png', { width: RODA_LARGURA, height: RODA_ALTURA, fit: 'cover' }),
       })
     : rodaGerada(FFAppState.baralho?.slots ?? [], { largura: RODA_LARGURA, altura: RODA_ALTURA });
+
+  /**
+   * Onde o disco acaba dentro da caixa, em pixels de RAIO.
+   *
+   * A luz e a unica coisa desta tela que precisa saber disso: ela e um desenho
+   * parado por cima do disco, e uma vinheta de aro fora de lugar aparece como
+   * um anel escuro solto em cima da arte.
+   *
+   * Sao dois numeros porque sao duas rodas. A arte pronta e um PNG de 766x730
+   * encaixado com `cover` numa caixa de 836,1x839,8: ele sobe para 1,1504 e
+   * sobra pelos lados, e sai levemente OVAL — os valores vem de medir o disco
+   * no proprio arquivo. A roda desenhada e redonda e sai da geometria de
+   * roda.js (R_FATIA e R_LUZ sobre o viewBox, encaixados com `meet`).
+   */
+  const DISCO = arteOriginal
+    ? { raioX: 380.6, raioY: 368.0, aroX: 398.0, aroY: 384.8 }
+    : { raioX: 383.2, raioY: 383.2, aroX: 400.7, aroY: 400.7 };
+
+  /** Uma camada de luz: do tamanho da caixa da roda e sabendo onde o aro esta. */
+  const camadaDeLuz = (classe) => {
+    const no = el('div', {
+      class: `roleta-camada ${classe}`,
+      'aria-hidden': 'true',
+      style: { width: px(RODA_LARGURA), height: px(RODA_ALTURA) },
+    });
+    no.style.setProperty('--disco-x', `${DISCO.raioX}px`);
+    no.style.setProperty('--disco-y', `${DISCO.raioY}px`);
+    no.style.setProperty('--aro-x', `${DISCO.aroX}px`);
+    no.style.setProperty('--aro-y', `${DISCO.aroY}px`);
+    return no;
+  };
+
+  // Atras do disco: a sombra que ele joga na caixa e o halo morno das lampadas,
+  // que respira sozinho para a roda parada nao parecer desligada.
+  const fundo = camadaDeLuz('roleta-fundo');
+  // Na frente: o brilho especular, a sombra de forma e a vinheta do aro. Elas
+  // NAO giram — e por elas que o disco vira objeto em vez de figura girando.
+  const luz = camadaDeLuz('roleta-luz');
+  // O arco de luz que ronda o aro, como roleta de parque. Ele so existe se o
+  // navegador souber recortar por mascara: e a mascara que o prende ao aro, e
+  // sem ela o cone de luz lavaria o disco inteiro.
+  const temMascara =
+    typeof CSS !== 'undefined' &&
+    typeof CSS.supports === 'function' &&
+    (CSS.supports('mask-image', 'radial-gradient(#000, transparent)') ||
+      CSS.supports('-webkit-mask-image', 'radial-gradient(#000, transparent)'));
+  const ronda = temMascara ? camadaDeLuz('roleta-ronda') : null;
+  // O acender do giro, que o giro.js controla pela velocidade.
+  const faisca = camadaDeLuz('roleta-faisca');
+
+  // A pista guarda a arte e, so enquanto a roda corre, as copias do borrao.
+  const pista = el('div', { class: 'roleta-pista' }, arte);
 
   const wheel = Container({
     width: RODA_LARGURA,
@@ -101,19 +159,20 @@ export function RoletaWidget() {
     color: color(0x00FFFFFF),
     borderRadius: 22.0,
     alignment: [0.0, 0.0],
-    child: arte,
+    child: pista,
   });
+  // O eixo fica FORA do disco porque o `transform` do disco e do motor de
+  // animacao: o bamboleio precisa de uma caixa so dele para nao brigar com ele.
+  const eixo = el('div', { class: 'roleta-eixo' }, wheel);
   // `effects:` is read when forward() runs, so the rotation always uses the
   // value drawn a moment earlier.
   animateOnActionTrigger(wheel, animationsMap.containerOnActionTriggerAnimation1, null);
   animationsMap.containerOnActionTriggerAnimation1.effectsBuilder = () =>
-    // Cinco segundos de tela inteira girando é exatamente o que quem pediu
-    // menos movimento no sistema não quer ver. Sem efeito nenhum o `forward()`
+    // Seis segundos de tela inteira girando é exatamente o que quem pediu menos
+    // movimento no sistema não quer ver. Sem efeito nenhum o `forward()`
     // resolve na hora, e o jogo segue para o carro sorteado: o resultado do
     // sorteio é o mesmo, a roda só não gira.
-    menosMovimento()
-      ? []
-      : [RotateEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 5000.0, begin: 0.0, end: FFAppState.escolha })];
+    menosMovimento() ? [] : efeitosDoGiro(FFAppState.escolha, FFAppState.totalSlots);
 
   const spinButton = InkWell({
     onTap: async () => {
@@ -123,8 +182,13 @@ export function RoletaWidget() {
       model.apertaButton = false;
       FFAppState.escolha = numeroAleatorio([...FFAppState.listaEscolhas], FFAppState.totalSlots);
       playSound(model, 'soundPlayer', 'assets/audios/roleta-normal-1_2GXmNRPk.mp3', 0.6);
-      // Este `await` E sequencia: sao os 5s de giro, e o jogo so segue depois.
-      await animationsMap.containerOnActionTriggerAnimation1.controller.forward();
+      // Este `await` E sequencia: e o giro inteiro, e o jogo so segue depois.
+      // O `girar()` vem logo atras porque ele LE o angulo que a animacao ja
+      // escreveu na tela — e assim a seta bate na divisa que esta mostrando,
+      // e nao na que um relogio paralelo teria calculado.
+      const giro = animationsMap.containerOnActionTriggerAnimation1.controller.forward();
+      vida.girar();
+      await giro;
       await delayed(1000);
       if (left || !root.isConnected) return;
 
@@ -164,6 +228,18 @@ export function RoletaWidget() {
   });
   animateOnActionTrigger(spinButton, animationsMap.containerOnActionTriggerAnimation2);
 
+  // A seta gira pela BASE, que é onde uma lingueta de roleta é presa: o pino
+  // empurra a ponta e ela volta batendo. O `transform` fica no recorte, e não
+  // na imagem, porque a imagem está dentro de um `overflow: hidden` — girada lá
+  // dentro, a ponta sairia cortada.
+  const seta = ClipRRect({
+    borderRadius: 8.0,
+    style: { transformOrigin: '50% 100%' },
+    child: Img('assets/images/Seta_.png', { width: 101.4, height: 85.0, fit: 'cover' }),
+  });
+
+  const vida = criarVida({ disco: wheel, eixo, pista, arte, seta, faisca, fatias: FFAppState.totalSlots });
+
   const content = Column({
     mainAxisSize: 'max',
     crossAxisAlignment: 'center',
@@ -175,16 +251,17 @@ export function RoletaWidget() {
           height: 839.8,
           child: Stack({
             children: [
-              StackAlign({ alignment: [0.0, 0.0], child: wheel }),
+              // A ordem aqui é a ordem em que o Stack pinta, e ela é a pilha
+              // física: sombra e halo por baixo do disco, disco, luz por cima
+              // dele, e só então a seta e o logo, que ficam na frente de tudo.
+              StackAlign({ alignment: [0.0, 0.0], child: fundo }),
+              StackAlign({ alignment: [0.0, 0.0], child: eixo }),
+              StackAlign({ alignment: [0.0, 0.0], child: luz }),
+              ronda ? StackAlign({ alignment: [0.0, 0.0], child: ronda }) : null,
+              StackAlign({ alignment: [0.0, 0.0], child: faisca }),
               StackAlign({
                 alignment: [0.0, 1.0],
-                child: Padding({
-                  padding: [0.0, 0.0, 0.0, 30.0],
-                  child: ClipRRect({
-                    borderRadius: 8.0,
-                    child: Img('assets/images/Seta_.png', { width: 101.4, height: 85.0, fit: 'cover' }),
-                  }),
-                }),
+                child: Padding({ padding: [0.0, 0.0, 0.0, 30.0], child: seta }),
               }),
               StackAlign({
                 alignment: [0.0, 0.0],
@@ -226,6 +303,7 @@ export function RoletaWidget() {
 
   root.__dispose = () => {
     left = true;
+    vida.parar();
     model.soundPlayer?.stop();
   };
 
