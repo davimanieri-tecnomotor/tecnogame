@@ -8139,12 +8139,24 @@
   
   /* ----------------------------------------------------------- o giro ------ */
   
+  /**
+   * O RITMO DO GIRO.
+   *
+   * A primeira versão picava em 3,4 voltas/s. Com dez fatias isso são 34 fatias
+   * por segundo: ninguém lê nada, a roda vira um borrão cinza e o suspense só
+   * começa no último segundo. Medido, não achado.
+   *
+   * Agora o pico é ~1,9 volta/s — rápido o bastante para borrar e ainda deixar
+   * ver que são carros passando — e a cauda lenta, o trecho em que dá para contar
+   * fatia por fatia, quase dobrou: de 1,2s para 2,1s. É lá que está o jogo.
+   */
+  
   /** Empurrão inicial: do repouso à velocidade máxima. */
-  const T_ARRANQUE = 560;
+  const T_ARRANQUE = 650;
   /** O trecho solto, em que só o atrito age. */
-  const T_FREIO = 4700;
+  const T_FREIO = 5900;
   /** A seta prendendo a última divisa e puxando a roda de volta. */
-  const T_RECUO = 520;
+  const T_RECUO = 560;
   
   /**
    * Como a velocidade cai no trecho solto: `v = v0 * (1 - u)^EXPOENTE`.
@@ -8163,8 +8175,12 @@
    * `escolha` vale de 1 a 1,9 volta: menos de duas voltas é pouco para a roda
    * ganhar velocidade, e o giro inteiro cabia no campo de visão sem nunca borrar.
    * Sendo inteiras, não mexem em qual fatia para na seta (ver o cabeçalho).
+   *
+   * Eram 5, e é daí que vinha a maior parte da pressa: 6,5 voltas espremidas em
+   * 5,8s. Com 3 dá 4,5 voltas, que continua sendo giro de roda de prêmio e cabe
+   * no tempo sem precisar correr.
    */
-  const VOLTAS_EXTRAS = 5;
+  const VOLTAS_EXTRAS = 3;
   
   /**
    * O giro é uma curva contínua, e o motor de animação só sabe interpolar
@@ -8271,8 +8287,8 @@
    */
   const ECOS = 3;
   /** Velocidade (graus/s) em que o borrão começa e em que satura. */
-  const BORRAO_DE = 190;
-  const BORRAO_ATE = 900;
+  const BORRAO_DE = 130;
+  const BORRAO_ATE = 620;
   /** Bamboleio do eixo, em pixels, na velocidade cheia. */
   const EIXO_FOLGA = 2.2;
   
