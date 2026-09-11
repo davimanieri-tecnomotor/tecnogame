@@ -170,10 +170,37 @@ await page.evaluate(() => {
 await wait(700);
 
 /* --------------------------------------------------------- idle ranking pop */
-log('--- idle ranking (timer fast-forwarded)');
-// Seed a couple of winners so the ranking has rows, then wait out the 45s idle
-// timer by advancing it through the page's own clock.
-await page.evaluate(() => {
+// O ranking do ocioso abre depois de 45s parado no cadastro. Este teste
+// esperava 48s de relogio de parede -- em dois transportes, um quarto da suite
+// inteira gasto provando uma regra que nada tem a ver com tempo real.
+//
+// Agora o relogio da pagina corre acelerado. O contador de ociosidade
+// (FlutterFlowTimerController, em web/js/timer.js) le a hora de um lugar so,
+// `performance.now`, e na tela de cadastro mais ninguem le esse relogio; as
+// animacoes correm na `document.timeline`, que fica intacta e continua no ritmo
+// certo. Entao os 45s da regra passam em ~1,2s reais, sem mexer no jogo: quem
+// acelera e o teste, do lado de fora.
+// O relogio acelerado e acumulativo de proposito: `virtual` so cresce, entao
+// baixar o fator de volta para 1 no meio do caminho nao faz a hora andar para
+// tras -- um timer ja em curso veria tempo negativo e se perderia.
+const FATOR_DO_RELOGIO = 40;
+await page.evaluateOnNewDocument(() => {
+  const real = performance.now.bind(performance);
+  let ultimo = real();
+  let virtual = ultimo;
+  window.__fatorDoRelogio = Number(sessionStorage.getItem('__relogio_do_teste') || 1);
+  performance.now = () => {
+    const agora = real();
+    virtual += (agora - ultimo) * window.__fatorDoRelogio;
+    ultimo = agora;
+    return virtual;
+  };
+});
+
+log(`--- idle ranking (relogio da pagina a ${FATOR_DO_RELOGIO}x)`);
+// Seed a couple of winners so the ranking has rows.
+await page.evaluate((fator) => {
+  sessionStorage.setItem('__relogio_do_teste', String(fator));
   localStorage.setItem(
     'tecgame:usuarios',
     JSON.stringify([
@@ -183,11 +210,12 @@ await page.evaluate(() => {
       { nome: 'Perdedor', telefone: '4', atuacao: 'x', venceu: false, tempo: 10, equipamento: 'RB' },
     ])
   );
-});
+}, FATOR_DO_RELOGIO);
 await page.reload({ waitUntil: 'networkidle2' });
 await waitForRoute('_initialize');
-log('  waiting 47s for the idle ranking...');
-await wait(48000);
+// 45s/40 da ~1,1s, mas quem dispara e um setInterval de 1s real: 3s e folga de
+// duas batidas.
+await wait(3000);
 await shot('06-ranking');
 const ranking = await dialogText();
 log(`  ranking dialog: ${JSON.stringify(ranking?.slice(0, 80))}`);
@@ -197,6 +225,13 @@ if (ranking.includes('Perdedor')) throw new Error('ranking must only list winner
 await page.evaluate(() => document.querySelector('#overlays .ff-barrier .ff-inkwell').click());
 await wait(500);
 log(`  closed: ${!(await dialogOpen())}`);
+
+// Relogio de volta ao normal: daqui para a frente vem uma partida de verdade, e
+// o cronometro da pergunta e o giro da roleta precisam do tempo real.
+await page.evaluate(() => {
+  sessionStorage.removeItem('__relogio_do_teste');
+  window.__fatorDoRelogio = 1;
+});
 
 /* ------------------------------------------------------- straight to a win  */
 log('--- playthrough with the correct answer');

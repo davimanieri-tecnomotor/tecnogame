@@ -317,17 +317,29 @@ mas **o token da z-api é** — se este repositório virar público, gire o toke
 
 ```bash
 npm run verify        # tudo: HTTP e file://, subindo o servidor sozinho
+npm run verify:rapido # só HTTP, 6 em paralelo — a volta rápida do dia a dia
 ```
 
 Isso roda a checagem estática, regera os bundles e passa os nove testes de
 navegador nos **dois transportes** — 18 execuções. Sobe o `http-server` se a
-porta 8099 estiver livre e reaproveita o que já estiver de pé. Para recortar:
+porta 8099 estiver livre e reaproveita o que já estiver de pé.
+
+As 18 execuções correm **em paralelo** (4 de cada vez por padrão). Cada teste
+sobe o próprio Chrome e só lê do servidor, então não disputam nada entre si; o
+que os prendia era o laço sequencial do `all.mjs`. A saída de cada um sai
+inteira quando ele termina, e no fim vem o tempo de cada execução — é assim que
+se descobre qual teste está segurando a fila. Para recortar:
 
 ```bash
 npm run verify -- corte       # só os testes cujo nome casa
 npm run verify -- --http      # só HTTP
 npm run verify -- --file      # só file://
+npm run verify -- -j 8        # quantos em paralelo (cada um é um Chrome)
+npm run verify -- -j 1 corte  # um de cada vez, com a saída ao vivo
 ```
+
+Cada par (teste, transporte) escreve suas imagens em
+`shots/<transporte>/<teste>`, para o `file://` não sobrescrever o do HTTP.
 
 Os testes individuais, se quiser rodar um de cada vez (precisam do `npm start`
 em outro terminal, ou de `BASE=` apontando para o `file://`):
