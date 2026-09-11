@@ -94,10 +94,15 @@ uma décima primeira era impossível.
 ```js
 {
   veiculo: { nome, imagem, largura, altura, fit },
-  gabarito: '3',                              // qual alternativa é a certa
-  scanners: { raster3S: true, rasher4: true, xtool: false },
-  pt: { pergunta, respostaUm..respostaQuatro, ajuda*, ... },
-  en: { ... }, es: { ... }                    // os mesmos 12 campos por idioma
+  perguntas: [                                // o banco deste veículo
+    {
+      id, ativa: true,
+      gabarito: '3',                          // qual alternativa é a certa
+      scanners: { raster3S: true, rasher4: true, xtool: false },
+      pt: { pergunta, respostaUm..respostaQuatro, ajuda*, ... },
+      en: { ... }, es: { ... }                // os mesmos 12 campos por idioma
+    },
+  ],
 }
 ```
 
@@ -133,7 +138,8 @@ O que dá para fazer:
 
 - **ver** as rodadas, com a foto, o gabarito e os 12 campos nos 3 idiomas;
 - **editar** qualquer texto, com aba por idioma;
-- **adicionar** e **remover** rodadas (cada uma é uma fatia da roleta);
+- **adicionar** e **remover** veículos (cada um é uma fatia da roleta) e as
+  perguntas do banco de cada um;
 - **veículos**: nome, caminho da imagem, largura, altura e encaixe, com atalho
   para as dez fotos que já vêm no projeto — ou **enviar uma imagem do
   computador**, que fica guardada dentro do baralho (então o totem mostra a
@@ -141,7 +147,7 @@ O que dá para fazer:
 - **regras**: qual alternativa é a correta e quais equipamentos resolvem a
   rodada (os não marcados abrem *"equipamento inválido"*);
 - **validação ao vivo** — cada problema aparece na lista e acende o campo
-  correspondente; **publicar fica bloqueado** enquanto houver problema;
+  correspondente; **salvar fica bloqueado** enquanto houver problema;
 - **resetar todos os dados**: volta ao baralho de fábrica e apaga deste
   navegador o ranking e os telefones das partidas já jogadas. O que já foi para
   o Firebase só sai pelo console.
