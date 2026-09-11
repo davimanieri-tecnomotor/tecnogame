@@ -168,8 +168,28 @@ Em dois lugares, e a ordem importa:
 
 | | |
 | --- | --- |
-| `localStorage`, chave `tecgame:baralho` | o que o jogo **lê**. Publicar grava aqui primeiro. |
-| Firestore, `conteudo/baralho` | o que **atravessa máquinas**. Publicar envia depois. |
+| `localStorage`, chave `tecgame:baralho` | o que o jogo **lê**, inteiro. Publicar grava aqui primeiro. |
+| Firestore, `conteudo/baralho` | o que **atravessa máquinas** — e só o que **não é de fábrica**. |
+
+Para a nuvem sobe apenas o que difere do embutido: pergunta ou veículo intocado
+vira uma referência (`{deFabrica: 'orig-3'}`), e o resto vai inteiro. As dez
+originais já estão no código de todo totem — repeti-las custaria 38 KB à toa.
+Com o baralho de fábrica o documento fica em **1 KB**; com uma pergunta nova e
+uma original editada, em 8 KB.
+
+Não existe meio-termo: ou a pergunta bate exatamente com a de fábrica, ou sobe
+por extenso. Editar, desligar ou renomear já a faz subir inteira, então nada se
+perde. `verify/baralho.mjs` afirma que a ida e volta devolve o mesmo baralho.
+
+Isso tem um efeito de propósito: corrigir um acento em `questions.js` chega aos
+totens sem ninguém republicar, porque o que está guardado é a referência. Vale
+saber antes de reescrever uma pergunta original.
+
+E há um teto: **o Firestore recusa documento acima de 1 MB**. Texto não chega
+perto (cabem ~245 perguntas), mas cada foto enviada do computador vira um
+`data:` URL de ~88 KB dentro do baralho. O painel confere antes de enviar e diz
+o tamanho e o motivo em vez de deixar o Firestore recusar com uma mensagem
+críptica.
 
 Publicar grava local primeiro de propósito: se a internet da feira estiver fora,
 o que foi editado não se perde e o painel diz o que faltou. O totem puxa da

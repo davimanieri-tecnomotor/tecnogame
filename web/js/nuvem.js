@@ -21,11 +21,21 @@
 // escrever, e vive na conta de vocês, não no código.
 
 import { firebase, podeUsarNuvem } from './firebase.js';
-import { publicarBaralho, carregarBaralho } from './deck.js';
+import { publicarBaralho, carregarBaralho, comprimirParaNuvem, expandirDaNuvem } from './deck.js';
 
 /** O documento único. Coleção e id fixos: é um baralho por instalação. */
 const COLECAO = 'conteudo';
 const DOCUMENTO = 'baralho';
+
+/**
+ * O Firestore recusa documento acima de 1 MiB, e a mensagem dele não diz o que
+ * fazer. Este teto é menor de propósito — sobra para nomes de campo e para o
+ * `serverTimestamp` — e quem o estoura, na prática, é foto enviada do
+ * computador: cada uma vira um `data:` URL de ~88 KB dentro do baralho.
+ */
+const TETO_KB = 900;
+
+const pesoEmKb = (obj) => Math.round(JSON.stringify(obj).length / 1024);
 
 /* ------------------------------------------------------------ sincronia -- */
 
@@ -47,13 +57,17 @@ export async function sincronizarBaralho() {
     const snap = await fs.getDoc(fs.doc(db, COLECAO, DOCUMENTO));
     if (!snap.exists()) return false;
 
-    const remoto = snap.data()?.baralho;
-    if (!remoto || !Array.isArray(remoto.slots) || remoto.slots.length === 0) return false;
+    const bruto = snap.data()?.baralho;
+    if (!bruto || !Array.isArray(bruto.slots) || bruto.slots.length === 0) return false;
+
+    // O que está guardado lá traz o de fábrica por referência; aqui ele volta a
+    // ser conteúdo (ver comprimirParaNuvem).
+    const remoto = expandirDaNuvem(bruto);
+    if (!remoto.slots.length) return false;
 
     // Comparar o texto evita reescrever (e invalidar o cache da projeção de
     // estado) a cada partida quando nada mudou.
-    const atual = JSON.stringify(carregarBaralho());
-    if (JSON.stringify(remoto) === atual) return false;
+    if (JSON.stringify(remoto) === JSON.stringify(carregarBaralho())) return false;
 
     publicarBaralho(remoto);
     return true;
@@ -80,14 +94,27 @@ export async function publicarNaNuvem(deck) {
   }
   if (!fb.auth.currentUser) return { ok: false, motivo: 'é preciso entrar para publicar.' };
 
+  // Só o que difere da fábrica: as dez originais já estão no código de todo
+  // totem, e repeti-las aqui é peso à toa.
+  const enxuto = comprimirParaNuvem(deck);
+  const kb = pesoEmKb(enxuto);
+  if (kb > TETO_KB) {
+    return {
+      ok: false,
+      motivo:
+        `o baralho ficou com ${kb} KB e o Firestore aceita no máximo ${TETO_KB} por documento. ` +
+        'Imagens enviadas do computador são o que mais ocupa — troque alguma por um caminho em assets/images.',
+    };
+  }
+
   try {
     const { db, fs } = fb;
     await fs.setDoc(fs.doc(db, COLECAO, DOCUMENTO), {
-      baralho: deck,
+      baralho: enxuto,
       atualizadoEm: fs.serverTimestamp(),
       publicadoPor: fb.auth.currentUser.email ?? fb.auth.currentUser.uid,
     });
-    return { ok: true };
+    return { ok: true, kb };
   } catch (erro) {
     // A mensagem crua do Firestore ("Missing or insufficient permissions") não
     // diz ao operador o que fazer.

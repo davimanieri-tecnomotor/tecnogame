@@ -545,6 +545,80 @@ console.log(
 banco.slice(0, 10).forEach((p) => console.log('   - ' + p));
 falhas.push(...banco);
 
+/* ------------- 8: o que sobe para a nuvem e so o que nao e de fabrica ------ */
+
+// O que vai para o Firestore troca por referencia tudo que for identico ao de
+// fabrica. E compressao, nao edicao: a ida e volta tem de devolver exatamente o
+// mesmo baralho, senao o totem joga com conteudo diferente do que o operador
+// publicou.
+
+const nuvem = await page.evaluate(async () => {
+  const carregar = async (nome) =>
+    window.__tecgameRequire ? window.__tecgameRequire(nome) : await import(`./js/${nome}`);
+
+  const deck = await carregar('deck.js');
+  const problemas = [];
+  const clonar = (x) => JSON.parse(JSON.stringify(x));
+  const kb = (x) => JSON.stringify(x).length / 1024;
+  const refs = (d) => d.slots.flatMap((s) => s.perguntas).filter((p) => p.deFabrica).length;
+
+  // (a) so o de fabrica: tudo vira referencia, e sobra quase nada.
+  const original = deck.BARALHO_ORIGINAL;
+  const soFabrica = deck.comprimirParaNuvem(original);
+  if (refs(soFabrica) !== 10) problemas.push(`o de fabrica deveria virar 10 referencias, virou ${refs(soFabrica)}`);
+  if (soFabrica.slots.some((s) => !Number.isInteger(s.veiculo?.deFabrica))) {
+    problemas.push('veiculo de fabrica nao virou referencia');
+  }
+  if (kb(soFabrica) > 3) problemas.push(`o de fabrica comprimido ficou com ${kb(soFabrica).toFixed(1)} KB`);
+
+  // (b) pergunta nova sobe inteira; de fabrica editada, desligada ou com id
+  //     trocado deixa de bater e tambem sobe inteira.
+  const mexido = clonar(original);
+  const nova = clonar(original.slots[0].perguntas[0]);
+  nova.id = 'nova-1';
+  nova.pt.pergunta = 'Pergunta criada pelo operador';
+  mexido.slots[0].perguntas.push(nova);
+  mexido.slots[3].perguntas[0].pt.pergunta = 'editei a de fabrica';
+  mexido.slots[5].perguntas[0].ativa = false;
+  mexido.slots[7].veiculo.nome = 'Veiculo renomeado';
+
+  const comprimido = deck.comprimirParaNuvem(mexido);
+  const porExtenso = comprimido.slots.flatMap((s) => s.perguntas).filter((p) => !p.deFabrica);
+  if (porExtenso.length !== 3) {
+    problemas.push(`esperava 3 perguntas por extenso (nova, editada, desligada), vieram ${porExtenso.length}`);
+  }
+  if (Number.isInteger(comprimido.slots[7].veiculo?.deFabrica)) {
+    problemas.push('veiculo renomeado nao deveria ter virado referencia');
+  }
+  if (!Number.isInteger(comprimido.slots[1].veiculo?.deFabrica)) {
+    problemas.push('veiculo intocado deveria ter virado referencia');
+  }
+
+  // (c) ida e volta exata.
+  const volta = deck.expandirDaNuvem(comprimido);
+  if (JSON.stringify(volta) !== JSON.stringify({ versao: 2, slots: mexido.slots })) {
+    problemas.push('a ida e volta pela nuvem nao devolveu o mesmo baralho');
+  }
+
+  // (d) referencia que nao existe mais some sem derrubar o resto.
+  const quebrado = clonar(soFabrica);
+  quebrado.slots[2].perguntas = [{ deFabrica: 'orig-nao-existe' }];
+  const salvo = deck.expandirDaNuvem(quebrado);
+  if (salvo.slots.length !== 9) {
+    problemas.push(`veiculo sem pergunta valida deveria sair; sobraram ${salvo.slots.length} de 10`);
+  }
+
+  return problemas;
+});
+
+console.log(
+  nuvem.length
+    ? '8. COMPRESSAO PARA A NUVEM FALHOU:'
+    : '8. para a nuvem vai so o que nao e de fabrica, e a ida e volta e exata'
+);
+nuvem.slice(0, 10).forEach((p) => console.log('   - ' + p));
+falhas.push(...nuvem);
+
 await browser.close();
 if (falhas.length) {
   console.log('\nFALHOU:\n- ' + falhas.slice(0, 15).join('\n- '));

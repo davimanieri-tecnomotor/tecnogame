@@ -143,7 +143,9 @@ async function publicar() {
   }
   const r = await publicarNaNuvem(estado.baralho);
   aviso(
-    r.ok ? 'Enviado para a nuvem. Todo totem com internet pega na próxima partida.' : `A nuvem recusou: ${r.motivo}`,
+    r.ok
+      ? `Enviado para a nuvem (${r.kb} KB). Todo totem com internet pega na próxima partida.`
+      : `A nuvem recusou: ${r.motivo}`,
     r.ok ? 'ok' : 'erro'
   );
 }

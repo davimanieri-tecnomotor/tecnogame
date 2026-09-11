@@ -1874,6 +1874,81 @@
   
   const temBaralhoPublicado = () => readJson(DECK_KEY, null) != null;
   
+  /* ------------------------------------------------- o que vai para a nuvem -- */
+  
+  /**
+   * O QUE SOBE E O QUE FICA DE FÁBRICA.
+   *
+   * O baralho publicado carrega as dez perguntas originais junto, palavra por
+   * palavra, mesmo quando ninguém encostou nelas. Elas já estão no código de todo
+   * totem — subir de novo é repetir 38 KB à toa.
+   *
+   * Então o que vai para o Firestore é só o que DIFERE da fábrica: pergunta ou
+   * veículo intocado viram uma referência (`{deFabrica: 'orig-3'}`), e o resto vai
+   * inteiro. Pergunta nova sobe inteira; pergunta de fábrica que alguém editou,
+   * desligou ou reordenou deixa de ser idêntica e também sobe inteira. Não há
+   * "meio referência": ou bate exatamente, ou vai por extenso.
+   *
+   * Dois ganhos além do tamanho:
+   *  - o conteúdo de fábrica continua com uma fonte de verdade só, o
+   *    `questions.js`. Corrigir um acento lá chega aos totens sem republicar.
+   *  - o documento fica pequeno, e o teto de 1 MB por documento do Firestore
+   *    passa a ser um problema só de quem enviar muitas fotos do computador.
+   *
+   * O preço, dito: se o `questions.js` mudar, o texto que o totem mostra para uma
+   * pergunta referenciada muda junto. É o comportamento que se quer para conserto
+   * de digitação, e é o que se precisa saber antes de reescrever uma original.
+   */
+  const ORIGINAIS_POR_ID = new Map(SLOTS_ORIGINAIS.map((s) => [s.perguntas[0].id, s.perguntas[0]]));
+  
+  const mesmo = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  
+  const indiceDoVeiculoDeFabrica = (veiculo) => VEICULOS_ORIGINAIS.findIndex((v) => mesmo(v, veiculo));
+  
+  /** Troca por referência tudo que for idêntico ao de fábrica. */
+  function comprimirParaNuvem(deck) {
+    return {
+      versao: 2,
+      slots: (deck?.slots ?? []).map((slot) => {
+        const iVeiculo = indiceDoVeiculoDeFabrica(slot.veiculo);
+        return {
+          veiculo: iVeiculo >= 0 ? { deFabrica: iVeiculo } : slot.veiculo,
+          perguntas: (slot.perguntas ?? []).map((p) =>
+            ORIGINAIS_POR_ID.has(p.id) && mesmo(ORIGINAIS_POR_ID.get(p.id), p) ? { deFabrica: p.id } : p
+          ),
+        };
+      }),
+    };
+  }
+  
+  /** O inverso: devolve as referências ao conteúdo de fábrica. */
+  function expandirDaNuvem(deck) {
+    if (!deck || !Array.isArray(deck.slots)) return deck;
+    const perdidas = [];
+  
+    const slots = deck.slots.map((slot) => {
+      const ref = slot.veiculo?.deFabrica;
+      const veiculo = Number.isInteger(ref) ? VEICULOS_ORIGINAIS[ref] : slot.veiculo;
+      const perguntas = (slot.perguntas ?? [])
+        .map((p) => {
+          if (!p?.deFabrica) return p;
+          const original = ORIGINAIS_POR_ID.get(p.deFabrica);
+          // Só acontece se alguém tirar uma rodada do questions.js depois de um
+          // baralho já ter apontado para ela. Some a pergunta, não o veículo.
+          if (!original) perdidas.push(p.deFabrica);
+          return original ?? null;
+        })
+        .filter(Boolean);
+      return { veiculo: veiculo ?? slot.veiculo, perguntas };
+    });
+  
+    if (perdidas.length) {
+      console.warn(`baralho da nuvem aponta para perguntas de fábrica que não existem mais: ${perdidas.join(', ')}`);
+    }
+    // Veículo que ficou sem nenhuma pergunta sai: a roleta cairia nele sem jogo.
+    return { versao: 2, slots: slots.filter((s) => s.perguntas.length > 0) };
+  }
+  
   /* ----------------------------------------------------------------- arte --- */
   
   /**
@@ -1905,6 +1980,8 @@
   Object.defineProperty(__exports, "publicarBaralho", { get: () => publicarBaralho, enumerable: true });
   Object.defineProperty(__exports, "restaurarOriginal", { get: () => restaurarOriginal, enumerable: true });
   Object.defineProperty(__exports, "temBaralhoPublicado", { get: () => temBaralhoPublicado, enumerable: true });
+  Object.defineProperty(__exports, "comprimirParaNuvem", { get: () => comprimirParaNuvem, enumerable: true });
+  Object.defineProperty(__exports, "expandirDaNuvem", { get: () => expandirDaNuvem, enumerable: true });
   Object.defineProperty(__exports, "usaArteOriginal", { get: () => usaArteOriginal, enumerable: true });
   });
 
@@ -6064,11 +6141,21 @@
   // escrever, e vive na conta de vocês, não no código.
   
   const { firebase, podeUsarNuvem } = __require("firebase.js");
-  const { publicarBaralho, carregarBaralho } = __require("deck.js");
+  const { publicarBaralho, carregarBaralho, comprimirParaNuvem, expandirDaNuvem } = __require("deck.js");
   
   /** O documento único. Coleção e id fixos: é um baralho por instalação. */
   const COLECAO = 'conteudo';
   const DOCUMENTO = 'baralho';
+  
+  /**
+   * O Firestore recusa documento acima de 1 MiB, e a mensagem dele não diz o que
+   * fazer. Este teto é menor de propósito — sobra para nomes de campo e para o
+   * `serverTimestamp` — e quem o estoura, na prática, é foto enviada do
+   * computador: cada uma vira um `data:` URL de ~88 KB dentro do baralho.
+   */
+  const TETO_KB = 900;
+  
+  const pesoEmKb = (obj) => Math.round(JSON.stringify(obj).length / 1024);
   
   /* ------------------------------------------------------------ sincronia -- */
   
@@ -6090,13 +6177,17 @@
       const snap = await fs.getDoc(fs.doc(db, COLECAO, DOCUMENTO));
       if (!snap.exists()) return false;
   
-      const remoto = snap.data()?.baralho;
-      if (!remoto || !Array.isArray(remoto.slots) || remoto.slots.length === 0) return false;
+      const bruto = snap.data()?.baralho;
+      if (!bruto || !Array.isArray(bruto.slots) || bruto.slots.length === 0) return false;
+  
+      // O que está guardado lá traz o de fábrica por referência; aqui ele volta a
+      // ser conteúdo (ver comprimirParaNuvem).
+      const remoto = expandirDaNuvem(bruto);
+      if (!remoto.slots.length) return false;
   
       // Comparar o texto evita reescrever (e invalidar o cache da projeção de
       // estado) a cada partida quando nada mudou.
-      const atual = JSON.stringify(carregarBaralho());
-      if (JSON.stringify(remoto) === atual) return false;
+      if (JSON.stringify(remoto) === JSON.stringify(carregarBaralho())) return false;
   
       publicarBaralho(remoto);
       return true;
@@ -6123,14 +6214,27 @@
     }
     if (!fb.auth.currentUser) return { ok: false, motivo: 'é preciso entrar para publicar.' };
   
+    // Só o que difere da fábrica: as dez originais já estão no código de todo
+    // totem, e repeti-las aqui é peso à toa.
+    const enxuto = comprimirParaNuvem(deck);
+    const kb = pesoEmKb(enxuto);
+    if (kb > TETO_KB) {
+      return {
+        ok: false,
+        motivo:
+          `o baralho ficou com ${kb} KB e o Firestore aceita no máximo ${TETO_KB} por documento. ` +
+          'Imagens enviadas do computador são o que mais ocupa — troque alguma por um caminho em assets/images.',
+      };
+    }
+  
     try {
       const { db, fs } = fb;
       await fs.setDoc(fs.doc(db, COLECAO, DOCUMENTO), {
-        baralho: deck,
+        baralho: enxuto,
         atualizadoEm: fs.serverTimestamp(),
         publicadoPor: fb.auth.currentUser.email ?? fb.auth.currentUser.uid,
       });
-      return { ok: true };
+      return { ok: true, kb };
     } catch (erro) {
       // A mensagem crua do Firestore ("Missing or insufficient permissions") não
       // diz ao operador o que fazer.
@@ -6331,7 +6435,9 @@
     }
     const r = await publicarNaNuvem(estado.baralho);
     aviso(
-      r.ok ? 'Enviado para a nuvem. Todo totem com internet pega na próxima partida.' : `A nuvem recusou: ${r.motivo}`,
+      r.ok
+        ? `Enviado para a nuvem (${r.kb} KB). Todo totem com internet pega na próxima partida.`
+        : `A nuvem recusou: ${r.motivo}`,
       r.ok ? 'ok' : 'erro'
     );
   }
