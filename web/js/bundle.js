@@ -8126,7 +8126,10 @@
   //     é borrão ANGULAR, que é o que a câmera vê, e não desfoque;
   //   - o eixo não é perfeito, então o disco bambeia um par de pixels;
   //   - a luz fica PARADA enquanto o disco passa por baixo. É o que mais separa
-  //     um objeto de uma imagem girando: brilho que gira junto vira adesivo.
+  //     um objeto de uma imagem girando: brilho que gira junto vira adesivo;
+  //   - e ela ESTALA, um som por divisa que cruza a seta, disparado pela mesma
+  //     conta que move a lingueta. A gravação que tocava junto durava 4,87s num
+  //     giro de 7,11s e não sabia onde a roda estava; isto sabe, por construção.
   //
   // O sorteio não muda em nada. As voltas que este módulo acrescenta são
   // INTEIRAS, então a fatia que sobra debaixo da seta continua sendo a mesma que
@@ -8135,6 +8138,7 @@
   // Tudo aqui sai quando o sistema pede menos movimento.
   
   const { Curves, RotateEffect, menosMovimento } = __require("anim.js");
+  const { tique } = __require("audio.js");
   const { el } = __require("widgets.js");
   
   /* ----------------------------------------------------------- o giro ------ */
@@ -8292,6 +8296,34 @@
   /** Bamboleio do eixo, em pixels, na velocidade cheia. */
   const EIXO_FOLGA = 2.2;
   
+  /**
+   * O ESTALO DE CADA DIVISA.
+   *
+   * A gravação `roleta-normal-1` dura 4,87s e o giro leva 7,11s: ela acabava
+   * antes, e o trecho lento — justo onde se conta fatia por fatia e onde está o
+   * suspense — corria em silêncio. Nenhum ajuste de volume conserta isso, porque
+   * o problema não é a mistura, é que a faixa não sabe onde a roda está.
+   *
+   * Então a gravação cobre a parte rápida, onde estalo individual seria um zumbido
+   * de 30 por segundo de qualquer jeito, e daí para baixo quem soa é a roda: um
+   * estalo por divisa que passa, disparado pelo MESMO `u` que move a lingueta.
+   * Sincronizado por construção — cada som é um pino de verdade cruzando a seta,
+   * e ele desacelera junto porque é a mesma conta.
+   */
+  
+  /**
+   * A roda pica em 18 fatias/s, e estala do começo ao fim — é assim que soa uma
+   * roda de prêmio de verdade. Este teto fica acima do pico de propósito: ele não
+   * corta nada, só serve de escala para o volume e o tom.
+   *
+   * A mistura se faz sozinha: no começo o estalo é agudo e quase inaudível, e a
+   * gravação manda; no fim ele é grave e presente, e a gravação já acabou. É uma
+   * passagem de bastão, não duas faixas brigando.
+   */
+  const ESTALO_ATE = 20;
+  /** Abaixo disto a roda já parou; estalo aqui seria ruído. */
+  const ESTALO_DE = 0.08;
+  
   /** O ângulo que o disco está mostrando agora, em graus, lido da própria tela. */
   function anguloNaTela(no) {
     const t = getComputedStyle(no).transform;
@@ -8373,6 +8405,9 @@
       }
     }
   
+    /** Onde `u` estava no quadro anterior, para achar a virada (ver o estalo). */
+    let uAnterior = null;
+  
     function passo(agora) {
       const dt = Math.min((agora - ultimo) / 1000, 0.05);
       ultimo = agora;
@@ -8400,6 +8435,31 @@
       // uma passar, 1 quando a seguinte chega. A meia fatia de deslocamento é
       // porque a roda para com a seta no MEIO da fatia, e não sobre a divisa.
       const u = sobra(angulo / passoDaFatia + 0.5, 1);
+  
+      // --- o estalo --------------------------------------------------------
+      // `u` corre de 0 a 1 dentro do vão e volta a 0 quando uma divisa cruza a
+      // seta. Essa virada é o momento exato do estalo.
+      //
+      // A VIRADA, e não "u diminuiu". No fim do giro a seta puxa a roda de volta
+      // e `u` fica oscilando em torno da divisa: qualquer queda servia de
+      // gatilho, e o estalo virava um zumbido de 120 por segundo. Uma travessia
+      // de verdade leva `u` de perto de 1 para perto de 0, então o salto é
+      // grande; tremor é sempre pequeno.
+      const fatiasPorSeg = Math.abs(velocidade) / passoDaFatia;
+      if (uAnterior != null && uAnterior - u > 0.5 && fatiasPorSeg > ESTALO_DE && fatiasPorSeg < ESTALO_ATE) {
+        // Mais grave e mais forte conforme a roda pesa e desacelera: o último
+        // estalo é o mais baixo e o mais presente, que é o que fecha o giro.
+        const corre = entre(fatiasPorSeg / ESTALO_ATE, 0, 1);
+        tique({
+          frequencia: 620 + corre * 520,
+          // Curto quando os estalos se atropelam (55ms entre eles no pico), longo
+          // quando sobra espaço.
+          duracao: 0.02 + (1 - corre) * 0.045,
+          volume: 0.04 + (1 - corre) * 0.17,
+        });
+      }
+      uAnterior = u;
+  
       const encosta = u - (1 - SETA_CONTATO);
       // O disco gira no sentido horário, então lá embaixo os pinos correm para a
       // esquerda e empurram a ponta da seta para esse lado — giro negativo.
@@ -8666,7 +8726,11 @@
   
         model.apertaButton = false;
         FFAppState.escolha = numeroAleatorio([...FFAppState.listaEscolhas], FFAppState.totalSlots);
-        playSound(model, 'soundPlayer', 'assets/audios/roleta-normal-1_2GXmNRPk.mp3', 0.6);
+        // 0,45 e nao 0,6: a roda agora estala sozinha, um som por divisa que
+        // cruza a seta (ver giro.js). A gravacao passou a ser o leito por baixo
+        // disso, e no volume antigo ela abafava os estalos justo no comeco, que e
+        // onde eles sao mais fracos.
+        playSound(model, 'soundPlayer', 'assets/audios/roleta-normal-1_2GXmNRPk.mp3', 0.45);
         // Este `await` E sequencia: e o giro inteiro, e o jogo so segue depois.
         // O `girar()` vem logo atras porque ele LE o angulo que a animacao ja
         // escreveu na tela — e assim a seta bate na divisa que esta mostrando,

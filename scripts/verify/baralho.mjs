@@ -13,7 +13,15 @@ const BASE = process.env.BASE ?? 'http://127.0.0.1:8099';
 const pageUrl = (route) => (BASE.endsWith('.html') ? `${BASE}#${route}` : `${BASE}/#${route}`);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
+const browser = await puppeteer.launch({
+  headless: 'new',
+  args: ['--no-sandbox'],
+  // Sozinho este teste roda em ~46s, mas ele joga partidas inteiras e a suite o
+  // corre junto com outros cinco Chromes; numa maquina disputada ele ja passou
+  // de 188s e morreu no teto padrao de 180s do puppeteer, que e rede de
+  // seguranca do puppeteer e nao exigencia deste projeto.
+  protocolTimeout: 420000,
+});
 const page = await browser.newPage();
 await page.setViewport({ width: 1920, height: 1080 });
 const falhas = [];

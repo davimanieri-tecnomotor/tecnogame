@@ -181,7 +181,11 @@ export function RoletaWidget() {
 
       model.apertaButton = false;
       FFAppState.escolha = numeroAleatorio([...FFAppState.listaEscolhas], FFAppState.totalSlots);
-      playSound(model, 'soundPlayer', 'assets/audios/roleta-normal-1_2GXmNRPk.mp3', 0.6);
+      // 0,45 e nao 0,6: a roda agora estala sozinha, um som por divisa que
+      // cruza a seta (ver giro.js). A gravacao passou a ser o leito por baixo
+      // disso, e no volume antigo ela abafava os estalos justo no comeco, que e
+      // onde eles sao mais fracos.
+      playSound(model, 'soundPlayer', 'assets/audios/roleta-normal-1_2GXmNRPk.mp3', 0.45);
       // Este `await` E sequencia: e o giro inteiro, e o jogo so segue depois.
       // O `girar()` vem logo atras porque ele LE o angulo que a animacao ja
       // escreveu na tela — e assim a seta bate na divisa que esta mostrando,
