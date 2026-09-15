@@ -32,7 +32,7 @@ import { FFAppState } from '../state.js';
 import { numeroAleatorio } from '../functions.js';
 import { usaArteOriginal } from '../deck.js';
 import { rodaGerada } from '../roda.js';
-import { criarVida, efeitosDoGiro } from '../giro.js';
+import { criarVida, efeitosDoGiro, TAXA_DA_GRAVACAO } from '../giro.js';
 import { playSound } from '../audio.js';
 import { goNamed, TransitionInfo, PageTransitionType } from '../router.js';
 import {
@@ -181,11 +181,11 @@ export function RoletaWidget() {
 
       model.apertaButton = false;
       FFAppState.escolha = numeroAleatorio([...FFAppState.listaEscolhas], FFAppState.totalSlots);
-      // 0,45 e nao 0,6: a roda agora estala sozinha, um som por divisa que
-      // cruza a seta (ver giro.js). A gravacao passou a ser o leito por baixo
-      // disso, e no volume antigo ela abafava os estalos justo no comeco, que e
-      // onde eles sao mais fracos.
-      playSound(model, 'soundPlayer', 'assets/audios/roleta-normal-1_2GXmNRPk.mp3', 0.45);
+      // TAXA_DA_GRAVACAO estica o playbackRate para a faixa (4,87s) cobrir o
+      // giro inteiro (7,11s) em vez de acabar com a roda ainda girando (ver
+      // giro.js). 0,45 e nao 0,6 porque esticada ela fica mais tempo no ar, e
+      // no volume antigo enchia demais uma cena que já tem o disco a girar.
+      playSound(model, 'soundPlayer', 'assets/audios/roleta-normal-1_2GXmNRPk.mp3', 0.45, TAXA_DA_GRAVACAO);
       // Este `await` E sequencia: e o giro inteiro, e o jogo so segue depois.
       // O `girar()` vem logo atras porque ele LE o angulo que a animacao ja
       // escreveu na tela — e assim a seta bate na divisa que esta mostrando,

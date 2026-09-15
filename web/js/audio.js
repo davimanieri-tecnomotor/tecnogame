@@ -122,7 +122,7 @@ export function tique({ frequencia = 1040, duracao = 0.07, volume = 0.16 } = {})
 }
 
 /** The one-liner the Dart repeats everywhere, as a single call. */
-export function playSound(holder, key, asset, volume = 1.0) {
+export function playSound(holder, key, asset, volume = 1.0, taxa = 1.0) {
   let player = holder[key];
   if (!player) {
     player = new AudioPlayer();
@@ -130,6 +130,13 @@ export function playSound(holder, key, asset, volume = 1.0) {
   }
   if (player.playing) player.stop();
   player.setVolume(volume);
-  player.setAsset(asset).then(() => player.play());
+  player.setAsset(asset).then(() => {
+    // DEPOIS do setAsset, não antes: trocar `.src` reseta playbackRate para 1
+    // (é o load algorithm do elemento, não bug daqui). `taxa` != 1 estica ou
+    // encolhe a gravação sem trocar o arquivo — é o que a roleta usa para uma
+    // faixa curta cobrir um giro mais longo (ver giro.js).
+    player.el.playbackRate = taxa;
+    player.play();
+  });
   return player;
 }

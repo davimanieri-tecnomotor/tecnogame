@@ -3591,7 +3591,7 @@
   }
   
   /** The one-liner the Dart repeats everywhere, as a single call. */
-  function playSound(holder, key, asset, volume = 1.0) {
+  function playSound(holder, key, asset, volume = 1.0, taxa = 1.0) {
     let player = holder[key];
     if (!player) {
       player = new AudioPlayer();
@@ -3599,7 +3599,14 @@
     }
     if (player.playing) player.stop();
     player.setVolume(volume);
-    player.setAsset(asset).then(() => player.play());
+    player.setAsset(asset).then(() => {
+      // DEPOIS do setAsset, não antes: trocar `.src` reseta playbackRate para 1
+      // (é o load algorithm do elemento, não bug daqui). `taxa` != 1 estica ou
+      // encolhe a gravação sem trocar o arquivo — é o que a roleta usa para uma
+      // faixa curta cobrir um giro mais longo (ver giro.js).
+      player.el.playbackRate = taxa;
+      player.play();
+    });
     return player;
   }
   Object.defineProperty(__exports, "AudioPlayer", { get: () => AudioPlayer, enumerable: true });
@@ -8250,9 +8257,9 @@
   //   - o eixo não é perfeito, então o disco bambeia um par de pixels;
   //   - a luz fica PARADA enquanto o disco passa por baixo. É o que mais separa
   //     um objeto de uma imagem girando: brilho que gira junto vira adesivo;
-  //   - e ela ESTALA, um som por divisa que cruza a seta, disparado pela mesma
-  //     conta que move a lingueta. A gravação que tocava junto durava 4,87s num
-  //     giro de 7,11s e não sabia onde a roda estava; isto sabe, por construção.
+  //   - e ela ESTALA: a gravação que toca junto é esticada, com `playbackRate`,
+  //     para durar o giro inteiro (ver TAXA_DA_GRAVACAO) em vez de acabar em
+  //     4,87s de um giro de 7,11s e deixar a roda girando muda no fim.
   //
   // O sorteio não muda em nada. As voltas que este módulo acrescenta são
   // INTEIRAS, então a fatia que sobra debaixo da seta continua sendo a mesma que
@@ -8261,7 +8268,6 @@
   // Tudo aqui sai quando o sistema pede menos movimento.
   
   const { Curves, RotateEffect, menosMovimento } = __require("anim.js");
-  const { tique } = __require("audio.js");
   const { el } = __require("widgets.js");
   
   /* ----------------------------------------------------------- o giro ------ */
@@ -8320,6 +8326,15 @@
   
   /** Quanto tempo o giro inteiro leva, do toque à roda parada. */
   const DURACAO_DO_GIRO = T_ARRANQUE + T_FREIO + T_RECUO;
+  
+  /**
+   * A gravação `roleta-normal-1` tem 4,87s de áudio (medido decodificando o
+   * arquivo — 233760 amostras a 48kHz). Tocada normal ela acaba bem antes da
+   * roda parar; esta taxa a estica em `playbackRate` para os dois terminarem
+   * juntos, sem tocar no arquivo nem na física do giro.
+   */
+  const DURACAO_DA_GRAVACAO = 4.87;
+  const TAXA_DA_GRAVACAO = DURACAO_DA_GRAVACAO / (DURACAO_DO_GIRO / 1000);
   
   const entre = (v, min, max) => Math.max(min, Math.min(max, v));
   /** Módulo que devolve sempre positivo — `%` do JS guarda o sinal. */
@@ -8419,34 +8434,6 @@
   /** Bamboleio do eixo, em pixels, na velocidade cheia. */
   const EIXO_FOLGA = 2.2;
   
-  /**
-   * O ESTALO DE CADA DIVISA.
-   *
-   * A gravação `roleta-normal-1` dura 4,87s e o giro leva 7,11s: ela acabava
-   * antes, e o trecho lento — justo onde se conta fatia por fatia e onde está o
-   * suspense — corria em silêncio. Nenhum ajuste de volume conserta isso, porque
-   * o problema não é a mistura, é que a faixa não sabe onde a roda está.
-   *
-   * Então a gravação cobre a parte rápida, onde estalo individual seria um zumbido
-   * de 30 por segundo de qualquer jeito, e daí para baixo quem soa é a roda: um
-   * estalo por divisa que passa, disparado pelo MESMO `u` que move a lingueta.
-   * Sincronizado por construção — cada som é um pino de verdade cruzando a seta,
-   * e ele desacelera junto porque é a mesma conta.
-   */
-  
-  /**
-   * A roda pica em 18 fatias/s, e estala do começo ao fim — é assim que soa uma
-   * roda de prêmio de verdade. Este teto fica acima do pico de propósito: ele não
-   * corta nada, só serve de escala para o volume e o tom.
-   *
-   * A mistura se faz sozinha: no começo o estalo é agudo e quase inaudível, e a
-   * gravação manda; no fim ele é grave e presente, e a gravação já acabou. É uma
-   * passagem de bastão, não duas faixas brigando.
-   */
-  const ESTALO_ATE = 20;
-  /** Abaixo disto a roda já parou; estalo aqui seria ruído. */
-  const ESTALO_DE = 0.08;
-  
   /** O ângulo que o disco está mostrando agora, em graus, lido da própria tela. */
   function anguloNaTela(no) {
     const t = getComputedStyle(no).transform;
@@ -8528,9 +8515,6 @@
       }
     }
   
-    /** Onde `u` estava no quadro anterior, para achar a virada (ver o estalo). */
-    let uAnterior = null;
-  
     function passo(agora) {
       const dt = Math.min((agora - ultimo) / 1000, 0.05);
       ultimo = agora;
@@ -8558,30 +8542,6 @@
       // uma passar, 1 quando a seguinte chega. A meia fatia de deslocamento é
       // porque a roda para com a seta no MEIO da fatia, e não sobre a divisa.
       const u = sobra(angulo / passoDaFatia + 0.5, 1);
-  
-      // --- o estalo --------------------------------------------------------
-      // `u` corre de 0 a 1 dentro do vão e volta a 0 quando uma divisa cruza a
-      // seta. Essa virada é o momento exato do estalo.
-      //
-      // A VIRADA, e não "u diminuiu". No fim do giro a seta puxa a roda de volta
-      // e `u` fica oscilando em torno da divisa: qualquer queda servia de
-      // gatilho, e o estalo virava um zumbido de 120 por segundo. Uma travessia
-      // de verdade leva `u` de perto de 1 para perto de 0, então o salto é
-      // grande; tremor é sempre pequeno.
-      const fatiasPorSeg = Math.abs(velocidade) / passoDaFatia;
-      if (uAnterior != null && uAnterior - u > 0.5 && fatiasPorSeg > ESTALO_DE && fatiasPorSeg < ESTALO_ATE) {
-        // Mais grave e mais forte conforme a roda pesa e desacelera: o último
-        // estalo é o mais baixo e o mais presente, que é o que fecha o giro.
-        const corre = entre(fatiasPorSeg / ESTALO_ATE, 0, 1);
-        tique({
-          frequencia: 620 + corre * 520,
-          // Curto quando os estalos se atropelam (55ms entre eles no pico), longo
-          // quando sobra espaço.
-          duracao: 0.02 + (1 - corre) * 0.045,
-          volume: 0.04 + (1 - corre) * 0.17,
-        });
-      }
-      uAnterior = u;
   
       const encosta = u - (1 - SETA_CONTATO);
       // O disco gira no sentido horário, então lá embaixo os pinos correm para a
@@ -8687,6 +8647,7 @@
     };
   }
   Object.defineProperty(__exports, "DURACAO_DO_GIRO", { get: () => DURACAO_DO_GIRO, enumerable: true });
+  Object.defineProperty(__exports, "TAXA_DA_GRAVACAO", { get: () => TAXA_DA_GRAVACAO, enumerable: true });
   Object.defineProperty(__exports, "efeitosDoGiro", { get: () => efeitosDoGiro, enumerable: true });
   Object.defineProperty(__exports, "criarVida", { get: () => criarVida, enumerable: true });
   });
@@ -8710,7 +8671,7 @@
   const { numeroAleatorio } = __require("functions.js");
   const { usaArteOriginal } = __require("deck.js");
   const { rodaGerada } = __require("roda.js");
-  const { criarVida, efeitosDoGiro } = __require("giro.js");
+  const { criarVida, efeitosDoGiro, TAXA_DA_GRAVACAO } = __require("giro.js");
   const { playSound } = __require("audio.js");
   const { goNamed, TransitionInfo, PageTransitionType } = __require("router.js");
   const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad, delayed, menosMovimento } = __require("anim.js");
@@ -8849,11 +8810,11 @@
   
         model.apertaButton = false;
         FFAppState.escolha = numeroAleatorio([...FFAppState.listaEscolhas], FFAppState.totalSlots);
-        // 0,45 e nao 0,6: a roda agora estala sozinha, um som por divisa que
-        // cruza a seta (ver giro.js). A gravacao passou a ser o leito por baixo
-        // disso, e no volume antigo ela abafava os estalos justo no comeco, que e
-        // onde eles sao mais fracos.
-        playSound(model, 'soundPlayer', 'assets/audios/roleta-normal-1_2GXmNRPk.mp3', 0.45);
+        // TAXA_DA_GRAVACAO estica o playbackRate para a faixa (4,87s) cobrir o
+        // giro inteiro (7,11s) em vez de acabar com a roda ainda girando (ver
+        // giro.js). 0,45 e nao 0,6 porque esticada ela fica mais tempo no ar, e
+        // no volume antigo enchia demais uma cena que já tem o disco a girar.
+        playSound(model, 'soundPlayer', 'assets/audios/roleta-normal-1_2GXmNRPk.mp3', 0.45, TAXA_DA_GRAVACAO);
         // Este `await` E sequencia: e o giro inteiro, e o jogo so segue depois.
         // O `girar()` vem logo atras porque ele LE o angulo que a animacao ja
         // escreveu na tela — e assim a seta bate na divisa que esta mostrando,
