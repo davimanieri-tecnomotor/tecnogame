@@ -21,6 +21,23 @@ export function px(v) {
   return `${v}px`;
 }
 
+/**
+ * Um tamanho de fonte com piso de legibilidade.
+ *
+ * O palco e escalado inteiro, entao todo texto encolhe junto: num notebook de
+ * 1280x800 a escala e 0,667 e o texto de 14px do cadastro chega a 9,3px na
+ * tela. `--piso-fonte` (css/app.css) e 12px DE TELA convertidos para px do
+ * palco pela escala, entao em 1x ele vale 12px e nao alcanca nada — o totem
+ * continua identico ao Dart — e so entra quando a janela e pequena.
+ *
+ * Sem `--piso-fonte` definido (a area administrativa nao tem palco) o piso e
+ * zero e o tamanho declarado passa direto.
+ */
+export function fonte(v) {
+  if (v == null) return null;
+  return `max(${typeof v === 'number' ? `${v}px` : v}, var(--piso-fonte, 0px))`;
+}
+
 /** Flutter's `Color(0xAARRGGBB)` -> css. */
 export function color(argb) {
   if (typeof argb === 'string') return argb;
@@ -80,7 +97,7 @@ export function append(node, children) {
   }
 }
 
-/** Flutter's `[...].divide(SizedBox(...))` - drops nulls first, like `if (...)`
+/** Flutter's `[...].divide(gap)` - drops nulls first, like `if (...)`
  *  children that evaluate to nothing. */
 export function divide(children, gap) {
   return { __divided: children.filter((c) => c != null && c !== false), gap };
@@ -349,9 +366,11 @@ export function Container({
     minHeight: 0,
     // A Flutter child can never exceed its parent's constraints - a
     // `Container(width: 1920)` inside a 1102px-wide parent lays out at 1102.
-    // O mesmo vale na vertical: a roleta declara 946px de altura dentro de uma
-    // caixa de 839.8, e o Flutter a comprime; sem isto ela era recortada em
-    // cima e embaixo em vez de encolher.
+    // O mesmo vale na vertical. Cuidado: dentro de um Stack isto NAO segura um
+    // filho que declara mais altura que o Stack, porque a porcentagem resolve
+    // contra a grid area, que cresce junto com o maior filho. Foi assim que a
+    // roleta estourou a caixa e teve o fundo recortado. Quem declara tamanho
+    // dentro de um Stack precisa declarar o tamanho ja resolvido.
     maxWidth: '100%',
     maxHeight: '100%',
   };
@@ -446,10 +465,6 @@ export function ClipRRect({ borderRadius = 0, child, style } = {}) {
   return inheritFill(node, child);
 }
 
-export function SizedBox({ width, height } = {}) {
-  return el('div', { style: { width: px(width), height: px(height), flex: 'none' } });
-}
-
 /**
  * Expanded / Flexible.
  *
@@ -539,7 +554,7 @@ export function Txt(text, style = {}) {
     class: 'ff-text',
     style: {
       fontFamily: fontFamily ? `'${fontFamily}', sans-serif` : null,
-      fontSize: fontSize != null ? `${fontSize}px` : null,
+      fontSize: fonte(fontSize),
       fontWeight: fontWeight != null ? String(fontWeight) : null,
       fontStyle: fontStyle || null,
       color: c || null,
@@ -578,13 +593,18 @@ export function Img(src, { width, height, fit = 'cover', alignment, style } = {}
 
 /** InkWell with all the splash/focus/hover/highlight colours set to
  *  transparent, which is how every tap target in this project is written. */
-export function InkWell({ onTap, child, style, disabled = false, label } = {}) {
+/**
+ * @param {boolean} [feedback] se o toque afunda o alvo. Padrao sim; passa-se
+ *   `false` no InkWell que cobre a tela inteira so para captar toque no fundo —
+ *   afundar a pagina toda a cada clique seria absurdo.
+ */
+export function InkWell({ onTap, child, style, disabled = false, label, feedback = true } = {}) {
   const interactive = Boolean(onTap) && !disabled;
   const node = inheritFill(
     el(
       'div',
       {
-        class: 'ff-inkwell',
+        class: ['ff-inkwell', interactive && feedback ? 'ff-press' : null].filter(Boolean).join(' '),
         role: 'button',
         // Um <div role="button"> nao entra na ordem de tabulacao por conta
         // propria, e sem isto o teclado nao alcanca nada no jogo.
@@ -726,8 +746,12 @@ export function FutureBuilder({ future, builder, loading = null, fill = false })
   return host;
 }
 
-/** Center(child: SizedBox(50x50, child: CircularProgressIndicator(...))) */
-export function CircularProgressIndicator({ color: c = 'transparent', size = 50 } = {}) {
+/**
+ * O que o FutureBuilder mostra enquanto espera. Nao e exportado porque so ele
+ * usa — e nao e visivel: todo call site do projeto o quer transparente, porque
+ * o Dart passava `Color(0x004B39EF)`, alfa zero.
+ */
+function CircularProgressIndicator({ color: c = 'transparent', size = 50 } = {}) {
   return el('div', {
     style: {
       width: `${size}px`,
@@ -736,9 +760,7 @@ export function CircularProgressIndicator({ color: c = 'transparent', size = 50 
       alignSelf: 'center',
       margin: 'auto',
       border: `4px solid ${c}`,
-      borderTopColor: 'transparent',
       borderRadius: '50%',
-      animation: 'ff-spin 1.2s linear infinite',
     },
   });
 }

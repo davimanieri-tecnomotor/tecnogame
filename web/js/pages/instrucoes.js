@@ -43,7 +43,7 @@ const NEXT = () =>
       __transition_info__: new TransitionInfo({
         hasTransition: true,
         transitionType: PageTransitionType.fade,
-        duration: 0,
+        duration: 300,
       }),
     },
   });
@@ -75,7 +75,7 @@ export function InstrucoesWidget() {
   const skipButton = InkWell({
     onTap: async () => {
       playSound(model, 'soundPlayer', 'assets/audios/adriantnt_u_click.mp3', 1.0);
-      await animationsMap.containerOnActionTriggerAnimation.controller.forward();
+      animationsMap.containerOnActionTriggerAnimation.controller.forward();
       left = true;
       NEXT();
     },

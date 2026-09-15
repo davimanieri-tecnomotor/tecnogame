@@ -1,11 +1,53 @@
 # Infra do Firebase
 
 Regras e índices do Firestore usados pelo TecGame, em versão controlada junto do
-código que os consome. O projeto é `projeto-assis-3qcf6v`.
+código que os consome. O projeto é **`tecnogame-c7e46`** — o da Tecnomotor. O
+`projeto-assis-3qcf6v`, que vinha do FlutterFlow original, está morto (o bucket
+dele responde 402) e não é mais usado por nada.
 
 ```bash
+cd firebase
 firebase deploy --only firestore:rules,firestore:indexes
 ```
+
+## Antes do primeiro uso — uma coisa só existe pelo console
+
+**Criar o Firestore** em `tecnogame-c7e46` (Build → Firestore Database → Criar
+banco de dados). Pode escolher *produção*: as regras deste repositório
+substituem as do assistente no `deploy` acima.
+
+Não é preciso habilitar login: desde 11/09/2026 a escrita do baralho é aberta
+(ver abaixo).
+
+## A escrita do baralho é aberta, por decisão do projeto
+
+`conteudo/baralho` aceita escrita de qualquer um, com a justificativa de que o
+endereço do jogo não será divulgado. Fica registrado o que isso custa:
+
+- **quem descobrir a URL reescreve o jogo.** Não há segredo possível no cliente
+  — a chave web vai no bundle —, então a única proteção passa a ser ninguém
+  saber o endereço, e endereço de GitHub Pages é indexável;
+- a senha `2040` do painel não muda nada disso: ela é a tranca de gaveta que
+  esconde a tela (`web/js/admin/porta.js`) e viaja no mesmo JavaScript que o
+  jogador recebe.
+
+O que as regras ainda defendem: o **formato**. Sem `isBaralhoValido`, a coleção
+viraria depósito de dados arbitrários de quem passasse.
+
+E o que **não** foi afrouxado junto: `contatos`, que guarda nome e telefone de
+jogador de verdade. Nenhum cliente lê de lá — quem precisar do telefone lê pelo
+console do Firebase. A política de privacidade que o próprio jogo exibe promete
+isso.
+
+O conserto, se um dia o conteúdo passar a valer alguma coisa: voltar
+`allow write: if request.auth != null` em `conteudo`, habilitar o provedor de
+e-mail/senha e devolver o botão Entrar ao painel.
+
+> **O totem precisa abrir por HTTP.** O SDK do Firebase é módulo ES vindo da
+> CDN, e `file://` recusa módulo ES — o mesmo motivo de existir o `bundle.js`.
+> Aberto do disco, o jogo continua jogando, mas só com o baralho guardado
+> naquele navegador. Para receber o que o admin publica, o totem tem de abrir
+> pelo endereço do GitHub Pages.
 
 ## Por que as regras mudaram
 
@@ -38,7 +80,7 @@ fechar a leitura, é **não colocar telefone no que é lido**:
 | --- | --- | --- | --- |
 | `usuarios` | nome, atuação, venceu, tempo, equipamento | sim (é o ranking) | só `create`, com formato validado |
 | `contatos` | nome, telefone | **não** | só `create`, com formato validado |
-| `conteudo` | baralho de perguntas/veículos publicado pelo admin | sim | só autenticado |
+| `conteudo` | baralho de veículos, regras e perguntas salvo pelo admin | sim | **qualquer um**, com formato validado (ver acima) |
 
 Escrita cega em `contatos`: o cliente grava e nunca lê de volta. Quem precisa do
 telefone (o disparo de WhatsApp) passa a ler de lá autenticado, no servidor.
@@ -55,9 +97,9 @@ telefone (o disparo de WhatsApp) passa a ler de lá autenticado, no servidor.
 3. **Retenção de 1 ano.** A política promete exclusão automática após um ano e
    nada no projeto implementa isso. Uma TTL policy no Firestore sobre o campo
    `data` cobre, sem código.
-4. **Auth para o admin.** As regras de `conteudo` e a leitura de `contatos` já
-   exigem `request.auth != null`; falta habilitar um provedor (e-mail/senha
-   serve) e criar a conta do operador.
+4. ~~**Auth para o admin.**~~ Dispensado: a escrita do baralho ficou aberta por
+   decisão do projeto (ver acima). A leitura de `contatos` continua exigindo
+   `request.auth != null`, ou seja: nenhum cliente lê.
 
 A `apiKey` do Firebase pode continuar no cliente — chave web é identificador
 público por design, não credencial. A defesa real são estas regras.

@@ -1,15 +1,19 @@
 // Port of the Firestore layer (lib/backend/backend.dart, usuarios_record.dart)
 // and the two HTTP calls in lib/backend/api_requests/api_calls.dart.
 //
-// The Dart app talks to the Firebase project `projeto-assis-3qcf6v` and to
-// z-api.io for the WhatsApp message. Both are kept here with their original
-// configuration but are OFF by default, so running this port does not write
-// into the live collection or send messages from the production WhatsApp
-// instance. Flip the flags in config.js to switch them on; with Firestore off,
-// the ranking is stored in this browser instead and every query keeps the same
-// semantics (`where venceu == true`, `orderBy tempo desc`, `limit n`).
+// O ranking vai para o Firestore de `tecnogame-c7e46` (o projeto do Dart,
+// `projeto-assis-3qcf6v`, está morto) E para o armazenamento deste navegador.
+// Os dois, e não um ou outro: ver `addUsuario`.
+//
+// O disparo de WhatsApp pela z-api continua DESLIGADO (`useWhatsApp` em
+// config.js), porque a credencial dele não pode viajar no cliente.
+//
+// Com o Firestore desligado, ou sem rede, a consulta cai no local e mantém a
+// mesma semântica do Dart (`where venceu == true`, `orderBy tempo desc`,
+// `limit n`).
 
 import { CONFIG } from './config.js';
+import { firebase } from './firebase.js';
 import { getRecords, putRecord } from './storage.js';
 
 const LOCAL_KEY = 'usuarios';
@@ -42,17 +46,27 @@ const readLocal = () => getRecords(LOCAL_KEY);
 
 /* ------------------------------------------------------------- Firestore -- */
 
+/**
+ * PACIÊNCIA COM A REDE. Um `getDocs`/`addDoc` do Firestore não falha quando não
+ * há conexão (ou quando o banco nem foi criado no console): ele fica
+ * PENDENTE, esperando o servidor, e o SDK guarda a escrita para reenviar.
+ *
+ * Isso é bom para um app comum e péssimo para um totem de feira: a tela de fim
+ * ficaria em branco esperando um ranking que nunca chega, e o resultado da
+ * partida nunca seria gravado em lugar nenhum. Por isso toda chamada daqui tem
+ * prazo, e o local é o chão que sempre existe.
+ */
+const PRAZO_MS = 2500;
+
+const comPrazo = (promessa, ms = PRAZO_MS) =>
+  Promise.race([promessa, new Promise((_, rejeitar) => setTimeout(() => rejeitar(new Error('prazo')), ms))]);
+
 let firestore = null;
 
 async function ensureFirestore() {
-  if (!CONFIG.useFirestore) return null;
-  if (firestore) return firestore;
-  const [{ initializeApp }, fs] = await Promise.all([
-    import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js'),
-    import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'),
-  ]);
-  const app = initializeApp(CONFIG.firebaseOptions);
-  firestore = { db: fs.getFirestore(app), fs };
+  const fb = await firebase();
+  if (!fb) return null;
+  firestore = { db: fb.db, fs: fb.fs };
   return firestore;
 }
 
@@ -80,25 +94,31 @@ export async function addUsuario(record, { serverTimestamp = false } = {}) {
 
   const contato = telefone ? { nome: partida.nome ?? '', telefone, ...(row.data ? { data: row.data } : {}) } : null;
 
-  if (CONFIG.useFirestore) {
-    try {
-      const { db, fs } = await ensureFirestore();
-      const payload = { ...row };
-      if (serverTimestamp) payload.data = fs.serverTimestamp();
-      await fs.addDoc(fs.collection(db, 'usuarios'), payload);
-      if (contato) {
-        const c = { ...contato };
-        if (serverTimestamp) c.data = fs.serverTimestamp();
-        await fs.addDoc(fs.collection(db, 'contatos'), c);
-      }
-      return;
-    } catch (error) {
-      console.warn('Firestore write failed, falling back to local storage.', error);
-    }
-  }
-
+  // O LOCAL PRIMEIRO, SEMPRE. Antes isto era o "senão" do Firestore, e o
+  // resultado era que uma escrita pendente (rede ruim, banco ainda não criado)
+  // não gravava em lugar nenhum: o `addDoc` não rejeita, fica pendurado, e o
+  // caminho local nunca chegava a rodar. A partida do jogador sumia.
   putRecord(LOCAL_KEY, row);
   if (contato) putRecord(CONTACT_KEY, contato);
+
+  if (!CONFIG.rankingNaNuvem) return;
+  try {
+    const alvo = await ensureFirestore();
+    if (!alvo) return;
+    const { db, fs } = alvo;
+    const payload = { ...row };
+    if (serverTimestamp) payload.data = fs.serverTimestamp();
+    await comPrazo(fs.addDoc(fs.collection(db, 'usuarios'), payload));
+    if (contato) {
+      const c = { ...contato };
+      if (serverTimestamp) c.data = fs.serverTimestamp();
+      await comPrazo(fs.addDoc(fs.collection(db, 'contatos'), c));
+    }
+  } catch (error) {
+    // O SDK guarda a escrita e reenvia quando a rede voltar; e a cópia local já
+    // está gravada de qualquer forma. Nada a fazer além de registrar.
+    console.warn('Firestore demorou ou recusou; o resultado ficou gravado localmente.', error);
+  }
 }
 
 /**
@@ -109,20 +129,27 @@ export async function addUsuario(record, { serverTimestamp = false } = {}) {
  * the fastest players first - the ranking is sorted exactly as in the Dart.
  */
 export async function queryUsuariosVencedores({ limit = 15 } = {}) {
-  if (CONFIG.useFirestore) {
+  if (CONFIG.rankingNaNuvem) {
     try {
-      const { db, fs } = await ensureFirestore();
-      const snapshot = await fs.getDocs(
-        fs.query(
-          fs.collection(db, 'usuarios'),
-          fs.where('venceu', '==', true),
-          fs.orderBy('tempo', 'desc'),
-          fs.limit(limit)
-        )
-      );
-      return snapshot.docs.map((doc) => normalize(doc.data()));
+      const alvo = await comPrazo(ensureFirestore());
+      if (alvo) {
+        const { db, fs } = alvo;
+        const snapshot = await comPrazo(
+          fs.getDocs(
+            fs.query(
+              fs.collection(db, 'usuarios'),
+              fs.where('venceu', '==', true),
+              fs.orderBy('tempo', 'desc'),
+              fs.limit(limit)
+            )
+          )
+        );
+        return snapshot.docs.map((doc) => normalize(doc.data()));
+      }
     } catch (error) {
-      console.warn('Firestore read failed, falling back to local storage.', error);
+      // Com prazo estourado a tela de fim mostra o ranking local em vez de
+      // ficar em branco esperando.
+      console.warn('Firestore não respondeu a tempo; mostrando o ranking local.', error);
     }
   }
 
@@ -131,20 +158,6 @@ export async function queryUsuariosVencedores({ limit = 15 } = {}) {
     .sort((a, b) => (b.tempo ?? 0) - (a.tempo ?? 0))
     .slice(0, limit)
     .map(normalize);
-}
-
-/** `queryUsuariosRecordCount()` */
-export async function queryUsuariosRecordCount() {
-  if (CONFIG.useFirestore) {
-    try {
-      const { db, fs } = await ensureFirestore();
-      const snapshot = await fs.getCountFromServer(fs.collection(db, 'usuarios'));
-      return snapshot.data().count;
-    } catch (error) {
-      console.warn('Firestore count failed, falling back to local storage.', error);
-    }
-  }
-  return readLocal().length;
 }
 
 /**
@@ -184,6 +197,11 @@ export async function enviarMensagemZap({ numero = '', resultado = '' } = {}) {
     return { succeeded: false, skipped: true };
   }
 
+  if (!CONFIG.zapApiUrl || !CONFIG.zapClientToken) {
+    console.warn('[enviarMensagemZap] sem credencial em config.js — nada enviado');
+    return { succeeded: false, skipped: true };
+  }
+
   try {
     const response = await fetch(CONFIG.zapApiUrl, {
       method: 'POST',
@@ -197,22 +215,3 @@ export async function enviarMensagemZap({ numero = '', resultado = '' } = {}) {
   }
 }
 
-/** EnviarMensagemAgenteCall.call({nome, telefone, venceu}) - defined in the
- *  Dart but never called from a widget; kept for parity. */
-export async function enviarMensagemAgente({ nome = '', telefone = '', venceu = null } = {}) {
-  if (!CONFIG.useAgentWebhook) {
-    console.info('[enviarMensagemAgente] desligado em config.js (useAgentWebhook)');
-    return { succeeded: false, skipped: true };
-  }
-  try {
-    const response = await fetch(CONFIG.agentWebhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, telefone, venceu }),
-    });
-    return { succeeded: response.ok, statusCode: response.status };
-  } catch (error) {
-    console.warn('enviarMensagemAgente failed', error);
-    return { succeeded: false };
-  }
-}

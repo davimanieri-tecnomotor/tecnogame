@@ -15,6 +15,7 @@ function unlock() {
   unlocked = true;
   for (const player of pending) player.play();
   pending.clear();
+  contexto?.resume?.().catch(() => {});
 }
 
 for (const type of ['pointerdown', 'keydown', 'touchstart']) {
@@ -65,6 +66,59 @@ export class AudioPlayer {
     this.stop();
     this.el.src = '';
   }
+}
+
+/* -------------------------------------------------- sons sintetizados ----- */
+
+/**
+ * O tique dos últimos segundos não é arquivo: é uma nota curta gerada na hora
+ * pela Web Audio API.
+ *
+ * Por que sintetizar em vez de gravar: não precisa de asset novo, não pesa no
+ * bundle, e toca por `file://` — o que o navegador recusa na origem nula é
+ * *buscar* arquivo, não gerar som. E o tom pode acompanhar a urgência sem
+ * precisar de uma faixa por segundo.
+ */
+let contexto = null;
+
+function contextoDeAudio() {
+  if (contexto) return contexto;
+  const Ctor = window.AudioContext || window.webkitAudioContext;
+  if (!Ctor) return null;
+  try {
+    contexto = new Ctor();
+  } catch (_) {
+    return null;
+  }
+  return contexto;
+}
+
+/**
+ * Um estalo curto. `frequencia` em Hz, `duracao` em segundos.
+ *
+ * O envelope é o que separa "relógio" de "bipe de forno": ataque quase
+ * instantâneo (5ms) e queda exponencial. Uma nota de volume constante soa como
+ * alarme; esta soa como ponteiro.
+ */
+export function tique({ frequencia = 1040, duracao = 0.07, volume = 0.16 } = {}) {
+  const ctx = contextoDeAudio();
+  if (!ctx) return;
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+  const agora = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const ganho = ctx.createGain();
+
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(frequencia, agora);
+  // exponentialRampToValueAtTime não aceita zero, daí o 0.0001 nas pontas.
+  ganho.gain.setValueAtTime(0.0001, agora);
+  ganho.gain.exponentialRampToValueAtTime(Math.max(volume, 0.0002), agora + 0.005);
+  ganho.gain.exponentialRampToValueAtTime(0.0001, agora + duracao);
+
+  osc.connect(ganho).connect(ctx.destination);
+  osc.start(agora);
+  osc.stop(agora + duracao + 0.02);
 }
 
 /** The one-liner the Dart repeats everywhere, as a single call. */

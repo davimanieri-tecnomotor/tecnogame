@@ -30,19 +30,23 @@ import {
 import { TH, style } from '../theme.js';
 import { FFLocalizations, L } from '../i18n.js';
 import { FFAppState } from '../state.js';
-import { playSound } from '../audio.js';
+import { playSound, tique } from '../audio.js';
 import { showDialog } from '../dialog.js';
 import { ConfirmacaoWidget } from './confirmacao.js';
 import { PopUpWidget } from './pop_up.js';
-import { pushNamed, TransitionInfo, PageTransitionType } from '../router.js';
+import { goNamed, TransitionInfo, PageTransitionType } from '../router.js';
 import { addUsuario, createUsuariosRecordData } from '../backend.js';
 import {
   AnimationInfo,
   AnimationTrigger,
   Curves,
+  FadeEffect,
+  MoveEffect,
   ScaleEffect,
   animateOnActionTrigger,
   animateOnPageLoad,
+  delayed,
+  menosMovimento,
 } from '../anim.js';
 import { FlutterFlowTimer, FlutterFlowTimerController, InstantTimer, StopWatchMode, StopWatchTimer } from '../timer.js';
 
@@ -196,6 +200,42 @@ const tapFeedback = () =>
     ],
   });
 
+/**
+ * Relevo: um realce no alto e uma sombra embaixo, sobre a cor lisa do cartão.
+ *
+ * Vai pelo `gradient` do Container, e não por CSS: `color` vira a abreviação
+ * `background` no estilo inline, que zera `background-image` — uma regra de
+ * folha não alcançaria. O `Container` escreve `backgroundImage` depois de
+ * `background`, então o gradiente pousa por cima da cor.
+ *
+ * Em rgba porque o painel troca de pele conforme o scanner escolhido: branco e
+ * preto translúcidos funcionam sobre qualquer uma das cores.
+ */
+const relevo = () =>
+  linearGradient({
+    colors: ['rgba(255, 255, 255, 0.30)', 'rgba(255, 255, 255, 0.04)', 'rgba(0, 0, 0, 0.07)'],
+    stops: [0.0, 0.46, 1.0],
+    begin: [0.0, -1.0],
+    end: [0.0, 1.0],
+  });
+
+/** A entrada das quatro alternativas, uma atrás da outra. */
+const entradaDaResposta = (ordem) =>
+  new AnimationInfo({
+    trigger: AnimationTrigger.onPageLoad,
+    applyInitialState: true,
+    effectsBuilder: () => [
+      FadeEffect({ curve: Curves.easeOut, delay: 260.0 + ordem * 90.0, duration: 320.0, begin: 0.0, end: 1.0 }),
+      MoveEffect({
+        curve: Curves.easeOut,
+        delay: 260.0 + ordem * 90.0,
+        duration: 420.0,
+        begin: [64.0, 0.0],
+        end: [0.0, 0.0],
+      }),
+    ],
+  });
+
 const hintPulse = () =>
   new AnimationInfo({
     loop: true,
@@ -234,7 +274,13 @@ function respostaText(slot, numero) {
   return pergunta(field, { enField });
 }
 
-export function PerguntasErespostasWidget() {
+/**
+ * @param {object}   [opcoes]
+ * @param {Function} [opcoes.aoEntrarNaRetaFinal]  chamado uma vez quando o
+ *   relógio cruza os 15s. Quem desenha a moldura do defeito é a tela (o painel
+ *   só tem a metade direita), então a tela pede para ser avisada.
+ */
+export function PerguntasErespostasWidget({ aoEntrarNaRetaFinal = null } = {}) {
   const model = {
     apoio: false,
     youtube: false,
@@ -243,6 +289,7 @@ export function PerguntasErespostasWidget() {
     representante: false,
     numeroDicas: 0,
     apertou: false,
+    revelando: false,
     timerMilliseconds: 60000,
     timerValue: StopWatchTimer.getDisplayTime(60000, { hours: false }),
     timerController: new FlutterFlowTimerController({ mode: StopWatchMode.countDown }),
@@ -282,18 +329,27 @@ export function PerguntasErespostasWidget() {
 
     const card = InkWell({
       onTap: async () => {
+        // Durante a revelação a tela está congelada de propósito.
+        if (model.revelando) return;
         // Slots 0, 1 and 3 guard on `_model.apertou`; slot 2 guards on
         // FFAppState().finalizou instead - kept exactly as written.
         if (slot === 2 ? FFAppState.finalizou : model.apertou) return;
 
         model.apertou = true;
         playSound(model, sound, 'assets/audios/undertale-select-sound.mp3', 0.53);
-        await animation.controller.forward();
-        await showDialog({ builder: () => ConfirmacaoWidget() });
+        animation.controller.forward();
+        marcarEscolha(slot);
+        await showDialog({ builder: () => ConfirmacaoWidget({ numero: slot + 1, texto: text }) });
 
         if (FFAppState.finalizou) {
+          model.revelando = true;
           model.soundPlayer1?.stop();
           model.timerController.onStopTimer();
+          // O relógio não pode mandar para "Perdeu" no meio da revelação. No
+          // Dart só o slot 0 cancelava este timer — com a tela trocando na
+          // mesma batida da confirmação isso nunca aparecia; agora que existe
+          // uma pausa entre uma coisa e outra, aparece.
+          model.instantTimer?.cancel();
 
           const gabarito = valueOrDefault(
             FFAppState.questoesBrasil[FFAppState.indiceAtual]?.gabarito,
@@ -311,7 +367,22 @@ export function PerguntasErespostasWidget() {
             invalido: FFAppState.cadastro.invalido,
           });
 
-          pushNamed(acertou ? 'Ganhou' : 'Perdeu', {
+          // A tela de fim precisa saber o que era certo para poder contar.
+          const slotCerto = FFAppState.ordemNumeros.findIndex((n) => String(n) === String(gabarito));
+          FFAppState.resultado = {
+            acertou,
+            numeroCerto: slotCerto >= 0 ? slotCerto + 1 : null,
+            textoCerto: slotCerto >= 0 ? respostaText(slotCerto, FFAppState.ordemNumeros[slotCerto]) : null,
+            numeroEscolhido: slot + 1,
+            textoEscolhido: text,
+          };
+
+          // A pausa antes do veredito. É o pedaço do Jogo do Milhão que faltava
+          // aqui: sem ela o jogo julga e troca de tela na mesma batida, e
+          // ninguém chega a ver o que era certo.
+          await revelar({ slotEscolhido: slot, slotCerto });
+
+          goNamed(acertou ? 'Ganhou' : 'Perdeu', {
             extra: {
               __transition_info__: new TransitionInfo({
                 hasTransition: true,
@@ -327,9 +398,10 @@ export function PerguntasErespostasWidget() {
           model.treinamento = false;
           model.representante = false;
           model.timerController.onResetTimer();
-          // Only the first answer cancels the tick timer in the Dart.
-          if (slot === 0) model.instantTimer?.cancel();
           FFAppState.finalizou = false;
+        } else {
+          // Cancelou: o cartão volta a ser um cartão como os outros.
+          marcarEscolha(null);
         }
         model.apertou = false;
       },
@@ -337,6 +409,7 @@ export function PerguntasErespostasWidget() {
         width: 550.0,
         height: 125.0,
         color: cardColor(scanner()),
+        gradient: relevo(),
         boxShadow: boxShadow({ blurRadius: 10.0, color: color(0x5D000000), offset: [-10.0, 10.0], spreadRadius: 1.0 }),
         borderRadius: 12.0,
         child: Padding({
@@ -359,6 +432,8 @@ export function PerguntasErespostasWidget() {
       }),
     });
 
+    card.classList.add('ff-resposta-cartao');
+
     const stack = Stack({
       alignment: [-1.0, 0.0],
       children: [
@@ -377,7 +452,63 @@ export function PerguntasErespostasWidget() {
       ],
     });
 
+    stack.dataset.resposta = String(slot);
+    // As quatro chegavam de uma vez, prontas. Entrando uma atrás da outra, o
+    // olho as lê na ordem em que vai precisar delas — e é a batida do gênero.
+    animateOnPageLoad(stack, entradaDaResposta(slot));
     return animateOnActionTrigger(stack, animation);
+  }
+
+  /* ------------------------------------------------------------ revelação -- */
+
+  /** Quanto o veredito fica na tela antes de trocar de página. */
+  const PAUSA_DA_REVELACAO = 1500;
+
+  const cartoes = () => [...root.querySelectorAll('[data-resposta]')];
+
+  /** Acende o cartão que o jogador tocou; `null` apaga todos. */
+  function marcarEscolha(slot) {
+    for (const no of cartoes()) {
+      no.classList.toggle('ff-resposta--escolhida', Number(no.dataset.resposta) === slot);
+    }
+  }
+
+  /**
+   * Congela a tela, apaga as alternativas descartadas, acende a certa em verde
+   * e — se foi o caso — a errada em vermelho. Devolve quando a pausa acabou.
+   */
+  function revelar({ slotEscolhido, slotCerto }) {
+    root.classList.add('ff-revelando');
+    for (const no of cartoes()) {
+      const slot = Number(no.dataset.resposta);
+      // Solta as animações que ainda seguram este cartão — a entrada e o aperto
+      // do toque. As duas têm `fill: both`, e animação preenchida ganha de
+      // regra de folha: sem soltar, o `opacity` que apaga as descartadas
+      // simplesmente não valeria.
+      //
+      // Mas cancelar não basta, e foi assim que a resposta certa sumia da tela:
+      // `applyInitialState` escreve o QUADRO 0 no estilo inline — para a
+      // entrada, `opacity: 0` e `translate(64px)` — e nunca o apaga. Enquanto a
+      // animação corria ela mascarava isso; cancelada, o quadro 0 voltava a
+      // valer e o cartão desaparecia 64px fora do lugar. Limpar as duas
+      // propriedades é o que devolve o elemento ao CSS.
+      for (const animacao of no.getAnimations()) animacao.cancel();
+      no.style.transform = no.dataset.baseTransform ?? '';
+      no.classList.remove('ff-resposta--escolhida');
+
+      // Opacidade cheia, escrita INLINE. Não é enfeite: sem isto o cartão fica
+      // com o `opacity: 0` que o `applyInitialState` deixou, e some — era esse
+      // o defeito. Quem recua é o filtro da classe `--fria`, que ninguém mais
+      // disputa. Aqui não há espaço para "quase": ou o jogador vê qual era a
+      // certa, ou o veredito não serviu para nada.
+      no.style.opacity = '1';
+      if (slot === slotCerto) no.classList.add('ff-resposta--certa');
+      else if (slot === slotEscolhido) no.classList.add('ff-resposta--errada');
+      else no.classList.add('ff-resposta--fria');
+    }
+    // Sem movimento ligado, o veredito ainda precisa ser lido: as cores ficam,
+    // só a espera encurta.
+    return delayed(menosMovimento() ? 700 : PAUSA_DA_REVELACAO);
   }
 
   /* -------------------------------------------------------- support hints -- */
@@ -388,7 +519,7 @@ export function PerguntasErespostasWidget() {
         playSound(model, spec.sound, 'assets/audios/adriantnt_u_click.mp3', 0.5);
         if (model[spec.key]) return;
 
-        await actionAnimation.controller.forward();
+        actionAnimation.controller.forward();
         model[spec.key] = true;
         refreshHints();
 
@@ -491,14 +622,48 @@ export function PerguntasErespostasWidget() {
 
   /* ----------------------------------------------------------- the timer -- */
 
+  /**
+   * A reta final.
+   *
+   * `FFAppState.tempoAcabando` existia desde o Dart e ninguém a lia: a tela da
+   * pergunta a ligava aos 15s DE TELA e a tela de fim a zerava. Agora ela é
+   * ligada pelos 15s QUE FALTAM, que é onde a tensão mora, e tem dois ouvintes:
+   * o CSS (relógio vermelho pulsando, moldura do defeito quente) e o tique.
+   */
+  const RETA_FINAL_MS = 15000;
+  const TIQUE_MS = 10000;
+
+  // A caixa branca do relógio, presa mais abaixo na árvore. Fica `null` até lá;
+  // o relógio só cruza os 15s muito depois da árvore existir.
+  let caixaDoRelogio = null;
+
+  function olharORelogio(value, deveAtualizar) {
+    if (model.revelando) return;
+
+    if (!FFAppState.tempoAcabando && value <= RETA_FINAL_MS) {
+      FFAppState.tempoAcabando = true;
+      caixaDoRelogio?.classList.add('ff-cronometro--reta-final');
+      aoEntrarNaRetaFinal?.();
+    }
+
+    // `deveAtualizar` vem do próprio FlutterFlowTimer e é verdadeiro uma vez por
+    // segundo — é o batimento que o tique quer, e não o quadro.
+    if (!deveAtualizar || value > TIQUE_MS || value <= 0) return;
+    // Sobe meio tom por segundo nos últimos dez: o ouvido percebe a subida sem
+    // precisar contar.
+    const restantes = Math.max(0, Math.ceil(value / 1000));
+    tique({ frequencia: 880 + (10 - restantes) * 26, duracao: 0.07, volume: 0.16 });
+  }
+
   const timer = FlutterFlowTimer({
     initialTime: 60000,
     controller: model.timerController,
     getDisplayTime: (value) => StopWatchTimer.getDisplayTime(value, { hours: false }),
     updateStateInterval: 1000,
-    onChanged: (value, displayTime) => {
+    onChanged: (value, displayTime, deveAtualizar) => {
       model.timerMilliseconds = value;
       model.timerValue = displayTime;
+      olharORelogio(value, deveAtualizar);
     },
     textAlign: 'justify',
     style: style('headlineSmall', {
@@ -680,6 +845,7 @@ export function PerguntasErespostasWidget() {
                               }),
                               Container({
                                 color: cardColor(scanner()),
+                                gradient: relevo(),
                                 boxShadow: boxShadow({
                                   blurRadius: 10.0,
                                   color: color(0x5D000000),
@@ -708,18 +874,20 @@ export function PerguntasErespostasWidget() {
         alignment: [1.0, 1.0],
         child: Padding({
           padding: [0.0, 0.0, 52.0, 32.0],
-          child: Container({
+          child: (caixaDoRelogio = Container({
             width: 385.0,
             height: 90.0,
             color: '#FFFFFF',
+            gradient: relevo(),
             boxShadow: boxShadow({ blurRadius: 10.0, color: color(0x5D000000), offset: [-5.0, 5.0], spreadRadius: 1.0 }),
             borderRadius: 8.0,
             child: Padding({ padding: [8.0, 8.0, 8.0, 8.0], child: timer }),
-          }),
+          })),
         }),
       }),
     ],
   });
+  caixaDoRelogio.classList.add('ff-cronometro');
 
   /* --------------------------------------------------------- on page load -- */
   // Background music, then a 1Hz tick that sends the player to Perdeu when the
@@ -742,7 +910,7 @@ export function PerguntasErespostasWidget() {
       model.timerController.onResetTimer();
       model.soundPlayer1?.stop();
       model.instantTimer?.cancel();
-      pushNamed('Perdeu', {
+      goNamed('Perdeu', {
         extra: {
           __transition_info__: new TransitionInfo({
             hasTransition: true,

@@ -25,7 +25,7 @@ async function pickLanguage(nome) {
   await page.evaluate(() => document.querySelectorAll('#pages .ff-dropdown')[1].click());
   await wait(250);
   await page.evaluate((n) => {
-    [...document.querySelectorAll('#pages .ff-dropdown-item')].find((x) => x.textContent.trim() === n).click();
+    [...document.querySelectorAll('.ff-dropdown-item')].find((x) => x.textContent.trim() === n).click();
   }, nome);
   await wait(1200);
 }
@@ -43,7 +43,7 @@ await inputs[1].type('16997037115');
 await page.evaluate(() => document.querySelectorAll('#pages .ff-dropdown')[0].click());
 await wait(250);
 await page.evaluate(() =>
-  document.querySelectorAll('#pages .ff-dropdown')[0].parentElement.querySelectorAll('.ff-dropdown-item')[2].click()
+  document.querySelectorAll('.ff-dropdown-item')[2].click()
 );
 await wait(250);
 

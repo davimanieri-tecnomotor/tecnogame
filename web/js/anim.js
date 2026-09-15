@@ -10,10 +10,14 @@
 
 /**
  * Quem pede menos movimento no sistema nao deve receber os loops infinitos —
- * o jogo pulsa varios elementos para sempre. As animacoes de um disparo ficam:
- * sao curtas e comunicam estado (o toque afundando um botao, a tela entrando).
+ * o jogo pulsa varios elementos para sempre — nem o giro de 5s da roleta, que
+ * e a tela inteira girando. As animacoes de um disparo ficam: sao curtas e
+ * comunicam estado (o toque afundando um botao, a tela entrando).
+ *
+ * Os loops saem aqui; o giro sai no proprio call site (pages/roleta.js), porque
+ * quem decide se a roda gira e o efeito que ele monta.
  */
-const semLoops = () => {
+export const menosMovimento = () => {
   try {
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   } catch (_) {
@@ -66,6 +70,17 @@ export class AnimationInfo {
     this.controller = { forward: () => this._forward() };
   }
 
+  /**
+   * `animationsMap['x']!.controller.forward(from: 0.0)`.
+   *
+   * CONVENCAO: quem anima um TOQUE dispara isto SEM `await`. O Dart esperava os
+   * 400ms da animacao de aperto antes de fazer qualquer coisa, e o resultado e
+   * um botao que parece nao ter pego — 400ms e tempo de sobra para o dedo achar
+   * que errou. A animacao roda junto com a acao, nao antes dela.
+   *
+   * Os poucos `await` que sobraram sao sequencia de verdade (o giro de 5s da
+   * roleta, a saida da tela do carro) e estao comentados no lugar.
+   */
   _forward() {
     const runs = this._targets
       .map(({ node, effects }) => run(node, effects ?? this.effectsBuilder?.(), this))
@@ -116,7 +131,7 @@ export function run(node, effects, info = {}) {
   if (total === 0) return null;
 
   // Loop infinito com "menos movimento" ligado: fixa o estado final e sai.
-  if (info.loop && semLoops()) {
+  if (info.loop && menosMovimento()) {
     const fade = effects.find((e) => e.kind === 'fade');
     if (fade) node.style.opacity = String(fade.end);
     return Promise.resolve();
@@ -224,9 +239,6 @@ export function animateOnActionTrigger(node, info, effects = null) {
   info._targets.push({ node, effects });
   return node;
 }
-
-/** setupAnimations(...) - nothing to pre-register in this port. */
-export function setupAnimations() {}
 
 /** `await Future.delayed(Duration(milliseconds: n))` */
 export const delayed = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));

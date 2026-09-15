@@ -85,5 +85,3 @@ export function pop(result, entry = stack[stack.length - 1]) {
 export function popAllDialogs() {
   while (stack.length) pop(undefined, stack[stack.length - 1]);
 }
-
-export const hasOpenDialog = () => stack.length > 0;

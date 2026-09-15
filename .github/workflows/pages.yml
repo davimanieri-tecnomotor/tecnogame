@@ -1,0 +1,65 @@
+# Publica a pasta web/ no GitHub Pages.
+#
+# O que vai para o ar é exatamente o que se abre localmente: web/ é o site
+# inteiro, sem passo de build. Todos os caminhos do jogo são relativos
+# ("assets/...", "js/...", "css/..."), então funciona tanto na raiz de um
+# domínio quanto em /<repo>/, que é onde o Pages de projeto serve.
+#
+# ANTES DO PRIMEIRO USO: em Settings > Pages, escolher Source = "GitHub
+# Actions". Sem isso o deploy falha dizendo que o Pages não está habilitado.
+#
+# A administração vai junto, dentro do index.html, atrás da rota /adm e da
+# senha. Isso é escolha, não descuido — e é tranca de gaveta: ver o cabeçalho
+# de web/js/admin/porta.js.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Só um deploy por vez, e o que está na fila cede lugar ao mais novo. O
+# `cancel-in-progress: false` é o recomendado para Pages: cancelar um deploy no
+# meio pode deixar o site num estado parcial.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      # O que sobe não pode estar mais velho que o código. `check` falha se o
+      # bundle.js commitado for anterior a qualquer módulo que ele contém — e é
+      # o bundle que o file:// roda, então um desencontro aqui vira totem
+      # rodando versão antiga.
+      - name: Checagem estática
+        run: npm run check
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

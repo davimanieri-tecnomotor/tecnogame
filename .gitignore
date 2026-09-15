@@ -3,11 +3,8 @@ node_modules/
 # tec_game.zip extraído — recriado por `npm run gen` (ou unzip manual)
 src_game/
 
-# saída dos testes de navegador
+# saída dos testes de navegador — tudo num lugar só
 shots/
-shots-*/
-play/
-play2/
 
 # lixo de sistema
 Thumbs.db

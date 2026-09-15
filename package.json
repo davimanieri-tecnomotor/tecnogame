@@ -11,6 +11,7 @@
     "gen": "python scripts/gen_data.py",
     "fonts": "python scripts/fetch_fonts.py",
     "verify": "node scripts/verify/all.mjs",
+    "verify:rapido": "node scripts/verify/all.mjs --http -j 6",
     "verify:routes": "node scripts/verify/routes.mjs",
     "verify:corte": "node scripts/verify/corte.mjs",
     "verify:play": "node scripts/verify/playthrough.mjs",

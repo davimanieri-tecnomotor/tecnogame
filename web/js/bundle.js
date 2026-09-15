@@ -40,6 +40,23 @@
     return `${v}px`;
   }
   
+  /**
+   * Um tamanho de fonte com piso de legibilidade.
+   *
+   * O palco e escalado inteiro, entao todo texto encolhe junto: num notebook de
+   * 1280x800 a escala e 0,667 e o texto de 14px do cadastro chega a 9,3px na
+   * tela. `--piso-fonte` (css/app.css) e 12px DE TELA convertidos para px do
+   * palco pela escala, entao em 1x ele vale 12px e nao alcanca nada — o totem
+   * continua identico ao Dart — e so entra quando a janela e pequena.
+   *
+   * Sem `--piso-fonte` definido (a area administrativa nao tem palco) o piso e
+   * zero e o tamanho declarado passa direto.
+   */
+  function fonte(v) {
+    if (v == null) return null;
+    return `max(${typeof v === 'number' ? `${v}px` : v}, var(--piso-fonte, 0px))`;
+  }
+  
   /** Flutter's `Color(0xAARRGGBB)` -> css. */
   function color(argb) {
     if (typeof argb === 'string') return argb;
@@ -99,7 +116,7 @@
     }
   }
   
-  /** Flutter's `[...].divide(SizedBox(...))` - drops nulls first, like `if (...)`
+  /** Flutter's `[...].divide(gap)` - drops nulls first, like `if (...)`
    *  children that evaluate to nothing. */
   function divide(children, gap) {
     return { __divided: children.filter((c) => c != null && c !== false), gap };
@@ -368,9 +385,11 @@
       minHeight: 0,
       // A Flutter child can never exceed its parent's constraints - a
       // `Container(width: 1920)` inside a 1102px-wide parent lays out at 1102.
-      // O mesmo vale na vertical: a roleta declara 946px de altura dentro de uma
-      // caixa de 839.8, e o Flutter a comprime; sem isto ela era recortada em
-      // cima e embaixo em vez de encolher.
+      // O mesmo vale na vertical. Cuidado: dentro de um Stack isto NAO segura um
+      // filho que declara mais altura que o Stack, porque a porcentagem resolve
+      // contra a grid area, que cresce junto com o maior filho. Foi assim que a
+      // roleta estourou a caixa e teve o fundo recortado. Quem declara tamanho
+      // dentro de um Stack precisa declarar o tamanho ja resolvido.
       maxWidth: '100%',
       maxHeight: '100%',
     };
@@ -465,10 +484,6 @@
     return inheritFill(node, child);
   }
   
-  function SizedBox({ width, height } = {}) {
-    return el('div', { style: { width: px(width), height: px(height), flex: 'none' } });
-  }
-  
   /**
    * Expanded / Flexible.
    *
@@ -558,7 +573,7 @@
       class: 'ff-text',
       style: {
         fontFamily: fontFamily ? `'${fontFamily}', sans-serif` : null,
-        fontSize: fontSize != null ? `${fontSize}px` : null,
+        fontSize: fonte(fontSize),
         fontWeight: fontWeight != null ? String(fontWeight) : null,
         fontStyle: fontStyle || null,
         color: c || null,
@@ -597,13 +612,18 @@
   
   /** InkWell with all the splash/focus/hover/highlight colours set to
    *  transparent, which is how every tap target in this project is written. */
-  function InkWell({ onTap, child, style, disabled = false, label } = {}) {
+  /**
+   * @param {boolean} [feedback] se o toque afunda o alvo. Padrao sim; passa-se
+   *   `false` no InkWell que cobre a tela inteira so para captar toque no fundo —
+   *   afundar a pagina toda a cada clique seria absurdo.
+   */
+  function InkWell({ onTap, child, style, disabled = false, label, feedback = true } = {}) {
     const interactive = Boolean(onTap) && !disabled;
     const node = inheritFill(
       el(
         'div',
         {
-          class: 'ff-inkwell',
+          class: ['ff-inkwell', interactive && feedback ? 'ff-press' : null].filter(Boolean).join(' '),
           role: 'button',
           // Um <div role="button"> nao entra na ordem de tabulacao por conta
           // propria, e sem isto o teclado nao alcanca nada no jogo.
@@ -745,7 +765,11 @@
     return host;
   }
   
-  /** Center(child: SizedBox(50x50, child: CircularProgressIndicator(...))) */
+  /**
+   * O que o FutureBuilder mostra enquanto espera. Nao e exportado porque so ele
+   * usa — e nao e visivel: todo call site do projeto o quer transparente, porque
+   * o Dart passava `Color(0x004B39EF)`, alfa zero.
+   */
   function CircularProgressIndicator({ color: c = 'transparent', size = 50 } = {}) {
     return el('div', {
       style: {
@@ -755,9 +779,7 @@
         alignSelf: 'center',
         margin: 'auto',
         border: `4px solid ${c}`,
-        borderTopColor: 'transparent',
         borderRadius: '50%',
-        animation: 'ff-spin 1.2s linear infinite',
       },
     });
   }
@@ -780,6 +802,7 @@
   Object.defineProperty(__exports, "SW", { get: () => SW, enumerable: true });
   Object.defineProperty(__exports, "SH", { get: () => SH, enumerable: true });
   Object.defineProperty(__exports, "px", { get: () => px, enumerable: true });
+  Object.defineProperty(__exports, "fonte", { get: () => fonte, enumerable: true });
   Object.defineProperty(__exports, "color", { get: () => color, enumerable: true });
   Object.defineProperty(__exports, "Colors", { get: () => Colors, enumerable: true });
   Object.defineProperty(__exports, "el", { get: () => el, enumerable: true });
@@ -797,7 +820,6 @@
   Object.defineProperty(__exports, "boxShadow", { get: () => boxShadow, enumerable: true });
   Object.defineProperty(__exports, "Opacity", { get: () => Opacity, enumerable: true });
   Object.defineProperty(__exports, "ClipRRect", { get: () => ClipRRect, enumerable: true });
-  Object.defineProperty(__exports, "SizedBox", { get: () => SizedBox, enumerable: true });
   Object.defineProperty(__exports, "Expanded", { get: () => Expanded, enumerable: true });
   Object.defineProperty(__exports, "Flexible", { get: () => Flexible, enumerable: true });
   Object.defineProperty(__exports, "SingleChildScrollView", { get: () => SingleChildScrollView, enumerable: true });
@@ -810,7 +832,6 @@
   Object.defineProperty(__exports, "Icon", { get: () => Icon, enumerable: true });
   Object.defineProperty(__exports, "VideoPlayer", { get: () => VideoPlayer, enumerable: true });
   Object.defineProperty(__exports, "FutureBuilder", { get: () => FutureBuilder, enumerable: true });
-  Object.defineProperty(__exports, "CircularProgressIndicator", { get: () => CircularProgressIndicator, enumerable: true });
   Object.defineProperty(__exports, "valueOrDefault", { get: () => valueOrDefault, enumerable: true });
   Object.defineProperty(__exports, "maybeHandleOverflow", { get: () => maybeHandleOverflow, enumerable: true });
   Object.defineProperty(__exports, "degrees", { get: () => degrees, enumerable: true });
@@ -1524,6 +1545,25 @@
     }
   }
   
+  /**
+   * Apaga uma chave — a nossa e a antiga do FlutterFlow, se houver.
+   *
+   * Existe para o "resetar todos os dados" da área administrativa: sobrescrever
+   * com `null` deixaria a string "null" guardada, e `temBaralhoPublicado()`
+   * continuaria dizendo que há baralho publicado.
+   */
+  function removerChave(name) {
+    const s = store();
+    if (!s) return false;
+    try {
+      s.removeItem(PREFIX + name);
+      if (LEGACY[name]) s.removeItem(LEGACY[name]);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+  
   function readJson(name, fallback) {
     const raw = readRaw(name);
     if (raw == null) return fallback;
@@ -1570,6 +1610,7 @@
   Object.defineProperty(__exports, "readRaw", { get: () => readRaw, enumerable: true });
   Object.defineProperty(__exports, "motivoDaFalha", { get: () => motivoDaFalha, enumerable: true });
   Object.defineProperty(__exports, "writeRaw", { get: () => writeRaw, enumerable: true });
+  Object.defineProperty(__exports, "removerChave", { get: () => removerChave, enumerable: true });
   Object.defineProperty(__exports, "readJson", { get: () => readJson, enumerable: true });
   Object.defineProperty(__exports, "writeJson", { get: () => writeJson, enumerable: true });
   Object.defineProperty(__exports, "getRecords", { get: () => getRecords, enumerable: true });
@@ -1590,11 +1631,27 @@
   // Aqui as três coisas viram um `slot`, e o baralho tem N slots. Isso é o que
   // permite a área administrativa adicionar e remover rodadas.
   //
+  // VERSÃO 2 — UM VEÍCULO, VÁRIAS PERGUNTAS
+  // Até a v1 um slot tinha exatamente uma pergunta grudada nele: caiu no VW
+  // Delivery, era sempre aquela. Numa feira, o segundo jogador da fila já sabia a
+  // resposta. Agora o slot tem um BANCO: `perguntas: [...]`, cada uma com o seu
+  // gabarito, os seus equipamentos e os seus três idiomas, e uma marca de `ativa`.
+  // Quando a roleta para num veículo, o jogo sorteia entre as ativas daquele
+  // veículo.
+  //
+  // O que subiu e o que desceu: `veiculo` fica no slot (é a fatia da roleta e a
+  // foto do carro); `gabarito`, `scanners` e os textos descem para a pergunta,
+  // porque duas perguntas do mesmo carro podem ter resposta certa diferente e
+  // pedir equipamentos diferentes.
+  //
+  // `normalizar()` converte v1 em v2 na leitura, então baralho publicado antes
+  // desta mudança continua abrindo.
+  //
   // FIDELIDADE
   // Enquanto ninguém publicar um baralho, `carregarBaralho()` devolve
   // `SLOTS_ORIGINAIS` — derivado de questions.js e das tabelas do Dart — e o jogo
-  // se comporta exatamente como antes. scripts/verify/baralho.mjs falha se essa
-  // derivação divergir dos valores originais.
+  // se comporta exatamente como antes, com uma pergunta por veículo.
+  // scripts/verify/baralho.mjs falha se essa derivação divergir dos originais.
   
   const { QUESTIONS } = __require("questions.js");
   const { readJson, writeJson } = __require("storage.js");
@@ -1662,19 +1719,39 @@
     { nome: 'Mercedes Accelo 917', imagem: 'assets/images/ACCELO__1117.png', largura: 1012.17, altura: 781.1, fit: 'cover' },
   ];
   
-  /** Um slot vazio, para o admin criar uma rodada nova. */
-  function slotVazio() {
+  /**
+   * Identificador de pergunta. Serve para a lista do admin não se perder ao
+   * reordenar e para o sorteio poder ser conferido; não vai para a tela.
+   */
+  let contadorDeId = 0;
+  const novoIdDePergunta = () =>
+    `p${Date.now().toString(36)}${(contadorDeId++).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  
+  /** Uma pergunta vazia, para o admin acrescentar ao banco de um veículo. */
+  function perguntaVazia() {
     const textos = {};
     for (const lang of IDIOMAS) {
       textos[lang] = Object.fromEntries(CAMPOS_QUESTAO.map((c) => [c, '']));
     }
     return {
-      veiculo: { nome: '', imagem: '', largura: 1235.0, altura: 674.0, fit: 'cover' },
+      id: novoIdDePergunta(),
+      ativa: true,
       scanners: { raster3S: true, rasher4: true, xtool: true },
       gabarito: '1',
       ...textos,
     };
   }
+  
+  /** Um slot vazio, para o admin criar uma rodada nova. */
+  function slotVazio() {
+    return {
+      veiculo: { nome: '', imagem: '', largura: 1235.0, altura: 674.0, fit: 'cover' },
+      perguntas: [perguntaVazia()],
+    };
+  }
+  
+  /** As perguntas que podem cair numa partida. */
+  const perguntasAtivas = (slot) => (slot?.perguntas ?? []).filter((p) => p.ativa !== false);
   
   /**
    * O baralho embutido, derivado das mesmas fontes que o jogo usava.
@@ -1683,8 +1760,12 @@
    */
   const SLOTS_ORIGINAIS = VEICULOS_ORIGINAIS.map((veiculo, i) => {
     const base = QUESTIONS.pt[i];
-    const slot = {
-      veiculo: { ...veiculo },
+    const pergunta = {
+      // Id fixo, e não sorteado: o baralho embutido é comparado byte a byte com
+      // questions.js pelo verify/baralho.mjs, e um id aleatório o tornaria
+      // diferente a cada carga.
+      id: `orig-${i}`,
+      ativa: true,
       scanners: {
         raster3S: Boolean(base.raster3S),
         rasher4: Boolean(base.rasher4),
@@ -1694,12 +1775,12 @@
     };
     for (const lang of IDIOMAS) {
       const q = QUESTIONS[lang][i] ?? {};
-      slot[lang] = Object.fromEntries(CAMPOS_QUESTAO.map((c) => [c, q[c] ?? '']));
+      pergunta[lang] = Object.fromEntries(CAMPOS_QUESTAO.map((c) => [c, q[c] ?? '']));
     }
-    return slot;
+    return { veiculo: { ...veiculo }, perguntas: [pergunta] };
   });
   
-  const BARALHO_ORIGINAL = { versao: 1, slots: SLOTS_ORIGINAIS };
+  const BARALHO_ORIGINAL = { versao: 2, slots: SLOTS_ORIGINAIS };
   
   /* ------------------------------------------------------------- validação -- */
   
@@ -1716,20 +1797,37 @@
       const onde = `rodada ${i + 1}`;
       if (!slot.veiculo?.nome?.trim()) erros.push(`${onde}: o veículo está sem nome`);
       if (!slot.veiculo?.imagem?.trim()) erros.push(`${onde}: o veículo está sem imagem`);
-      if (!['1', '2', '3', '4'].includes(String(slot.gabarito))) {
-        erros.push(`${onde}: gabarito precisa ser 1, 2, 3 ou 4 (está "${slot.gabarito}")`);
+  
+      const perguntas = slot.perguntas ?? [];
+      if (perguntas.length === 0) {
+        erros.push(`${onde}: o veículo não tem nenhuma pergunta`);
+      } else if (perguntasAtivas(slot).length === 0) {
+        erros.push(`${onde}: todas as perguntas estão desligadas — a roleta cairia num veículo sem jogo`);
       }
-      const flags = SCANNERS.map((s) => Boolean(slot.scanners?.[s.chave]));
-      if (!flags.some(Boolean)) {
-        erros.push(`${onde}: nenhum equipamento resolve esta rodada — o jogador ficaria travado`);
-      }
-      for (const lang of IDIOMAS) {
-        for (const campo of CAMPOS_OBRIGATORIOS) {
-          if (!String(slot[lang]?.[campo] ?? '').trim()) {
-            erros.push(`${onde}: ${campo} vazio em ${lang.toUpperCase()}`);
+  
+      perguntas.forEach((pergunta, j) => {
+        // A pergunta desligada não entra em jogo, então um campo vazio nela não
+        // trava ninguém: ela fica no banco como rascunho até ser ligada.
+        if (pergunta.ativa === false) return;
+        // Com uma pergunta só, dizer "pergunta 1" é ruído; com banco, é o que
+        // localiza o problema.
+        const ondeP = perguntas.length > 1 ? `${onde}, pergunta ${j + 1}` : onde;
+  
+        if (!['1', '2', '3', '4'].includes(String(pergunta.gabarito))) {
+          erros.push(`${ondeP}: gabarito precisa ser 1, 2, 3 ou 4 (está "${pergunta.gabarito}")`);
+        }
+        const flags = SCANNERS.map((s) => Boolean(pergunta.scanners?.[s.chave]));
+        if (!flags.some(Boolean)) {
+          erros.push(`${ondeP}: nenhum equipamento resolve esta pergunta — o jogador ficaria travado`);
+        }
+        for (const lang of IDIOMAS) {
+          for (const campo of CAMPOS_OBRIGATORIOS) {
+            if (!String(pergunta[lang]?.[campo] ?? '').trim()) {
+              erros.push(`${ondeP}: ${campo} vazio em ${lang.toUpperCase()}`);
+            }
           }
         }
-      }
+      });
     });
   
     return erros;
@@ -1737,22 +1835,42 @@
   
   /* ---------------------------------------------------------- persistência -- */
   
-  /** Normaliza o que veio do armazenamento, para o jogo não quebrar com dado velho. */
+  /**
+   * Normaliza o que veio do armazenamento, para o jogo não quebrar com dado velho
+   * — e é aqui que o baralho v1 vira v2.
+   *
+   * Na v1 a pergunta era o próprio slot: `gabarito`, `scanners` e os três idiomas
+   * ficavam soltos nele. Um slot assim vira um slot com UMA pergunta no banco,
+   * feita desses mesmos campos. Quem publicou antes desta mudança não perde nada
+   * e não precisa fazer nada.
+   */
+  function normalizarPergunta(bruta, molde) {
+    const pergunta = {
+      id: typeof bruta?.id === 'string' && bruta.id ? bruta.id : novoIdDePergunta(),
+      ativa: bruta?.ativa !== false,
+      scanners: { ...molde.scanners, ...(bruta?.scanners ?? {}) },
+      gabarito: String(bruta?.gabarito ?? '1'),
+    };
+    for (const lang of IDIOMAS) {
+      pergunta[lang] = { ...molde[lang], ...(bruta?.[lang] ?? {}) };
+    }
+    return pergunta;
+  }
+  
   function normalizar(deck) {
     if (!deck || !Array.isArray(deck.slots) || deck.slots.length === 0) return null;
-    const vazio = slotVazio();
+    const molde = perguntaVazia();
+    const veiculoVazio = slotVazio().veiculo;
+  
     return {
-      versao: deck.versao ?? 1,
+      versao: 2,
       slots: deck.slots.map((s) => {
-        const slot = {
-          veiculo: { ...vazio.veiculo, ...(s.veiculo ?? {}) },
-          scanners: { ...vazio.scanners, ...(s.scanners ?? {}) },
-          gabarito: String(s.gabarito ?? '1'),
+        // v2 traz o banco; v1 traz a pergunta espalhada pelo próprio slot.
+        const brutas = Array.isArray(s?.perguntas) && s.perguntas.length ? s.perguntas : [s];
+        return {
+          veiculo: { ...veiculoVazio, ...(s?.veiculo ?? {}) },
+          perguntas: brutas.map((b) => normalizarPergunta(b, molde)),
         };
-        for (const lang of IDIOMAS) {
-          slot[lang] = { ...vazio[lang], ...(s[lang] ?? {}) };
-        }
-        return slot;
       }),
     };
   }
@@ -1796,7 +1914,10 @@
   Object.defineProperty(__exports, "IDIOMAS", { get: () => IDIOMAS, enumerable: true });
   Object.defineProperty(__exports, "SCANNERS", { get: () => SCANNERS, enumerable: true });
   Object.defineProperty(__exports, "VEICULOS_ORIGINAIS", { get: () => VEICULOS_ORIGINAIS, enumerable: true });
+  Object.defineProperty(__exports, "novoIdDePergunta", { get: () => novoIdDePergunta, enumerable: true });
+  Object.defineProperty(__exports, "perguntaVazia", { get: () => perguntaVazia, enumerable: true });
   Object.defineProperty(__exports, "slotVazio", { get: () => slotVazio, enumerable: true });
+  Object.defineProperty(__exports, "perguntasAtivas", { get: () => perguntasAtivas, enumerable: true });
   Object.defineProperty(__exports, "SLOTS_ORIGINAIS", { get: () => SLOTS_ORIGINAIS, enumerable: true });
   Object.defineProperty(__exports, "BARALHO_ORIGINAL", { get: () => BARALHO_ORIGINAL, enumerable: true });
   Object.defineProperty(__exports, "validarBaralho", { get: () => validarBaralho, enumerable: true });
@@ -2234,10 +2355,8 @@
   // the Dart used, so a browser that already has them keeps them; anything else
   // falls back to the values compiled into the app.
   
-  const { carregarBaralho, CAMPOS_QUESTAO } = __require("deck.js");
+  const { carregarBaralho, perguntasAtivas, CAMPOS_QUESTAO } = __require("deck.js");
   const { escolhaParaIndice } = __require("functions.js");
-  
-  const listeners = new Set();
   
   /** CadastroStruct */
   class CadastroStruct {
@@ -2291,6 +2410,12 @@
        */
       this.baralho = carregarBaralho();
   
+      /**
+       * Qual pergunta de cada veículo está valendo nesta partida — um índice por
+       * slot, dentro de `slot.perguntas`. Ver `sortearPerguntas()`.
+       */
+      this.sorteio = [];
+  
       this.scannerEscolhido = '';
       this.tempoAcabando = false;
       this.escolha = 1.5;
@@ -2304,11 +2429,25 @@
       this.listaEscolhas = [];
       this.linguagem = '';
       this.finalizou = false;
+  
+      /**
+       * O que a partida terminou decidindo, para a tela de fim poder contar.
+       *
+       * O jogo julgava e ia embora sem nunca dizer qual era a resposta certa —
+       * num jogo feito para ensinar técnico a usar scanner, era justamente o
+       * pedaço que faltava. Fica `null` fora de uma partida.
+       *
+       * `{ acertou, numeroCerto, textoCerto, numeroEscolhido, textoEscolhido }`,
+       * onde os números são os que o jogador vê na tela (1 a 4), e não os índices
+       * embaralhados de `ordemNumeros`.
+       */
+      this.resultado = null;
     }
   
     /** initializePersistedState() */
     initializePersistedState() {
       this.baralho = carregarBaralho();
+      this.sortearPerguntas();
     }
   
     /**
@@ -2319,6 +2458,30 @@
      */
     recarregarBaralho() {
       this.baralho = carregarBaralho();
+      this.sortearPerguntas();
+    }
+  
+    /**
+     * Sorteia, para CADA veículo, qual das suas perguntas ativas vale nesta
+     * partida. Um veículo pode ter várias (ver deck.js); sem isto, o segundo
+     * jogador da fila receberia a mesma pergunta do primeiro.
+     *
+     * É sorteado no começo da partida, e não na hora de mostrar, porque três
+     * telas leem a mesma pergunta em momentos diferentes — a escolha do
+     * equipamento usa os `scanners` dela, a tela da ação usa o enunciado, a de
+     * fim usa o gabarito. Sortear a cada leitura daria respostas diferentes na
+     * mesma partida.
+     *
+     * Todos os slots de uma vez, e não só o que a roleta vai tirar, porque a
+     * roleta ainda não girou quando o cadastro monta.
+     */
+    sortearPerguntas() {
+      this.sorteio = (this.baralho?.slots ?? []).map((slot) => {
+        const ativas = perguntasAtivas(slot);
+        if (ativas.length <= 1) return 0;
+        const escolhida = ativas[Math.floor(Math.random() * ativas.length)];
+        return Math.max(0, slot.perguntas.indexOf(escolhida));
+      });
     }
   
     /** Quantas rodadas o baralho tem — o número de fatias da roleta. */
@@ -2346,21 +2509,15 @@
      * dados não tocou em nenhuma delas.
      */
     get questoesBrasil() {
-      return vistaPorIdioma(this.baralho, 'pt');
+      return vistaPorIdioma(this.baralho, 'pt', this.sorteio);
     }
   
     get questoesEnglish() {
-      return vistaPorIdioma(this.baralho, 'en');
+      return vistaPorIdioma(this.baralho, 'en', this.sorteio);
     }
   
     get questoesSpanish() {
-      return vistaPorIdioma(this.baralho, 'es');
-    }
-  
-    /** update(callback) - runs the mutation then notifies listeners. */
-    update(callback) {
-      if (callback) callback();
-      this.notifyListeners();
+      return vistaPorIdioma(this.baralho, 'es', this.sorteio);
     }
   
     addToListaEscolhas(value) {
@@ -2371,52 +2528,51 @@
       const index = this.listaEscolhas.indexOf(value);
       if (index >= 0) this.listaEscolhas.splice(index, 1);
     }
-  
-    notifyListeners() {
-      for (const fn of listeners) fn(this);
-    }
   }
   
   /** Cache da projeção: as telas leem estes getters muitas vezes por quadro. */
   const vistaCache = new WeakMap();
   
-  function vistaPorIdioma(deck, lang) {
+  /**
+   * O baralho na forma que as telas de jogo leem: uma lista por idioma, indexada
+   * por slot, cada entrada com os campos que o Dart tinha
+   * (`{pergunta, respostaUm, ..., gabarito, raster3S, rasher4, xtool}`).
+   *
+   * Manter esta forma foi deliberado desde a v1, e é o que segurou a mudança para
+   * banco de perguntas: a projeção passou a resolver QUAL pergunta do veículo
+   * está valendo (`sorteio[i]`), e nenhuma tela de jogo precisou mudar.
+   *
+   * A chave do cache inclui o sorteio: sortear de novo tem de produzir uma vista
+   * nova, senão a partida seguinte joga com a pergunta da anterior.
+   */
+  function vistaPorIdioma(deck, lang, sorteio) {
     if (!deck) return [];
-    let porIdioma = vistaCache.get(deck);
-    if (!porIdioma) {
-      porIdioma = {};
-      vistaCache.set(deck, porIdioma);
+    let porChave = vistaCache.get(deck);
+    if (!porChave) {
+      porChave = {};
+      vistaCache.set(deck, porChave);
     }
-    if (!porIdioma[lang]) {
-      porIdioma[lang] = (deck.slots ?? []).map((slot) => {
+    const chave = `${lang}|${(sorteio ?? []).join(',')}`;
+    if (!porChave[chave]) {
+      porChave[chave] = (deck.slots ?? []).map((slot, i) => {
+        const perguntas = slot.perguntas ?? [];
+        const escolhida = perguntas[sorteio?.[i] ?? 0] ?? perguntas[0] ?? {};
         const q = {};
-        for (const campo of CAMPOS_QUESTAO) q[campo] = slot[lang]?.[campo] ?? '';
-        q.gabarito = String(slot.gabarito ?? '');
-        q.raster3S = Boolean(slot.scanners?.raster3S);
-        q.rasher4 = Boolean(slot.scanners?.rasher4);
-        q.xtool = Boolean(slot.scanners?.xtool);
+        for (const campo of CAMPOS_QUESTAO) q[campo] = escolhida[lang]?.[campo] ?? '';
+        q.gabarito = String(escolhida.gabarito ?? '');
+        q.raster3S = Boolean(escolhida.scanners?.raster3S);
+        q.rasher4 = Boolean(escolhida.scanners?.rasher4);
+        q.xtool = Boolean(escolhida.scanners?.xtool);
         q.nome = slot.veiculo?.nome ?? '';
         return q;
       });
     }
-    return porIdioma[lang];
+    return porChave[chave];
   }
   
   const FFAppState = new FFAppStateClass();
-  
-  /**
-   * Contraparte de `notifyListeners()`. Hoje nenhuma tela assina — o porte
-   * re-renderiza por navegação, não por observação — mas é o seam que dá sentido
-   * ao `update()` espalhado pelo código, que existe por paridade com o
-   * ChangeNotifier do Dart.
-   */
-  function onAppStateChange(fn) {
-    listeners.add(fn);
-    return () => listeners.delete(fn);
-  }
   Object.defineProperty(__exports, "CadastroStruct", { get: () => CadastroStruct, enumerable: true });
   Object.defineProperty(__exports, "FFAppState", { get: () => FFAppState, enumerable: true });
-  Object.defineProperty(__exports, "onAppStateChange", { get: () => onAppStateChange, enumerable: true });
   });
 
   /* ===== dialog.js ===== */
@@ -2508,12 +2664,9 @@
   function popAllDialogs() {
     while (stack.length) pop(undefined, stack[stack.length - 1]);
   }
-  
-  const hasOpenDialog = () => stack.length > 0;
   Object.defineProperty(__exports, "showDialog", { get: () => showDialog, enumerable: true });
   Object.defineProperty(__exports, "pop", { get: () => pop, enumerable: true });
   Object.defineProperty(__exports, "popAllDialogs", { get: () => popAllDialogs, enumerable: true });
-  Object.defineProperty(__exports, "hasOpenDialog", { get: () => hasOpenDialog, enumerable: true });
   });
 
   /* ===== router.js ===== */
@@ -2551,11 +2704,13 @@
   }
   
   const routes = new Map();
-  /** name -> path, so goNamed/pushNamed can resolve like go_router does. */
+  /** name -> path, so goNamed can resolve like go_router does. */
   const namedPaths = new Map();
   
   let current = null;
   let navigating = false;
+  /** O pedido de navegacao que chegou durante outra (ver render). */
+  let pendente = null;
   
   function defineRoute({ name, path, builder }) {
     routes.set(path, { name, path, builder });
@@ -2571,23 +2726,6 @@
     const index = path.indexOf('?');
     if (index < 0) return {};
     return Object.fromEntries(new URLSearchParams(path.slice(index + 1)).entries());
-  }
-  
-  /** deserializeParam(value, ParamType.int) for the one int param in the app. */
-  const ParamType = { int: 'int', String: 'String', double: 'double', bool: 'bool' };
-  
-  function deserializeParam(raw, type) {
-    if (raw == null) return null;
-    switch (type) {
-      case ParamType.int:
-        return Number.parseInt(raw, 10);
-      case ParamType.double:
-        return Number.parseFloat(raw);
-      case ParamType.bool:
-        return raw === 'true';
-      default:
-        return raw;
-    }
   }
   
   const serializeParam = (value) => (value == null ? null : String(value));
@@ -2629,7 +2767,15 @@
   /* -------------------------------------------------------------- navigate -- */
   
   async function render(path, { info }) {
-    if (navigating) return;
+    if (navigating) {
+      // Um toque durante a transicao de ENTRADA da tela anterior era engolido em
+      // silencio: este `return` descartava a navegacao e o jogador ficava olhando
+      // um botao que nao fez nada. Enquanto toda acao esperava 400ms de animacao
+      // de aperto, a janela era pequena e o defeito passava; sem essa espera ele
+      // aparece. Agora o pedido espera a vez em vez de morrer.
+      pendente = { path, info };
+      return;
+    }
     navigating = true;
     try {
       const route = resolve(path) ?? resolve('/cadastro');
@@ -2666,25 +2812,16 @@
       await transitionIn(node, info);
     } finally {
       navigating = false;
+      // So o ultimo pedido interessa: quem apertou duas telas atras nao quer
+      // atravessar as duas.
+      const proximo = pendente;
+      pendente = null;
+      if (proximo) await render(proximo.path, { info: proximo.info });
     }
   }
   
   /** `context.goNamed(name, queryParameters: ..., extra: {__transition_info__})` */
   function goNamed(name, { queryParameters = null, extra = null } = {}) {
-    const path = buildPath(name, queryParameters);
-    return render(path, { info: extra?.__transition_info__ });
-  }
-  
-  /**
-   * `context.pushNamed(...)`.
-   *
-   * No go_router isto empilha a rota. Aqui nao existe pilha propria: o unico
-   * consumidor era `safePop()`, que nenhuma tela chamava (o Dart tambem nao), e
-   * o botao Voltar do navegador ja e tratado pelo listener de `hashchange`. Fica
-   * como sinonimo de goNamed para os call sites continuarem legiveis ao lado do
-   * Dart.
-   */
-  function pushNamed(name, { queryParameters = null, extra = null } = {}) {
     const path = buildPath(name, queryParameters);
     return render(path, { info: extra?.__transition_info__ });
   }
@@ -2713,20 +2850,14 @@
       render(path, { info: null });
     });
   }
-  
-  const currentRoute = () => current?.route?.name ?? null;
   Object.defineProperty(__exports, "PageTransitionType", { get: () => PageTransitionType, enumerable: true });
   Object.defineProperty(__exports, "Alignment", { get: () => Alignment, enumerable: true });
   Object.defineProperty(__exports, "TransitionInfo", { get: () => TransitionInfo, enumerable: true });
   Object.defineProperty(__exports, "defineRoute", { get: () => defineRoute, enumerable: true });
-  Object.defineProperty(__exports, "ParamType", { get: () => ParamType, enumerable: true });
-  Object.defineProperty(__exports, "deserializeParam", { get: () => deserializeParam, enumerable: true });
   Object.defineProperty(__exports, "serializeParam", { get: () => serializeParam, enumerable: true });
   Object.defineProperty(__exports, "goNamed", { get: () => goNamed, enumerable: true });
-  Object.defineProperty(__exports, "pushNamed", { get: () => pushNamed, enumerable: true });
   Object.defineProperty(__exports, "go", { get: () => go, enumerable: true });
   Object.defineProperty(__exports, "startRouter", { get: () => startRouter, enumerable: true });
-  Object.defineProperty(__exports, "currentRoute", { get: () => currentRoute, enumerable: true });
   });
 
   /* ===== translations.js ===== */
@@ -3353,6 +3484,7 @@
     unlocked = true;
     for (const player of pending) player.play();
     pending.clear();
+    contexto?.resume?.().catch(() => {});
   }
   
   for (const type of ['pointerdown', 'keydown', 'touchstart']) {
@@ -3405,6 +3537,59 @@
     }
   }
   
+  /* -------------------------------------------------- sons sintetizados ----- */
+  
+  /**
+   * O tique dos últimos segundos não é arquivo: é uma nota curta gerada na hora
+   * pela Web Audio API.
+   *
+   * Por que sintetizar em vez de gravar: não precisa de asset novo, não pesa no
+   * bundle, e toca por `file://` — o que o navegador recusa na origem nula é
+   * *buscar* arquivo, não gerar som. E o tom pode acompanhar a urgência sem
+   * precisar de uma faixa por segundo.
+   */
+  let contexto = null;
+  
+  function contextoDeAudio() {
+    if (contexto) return contexto;
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) return null;
+    try {
+      contexto = new Ctor();
+    } catch (_) {
+      return null;
+    }
+    return contexto;
+  }
+  
+  /**
+   * Um estalo curto. `frequencia` em Hz, `duracao` em segundos.
+   *
+   * O envelope é o que separa "relógio" de "bipe de forno": ataque quase
+   * instantâneo (5ms) e queda exponencial. Uma nota de volume constante soa como
+   * alarme; esta soa como ponteiro.
+   */
+  function tique({ frequencia = 1040, duracao = 0.07, volume = 0.16 } = {}) {
+    const ctx = contextoDeAudio();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  
+    const agora = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const ganho = ctx.createGain();
+  
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(frequencia, agora);
+    // exponentialRampToValueAtTime não aceita zero, daí o 0.0001 nas pontas.
+    ganho.gain.setValueAtTime(0.0001, agora);
+    ganho.gain.exponentialRampToValueAtTime(Math.max(volume, 0.0002), agora + 0.005);
+    ganho.gain.exponentialRampToValueAtTime(0.0001, agora + duracao);
+  
+    osc.connect(ganho).connect(ctx.destination);
+    osc.start(agora);
+    osc.stop(agora + duracao + 0.02);
+  }
+  
   /** The one-liner the Dart repeats everywhere, as a single call. */
   function playSound(holder, key, asset, volume = 1.0) {
     let player = holder[key];
@@ -3418,6 +3603,7 @@
     return player;
   }
   Object.defineProperty(__exports, "AudioPlayer", { get: () => AudioPlayer, enumerable: true });
+  Object.defineProperty(__exports, "tique", { get: () => tique, enumerable: true });
   Object.defineProperty(__exports, "playSound", { get: () => playSound, enumerable: true });
   });
 
@@ -3537,35 +3723,98 @@
 
   /* ===== config.js ===== */
   __define("config.js", function (__exports, __require) {
-  // Backend switches.
+  // As chaves do que sai desta máquina.
   //
-  // The Dart app wrote every game result into the live Firestore collection
-  // `usuarios` and sent a WhatsApp message through a production z-api instance.
-  // Both are wired up in backend.js with the original credentials, but they start
-  // switched OFF so that opening this port does not touch production data.
+  // Duas, e separadas de propósito:
   //
-  // Turn `useFirestore` on to get the real shared ranking back (the same project,
-  // collection and query as the Dart). With it off, results are kept in this
-  // browser's localStorage and the ranking screens work exactly the same way.
+  //   useFirestore     falar com o Firebase — o baralho em `conteudo`.
+  //   rankingNaNuvem   gravar RESULTADO DE PARTIDA em `usuarios`/`contatos`.
+  //
+  // A segunda é mais rígida que a primeira: numa máquina de trabalho ela fica
+  // desligada mesmo com `?comNuvem=1`. Mexer no baralho pelo `npm start` é
+  // legítimo; semear o ranking da feira com partidas de teste não é, e já
+  // aconteceu.
+  //
+  // O disparo de WhatsApp (`useWhatsApp`) continua desligado, porque a credencial
+  // dele não pode viajar no cliente.
+  
+  /**
+   * Cópia de desenvolvimento? Então a nuvem fica fora — a não ser que você peça.
+   *
+   * Isto não é preciosismo: com o Firestore ligado, CADA partida escreve em
+   * `usuarios` e `contatos`. Uma rodada do `npm run verify` joga o jogo inteiro
+   * quatro vezes, e essas partidas de mentira foram parar no ranking de verdade —
+   * com nome e telefone de teste dentro da coleção de contatos. Aconteceu.
+   *
+   * A regra é a origem: `file://` e localhost são, sem ambiguidade, alguém
+   * mexendo no jogo. Um IP de rede local (o totem servido de outra máquina do
+   * estande) continua valendo como produção.
+   *
+   * AS DUAS CHAVES, porque os dois casos existem:
+   *
+   *   ?comNuvem=1   liga aqui mesmo. É o que se usa para mexer no baralho pelo
+   *                 `npm start` e ver o resultado chegar no Firebase. A suíte de
+   *                 verificação não passa por aqui, então continua hermética.
+   *   ?semNuvem=1   desliga em qualquer outro lugar — uma cópia de demonstração
+   *                 no ar, um totem que não deve mandar nada.
+   */
+  const busca = () => new URLSearchParams(typeof location === 'undefined' ? '' : location.search);
+  
+  /** `file://` ou localhost: alguém mexendo no jogo, não um totem em feira. */
+  function maquinaDeTrabalho() {
+    if (typeof location === 'undefined') return true;
+    if (location.protocol === 'file:') return true;
+    return ['localhost', '127.0.0.1', '::1', '0.0.0.0'].includes(location.hostname);
+  }
+  
+  function origemDeDesenvolvimento() {
+    if (busca().has('semNuvem')) return true;
+    if (busca().has('comNuvem')) return false;
+    return maquinaDeTrabalho();
+  }
   
   const CONFIG = {
-    /** Read/write the `usuarios` collection in Firestore. */
-    useFirestore: false,
+    /**
+     * Liga o Firebase: o ranking compartilhado (`usuarios`) e o baralho na nuvem
+     * (`conteudo`, ver nuvem.js).
+     *
+     * Aponta para `tecnogame-c7e46`, o projeto da Tecnomotor — e não mais para o
+     * `projeto-assis-3qcf6v` do FlutterFlow original, que está morto (o bucket
+     * dele responde 402).
+     *
+     * Vale saber: `file://` recusa o SDK de qualquer forma, então o jogo aberto do
+     * disco continua jogando só com o que tem guardado no próprio navegador.
+     */
+    useFirestore: !origemDeDesenvolvimento(),
+  
+    /**
+     * O RANKING é caso à parte, e mais rígido: numa máquina de trabalho ele NUNCA
+     * vai para a nuvem, nem com `?comNuvem=1`.
+     *
+     * `comNuvem` existe para mexer no baralho pelo `npm start` e ver chegar no
+     * Firebase — não para semear o ranking da feira com partidas de teste. Foi
+     * exatamente isso que encheu `usuarios` e `contatos` de "Davi" e "Vencedor"
+     * com telefone de mentira. Numa máquina de trabalho o ranking é local, e é o
+     * local que o jogo lê de volta, para a tela de fim ficar coerente.
+     */
+    rankingNaNuvem: !maquinaDeTrabalho() && !busca().has('semNuvem'),
   
     /** POST the "you finished TECNOGAME" WhatsApp message on the end screens. */
     useWhatsApp: false,
   
-    /** The n8n webhook in EnviarMensagemAgenteCall (never called by the UI). */
-    useAgentWebhook: false,
-  
-    // lib/backend/firebase/firebase_config.dart
+    /**
+     * A chave web do Firebase pode ficar aqui: ela é identificador público por
+     * design, não credencial. Quem defende os dados são as regras em
+     * firebase/firestore.rules — leitura do ranking sem telefone, escrita do
+     * conteúdo só autenticada.
+     */
     firebaseOptions: {
-      apiKey: 'AIzaSyAZTmRXL83WY-KjmtAhsE-ERAdWRkEEKMY',
-      authDomain: 'projeto-assis-3qcf6v.firebaseapp.com',
-      projectId: 'projeto-assis-3qcf6v',
-      storageBucket: 'projeto-assis-3qcf6v.appspot.com',
-      messagingSenderId: '269670706726',
-      appId: '1:269670706726:web:5bcb2a2dd730efcb91c0e7',
+      apiKey: 'AIzaSyB46OQK72wBKDBCy538oiCd0sC_08KWd6E',
+      authDomain: 'tecnogame-c7e46.firebaseapp.com',
+      projectId: 'tecnogame-c7e46',
+      storageBucket: 'tecnogame-c7e46.firebasestorage.app',
+      messagingSenderId: '373113273748',
+      appId: '1:373113273748:web:c78fb6538edd0da32ae381',
     },
   
     /**
@@ -3576,13 +3825,88 @@
      */
     useLocalScannerVideos: false,
   
-    // lib/backend/api_requests/api_calls.dart
-    zapApiUrl:
-      'https://api.z-api.io/instances/3DF6AF6878FFE0BA1789FA8592F99CB9/token/957757C50A408830EA4E34A1/send-link',
-    zapClientToken: 'F6fe8ad64e65d43f38881110afffab493S',
-    agentWebhookUrl: 'https://d0ed-200-210-23-242.ngrok-free.app/webhook-test/lutterflow-webhook',
+    /**
+     * A credencial do z-api (lib/backend/api_requests/api_calls.dart no Dart).
+     *
+     * Ela vinha CRAVADA aqui, com a instancia e o token no caminho da URL. O
+     * problema nao e o repositorio: e que este arquivo entra no `bundle.js`
+     * servido ao navegador, ou seja, qualquer pessoa que abrisse o jogo lia uma
+     * credencial capaz de disparar WhatsApp pela conta da Tecnomotor.
+     *
+     * Agora nasce vazia e o envio se recusa a rodar sem ela (ver backend.js).
+     * Para ligar o disparo: preencha as duas linhas na copia que vai para o
+     * totem, com `useWhatsApp: true` — e NAO comite os valores.
+     *
+     * O token que estava aqui tem de ser considerado exposto e ROTACIONADO no
+     * painel do z-api, porque ja foi servido e esta no historico do git.
+     */
+    zapApiUrl: '',
+    zapClientToken: '',
   };
   Object.defineProperty(__exports, "CONFIG", { get: () => CONFIG, enumerable: true });
+  });
+
+  /* ===== firebase.js ===== */
+  __define("firebase.js", function (__exports, __require) {
+  // O Firebase, carregado sob demanda.
+  //
+  // Um lugar só para subir o SDK, porque dois assuntos diferentes o usam: o
+  // ranking (`backend.js`, coleção `usuarios`) e o conteúdo do jogo (`nuvem.js`,
+  // coleção `conteudo` + login do operador).
+  //
+  // POR QUE `import()` DINÂMICO E NÃO UM ARQUIVO NO REPOSITÓRIO
+  // O SDK do Firebase vem da CDN do Google como módulo ES. Isso tem uma
+  // consequência que vale saber antes de contar com ela: `file://` recusa módulo
+  // ES (origem nula), então **o jogo aberto direto do disco nunca alcança o
+  // Firestore**. É o mesmo motivo de existir o `bundle.js`.
+  //
+  // Na prática: o totem precisa abrir pelo HTTP (o GitHub Pages) para receber o
+  // baralho publicado de outra máquina. Aberto do disco ele continua jogando —
+  // com o último baralho que tiver guardado no próprio navegador. Todas as
+  // funções daqui falham em silêncio nesse caso, e quem chama cai no local.
+  
+  const { CONFIG } = __require("config.js");
+  
+  const VERSAO_SDK = '10.12.2';
+  const CDN = `https://www.gstatic.com/firebasejs/${VERSAO_SDK}`;
+  
+  let promessa = null;
+  
+  /** `true` quando vale a pena tentar: ligado na config e fora do disco. */
+  const podeUsarNuvem = () =>
+    Boolean(CONFIG.useFirestore) && typeof location !== 'undefined' && location.protocol !== 'file:';
+  
+  /**
+   * Sobe o SDK e devolve `{ app, db, fs }`, ou `null` se não der.
+   *
+   * `fs` é o módulo inteiro do Firestore: o SDK v10 é modular, então quem chama
+   * usa `fs.collection(db, ...)`, `fs.getDoc(...)`.
+   *
+   * O módulo de autenticação não é carregado: desde que a escrita do baralho
+   * deixou de exigir login, ninguém o usa (ver nuvem.js).
+   */
+  function firebase() {
+    if (!podeUsarNuvem()) return Promise.resolve(null);
+    if (promessa) return promessa;
+  
+    promessa = (async () => {
+      const [{ initializeApp }, fs] = await Promise.all([
+        import(`${CDN}/firebase-app.js`),
+        import(`${CDN}/firebase-firestore.js`),
+      ]);
+      const app = initializeApp(CONFIG.firebaseOptions);
+      return { app, db: fs.getFirestore(app), fs };
+    })().catch((erro) => {
+      console.warn('Firebase indisponível; seguindo só com o armazenamento local.', erro);
+      // Zera para uma próxima tentativa poder acontecer (rede que voltou).
+      promessa = null;
+      return null;
+    });
+  
+    return promessa;
+  }
+  Object.defineProperty(__exports, "podeUsarNuvem", { get: () => podeUsarNuvem, enumerable: true });
+  Object.defineProperty(__exports, "firebase", { get: () => firebase, enumerable: true });
   });
 
   /* ===== backend.js ===== */
@@ -3590,15 +3914,19 @@
   // Port of the Firestore layer (lib/backend/backend.dart, usuarios_record.dart)
   // and the two HTTP calls in lib/backend/api_requests/api_calls.dart.
   //
-  // The Dart app talks to the Firebase project `projeto-assis-3qcf6v` and to
-  // z-api.io for the WhatsApp message. Both are kept here with their original
-  // configuration but are OFF by default, so running this port does not write
-  // into the live collection or send messages from the production WhatsApp
-  // instance. Flip the flags in config.js to switch them on; with Firestore off,
-  // the ranking is stored in this browser instead and every query keeps the same
-  // semantics (`where venceu == true`, `orderBy tempo desc`, `limit n`).
+  // O ranking vai para o Firestore de `tecnogame-c7e46` (o projeto do Dart,
+  // `projeto-assis-3qcf6v`, está morto) E para o armazenamento deste navegador.
+  // Os dois, e não um ou outro: ver `addUsuario`.
+  //
+  // O disparo de WhatsApp pela z-api continua DESLIGADO (`useWhatsApp` em
+  // config.js), porque a credencial dele não pode viajar no cliente.
+  //
+  // Com o Firestore desligado, ou sem rede, a consulta cai no local e mantém a
+  // mesma semântica do Dart (`where venceu == true`, `orderBy tempo desc`,
+  // `limit n`).
   
   const { CONFIG } = __require("config.js");
+  const { firebase } = __require("firebase.js");
   const { getRecords, putRecord } = __require("storage.js");
   
   const LOCAL_KEY = 'usuarios';
@@ -3631,17 +3959,27 @@
   
   /* ------------------------------------------------------------- Firestore -- */
   
+  /**
+   * PACIÊNCIA COM A REDE. Um `getDocs`/`addDoc` do Firestore não falha quando não
+   * há conexão (ou quando o banco nem foi criado no console): ele fica
+   * PENDENTE, esperando o servidor, e o SDK guarda a escrita para reenviar.
+   *
+   * Isso é bom para um app comum e péssimo para um totem de feira: a tela de fim
+   * ficaria em branco esperando um ranking que nunca chega, e o resultado da
+   * partida nunca seria gravado em lugar nenhum. Por isso toda chamada daqui tem
+   * prazo, e o local é o chão que sempre existe.
+   */
+  const PRAZO_MS = 2500;
+  
+  const comPrazo = (promessa, ms = PRAZO_MS) =>
+    Promise.race([promessa, new Promise((_, rejeitar) => setTimeout(() => rejeitar(new Error('prazo')), ms))]);
+  
   let firestore = null;
   
   async function ensureFirestore() {
-    if (!CONFIG.useFirestore) return null;
-    if (firestore) return firestore;
-    const [{ initializeApp }, fs] = await Promise.all([
-      import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js'),
-      import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'),
-    ]);
-    const app = initializeApp(CONFIG.firebaseOptions);
-    firestore = { db: fs.getFirestore(app), fs };
+    const fb = await firebase();
+    if (!fb) return null;
+    firestore = { db: fb.db, fs: fb.fs };
     return firestore;
   }
   
@@ -3669,25 +4007,31 @@
   
     const contato = telefone ? { nome: partida.nome ?? '', telefone, ...(row.data ? { data: row.data } : {}) } : null;
   
-    if (CONFIG.useFirestore) {
-      try {
-        const { db, fs } = await ensureFirestore();
-        const payload = { ...row };
-        if (serverTimestamp) payload.data = fs.serverTimestamp();
-        await fs.addDoc(fs.collection(db, 'usuarios'), payload);
-        if (contato) {
-          const c = { ...contato };
-          if (serverTimestamp) c.data = fs.serverTimestamp();
-          await fs.addDoc(fs.collection(db, 'contatos'), c);
-        }
-        return;
-      } catch (error) {
-        console.warn('Firestore write failed, falling back to local storage.', error);
-      }
-    }
-  
+    // O LOCAL PRIMEIRO, SEMPRE. Antes isto era o "senão" do Firestore, e o
+    // resultado era que uma escrita pendente (rede ruim, banco ainda não criado)
+    // não gravava em lugar nenhum: o `addDoc` não rejeita, fica pendurado, e o
+    // caminho local nunca chegava a rodar. A partida do jogador sumia.
     putRecord(LOCAL_KEY, row);
     if (contato) putRecord(CONTACT_KEY, contato);
+  
+    if (!CONFIG.rankingNaNuvem) return;
+    try {
+      const alvo = await ensureFirestore();
+      if (!alvo) return;
+      const { db, fs } = alvo;
+      const payload = { ...row };
+      if (serverTimestamp) payload.data = fs.serverTimestamp();
+      await comPrazo(fs.addDoc(fs.collection(db, 'usuarios'), payload));
+      if (contato) {
+        const c = { ...contato };
+        if (serverTimestamp) c.data = fs.serverTimestamp();
+        await comPrazo(fs.addDoc(fs.collection(db, 'contatos'), c));
+      }
+    } catch (error) {
+      // O SDK guarda a escrita e reenvia quando a rede voltar; e a cópia local já
+      // está gravada de qualquer forma. Nada a fazer além de registrar.
+      console.warn('Firestore demorou ou recusou; o resultado ficou gravado localmente.', error);
+    }
   }
   
   /**
@@ -3698,20 +4042,27 @@
    * the fastest players first - the ranking is sorted exactly as in the Dart.
    */
   async function queryUsuariosVencedores({ limit = 15 } = {}) {
-    if (CONFIG.useFirestore) {
+    if (CONFIG.rankingNaNuvem) {
       try {
-        const { db, fs } = await ensureFirestore();
-        const snapshot = await fs.getDocs(
-          fs.query(
-            fs.collection(db, 'usuarios'),
-            fs.where('venceu', '==', true),
-            fs.orderBy('tempo', 'desc'),
-            fs.limit(limit)
-          )
-        );
-        return snapshot.docs.map((doc) => normalize(doc.data()));
+        const alvo = await comPrazo(ensureFirestore());
+        if (alvo) {
+          const { db, fs } = alvo;
+          const snapshot = await comPrazo(
+            fs.getDocs(
+              fs.query(
+                fs.collection(db, 'usuarios'),
+                fs.where('venceu', '==', true),
+                fs.orderBy('tempo', 'desc'),
+                fs.limit(limit)
+              )
+            )
+          );
+          return snapshot.docs.map((doc) => normalize(doc.data()));
+        }
       } catch (error) {
-        console.warn('Firestore read failed, falling back to local storage.', error);
+        // Com prazo estourado a tela de fim mostra o ranking local em vez de
+        // ficar em branco esperando.
+        console.warn('Firestore não respondeu a tempo; mostrando o ranking local.', error);
       }
     }
   
@@ -3720,20 +4071,6 @@
       .sort((a, b) => (b.tempo ?? 0) - (a.tempo ?? 0))
       .slice(0, limit)
       .map(normalize);
-  }
-  
-  /** `queryUsuariosRecordCount()` */
-  async function queryUsuariosRecordCount() {
-    if (CONFIG.useFirestore) {
-      try {
-        const { db, fs } = await ensureFirestore();
-        const snapshot = await fs.getCountFromServer(fs.collection(db, 'usuarios'));
-        return snapshot.data().count;
-      } catch (error) {
-        console.warn('Firestore count failed, falling back to local storage.', error);
-      }
-    }
-    return readLocal().length;
   }
   
   /**
@@ -3773,6 +4110,11 @@
       return { succeeded: false, skipped: true };
     }
   
+    if (!CONFIG.zapApiUrl || !CONFIG.zapClientToken) {
+      console.warn('[enviarMensagemZap] sem credencial em config.js — nada enviado');
+      return { succeeded: false, skipped: true };
+    }
+  
     try {
       const response = await fetch(CONFIG.zapApiUrl, {
         method: 'POST',
@@ -3785,32 +4127,10 @@
       return { succeeded: false };
     }
   }
-  
-  /** EnviarMensagemAgenteCall.call({nome, telefone, venceu}) - defined in the
-   *  Dart but never called from a widget; kept for parity. */
-  async function enviarMensagemAgente({ nome = '', telefone = '', venceu = null } = {}) {
-    if (!CONFIG.useAgentWebhook) {
-      console.info('[enviarMensagemAgente] desligado em config.js (useAgentWebhook)');
-      return { succeeded: false, skipped: true };
-    }
-    try {
-      const response = await fetch(CONFIG.agentWebhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome, telefone, venceu }),
-      });
-      return { succeeded: response.ok, statusCode: response.status };
-    } catch (error) {
-      console.warn('enviarMensagemAgente failed', error);
-      return { succeeded: false };
-    }
-  }
   Object.defineProperty(__exports, "createUsuariosRecordData", { get: () => createUsuariosRecordData, enumerable: true });
   Object.defineProperty(__exports, "addUsuario", { get: () => addUsuario, enumerable: true });
   Object.defineProperty(__exports, "queryUsuariosVencedores", { get: () => queryUsuariosVencedores, enumerable: true });
-  Object.defineProperty(__exports, "queryUsuariosRecordCount", { get: () => queryUsuariosRecordCount, enumerable: true });
   Object.defineProperty(__exports, "enviarMensagemZap", { get: () => enviarMensagemZap, enumerable: true });
-  Object.defineProperty(__exports, "enviarMensagemAgente", { get: () => enviarMensagemAgente, enumerable: true });
   });
 
   /* ===== anim.js ===== */
@@ -3827,10 +4147,14 @@
   
   /**
    * Quem pede menos movimento no sistema nao deve receber os loops infinitos —
-   * o jogo pulsa varios elementos para sempre. As animacoes de um disparo ficam:
-   * sao curtas e comunicam estado (o toque afundando um botao, a tela entrando).
+   * o jogo pulsa varios elementos para sempre — nem o giro de 5s da roleta, que
+   * e a tela inteira girando. As animacoes de um disparo ficam: sao curtas e
+   * comunicam estado (o toque afundando um botao, a tela entrando).
+   *
+   * Os loops saem aqui; o giro sai no proprio call site (pages/roleta.js), porque
+   * quem decide se a roda gira e o efeito que ele monta.
    */
-  const semLoops = () => {
+  const menosMovimento = () => {
     try {
       return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     } catch (_) {
@@ -3883,6 +4207,17 @@
       this.controller = { forward: () => this._forward() };
     }
   
+    /**
+     * `animationsMap['x']!.controller.forward(from: 0.0)`.
+     *
+     * CONVENCAO: quem anima um TOQUE dispara isto SEM `await`. O Dart esperava os
+     * 400ms da animacao de aperto antes de fazer qualquer coisa, e o resultado e
+     * um botao que parece nao ter pego — 400ms e tempo de sobra para o dedo achar
+     * que errou. A animacao roda junto com a acao, nao antes dela.
+     *
+     * Os poucos `await` que sobraram sao sequencia de verdade (o giro de 5s da
+     * roleta, a saida da tela do carro) e estao comentados no lugar.
+     */
     _forward() {
       const runs = this._targets
         .map(({ node, effects }) => run(node, effects ?? this.effectsBuilder?.(), this))
@@ -3933,7 +4268,7 @@
     if (total === 0) return null;
   
     // Loop infinito com "menos movimento" ligado: fixa o estado final e sai.
-    if (info.loop && semLoops()) {
+    if (info.loop && menosMovimento()) {
       const fade = effects.find((e) => e.kind === 'fade');
       if (fade) node.style.opacity = String(fade.end);
       return Promise.resolve();
@@ -4042,11 +4377,9 @@
     return node;
   }
   
-  /** setupAnimations(...) - nothing to pre-register in this port. */
-  function setupAnimations() {}
-  
   /** `await Future.delayed(Duration(milliseconds: n))` */
   const delayed = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+  Object.defineProperty(__exports, "menosMovimento", { get: () => menosMovimento, enumerable: true });
   Object.defineProperty(__exports, "Curves", { get: () => Curves, enumerable: true });
   Object.defineProperty(__exports, "ScaleEffect", { get: () => ScaleEffect, enumerable: true });
   Object.defineProperty(__exports, "FadeEffect", { get: () => FadeEffect, enumerable: true });
@@ -4057,7 +4390,6 @@
   Object.defineProperty(__exports, "run", { get: () => run, enumerable: true });
   Object.defineProperty(__exports, "animateOnPageLoad", { get: () => animateOnPageLoad, enumerable: true });
   Object.defineProperty(__exports, "animateOnActionTrigger", { get: () => animateOnActionTrigger, enumerable: true });
-  Object.defineProperty(__exports, "setupAnimations", { get: () => setupAnimations, enumerable: true });
   Object.defineProperty(__exports, "delayed", { get: () => delayed, enumerable: true });
   });
 
@@ -4066,7 +4398,7 @@
   // Port of lib/flutter_flow/flutter_flow_timer.dart, lib/flutter_flow/instant_timer.dart
   // and the pieces of the stop_watch_timer package the project touches.
   
-  const { el } = __require("widgets.js");
+  const { el, fonte } = __require("widgets.js");
   
   /* ------------------------------------------------- StopWatchTimer helpers -- */
   
@@ -4207,7 +4539,7 @@
       class: ['ff-text', className].filter(Boolean).join(' '),
       style: {
         fontFamily: style.fontFamily ? `'${style.fontFamily}', sans-serif` : null,
-        fontSize: style.fontSize != null ? `${style.fontSize}px` : null,
+        fontSize: fonte(style.fontSize),
         fontWeight: style.fontWeight != null ? String(style.fontWeight) : null,
         color: style.color || null,
         letterSpacing: style.letterSpacing != null ? `${style.letterSpacing}px` : null,
@@ -4282,7 +4614,7 @@
   // TextFormField + InputDecoration, FlutterFlowDropDown (dropdown_button2),
   // FlutterFlowLanguageSelector, FFButtonWidget and MaskTextInputFormatter.
   
-  const { el, px, Icon, Txt, Colors } = __require("widgets.js");
+  const { el, px, fonte, Icon, Txt, Colors } = __require("widgets.js");
   const { LANGUAGE_NAMES } = __require("i18n.js");
   
   /* --------------------------------------------------- MaskTextInputFormatter */
@@ -4317,7 +4649,7 @@
   
   const styleToCss = (style = {}) => ({
     fontFamily: style.fontFamily ? `'${style.fontFamily}', sans-serif` : null,
-    fontSize: style.fontSize != null ? `${style.fontSize}px` : null,
+    fontSize: fonte(style.fontSize),
     fontWeight: style.fontWeight != null ? String(style.fontWeight) : null,
     fontStyle: style.fontStyle || null,
     color: style.color || null,
@@ -4382,7 +4714,9 @@
         borderRadius: `${borderRadius}px`,
         borderColor,
         borderWidth: `${borderWidth}px`,
-        minHeight: `${(style?.fontSize ?? 14) * 1.2109 + 40 + borderWidth * 2}px`,
+        // A altura acompanha o piso de legibilidade da fonte, senao o texto
+        // crescido numa janela pequena encostaria na borda do campo.
+        minHeight: `calc(${fonte(style?.fontSize ?? 14)} * 1.2109 + ${40 + borderWidth * 2}px)`,
       },
     }, input);
   
@@ -4484,6 +4818,42 @@
   
   /* ------------------------------------------------- FlutterFlowDropDown ---- */
   
+  /**
+   * A camada dos menus: fica DENTRO do palco (para herdar a escala e as unidades
+   * dele) e ANTES de `#overlays`, para um menu ficar acima das telas e abaixo dos
+   * dialogos. Criada na primeira vez que alguem abre um menu.
+   */
+  let sequenciaDeMenus = 0;
+  
+  function camadaDeMenus() {
+    let camada = document.getElementById('popups');
+    if (camada) return camada;
+    const palco = document.getElementById('stage');
+    camada = el('div', { id: 'popups' });
+    palco.insertBefore(camada, document.getElementById('overlays'));
+    return camada;
+  }
+  
+  /**
+   * A caixa de `node` em coordenadas DO PALCO. O palco e escalado por transform,
+   * entao `getBoundingClientRect` devolve px de tela; a escala sai da razao entre
+   * a largura desenhada e a de layout, sem depender de ler a variavel CSS.
+   */
+  function paraOPalco(node) {
+    const palco = document.getElementById('stage');
+    if (!palco) return null;
+    const p = palco.getBoundingClientRect();
+    const escala = p.width / palco.offsetWidth || 1;
+    const r = node.getBoundingClientRect();
+    return {
+      x: (r.left - p.left) / escala,
+      y: (r.top - p.top) / escala,
+      largura: r.width / escala,
+      altura: r.height / escala,
+      alturaDoPalco: palco.offsetHeight,
+    };
+  }
+  
   /** FormFieldController<T> */
   class FormFieldController {
     constructor(value = null) {
@@ -4536,22 +4906,25 @@
   
     const [ml, , mr] = margin;
   
+    // O menu vive fora do botao (ver abre/fecha), entao a ligacao entre os dois e
+    // declarada: `aria-controls` aponta para ele. Isso serve ao leitor de tela e
+    // da a quem testa um jeito estavel de achar o menu de um dropdown especifico,
+    // em vez de andar pela arvore.
+    const menuId = `ff-menu-${(sequenciaDeMenus += 1)}`;
     const menu = el('div', {
+      id: menuId,
       class: 'ff-dropdown-menu',
+      role: 'listbox',
       style: {
         background: menuColor || fillColor || null,
         borderRadius: '4px',
-        left: '0',
-        right: '0',
-        top: '100%',
-        maxHeight: maxHeight != null ? `${maxHeight}px` : '420px',
       },
     });
-    menu.hidden = true;
   
     options.forEach((option, index) => {
       const item = el('div', {
         class: 'ff-dropdown-item ff-text',
+        role: 'option',
         style: { ...styleToCss(textStyle), padding: `${(height ?? 48) / 4}px ${mr}px ${(height ?? 48) / 4}px ${ml}px` },
         text: labelFor(option, index),
       });
@@ -4594,27 +4967,96 @@
           border: `${borderWidth}px solid ${borderColor}`,
         },
       },
-      [button, menu]
+      [button]
     );
   
-    const close = () => {
-      menu.hidden = true;
-      document.removeEventListener('click', onDocumentClick, true);
-    };
-    const onDocumentClick = (event) => {
-      if (!root.contains(event.target)) close();
+    /* ------------------------------------------------------------ abre/fecha -- */
+    /*
+     * O menu e desenhado numa CAMADA propria do palco, e nao como filho absoluto
+     * do botao. Dois defeitos vinham dali:
+     *
+     *   1. o `z-index: 40` do menu ficava preso no contexto de empilhamento do
+     *      pedaco de tela onde o dropdown vive, entao o botao CONFIRMAR e a linha
+     *      de termos, que vem depois na arvore, eram pintados POR CIMA do menu
+     *      aberto;
+     *   2. o menu abria sempre para baixo. No cadastro ele comeca em y=802 e tem
+     *      420px, ou seja, vazava 142px abaixo do palco — e o palco recorta, o que
+     *      deixava as ultimas opcoes inalcancaveis.
+     *
+     * Na camada, o menu escapa de qualquer contexto de empilhamento e da para
+     * posicionar em coordenadas do palco: abre para baixo se cabe, para cima se
+     * nao cabe, e no pior caso encolhe e rola por dentro.
+     */
+    let aberto = false;
+  
+    const fechar = () => {
+      if (!aberto) return;
+      aberto = false;
+      menu.remove();
+      button.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('click', aoClicarFora, true);
+      document.removeEventListener('keydown', aoTeclar, true);
+      window.removeEventListener('resize', fechar);
     };
   
+    const aoClicarFora = (event) => {
+      if (!root.contains(event.target) && !menu.contains(event.target)) fechar();
+    };
+  
+    const aoTeclar = (event) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        fechar();
+      }
+    };
+  
+    const abrir = () => {
+      if (aberto) return;
+      aberto = true;
+      camadaDeMenus().appendChild(menu);
+      button.setAttribute('aria-expanded', 'true');
+      posicionar();
+      document.addEventListener('click', aoClicarFora, true);
+      document.addEventListener('keydown', aoTeclar, true);
+      window.addEventListener('resize', fechar);
+    };
+  
+    /** Poe o menu embaixo do botao, ou em cima se nao couber. */
+    function posicionar() {
+      const alvo = paraOPalco(button);
+      if (!alvo) return;
+      const { x, y, largura, altura, alturaDoPalco } = alvo;
+  
+      const FOLGA = 4;
+      const BORDA = 8;
+      const abaixo = alturaDoPalco - (y + altura) - FOLGA - BORDA;
+      const acima = y - FOLGA - BORDA;
+      const tetoPedido = maxHeight != null ? maxHeight : 420;
+  
+      menu.style.left = `${x}px`;
+      menu.style.width = `${largura}px`;
+      menu.style.maxHeight = `${Math.max(80, Math.min(tetoPedido, Math.max(abaixo, acima)))}px`;
+  
+      // Mede com o teto ja aplicado, para decidir com a altura real.
+      const alto = menu.offsetHeight;
+      if (alto <= abaixo || abaixo >= acima) {
+        menu.style.top = `${Math.min(y + altura + FOLGA, alturaDoPalco - BORDA - alto)}px`;
+      } else {
+        menu.style.top = `${Math.max(BORDA, y - FOLGA - alto)}px`;
+      }
+    }
+  
+    button.setAttribute('role', 'button');
+    button.setAttribute('aria-haspopup', 'listbox');
+    button.setAttribute('aria-controls', menuId);
+    button.setAttribute('aria-expanded', 'false');
     button.addEventListener('click', (event) => {
       event.stopPropagation();
-      if (menu.hidden) {
-        menu.hidden = false;
-        document.addEventListener('click', onDocumentClick, true);
-      } else {
-        close();
-      }
+      if (aberto) fechar();
+      else abrir();
     });
   
+    const close = fechar;
     return root;
   }
   
@@ -4942,6 +5384,1707 @@
   Object.defineProperty(__exports, "RankingWidget", { get: () => RankingWidget, enumerable: true });
   });
 
+  /* ===== admin/ui.js ===== */
+  __define("admin/ui.js", function (__exports, __require) {
+  // Helpers de DOM da área administrativa.
+  //
+  // Aqui NÃO se imita widget do Flutter. O jogo vive num palco de 1920x1080
+  // escalado, com medidas absolutas, porque é um totem; o admin é usado por um
+  // funcionário num notebook, então é HTML e CSS normais, responsivos.
+  
+  function el(tag, props = {}, children = []) {
+    const node = document.createElement(tag);
+    for (const [k, v] of Object.entries(props)) {
+      if (v == null || v === false) continue;
+      if (k === 'class') node.className = Array.isArray(v) ? v.filter(Boolean).join(' ') : v;
+      else if (k === 'text') node.textContent = v;
+      else if (k === 'style') Object.assign(node.style, v);
+      else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2).toLowerCase(), v);
+      else if (v === true) node.setAttribute(k, '');
+      else node.setAttribute(k, String(v));
+    }
+    for (const c of [children].flat(4)) {
+      if (c == null || c === false) continue;
+      node.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
+    }
+    return node;
+  }
+  
+  const limpar = (node) => {
+    while (node.firstChild) node.removeChild(node.firstChild);
+    return node;
+  };
+  
+  /* ------------------------------------------------------------- controles -- */
+  
+  function campo({ rotulo, valor = '', multilinha = false, onInput, dica, obrigatorio = false, id }) {
+    const entrada = multilinha
+      ? el('textarea', { rows: 3, id, class: 'campo-entrada' })
+      : el('input', { type: 'text', id, class: 'campo-entrada' });
+    entrada.value = valor ?? '';
+    if (onInput) entrada.addEventListener('input', () => onInput(entrada.value, entrada));
+  
+    const erro = el('span', { class: 'campo-erro', role: 'alert' });
+    erro.hidden = true;
+  
+    const raiz = el('label', { class: ['campo', obrigatorio ? 'campo-obrigatorio' : null] }, [
+      el('span', { class: 'campo-rotulo', text: rotulo }),
+      entrada,
+      dica ? el('span', { class: 'campo-dica', text: dica }) : null,
+      erro,
+    ]);
+    raiz.entrada = entrada;
+    raiz.marcarErro = (msg) => {
+      erro.textContent = msg ?? '';
+      erro.hidden = !msg;
+      raiz.classList.toggle('tem-erro', Boolean(msg));
+    };
+    return raiz;
+  }
+  
+  function botao(texto, { onClick, tipo = 'normal', titulo, icone } = {}) {
+    return el(
+      'button',
+      { type: 'button', class: `botao botao-${tipo}`, onClick, title: titulo, 'aria-label': titulo },
+      [icone ? el('span', { class: 'botao-icone', 'aria-hidden': 'true', text: icone }) : null, el('span', { text: texto })]
+    );
+  }
+  
+  function selecao({ rotulo, opcoes, valor, onChange, id }) {
+    const sel = el('select', { class: 'campo-entrada', id });
+    for (const o of opcoes) {
+      const opt = el('option', { value: o.valor, text: o.rotulo });
+      if (String(o.valor) === String(valor)) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    if (onChange) sel.addEventListener('change', () => onChange(sel.value));
+    const raiz = el('label', { class: 'campo' }, [el('span', { class: 'campo-rotulo', text: rotulo }), sel]);
+    raiz.entrada = sel;
+    return raiz;
+  }
+  
+  function caixaDeMarcar({ rotulo, marcado, onChange }) {
+    const input = el('input', { type: 'checkbox' });
+    input.checked = Boolean(marcado);
+    if (onChange) input.addEventListener('change', () => onChange(input.checked));
+    const raiz = el('label', { class: 'marcar' }, [input, el('span', { text: rotulo })]);
+    raiz.entrada = input;
+    return raiz;
+  }
+  
+  /* ------------------------------------------------------------------ aviso -- */
+  
+  let pilhaDeAvisos = null;
+  
+  function aviso(texto, tipo = 'ok') {
+    if (!pilhaDeAvisos) {
+      pilhaDeAvisos = el('div', { class: 'avisos', role: 'status', 'aria-live': 'polite' });
+      document.body.appendChild(pilhaDeAvisos);
+    }
+    const node = el('div', { class: `aviso aviso-${tipo}`, text: texto });
+    pilhaDeAvisos.appendChild(node);
+    setTimeout(() => {
+      node.classList.add('saindo');
+      setTimeout(() => node.remove(), 300);
+    }, tipo === 'erro' ? 6000 : 3000);
+  }
+  
+  /* ---------------------------------------------------------------- diálogo -- */
+  
+  /**
+   * Diálogo modal. Resolve com `true` no confirmar e `false` no cancelar, então
+   * quem chama faz `if (await confirmar(...))`.
+   */
+  function confirmar({ titulo, texto, confirmarTexto = 'Confirmar', perigoso = false }) {
+    return new Promise((resolve) => {
+      const fechar = (r) => {
+        fundo.remove();
+        document.removeEventListener('keydown', onTecla);
+        resolve(r);
+      };
+      const onTecla = (e) => {
+        if (e.key === 'Escape') fechar(false);
+      };
+  
+      const botaoOk = botao(confirmarTexto, { tipo: perigoso ? 'perigo' : 'primario', onClick: () => fechar(true) });
+      const caixa = el('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': titulo }, [
+        el('h2', { text: titulo }),
+        el('p', { text: texto }),
+        el('div', { class: 'modal-acoes' }, [
+          botao('Cancelar', { onClick: () => fechar(false) }),
+          botaoOk,
+        ]),
+      ]);
+      const fundo = el('div', { class: 'modal-fundo', onClick: (e) => e.target === fundo && fechar(false) }, caixa);
+      document.body.appendChild(fundo);
+      document.addEventListener('keydown', onTecla);
+      botaoOk.focus();
+    });
+  }
+  
+  
+  
+  /* ------------------------------------------------------- imagem embutida -- */
+  
+  /** O maior lado que uma imagem enviada do computador pode ter, em px. */
+  const MAX_LADO = 1280;
+  
+  /**
+   * Le uma imagem escolhida pelo operador e devolve uma versao pronta para
+   * caber no baralho.
+   *
+   * Por que reduzir: o baralho vive no localStorage, que tem alguns megabytes no
+   * total. Uma foto de celular de 4000px passa de 4 MB e sozinha estoura a cota,
+   * levando embora tambem as perguntas. Reduzida para 1280px de maior lado, uma
+   * foto de veiculo fica na casa das centenas de KB.
+   *
+   * Prefere WebP porque as fotos originais do jogo sao recortes com fundo
+   * transparente, e JPEG nao tem canal alfa -- sairia uma caixa branca em cima
+   * da fatia da roleta. Se o navegador nao souber gravar WebP, cai para PNG.
+   *
+   * Guarda o original quando ele ja e menor que o reprocessado, para nao inflar
+   * um PNG pequeno de proposito.
+   *
+   * @param {File} arquivo
+   * @returns {Promise<{dataUrl: string, largura: number, altura: number, kb: number, reduziu: boolean}>}
+   */
+  async function reduzirImagem(arquivo, { maxLado = MAX_LADO, qualidade = 0.85 } = {}) {
+    const original = await new Promise((ok, falhou) => {
+      const r = new FileReader();
+      r.onload = () => ok(String(r.result));
+      r.onerror = () => falhou(new Error('não foi possível ler o arquivo'));
+      r.readAsDataURL(arquivo);
+    });
+  
+    const img = await new Promise((ok, falhou) => {
+      const i = new Image();
+      i.onload = () => ok(i);
+      i.onerror = () => falhou(new Error('o arquivo não é uma imagem que o navegador saiba abrir'));
+      i.src = original;
+    });
+  
+    const escala = Math.min(1, maxLado / Math.max(img.naturalWidth, img.naturalHeight));
+    const largura = Math.max(1, Math.round(img.naturalWidth * escala));
+    const altura = Math.max(1, Math.round(img.naturalHeight * escala));
+  
+    const tela = el('canvas', { width: largura, height: altura });
+    const ctx = tela.getContext('2d');
+    ctx.drawImage(img, 0, 0, largura, altura);
+  
+    let reprocessada = tela.toDataURL('image/webp', qualidade);
+    if (!reprocessada.startsWith('data:image/webp')) reprocessada = tela.toDataURL('image/png');
+  
+    const usarOriginal = original.length <= reprocessada.length;
+    const dataUrl = usarOriginal ? original : reprocessada;
+  
+    return {
+      dataUrl,
+      largura: usarOriginal ? img.naturalWidth : largura,
+      altura: usarOriginal ? img.naturalHeight : altura,
+      kb: Math.round(dataUrl.length / 1024),
+      reduziu: !usarOriginal && escala < 1,
+    };
+  }
+  
+  /**
+   * Um seletor de imagem visivel de verdade (nao um input escondido atras de um
+   * clique sintetico), para dar para alcancar por teclado e para os testes
+   * conseguirem entregar um arquivo a ele.
+   *
+   * @param {object} props
+   * @param {Function} props.onEscolha recebe (resultado, arquivo); resultado e
+   *   null quando a leitura falhou, e o terceiro argumento traz o erro
+   */
+  function entradaDeImagem({ rotulo, dica, onEscolha }) {
+    const entrada = el('input', { type: 'file', accept: 'image/*', class: 'campo-arquivo' });
+    const estado = el('span', { class: 'campo-dica campo-arquivo-estado', role: 'status' });
+  
+    entrada.addEventListener('change', async () => {
+      const arquivo = entrada.files?.[0];
+      if (!arquivo) return;
+      estado.textContent = 'processando…';
+      try {
+        const r = await reduzirImagem(arquivo);
+        estado.textContent = r.reduziu
+          ? `${arquivo.name} — reduzida para ${r.largura}x${r.altura}, cerca de ${r.kb} KB`
+          : `${arquivo.name} — cerca de ${r.kb} KB`;
+        onEscolha(r, arquivo);
+      } catch (e) {
+        estado.textContent = e?.message ?? 'não foi possível usar este arquivo';
+        onEscolha(null, arquivo, e);
+      } finally {
+        // Zerar deixa escolher o MESMO arquivo de novo depois de um erro.
+        entrada.value = '';
+      }
+    });
+  
+    const raiz = el('label', { class: 'campo campo-arquivo-campo' }, [
+      el('span', { class: 'campo-rotulo', text: rotulo }),
+      entrada,
+      dica ? el('span', { class: 'campo-dica', text: dica }) : null,
+      estado,
+    ]);
+    raiz.entrada = entrada;
+    return raiz;
+  }
+  Object.defineProperty(__exports, "el", { get: () => el, enumerable: true });
+  Object.defineProperty(__exports, "limpar", { get: () => limpar, enumerable: true });
+  Object.defineProperty(__exports, "campo", { get: () => campo, enumerable: true });
+  Object.defineProperty(__exports, "botao", { get: () => botao, enumerable: true });
+  Object.defineProperty(__exports, "selecao", { get: () => selecao, enumerable: true });
+  Object.defineProperty(__exports, "caixaDeMarcar", { get: () => caixaDeMarcar, enumerable: true });
+  Object.defineProperty(__exports, "aviso", { get: () => aviso, enumerable: true });
+  Object.defineProperty(__exports, "confirmar", { get: () => confirmar, enumerable: true });
+  Object.defineProperty(__exports, "reduzirImagem", { get: () => reduzirImagem, enumerable: true });
+  Object.defineProperty(__exports, "entradaDeImagem", { get: () => entradaDeImagem, enumerable: true });
+  });
+
+  /* ===== admin/editor.js ===== */
+  __define("admin/editor.js", function (__exports, __require) {
+  // O editor: o veículo em cima, e embaixo UMA pergunta do banco dele — os
+  // equipamentos que a resolvem, o gabarito e os doze campos de texto em cada um
+  // dos três idiomas.
+  //
+  // Veículo e pergunta são objetos separados desde a v2 do baralho (ver deck.js):
+  // o mesmo carro pode ter várias perguntas, e quem escolhe qual está aberta é a
+  // lista do painel.
+  
+  const { el, campo, selecao, caixaDeMarcar, limpar, botao, entradaDeImagem } = __require("admin/ui.js");
+  const { CAMPOS_QUESTAO, CAMPOS_OBRIGATORIOS, IDIOMAS, SCANNERS, VEICULOS_ORIGINAIS } = __require("deck.js");
+  
+  const NOME_IDIOMA = { pt: 'Português', en: 'English', es: 'Español' };
+  
+  /** Rótulo e ajuda de cada campo, para o operador não precisar adivinhar. */
+  const ROTULOS = {
+    pergunta: ['Enunciado', 'O defeito que aparece na tela grande, à esquerda'],
+    respostaUm: ['Alternativa 1', null],
+    respostaDois: ['Alternativa 2', null],
+    respostaTres: ['Alternativa 3', null],
+    respostaQuatro: ['Alternativa 4', null],
+    ajudaApoio: ['Dica — Apoio Técnico', null],
+    ajudaTreinamentoEad: ['Dica — Cursos EAD', null],
+    ajudaTecnomotorTv: ['Dica — TecnomotorTV', null],
+    ajudaComunidade: ['Dica — Comunidade', null],
+    ajudaRepresentanteComercial: ['Dica — Representante comercial', null],
+    relatoPreliminar: ['Relato preliminar', 'Não aparece no jogo — o original guardava e nunca exibia'],
+    maisInformacoes: ['Mais informações', 'Não aparece no jogo — o original guardava e nunca exibia'],
+  };
+  
+  /** As alternativas na ordem em que o gabarito as numera. */
+  const CAMPO_DA_ALTERNATIVA = ['respostaUm', 'respostaDois', 'respostaTres', 'respostaQuatro'];
+  
+  /**
+   * @param {object}   props
+   * @param {object}   props.slot      o veículo (a fatia da roleta), mutado no lugar
+   * @param {object}   props.pergunta  a pergunta do banco que está sendo editada
+   * @param {number}   props.indice    posição no baralho
+   * @param {Function} props.onChange  chamado a cada edição, para revalidar
+   */
+  function editorDeSlot({ slot, pergunta, indice, posicao = 0, total = 1, onChange }) {
+    const mudou = () => onChange?.();
+  
+    /* ------------------------------------------------------------- veículo -- */
+  
+    /** Uma imagem enviada do computador vive dentro do baralho, como data URL. */
+    const embutida = (src) => typeof src === 'string' && src.startsWith('data:');
+  
+    const previaFoto = el('img', { class: 'previa-foto', alt: '' });
+    const semFoto = el('div', { class: 'previa-vazia', text: 'sem imagem' });
+    const resumoEmbutida = el('span', { class: 'embutida-texto' });
+    const blocoEmbutida = el('div', { class: 'embutida' }, [
+      resumoEmbutida,
+      botao('Trocar por um caminho de arquivo', {
+        onClick: () => {
+          slot.veiculo.imagem = '';
+          campoImagem.entrada.value = '';
+          atualizarPrevia();
+          mudou();
+        },
+      }),
+    ]);
+  
+    const atualizarPrevia = () => {
+      // admin.html fica em web/, ao lado de assets/ — o caminho e relativo direto.
+      // Com `../` funcionava por acidente no HTTP (nao se sobe acima da raiz) e
+      // quebrava por file://, onde `../` sai mesmo da pasta.
+      const src = slot.veiculo.imagem;
+      previaFoto.src = src || '';
+      previaFoto.hidden = !src;
+      semFoto.hidden = Boolean(src);
+  
+      // Um data URL tem centenas de milhares de caracteres: dentro de um campo de
+      // texto ele e inutil e ainda dispara `input` a cada tecla. Some o campo e
+      // mostra o tamanho, com a saida para voltar ao modo caminho.
+      const dentro = embutida(src);
+      campoImagem.hidden = dentro;
+      blocoEmbutida.hidden = !dentro;
+      if (dentro) {
+        resumoEmbutida.textContent = `Imagem enviada do computador — cerca de ${Math.round(src.length / 1024)} KB, guardada dentro do baralho`;
+      }
+    };
+  
+    const campoNome = campo({
+      rotulo: 'Nome do veículo',
+      valor: slot.veiculo.nome,
+      obrigatorio: true,
+      dica: 'É o texto grande da tela "carro sorteado"',
+      onInput: (v) => {
+        slot.veiculo.nome = v;
+        mudou();
+      },
+    });
+  
+    const campoImagem = campo({
+      rotulo: 'Imagem',
+      valor: slot.veiculo.imagem,
+      obrigatorio: true,
+      dica: 'Caminho dentro de web/, por exemplo assets/images/BMW.png',
+      onInput: (v) => {
+        slot.veiculo.imagem = v.trim();
+        atualizarPrevia();
+        mudou();
+      },
+    });
+  
+    // Atalho para as dez fotos que já vêm no projeto, para o caso comum de
+    // reaproveitar um veículo existente sem digitar caminho.
+    const atalhoImagem = selecao({
+      rotulo: 'Usar uma imagem que já existe',
+      valor: '',
+      opcoes: [
+        { valor: '', rotulo: '— escolher —' },
+        ...VEICULOS_ORIGINAIS.map((v) => ({ valor: v.imagem, rotulo: v.nome })),
+      ],
+      onChange: (v) => {
+        if (!v) return;
+        const original = VEICULOS_ORIGINAIS.find((x) => x.imagem === v);
+        slot.veiculo.imagem = v;
+        if (original) {
+          slot.veiculo.largura = original.largura;
+          slot.veiculo.altura = original.altura;
+          slot.veiculo.fit = original.fit;
+          if (!slot.veiculo.nome.trim()) {
+            slot.veiculo.nome = original.nome;
+            campoNome.entrada.value = original.nome;
+          }
+        }
+        campoImagem.entrada.value = v;
+        atualizarPrevia();
+        mudou();
+      },
+    });
+  
+    const envio = entradaDeImagem({
+      rotulo: 'Ou enviar uma imagem do computador',
+      dica: 'Fica guardada dentro do baralho, então funciona no totem sem copiar arquivo nenhum. Reduzida para no máximo 1280px.',
+      onEscolha: (r, arquivo) => {
+        if (!r) return;
+        slot.veiculo.imagem = r.dataUrl;
+        // O aspecto de uma foto qualquer não é o das fotos originais, então
+        // `contain` para ela caber inteira em vez de sair recortada.
+        slot.veiculo.fit = 'contain';
+        campoFit.entrada.value = 'contain';
+        if (!slot.veiculo.nome.trim()) {
+          // Sem extensão e com os separadores virando espaço: "bmw_320i.png"
+          // chega como "bmw 320i", que é um chute melhor que vazio.
+          const chute = (arquivo?.name ?? '').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+          if (chute) {
+            slot.veiculo.nome = chute;
+            campoNome.entrada.value = chute;
+          }
+        }
+        atualizarPrevia();
+        mudou();
+      },
+    });
+  
+    const campoLargura = campo({
+      rotulo: 'Largura (px)',
+      valor: String(slot.veiculo.largura ?? 1235),
+      onInput: (v) => {
+        slot.veiculo.largura = Number(v) || 0;
+        mudou();
+      },
+    });
+    const campoAltura = campo({
+      rotulo: 'Altura (px)',
+      valor: String(slot.veiculo.altura ?? 674),
+      onInput: (v) => {
+        slot.veiculo.altura = Number(v) || 0;
+        mudou();
+      },
+    });
+    const campoFit = selecao({
+      rotulo: 'Encaixe',
+      valor: slot.veiculo.fit ?? 'cover',
+      opcoes: [
+        { valor: 'cover', rotulo: 'cover — preenche e recorta' },
+        { valor: 'contain', rotulo: 'contain — cabe inteira' },
+      ],
+      onChange: (v) => {
+        slot.veiculo.fit = v;
+        mudou();
+      },
+    });
+  
+    atualizarPrevia();
+  
+    const blocoVeiculo = el('section', { class: 'bloco' }, [
+      el('h3', { text: 'Veículo' }),
+      el('div', { class: 'veiculo-grade' }, [
+        el('div', { class: 'previa' }, [previaFoto, semFoto]),
+        el('div', { class: 'veiculo-campos' }, [
+          campoNome,
+          atalhoImagem,
+          campoImagem,
+          blocoEmbutida,
+          envio,
+          el('div', { class: 'linha-tres' }, [campoLargura, campoAltura, campoFit]),
+        ]),
+      ]),
+    ]);
+  
+    /* -------------------------------------------------- gabarito e scanners -- */
+  
+    const opcoesGabarito = () =>
+      CAMPO_DA_ALTERNATIVA.map((c, i) => {
+        const texto = (pergunta.pt?.[c] ?? '').trim();
+        const resumo = texto ? `: ${texto.slice(0, 46)}${texto.length > 46 ? '…' : ''}` : ' (vazia)';
+        return { valor: String(i + 1), rotulo: `Alternativa ${i + 1}${resumo}` };
+      });
+  
+    const campoGabarito = selecao({
+      rotulo: 'Resposta correta',
+      valor: String(pergunta.gabarito),
+      opcoes: opcoesGabarito(),
+      onChange: (v) => {
+        pergunta.gabarito = v;
+        mudou();
+      },
+    });
+  
+    const blocoRegras = el('section', { class: 'bloco' }, [
+      el('h3', { text: 'Regras desta pergunta' }),
+      campoGabarito,
+      el('div', { class: 'campo' }, [
+        el('span', { class: 'campo-rotulo', text: 'Equipamentos que resolvem esta pergunta' }),
+        el('span', {
+          class: 'campo-dica',
+          text: 'Os não marcados abrem "equipamento inválido" quando o jogador escolhe. Ao menos um precisa estar marcado. Vale só para esta pergunta — outra do mesmo veículo pode pedir equipamentos diferentes.',
+        }),
+        el(
+          'div',
+          { class: 'marcar-grupo' },
+          SCANNERS.map((s) =>
+            caixaDeMarcar({
+              rotulo: s.rotulo,
+              marcado: pergunta.scanners[s.chave],
+              onChange: (v) => {
+                pergunta.scanners[s.chave] = v;
+                mudou();
+              },
+            })
+          )
+        ),
+      ]),
+    ]);
+  
+    /* --------------------------------------------------------------- textos -- */
+  
+    let idiomaAtivo = 'pt';
+    const painelTextos = el('div', { class: 'textos' });
+    const camposPorIdioma = {};
+  
+    const desenharTextos = () => {
+      limpar(painelTextos);
+      const lang = idiomaAtivo;
+      camposPorIdioma[lang] = {};
+      for (const nome of CAMPOS_QUESTAO) {
+        const [rotulo, dica] = ROTULOS[nome] ?? [nome, null];
+        const obrigatorio = CAMPOS_OBRIGATORIOS.includes(nome);
+        const c = campo({
+          rotulo,
+          dica,
+          obrigatorio,
+          multilinha: nome === 'pergunta' || nome.startsWith('ajuda') || nome === 'maisInformacoes',
+          valor: pergunta[lang][nome],
+          onInput: (v) => {
+            pergunta[lang][nome] = v;
+            // O rótulo do gabarito mostra o começo de cada alternativa em pt.
+            if (lang === 'pt' && CAMPO_DA_ALTERNATIVA.includes(nome)) {
+              const atual = campoGabarito.entrada.value;
+              limpar(campoGabarito.entrada);
+              for (const o of opcoesGabarito()) {
+                const opt = el('option', { value: o.valor, text: o.rotulo });
+                if (o.valor === atual) opt.selected = true;
+                campoGabarito.entrada.appendChild(opt);
+              }
+            }
+            mudou();
+          },
+        });
+        camposPorIdioma[lang][nome] = c;
+        painelTextos.appendChild(c);
+      }
+    };
+  
+    const abas = el(
+      'div',
+      { class: 'abas-idioma', role: 'tablist' },
+      IDIOMAS.map((lang) =>
+        el('button', {
+          type: 'button',
+          role: 'tab',
+          class: ['aba-idioma', lang === idiomaAtivo ? 'ativa' : null],
+          text: NOME_IDIOMA[lang],
+          'aria-selected': lang === idiomaAtivo ? 'true' : 'false',
+          onClick: (e) => {
+            idiomaAtivo = lang;
+            for (const b of abas.children) {
+              const ativa = b === e.currentTarget;
+              b.classList.toggle('ativa', ativa);
+              b.setAttribute('aria-selected', ativa ? 'true' : 'false');
+            }
+            desenharTextos();
+            marcarErros(ultimosErros);
+          },
+        })
+      )
+    );
+  
+    desenharTextos();
+  
+    const blocoTextos = el('section', { class: 'bloco' }, [
+      el('h3', { text: 'Textos' }),
+      el('p', { class: 'nota', text: 'Os três idiomas são independentes: o jogo não tem retorno para o português se um campo ficar vazio — a tela aparece em branco.' }),
+      abas,
+      painelTextos,
+    ]);
+  
+    /* ---------------------------------------------------------- marcar erros -- */
+  
+    let ultimosErros = [];
+  
+    /**
+     * Recebe as mensagens de validarBaralho() desta rodada e acende o campo
+     * correspondente, para o operador não ter de caçar na lista.
+     */
+    function marcarErros(mensagens) {
+      ultimosErros = mensagens ?? [];
+      for (const c of Object.values(camposPorIdioma[idiomaAtivo] ?? {})) c.marcarErro(null);
+      campoNome.marcarErro(null);
+      campoImagem.marcarErro(null);
+  
+      for (const m of ultimosErros) {
+        if (/sem nome/.test(m)) campoNome.marcarErro('Obrigatório');
+        if (/sem imagem/.test(m)) campoImagem.marcarErro('Obrigatório');
+        const vazio = m.match(/(\w+) vazio em (PT|EN|ES)/);
+        if (vazio) {
+          const [, nome, lang] = vazio;
+          if (lang.toLowerCase() === idiomaAtivo) {
+            camposPorIdioma[idiomaAtivo]?.[nome]?.marcarErro('Obrigatório neste idioma');
+          }
+        }
+      }
+    }
+  
+    const raiz = el('div', { class: 'editor' }, [
+      el('div', { class: 'editor-cabecalho' }, [
+        el('h2', { text: slot.veiculo?.nome?.trim() || `Rodada ${indice + 1}` }),
+        el('span', { class: 'selo-fatia', text: `fatia ${indice + 1} da roleta` }),
+        total > 1 ? el('span', { class: 'selo-fatia', text: `pergunta ${posicao + 1} de ${total}` }) : null,
+        pergunta.ativa === false ? el('span', { class: 'selo-fatia selo-desligado', text: 'desligada' }) : null,
+      ]),
+      blocoVeiculo,
+      blocoRegras,
+      blocoTextos,
+    ]);
+    raiz.marcarErros = marcarErros;
+    return raiz;
+  }
+  Object.defineProperty(__exports, "editorDeSlot", { get: () => editorDeSlot, enumerable: true });
+  });
+
+  /* ===== nuvem.js ===== */
+  __define("nuvem.js", function (__exports, __require) {
+  // O baralho na nuvem: um documento no Firestore que a área administrativa
+  // escreve e todo totem lê.
+  //
+  // O PROBLEMA QUE ISTO RESOLVE
+  // Até aqui o baralho vivia no `localStorage` do navegador que o publicou.
+  // Editar no notebook não alcançava o totem: a travessia era exportar um JSON,
+  // levar num pendrive e importar do outro lado. Agora o admin publica num lugar
+  // só e qualquer totem com internet pega na partida seguinte.
+  //
+  // O DESENHO
+  //   conteudo/baralho   leitura pública (o jogo precisa, e não tem servidor)
+  //                      escrita livre, com o formato validado pelas regras
+  //
+  // O BARALHO INTEIRO VAI. Veículo, regras e perguntas — as dez de fábrica
+  // incluídas, mesmo intocadas. Houve uma versão que subia só o que diferia da
+  // fábrica e guardava o resto por referência: economizava 37 KB num teto de
+  // 1 MB, e em troca criava uma regra que ninguém adivinha — o texto de uma
+  // pergunta original passava a vir do `questions.js` do totem, não do que estava
+  // gravado. Quem abrisse o Firestore não veria o conteúdo do jogo. Não valia o
+  // que custava. O que está lá é o que o jogo joga, por extenso.
+  //
+  // O `localStorage` NÃO sai de cena: continua sendo o que o jogo lê, agora como
+  // cópia do que veio da nuvem. Isso é o que mantém o totem jogando quando a
+  // internet cai no meio da feira — e é o único modo possível quando ele abre do
+  // disco (ver firebase.js).
+  //
+  // SEM LOGIN, POR DECISÃO DO PROJETO (11/09/2026). Antes salvar exigia uma conta
+  // do Firebase; agora a regra de `conteudo` aceita escrita de qualquer um, com a
+  // justificativa de que o endereço não será divulgado. O que isso custa está
+  // escrito em firebase/firestore.rules, e não é pouco: quem descobrir a URL
+  // reescreve o jogo. A senha 2040 do painel não muda nada disso — ela viaja no
+  // mesmo JavaScript que o jogador recebe.
+  //
+  // O que continua fechado é `contatos`: nome e telefone de jogador não são
+  // conteúdo de jogo, e nenhum cliente os lê.
+  
+  const { firebase, podeUsarNuvem } = __require("firebase.js");
+  const { publicarBaralho, carregarBaralho } = __require("deck.js");
+  
+  /** O documento único. Coleção e id fixos: é um baralho por instalação. */
+  const COLECAO = 'conteudo';
+  const DOCUMENTO = 'baralho';
+  
+  /**
+   * O Firestore recusa documento acima de 1 MiB, e a mensagem dele não diz o que
+   * fazer. Este teto é menor de propósito — sobra para nomes de campo e para o
+   * `serverTimestamp` — e quem o estoura, na prática, é foto enviada do
+   * computador: cada uma vira um `data:` URL de ~88 KB dentro do baralho.
+   */
+  const TETO_KB = 900;
+  
+  const pesoEmKb = (obj) => Math.round(JSON.stringify(obj).length / 1024);
+  
+  /**
+   * O baralho inteiro cabe num documento? Separada de `publicarNaNuvem` porque
+   * esta parte é pura — dá para afirmá-la em teste sem Firebase nenhum.
+   */
+  function cabeNaNuvem(deck) {
+    const kb = pesoEmKb(deck);
+    if (kb <= TETO_KB) return { ok: true, kb };
+    return {
+      ok: false,
+      kb,
+      motivo:
+        `o baralho ficou com ${kb} KB e o Firestore aceita no máximo ${TETO_KB} por documento. ` +
+        'Imagens enviadas do computador são o que mais ocupa — troque alguma por um caminho em assets/images.',
+    };
+  }
+  
+  /* ------------------------------------------------------------ sincronia -- */
+  
+  /**
+   * Puxa o baralho publicado e guarda como cópia local.
+   *
+   * Fire-and-forget de propósito: quem chama (o boot e a tela de cadastro) não
+   * espera. Se a rede estiver fora, ou o jogo tiver aberto do disco, a função
+   * devolve `false` e o jogo segue com o que já tinha.
+   *
+   * @returns {Promise<boolean>} se a cópia local mudou
+   */
+  async function sincronizarBaralho() {
+    const fb = await firebase();
+    if (!fb) return false;
+  
+    try {
+      const { db, fs } = fb;
+      const snap = await fs.getDoc(fs.doc(db, COLECAO, DOCUMENTO));
+      if (!snap.exists()) return false;
+  
+      const remoto = snap.data()?.baralho;
+      if (!remoto || !Array.isArray(remoto.slots) || remoto.slots.length === 0) return false;
+  
+      // Comparar o texto evita reescrever (e invalidar o cache da projeção de
+      // estado) a cada partida quando nada mudou.
+      if (JSON.stringify(remoto) === JSON.stringify(carregarBaralho())) return false;
+  
+      publicarBaralho(remoto);
+      return true;
+    } catch (erro) {
+      console.warn('não deu para ler o baralho da nuvem; seguindo com o local.', erro);
+      return false;
+    }
+  }
+  
+  /**
+   * Salva o baralho para todos os totens.
+   *
+   * @returns {Promise<{ok: boolean, kb?: number, motivo?: string}>}
+   */
+  async function publicarNaNuvem(deck) {
+    const fb = await firebase();
+    if (!fb) {
+      return {
+        ok: false,
+        motivo: podeUsarNuvem()
+          ? 'não deu para falar com o Firebase.'
+          : 'a nuvem está desligada ou o jogo foi aberto do disco.',
+      };
+    }
+    const cabe = cabeNaNuvem(deck);
+    if (!cabe.ok) return { ok: false, motivo: cabe.motivo };
+  
+    try {
+      const { db, fs } = fb;
+      await fs.setDoc(fs.doc(db, COLECAO, DOCUMENTO), {
+        baralho: deck,
+        atualizadoEm: fs.serverTimestamp(),
+        // Sem login não há quem: fica de onde, que é o que ainda ajuda a
+        // rastrear qual máquina salvou por último.
+        publicadoPor: typeof location === 'undefined' ? '' : location.hostname,
+      });
+      return { ok: true, kb: cabe.kb };
+    } catch (erro) {
+      // A mensagem crua do Firestore ("Missing or insufficient permissions") não
+      // diz ao operador o que fazer.
+      const permissao = String(erro?.code ?? '').includes('permission');
+      return {
+        ok: false,
+        motivo: permissao
+          ? 'as regras do Firestore recusaram a escrita — confira se o deploy das regras foi feito.'
+          : `o Firestore recusou: ${erro?.message ?? erro}`,
+      };
+    }
+  }
+  
+  /**
+   * Quando e de onde o baralho foi salvo na nuvem pela última vez.
+   *
+   * É o que a barra do painel mostra no lugar de "publicado no totem": aquilo
+   * dizia respeito só a este navegador, e o operador precisa saber se o que ele
+   * salvou chegou ao Firebase — e se outra máquina salvou depois dele. Sem login,
+   * `quem` é o host de onde a gravação saiu.
+   *
+   * @returns {Promise<{quando: Date|null, quem: string|null}|null>}
+   */
+  async function ultimaPublicacao() {
+    const fb = await firebase();
+    if (!fb) return null;
+    try {
+      const snap = await fb.fs.getDoc(fb.fs.doc(fb.db, COLECAO, DOCUMENTO));
+      if (!snap.exists()) return null;
+      const dados = snap.data();
+      return {
+        // `serverTimestamp` volta como Timestamp do Firestore; fica `null` no
+        // instante entre gravar e o servidor responder.
+        quando: dados.atualizadoEm?.toDate?.() ?? null,
+        quem: dados.publicadoPor ?? null,
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+  Object.defineProperty(__exports, "cabeNaNuvem", { get: () => cabeNaNuvem, enumerable: true });
+  Object.defineProperty(__exports, "sincronizarBaralho", { get: () => sincronizarBaralho, enumerable: true });
+  Object.defineProperty(__exports, "publicarNaNuvem", { get: () => publicarNaNuvem, enumerable: true });
+  Object.defineProperty(__exports, "ultimaPublicacao", { get: () => ultimaPublicacao, enumerable: true });
+  });
+
+  /* ===== admin/painel.js ===== */
+  __define("admin/painel.js", function (__exports, __require) {
+  // Área administrativa do TecGame: ver, adicionar, editar e remover as rodadas
+  // (pergunta + veículo + equipamentos) que o totem sorteia.
+  //
+  // Vive DENTRO do index.html, numa camada própria por cima do jogo, e não numa
+  // rota do palco: o jogo é um palco de 1920x1080 escalado com medidas absolutas
+  // de totem, e o admin é HTML responsivo comum, usado num notebook. Por isso não
+  // é um widget — é uma raiz separada que `montarAdmin` preenche e
+  // `desmontarAdmin` esvazia. Quem abre e fecha essa camada é o `porta.js`.
+  //
+  // Até a v1 isto era um `admin.html` separado, e esse arquivo a mais era a
+  // proteção de verdade: para o admin não existir no totem, bastava não copiá-lo
+  // para lá. Uma página só, servida pelo GitHub Pages, abre mão disso — a senha
+  // da porta viaja no mesmo JavaScript que o jogador recebe, e quem abrir o
+  // código a lê. Ver a nota em `porta.js`: é tranca de gaveta, não cofre.
+  //
+  // Editar aqui não mexe no totem até você clicar em Salvar. Salvar grava o
+  // baralho neste navegador e, se houver nuvem, no Firebase; o jogo o relê quando
+  // a próxima partida começa.
+  //
+  // Salvar não pede login. A escrita do baralho no Firestore é aberta por decisão
+  // do projeto — ver a nota em firebase/firestore.rules, que diz o que isso custa.
+  
+  const { el, botao, aviso, confirmar, limpar } = __require("admin/ui.js");
+  const { editorDeSlot } = __require("admin/editor.js");
+  const { BARALHO_ORIGINAL, SLOTS_ORIGINAIS, carregarBaralho, novoIdDePergunta, perguntaVazia, publicarBaralho, restaurarOriginal, slotVazio, temBaralhoPublicado, usaArteOriginal, validarBaralho } = __require("deck.js");
+  const { motivoDaFalha, removerChave } = __require("storage.js");
+  const { podeUsarNuvem } = __require("firebase.js");
+  const { publicarNaNuvem, sincronizarBaralho, ultimaPublicacao } = __require("nuvem.js");
+  
+  /* -------------------------------------------------------------- o estado -- */
+  
+  /** Uma cópia funda: nada do que se edita aqui vaza para o jogo sem publicar. */
+  const clonar = (x) => JSON.parse(JSON.stringify(x));
+  
+  // `baralho` nasce vazio e só é lido em `montarAdmin`. Este módulo entra no
+  // bundle do jogo (uma página só), e ler o armazenamento na hora do import
+  // faria todo jogador pagar por uma tela que ele nunca vai abrir.
+  const estado = {
+    baralho: null,
+    /** O veículo aberto (índice do slot). */
+    selecionado: 0,
+    /** Qual pergunta do banco desse veículo está no editor. */
+    pergunta: 0,
+    sujo: false,
+    /** `{quando, quem}` da última gravação no Firebase, ou null. */
+    ultimaNuvem: null,
+    /**
+     * Quais veículos estão com o banco de perguntas aberto.
+     *
+     * Começaram todos abertos, e com dez veículos a lateral virava um rolo. O
+     * aberto é o veículo em que se está trabalhando; os outros mostram só a
+     * contagem, que já responde "quantas perguntas este carro tem".
+     */
+    abertos: new Set([0]),
+  };
+  
+  /** A raiz que `montarAdmin` recebe. Fora da camada aberta, é null. */
+  let app = null;
+  
+  /* -------------------------------------------------------------- validação -- */
+  
+  /**
+   * Agrupa as mensagens de validarBaralho por rodada, que é como a UI mostra.
+   *
+   * Desde o banco de perguntas a mensagem pode vir com duas coordenadas —
+   * "rodada 3, pergunta 2: ..." —, então o erro é guardado nas duas: por veículo
+   * (para o selo na lista) e por pergunta (para acender a certa).
+   */
+  function errosPorRodada(deck) {
+    const todos = validarBaralho(deck);
+    const porRodada = new Map();
+    const porPergunta = new Map();
+    const gerais = [];
+    for (const m of todos) {
+      const n = m.match(/^rodada (\d+)(?:, pergunta (\d+))?: (.*)$/);
+      if (n) {
+        const i = Number(n[1]) - 1;
+        const j = n[2] ? Number(n[2]) - 1 : 0;
+        if (!porRodada.has(i)) porRodada.set(i, []);
+        porRodada.get(i).push(n[3]);
+        const chave = `${i}:${j}`;
+        if (!porPergunta.has(chave)) porPergunta.set(chave, []);
+        porPergunta.get(chave).push(n[3]);
+      } else {
+        gerais.push(m);
+      }
+    }
+    return { total: todos.length, porRodada, porPergunta, gerais };
+  }
+  
+  /** Um resumo curto da pergunta, para a lista. */
+  const resumoDaPergunta = (pergunta, j) => {
+    const texto = (pergunta?.pt?.pergunta ?? '').trim();
+    return texto ? texto.slice(0, 58) : `pergunta ${j + 1} (sem enunciado)`;
+  };
+  
+  /* ------------------------------------------------------------------ ações -- */
+  
+  async function publicar() {
+    const { total, gerais, porRodada } = errosPorRodada(estado.baralho);
+    if (total > 0) {
+      const primeira = [...porRodada.keys()].sort((a, b) => a - b)[0];
+      aviso(`${total} problema(s) impedem salvar. ${gerais[0] ?? ''}`.trim(), 'erro');
+      if (primeira != null) {
+        estado.selecionado = primeira;
+        estado.pergunta = 0;
+        desenhar();
+      }
+      return;
+    }
+  
+    const partes = [
+      !usaArteOriginal(estado.baralho)
+        ? 'O baralho não usa mais os dez veículos originais, então a roleta será desenhada pelo jogo em vez de usar a arte pronta.'
+        : null,
+      // Dito AQUI, e não num selo permanente: é no momento de salvar que a
+      // diferença entre "foi para todo mundo" e "ficou nesta máquina" importa.
+      !podeUsarNuvem()
+        ? 'Atenção: esta cópia não fala com o Firebase, então o baralho vai valer só neste navegador. Para salvar na nuvem daqui, abra o jogo com ?comNuvem=1 no endereço.'
+        : 'Vai para o Firebase: todo totem com internet pega na próxima partida.',
+      'A próxima partida aqui já usa este conteúdo.',
+    ].filter(Boolean);
+  
+    if (!(await confirmar({ titulo: 'Salvar o baralho?', texto: partes.join(' '), confirmarTexto: 'Salvar' }))) return;
+  
+    if (!publicarBaralho(estado.baralho)) {
+      // "Cheio" e "recusado" pedem coisas opostas: um pede tirar imagem enviada,
+      // o outro pede liberar o armazenamento do site. Dizer qual dos dois e.
+      const motivo = motivoDaFalha();
+      aviso(
+        motivo === 'cheio'
+          ? `Não caberia: o baralho está com cerca de ${pesoDoBaralho()} KB e o navegador não aceitou. Imagens enviadas do computador são o que mais ocupa — troque alguma por um caminho de arquivo em assets/images.`
+          : 'Não foi possível gravar — o navegador está bloqueando o armazenamento deste site.',
+        'erro'
+      );
+      return;
+    }
+    estado.sujo = false;
+    aviso('Salvo neste navegador. A próxima partida aqui já usa este baralho.');
+    desenhar();
+  
+    // E sobe para a nuvem, que é o que alcança os OUTROS totens. Depois do
+    // gravado local de propósito: se a internet estiver fora, o que foi editado
+    // não se perde, e o operador é avisado do que ficou faltando.
+    if (!podeUsarNuvem()) {
+      aviso(
+        'Esta cópia não fala com o Firebase — abra com ?comNuvem=1 no endereço para salvar na nuvem daqui.',
+        'erro'
+      );
+      return;
+    }
+    const r = await publicarNaNuvem(estado.baralho);
+    if (!r.ok) {
+      aviso(`A nuvem recusou: ${r.motivo}`, 'erro');
+      return;
+    }
+    aviso(`Salvo na nuvem (${r.kb} KB). Todo totem com internet pega na próxima partida.`);
+    await atualizarUltimaNuvem();
+  }
+  
+  /** Relê quando o baralho foi salvo na nuvem, e redesenha o selo da barra. */
+  async function atualizarUltimaNuvem() {
+    const info = await ultimaPublicacao();
+    if (!app) return;
+    estado.ultimaNuvem = info;
+    atualizarChrome();
+  }
+  
+  async function descartar() {
+    if (!(await confirmar({ titulo: 'Descartar alterações?', texto: 'Volta ao baralho salvo agora.', perigoso: true, confirmarTexto: 'Descartar' }))) return;
+    estado.baralho = clonar(carregarBaralho());
+    estado.selecionado = Math.min(estado.selecionado, estado.baralho.slots.length - 1);
+    estado.sujo = false;
+    desenhar();
+    aviso('Alterações descartadas.');
+  }
+  
+  /**
+   * Zera a instalação: volta ao baralho de fábrica E apaga o que as partidas
+   * deixaram gravado neste navegador (ranking e contatos).
+   *
+   * É o botão de antes da feira — inclusive para varrer as partidas de teste. O
+   * que ele NÃO alcança está dito no próprio diálogo: o que já foi para o
+   * Firebase só sai pelo console, porque as regras não dão apagar ao cliente.
+   */
+  async function resetarTudo() {
+    const ok = await confirmar({
+      titulo: 'Resetar todos os dados?',
+      texto:
+        'Volta ao baralho de fábrica (dez veículos, uma pergunta cada) e apaga deste navegador o ranking e os telefones das partidas já jogadas. O que já foi salvo no Firebase continua lá — isso só se apaga pelo console do Firebase.',
+      perigoso: true,
+      confirmarTexto: 'Resetar tudo',
+    });
+    if (!ok) return;
+  
+    restaurarOriginal();
+    removerChave('usuarios');
+    removerChave('contatos');
+    estado.baralho = clonar(BARALHO_ORIGINAL);
+    estado.selecionado = 0;
+    estado.pergunta = 0;
+    estado.sujo = false;
+    desenhar();
+    aviso('Baralho de fábrica de volta, e o ranking deste navegador apagado.');
+  }
+  
+  function adicionarRodada() {
+    estado.baralho.slots.push(slotVazio());
+    estado.selecionado = estado.baralho.slots.length - 1;
+    estado.pergunta = 0;
+    estado.abertos.add(estado.selecionado);
+    estado.sujo = true;
+    desenhar();
+    aviso('Veículo adicionado. Preencha o veículo e a primeira pergunta.');
+  }
+  
+  /* ---------------------------------------------- o banco de um veículo ----- */
+  
+  function adicionarPergunta(i) {
+    const slot = estado.baralho.slots[i];
+    slot.perguntas.push(perguntaVazia());
+    estado.selecionado = i;
+    estado.pergunta = slot.perguntas.length - 1;
+    estado.abertos.add(i);
+    estado.sujo = true;
+    desenhar();
+    aviso('Pergunta nova no banco deste veículo. Preencha os três idiomas.');
+  }
+  
+  function duplicarPergunta(i, j) {
+    const slot = estado.baralho.slots[i];
+    const copia = clonar(slot.perguntas[j]);
+    copia.id = novoIdDePergunta();
+    slot.perguntas.splice(j + 1, 0, copia);
+    estado.selecionado = i;
+    estado.pergunta = j + 1;
+    estado.abertos.add(i);
+    estado.sujo = true;
+    desenhar();
+  }
+  
+  async function removerPergunta(i, j) {
+    const slot = estado.baralho.slots[i];
+    if (slot.perguntas.length <= 1) {
+      aviso('Cada veículo precisa de pelo menos uma pergunta.', 'erro');
+      return;
+    }
+    const resumo = resumoDaPergunta(slot.perguntas[j], j);
+    if (
+      !(await confirmar({
+        titulo: 'Remover pergunta?',
+        texto: `"${resumo}" sai do banco de ${slot.veiculo.nome || 'este veículo'}.`,
+        perigoso: true,
+        confirmarTexto: 'Remover',
+      }))
+    ) {
+      return;
+    }
+    slot.perguntas.splice(j, 1);
+    estado.pergunta = Math.max(0, Math.min(j, slot.perguntas.length - 1));
+    estado.sujo = true;
+    desenhar();
+  }
+  
+  /**
+   * Liga/desliga uma pergunta. Desligada, ela fica no banco mas nunca cai em
+   * partida — é como se guarda rascunho sem travar a publicação.
+   */
+  function alternarPergunta(i, j, ativa) {
+    const slot = estado.baralho.slots[i];
+    slot.perguntas[j].ativa = ativa;
+    estado.sujo = true;
+    atualizarChrome();
+  }
+  
+  function duplicarRodada(i) {
+    const copia = clonar(estado.baralho.slots[i]);
+    copia.veiculo.nome = `${copia.veiculo.nome} (cópia)`;
+    estado.baralho.slots.splice(i + 1, 0, copia);
+    estado.selecionado = i + 1;
+    estado.sujo = true;
+    desenhar();
+  }
+  
+  async function removerRodada(i) {
+    if (estado.baralho.slots.length <= 1) {
+      aviso('O baralho precisa de pelo menos uma rodada.', 'erro');
+      return;
+    }
+    const nome = estado.baralho.slots[i].veiculo.nome || `rodada ${i + 1}`;
+    if (!(await confirmar({ titulo: 'Remover rodada?', texto: `"${nome}" sai do baralho.`, perigoso: true, confirmarTexto: 'Remover' }))) return;
+    estado.baralho.slots.splice(i, 1);
+    estado.selecionado = Math.max(0, Math.min(i, estado.baralho.slots.length - 1));
+    estado.sujo = true;
+    desenhar();
+  }
+  
+  function mover(i, delta) {
+    const j = i + delta;
+    if (j < 0 || j >= estado.baralho.slots.length) return;
+    const s = estado.baralho.slots;
+    [s[i], s[j]] = [s[j], s[i]];
+    estado.selecionado = j;
+    estado.sujo = true;
+    desenhar();
+  }
+  
+  
+  /* ------------------------------------------------------------------ telas -- */
+  
+  /**
+   * Tamanho do baralho em KB, como ele vai para o localStorage.
+   *
+   * Serve de aviso antecipado: sem isso o operador so descobre que passou da
+   * cota na hora de publicar, depois de ter enviado dez fotos.
+   */
+  function pesoDoBaralho() {
+    try {
+      return Math.round(JSON.stringify(estado.baralho).length / 1024);
+    } catch (_) {
+      return 0;
+    }
+  }
+  
+  /** Acima disso vale avisar: a cota tipica de localStorage fica em poucos MB. */
+  const PESO_DE_ATENCAO_KB = 3000;
+  
+  /** "há 3 min", "há 2 h", "ontem" — quando foi a última gravação na nuvem. */
+  function faz(quando) {
+    const s = Math.max(0, Math.round((Date.now() - quando.getTime()) / 1000));
+    if (s < 60) return 'agora há pouco';
+    const min = Math.round(s / 60);
+    if (min < 60) return `há ${min} min`;
+    const h = Math.round(min / 60);
+    if (h < 24) return `há ${h} h`;
+    const d = Math.round(h / 24);
+    return d === 1 ? 'ontem' : `há ${d} dias`;
+  }
+  
+  /**
+   * A situação do baralho, numa frase.
+   *
+   * Antes o selo dizia "publicado no totem", que só falava deste navegador — e
+   * era justamente a pergunta errada: o operador precisa saber se o que ele
+   * salvou chegou ao Firebase, e se alguém em outra máquina salvou depois dele.
+   */
+  function seloDaSituacao() {
+    if (estado.sujo) return { texto: 'alterações não salvas', tipo: 'suja' };
+  
+    const nuvem = estado.ultimaNuvem;
+    if (nuvem?.quando) {
+      return {
+        tipo: 'ok',
+        texto: `salvo ${faz(nuvem.quando)}`,
+        titulo: `Última gravação no Firebase: ${nuvem.quando.toLocaleString('pt-BR')}${
+          nuvem.quem ? ` — por ${nuvem.quem}` : ''
+        }`,
+      };
+    }
+    if (temBaralhoPublicado()) {
+      return { texto: 'salvo só neste navegador', tipo: 'atencao', titulo: 'Nada foi gravado no Firebase ainda.' };
+    }
+    return { texto: 'usando o baralho de fábrica', tipo: 'neutra' };
+  }
+  
+  function barra() {
+    const { total } = errosPorRodada(estado.baralho);
+    const peso = pesoDoBaralho();
+    const situacao = seloDaSituacao();
+  
+    return el('header', { class: 'barra' }, [
+      el('div', { class: 'marca' }, [
+        el('strong', { text: 'TecGame' }),
+        el('span', { text: 'administração' }),
+      ]),
+      el('div', { class: 'barra-info' }, [
+        el('span', {
+          class: `situacao situacao-${situacao.tipo}`,
+          text: situacao.texto,
+          title: situacao.titulo ?? null,
+        }),
+        total > 0
+          ? el('span', { class: 'situacao situacao-erro', text: `${total} problema(s)` })
+          : el('span', { class: 'situacao situacao-ok', text: 'pronto para salvar' }),
+        // Este fica: é um aviso de verdade, e só aparece quando há o que avisar.
+        peso >= PESO_DE_ATENCAO_KB
+          ? el('span', {
+              class: 'situacao situacao-atencao',
+              title:
+                'O baralho vive no armazenamento do navegador, que tem poucos megabytes. Imagens enviadas do computador são o que mais ocupa.',
+              text: `${peso} KB — perto do limite`,
+            })
+          : null,
+      ]),
+      el('div', { class: 'barra-acoes' }, [
+        botao('Resetar todos os dados', { onClick: resetarTudo, tipo: 'perigo' }),
+        estado.sujo ? botao('Descartar', { onClick: descartar }) : null,
+        botao('Salvar', { onClick: publicar, tipo: 'primario' }),
+        botao('Voltar ao jogo', { onClick: voltarAoJogo, titulo: 'Fecha a administração e volta para a tela do jogador' }),
+      ]),
+    ]);
+  }
+  
+  /** Abre ou fecha o banco de um veículo. */
+  function alternarAberto(i) {
+    if (estado.abertos.has(i)) estado.abertos.delete(i);
+    else estado.abertos.add(i);
+    atualizarChrome();
+  }
+  
+  /**
+   * A lateral: todos os veículos e, debaixo do que estiver aberto, o banco de
+   * perguntas dele.
+   *
+   * O veículo fechado mostra a contagem ("2 de 3 ativas"), que já responde
+   * "quantas perguntas este carro tem" sem esticar a lista. O aberto mostra cada
+   * uma, com a marca que liga e desliga — desligada, ela fica de rascunho e nunca
+   * cai em partida.
+   */
+  function lista() {
+    const { porRodada, porPergunta } = errosPorRodada(estado.baralho);
+  
+    const itens = estado.baralho.slots.flatMap((slot, i) => {
+      const problemas = porRodada.get(i)?.length ?? 0;
+      const nome = slot.veiculo.nome?.trim() || '(sem nome)';
+      const perguntas = slot.perguntas ?? [];
+      const ativas = perguntas.filter((p) => p.ativa !== false).length;
+  
+      const aberto = estado.abertos.has(i);
+  
+      const cabeca = el(
+        'li',
+        { class: ['item', 'veiculo', i === estado.selecionado ? 'selecionado' : null, problemas ? 'com-problema' : null] },
+        [
+          el('button', {
+            type: 'button',
+            class: ['seta-banco', aberto ? 'aberta' : null],
+            title: aberto ? 'Recolher as perguntas' : 'Expandir as perguntas',
+            'aria-expanded': aberto ? 'true' : 'false',
+            'aria-label': `${aberto ? 'Recolher' : 'Expandir'} as perguntas de ${nome}`,
+            text: '▸',
+            onClick: () => alternarAberto(i),
+          }),
+          el('button', {
+            type: 'button',
+            class: 'item-botao',
+            onClick: () => {
+              estado.selecionado = i;
+              estado.pergunta = 0;
+              // Escolher um veículo abre o banco dele: é o que a pessoa veio ver.
+              estado.abertos.add(i);
+              desenhar();
+            },
+          }, [
+            el('span', { class: 'item-indice', text: String(i + 1) }),
+            el('span', { class: 'item-texto' }, [
+              el('strong', { text: nome }),
+              el('span', {
+                class: 'item-pergunta',
+                text:
+                  perguntas.length === 1
+                    ? `${ativas === 1 ? '1 pergunta' : '1 pergunta desligada'}`
+                    : `${ativas} de ${perguntas.length} perguntas ativas`,
+              }),
+            ]),
+            problemas ? el('span', { class: 'item-selo', text: String(problemas) }) : null,
+          ]),
+          el('span', { class: 'item-acoes' }, [
+            botao('', { icone: '↑', titulo: 'Subir', onClick: () => mover(i, -1) }),
+            botao('', { icone: '↓', titulo: 'Descer', onClick: () => mover(i, 1) }),
+            botao('', { icone: '⧉', titulo: 'Duplicar veículo', onClick: () => duplicarRodada(i) }),
+            botao('', { icone: '✕', titulo: 'Remover veículo', tipo: 'perigo', onClick: () => removerRodada(i) }),
+          ]),
+        ]
+      );
+  
+      const banco = perguntas.map((pergunta, j) => {
+        const comProblema = (porPergunta.get(`${i}:${j}`)?.length ?? 0) > 0;
+        const aberta = i === estado.selecionado && j === estado.pergunta;
+        const marca = el('input', {
+          type: 'checkbox',
+          class: 'pq-marca',
+          title: pergunta.ativa !== false ? 'Ligada — pode cair em partida' : 'Desligada — fica só de rascunho',
+          'aria-label': `Pergunta ${j + 1} de ${nome} ativa`,
+          onChange: (e) => alternarPergunta(i, j, e.currentTarget.checked),
+        });
+        marca.checked = pergunta.ativa !== false;
+  
+        return el(
+          'li',
+          {
+            class: [
+              'item',
+              'pergunta',
+              aberta ? 'selecionado' : null,
+              comProblema ? 'com-problema' : null,
+              pergunta.ativa === false ? 'desligada' : null,
+            ],
+          },
+          [
+            marca,
+            el('button', {
+              type: 'button',
+              class: 'item-botao pq-botao',
+              onClick: () => {
+                estado.selecionado = i;
+                estado.pergunta = j;
+                desenhar();
+              },
+            }, [
+              el('span', { class: 'item-texto' }, [
+                el('span', { class: 'item-pergunta', text: resumoDaPergunta(pergunta, j) }),
+              ]),
+              comProblema ? el('span', { class: 'item-selo', text: String(porPergunta.get(`${i}:${j}`).length) }) : null,
+            ]),
+            el('span', { class: 'item-acoes' }, [
+              botao('', { icone: '⧉', titulo: 'Duplicar pergunta', onClick: () => duplicarPergunta(i, j) }),
+              botao('', { icone: '✕', titulo: 'Remover pergunta', tipo: 'perigo', onClick: () => removerPergunta(i, j) }),
+            ]),
+          ]
+        );
+      });
+  
+      if (!aberto) return [cabeca];
+  
+      const acrescentar = el('li', { class: 'item pergunta acrescentar' }, [
+        botao('Pergunta', { icone: '+', titulo: `Nova pergunta para ${nome}`, onClick: () => adicionarPergunta(i) }),
+      ]);
+  
+      return [cabeca, ...banco, acrescentar];
+    });
+  
+    return el('aside', { class: 'lateral' }, [
+      el('div', { class: 'lateral-topo' }, [
+        el('h2', { text: 'Veículos' }),
+        botao('Veículo', { onClick: adicionarRodada, tipo: 'primario', icone: '+' }),
+      ]),
+      el('p', {
+        class: 'nota',
+        text: 'A ordem dos veículos é a ordem das fatias da roleta. Cada veículo pode ter várias perguntas: quando a roleta para nele, o jogo sorteia uma das ligadas.',
+      }),
+      el('ul', { class: 'itens' }, itens),
+    ]);
+  }
+  
+  function desenhar() {
+    limpar(app);
+    app.appendChild(barra());
+  
+    const slot = estado.baralho.slots[estado.selecionado];
+    // A pergunta aberta pode ter sumido (removida, ou veículo trocado); volta
+    // para a primeira em vez de abrir vazio.
+    if (slot && !slot.perguntas[estado.pergunta]) estado.pergunta = 0;
+    const pergunta = slot?.perguntas?.[estado.pergunta];
+  
+    const editor =
+      slot && pergunta
+        ? editorDeSlot({
+            slot,
+            pergunta,
+            indice: estado.selecionado,
+            posicao: estado.pergunta,
+            total: slot.perguntas.length,
+            onChange: () => {
+              estado.sujo = true;
+              // Só a barra e a lista precisam reagir a cada tecla; redesenhar o
+              // editor inteiro tiraria o foco do campo que está sendo digitado.
+              atualizarChrome();
+            },
+          })
+        : el('p', { text: 'Nenhum veículo.' });
+  
+    const { porPergunta } = errosPorRodada(estado.baralho);
+    editor.marcarErros?.(porPergunta.get(`${estado.selecionado}:${estado.pergunta}`) ?? []);
+  
+    app.appendChild(el('main', { class: 'corpo' }, [lista(), el('div', { class: 'painel' }, editor)]));
+    app.__editor = editor;
+  }
+  
+  /** Redesenha só a barra e a lista, preservando o foco no editor. */
+  function atualizarChrome() {
+    const barraAntiga = app.querySelector('.barra');
+    const listaAntiga = app.querySelector('.lateral');
+    if (barraAntiga) barraAntiga.replaceWith(barra());
+    if (listaAntiga) listaAntiga.replaceWith(lista());
+    const { porPergunta } = errosPorRodada(estado.baralho);
+    app.__editor?.marcarErros?.(porPergunta.get(`${estado.selecionado}:${estado.pergunta}`) ?? []);
+  }
+  
+  /* --------------------------------------------------------- montar e sair -- */
+  
+  /** O que `porta.js` quer que aconteça quando o operador pede para sair. */
+  let fecharCamada = null;
+  
+  /** Avisa o navegador antes de recarregar/fechar com edição por publicar. */
+  function aoDescarregar(e) {
+    if (!estado.sujo) return;
+    e.preventDefault();
+    e.returnValue = '';
+  }
+  
+  async function voltarAoJogo() {
+    if (estado.sujo) {
+      const segue = await confirmar({
+        titulo: 'Sair sem publicar?',
+        texto: 'Há alterações que o totem ainda não recebeu. Sair agora as descarta.',
+        confirmarTexto: 'Sair e descartar',
+        perigoso: true,
+      });
+      if (!segue) return;
+      estado.baralho = clonar(carregarBaralho());
+      estado.sujo = false;
+    }
+    fecharCamada?.();
+  }
+  
+  /**
+   * Preenche `raiz` com a administração. `aoSair` é chamado quando o operador
+   * clica em "Voltar ao jogo" — quem fecha a camada é o chamador, porque é ele
+   * que sabe para onde o jogo volta.
+   */
+  function montarAdmin(raiz, { aoSair = null } = {}) {
+    app = raiz;
+    fecharCamada = aoSair;
+  
+    // O baralho é relido a cada abertura: entre uma e outra o jogo pode ter
+    // salvo ou resetado, e abrir com a cópia velha faria o
+    // operador salvar por cima sem perceber.
+    //
+    // Salvo com edição pendente. Fechar a camada pelo "voltar" do navegador é
+    // síncrono e não dá para perguntar nada (ver porta.js); recarregar ali
+    // apagaria o trabalho em silêncio. Então ele espera, e a barra continua
+    // dizendo "alterações não salvas".
+    if (!estado.baralho || !estado.sujo) {
+      estado.baralho = clonar(carregarBaralho());
+      estado.selecionado = 0;
+      estado.pergunta = 0;
+    }
+  
+    // Puxa o que está salvo na nuvem antes de deixar editar: sem isto o operador
+    // editaria por cima de uma cópia velha e salvaria desfazendo o que outra
+    // máquina salvou. Sem rede, segue com a cópia local.
+    if (!estado.sujo) {
+      sincronizarBaralho().then((mudou) => {
+        if (mudou && app && !estado.sujo) {
+          estado.baralho = clonar(carregarBaralho());
+          desenhar();
+          aviso('Baralho atualizado com o que está salvo na nuvem.');
+        }
+      });
+    }
+  
+    // Quando e de onde o baralho foi salvo na nuvem pela última vez. Sem
+    // esperar: a barra nasce sem o selo e o ganha quando a resposta chega.
+    atualizarUltimaNuvem();
+  
+    // Aviso honesto na primeira abertura: nada foi salvo ainda, e o que está na
+    // tela é o conteúdo que veio com o jogo.
+    if (!temBaralhoPublicado() && estado.baralho.slots.length === SLOTS_ORIGINAIS.length) {
+      setTimeout(() => aviso('Você está vendo o baralho de fábrica. Edite e clique em Salvar.'), 400);
+    }
+  
+    window.addEventListener('beforeunload', aoDescarregar);
+    desenhar();
+  }
+  
+  /** Esvazia a camada e solta o que ela tinha preso no documento. */
+  function desmontarAdmin() {
+    window.removeEventListener('beforeunload', aoDescarregar);
+    if (app) limpar(app);
+    app = null;
+    fecharCamada = null;
+  }
+  Object.defineProperty(__exports, "montarAdmin", { get: () => montarAdmin, enumerable: true });
+  Object.defineProperty(__exports, "desmontarAdmin", { get: () => desmontarAdmin, enumerable: true });
+  });
+
+  /* ===== admin/porta.js ===== */
+  __define("admin/porta.js", function (__exports, __require) {
+  // A porta da administração: o gesto que a chama, a senha que a abre, e a
+  // camada que ela levanta por cima do jogo.
+  //
+  // ATÉ ONDE ISTO PROTEGE — leia antes de confiar. O jogo e o admin agora moram
+  // no mesmo index.html, para o GitHub Pages servir um endereço só. Isso quer
+  // dizer que o código da administração viaja para todo navegador que abre o
+  // jogo, a senha abaixo inclusive: quem apertar F12 a lê em dez segundos. É
+  // tranca de gaveta — impede o curioso e o toque errado do visitante numa feira,
+  // e não impede mais que isso. Proteção de verdade mora no servidor, e este jogo
+  // não tem servidor: o baralho vive no armazenamento do próprio navegador.
+  //
+  // Enquanto era `admin.html`, a proteção era outra e era real: bastava não
+  // copiar aquele arquivo para o totem. Trocamos isso por um endereço único, de
+  // propósito e com o custo sabido.
+  //
+  // O caminho: cinco toques no selo do cadastro (ou `#/adm` na barra do
+  // navegador) -> a caixa de senha -> a camada do admin. Sair volta ao cadastro.
+  
+  const { el } = __require("widgets.js");
+  const { go } = __require("router.js");
+  const { montarAdmin, desmontarAdmin } = __require("admin/painel.js");
+  
+  const SENHA = '2040';
+  
+  /** Quantos toques no selo chamam a porta, e em quanto tempo. */
+  const TOQUES = 5;
+  const JANELA_MS = 3000;
+  
+  /**
+   * Uma vez aberta, a porta fica destrancada até a aba fechar. Sem isso o
+   * operador redigita 2040 a cada ida e volta entre o admin e o jogo, e os
+   * testes teriam de reencenar a senha em toda navegação.
+   */
+  const CHAVE_LIBERADA = 'tecgame:adm-liberado';
+  
+  const liberado = () => {
+    try {
+      return sessionStorage.getItem(CHAVE_LIBERADA) === '1';
+    } catch (_) {
+      return false;
+    }
+  };
+  
+  const liberar = () => {
+    try {
+      sessionStorage.setItem(CHAVE_LIBERADA, '1');
+    } catch (_) {
+      /* navegador sem armazenamento: a senha volta a ser pedida, e tudo bem */
+    }
+  };
+  
+  /* ------------------------------------------------------------ o gesto ----- */
+  
+  /**
+   * Cinco toques no mesmo elemento, dentro de 3s, levam a `#/adm`.
+   *
+   * A janela existe para o contador não ser cumulativo: num totem de feira o selo
+   * leva toque o dia inteiro, e sem ela a porta abriria sozinha em algum momento
+   * da tarde. Toques espaçados reiniciam a contagem.
+   */
+  function registrarToqueSecreto(node) {
+    if (!node) return node;
+    let contados = 0;
+    let primeiro = 0;
+  
+    node.addEventListener('click', async () => {
+      const agora = Date.now();
+      if (agora - primeiro > JANELA_MS) {
+        contados = 0;
+        primeiro = agora;
+      }
+      contados += 1;
+      if (contados < TOQUES) return;
+      contados = 0;
+      // Pergunta ANTES de navegar. Navegar primeiro desmontava a tela do
+      // cadastro, e a caixa de senha aparecia sobre um palco vazio — quem tocou
+      // cinco vezes sem querer via o jogo sumir.
+      if (await pedirEntrada()) go('/adm');
+    });
+  
+    return node;
+  }
+  
+  /* ------------------------------------------------------ a caixa de senha -- */
+  
+  /** Resolve com true quando a senha confere, false quando o operador desiste. */
+  function pedirSenha() {
+    return new Promise((resolve) => {
+      const campo = el('input', {
+        class: 'porta-campo',
+        type: 'password',
+        // `inputmode: numeric` faz o teclado do totem abrir no teclado numérico.
+        inputmode: 'numeric',
+        autocomplete: 'off',
+        'aria-label': 'Senha da administração',
+        maxlength: '8',
+      });
+      const erro = el('p', { class: 'porta-erro', role: 'alert' });
+  
+      const fechar = (ok) => {
+        document.removeEventListener('keydown', onTecla);
+        fundo.remove();
+        resolve(ok);
+      };
+  
+      const tentar = () => {
+        if (campo.value === SENHA) return fechar(true);
+        erro.textContent = 'Senha incorreta.';
+        campo.value = '';
+        campo.focus();
+      };
+  
+      const onTecla = (e) => {
+        if (e.key === 'Escape') fechar(false);
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          tentar();
+        }
+      };
+  
+      const caixa = el('div', { class: 'porta-caixa', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Administração' }, [
+        el('h2', { class: 'porta-titulo', text: 'Administração' }),
+        el('p', { class: 'porta-texto', text: 'Digite a senha para abrir o painel de rodadas.' }),
+        campo,
+        erro,
+        el('div', { class: 'porta-acoes' }, [
+          el('button', { type: 'button', class: 'porta-botao', text: 'Cancelar', onClick: () => fechar(false) }),
+          el('button', { type: 'button', class: 'porta-botao porta-botao--ok', text: 'Entrar', onClick: tentar }),
+        ]),
+      ]);
+  
+      const fundo = el('div', {
+        class: 'porta-fundo',
+        onClick: (e) => e.target === fundo && fechar(false),
+      }, caixa);
+  
+      document.body.appendChild(fundo);
+      document.addEventListener('keydown', onTecla);
+      campo.focus();
+    });
+  }
+  
+  /**
+   * Destranca a porta, pedindo a senha se ainda não foi pedida nesta aba.
+   * Resolve com `true` quando pode entrar.
+   */
+  async function pedirEntrada() {
+    if (liberado()) return true;
+    if (!(await pedirSenha())) return false;
+    liberar();
+    return true;
+  }
+  
+  /* ------------------------------------------------------------- a camada --- */
+  
+  const raizDoAdmin = () => document.getElementById('adm');
+  const molduraDoJogo = () => document.getElementById('viewport');
+  
+  let aberta = false;
+  
+  function abrirCamada() {
+    if (aberta) return;
+    aberta = true;
+  
+    // `data-modo` solta o documento: o jogo tranca a rolagem e a seleção de texto
+    // para o totem não rolar sob o dedo, e o admin precisa das duas.
+    document.documentElement.dataset.modo = 'adm';
+    molduraDoJogo().hidden = true;
+  
+    const raiz = raizDoAdmin();
+    raiz.hidden = false;
+    montarAdmin(raiz, { aoSair: () => go('/cadastro') });
+  }
+  
+  function fecharCamada() {
+    if (!aberta) return;
+    aberta = false;
+  
+    desmontarAdmin();
+    raizDoAdmin().hidden = true;
+    molduraDoJogo().hidden = false;
+    delete document.documentElement.dataset.modo;
+  }
+  
+  /* --------------------------------------------------------------- a rota --- */
+  
+  /**
+   * Builder da rota `/adm`. Devolve um nó vazio de propósito: o admin não desenha
+   * no palco de 1920x1080, ele levanta a própria camada por fora. O que fica no
+   * `#pages` é só a casca que o roteador precisa para ter o que descartar.
+   */
+  function PortaDoAdmWidget() {
+    const casca = el('div');
+  
+    // Chegar por aqui sem ter passado pelo gesto quer dizer `#/adm` digitado na
+    // barra do navegador: a senha é pedida agora, sobre o palco já vazio. Pelo
+    // gesto do selo ela já foi pedida antes de navegar, e `pedirEntrada` volta
+    // na hora.
+    (async () => {
+      if (!(await pedirEntrada())) return go('/cadastro');
+      // Entre o pedido de senha e agora o operador pode ter navegado; só abre se
+      // a rota do admin ainda é a rota atual.
+      if (location.hash.slice(1).split('?')[0] !== '/adm') return;
+      abrirCamada();
+    })();
+  
+    // Fechar por aqui é síncrono — o roteador não espera promessa no dispose —,
+    // então não dá para perguntar nada a quem apertou o "voltar" do navegador. Em
+    // vez de perder o trabalho em silêncio, a edição pendente fica guardada e
+    // reaparece na próxima abertura (ver `montarAdmin`). O botão "Voltar ao jogo"
+    // continua perguntando, porque ali dá tempo.
+    casca.__dispose = fecharCamada;
+  
+    return casca;
+  }
+  Object.defineProperty(__exports, "registrarToqueSecreto", { get: () => registrarToqueSecreto, enumerable: true });
+  Object.defineProperty(__exports, "PortaDoAdmWidget", { get: () => PortaDoAdmWidget, enumerable: true });
+  });
+
   /* ===== pages/cadastro.js ===== */
   __define("pages/cadastro.js", function (__exports, __require) {
   // Port of lib/pages/escolha/cadastro/cadastro_widget.dart
@@ -4950,7 +7093,7 @@
   // A count-up timer runs in the background; after 45 idle seconds the ranking
   // takes over the screen. Any tap, submit or dropdown change resets it.
   
-  const { Align, ClipRRect, Column, Container, FutureBuilder, Icon, Img, InkWell, Opacity, Padding, Stack, StackAlign, Txt, TransformSkew, color, decorationImage, divide, el, unfocus, SW, SH } = __require("widgets.js");
+  const { Align, ClipRRect, Column, Container, Icon, Img, InkWell, Opacity, Padding, Stack, StackAlign, Txt, TransformSkew, color, decorationImage, divide, el, unfocus, SW, SH } = __require("widgets.js");
   const { TH, style } = __require("theme.js");
   const { L, FFLocalizations, LANGUAGES, setAppLanguage } = __require("i18n.js");
   const { CadastroStruct, FFAppState } = __require("state.js");
@@ -4960,8 +7103,9 @@
   const { NomeOfensivoWidget } = __require("components/nome_ofensivo.js");
   const { PoliticaPrivacidadeWidget } = __require("components/politica_privacidade.js");
   const { RankingWidget } = __require("components/ranking.js");
+  const { registrarToqueSecreto } = __require("admin/porta.js");
+  const { sincronizarBaralho } = __require("nuvem.js");
   const { goNamed, TransitionInfo, PageTransitionType, Alignment } = __require("router.js");
-  const { queryUsuariosRecordCount } = __require("backend.js");
   const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
   const { FlutterFlowTimer, FlutterFlowTimerController, InstantTimer, StopWatchMode, StopWatchTimer } = __require("timer.js");
   const { FlutterFlowDropDown, FlutterFlowLanguageSelector, FormFieldController, FormState, MaskTextInputFormatter, TextEditingController, TextFormField } = __require("forms.js");
@@ -5168,22 +7312,26 @@
   
     /* ------------------------------------------------------ confirm button -- */
   
+    // O InkWell embrulha o BOTÃO, e não o texto dentro dele.
+    //
+    // No Dart ele estava por dentro do Container, e o Container centraliza o
+    // filho: o alvo era o tamanho da palavra "CONFIRMAR", e todo o azul em volta
+    // não respondia a nada. Numa tela de toque isso é um botão que parece
+    // quebrado — o dedo acerta o retângulo e não acontece nada.
+    //
+    // Por fora, o alvo passa a ser exatamente a forma azul que se vê (o
+    // `TransformSkew` é o pai, então a inclinação vale para o acerto também), e o
+    // afundar do `.ff-press` passa a ser do botão inteiro em vez de só da palavra.
     const confirmar = TransformSkew({
       ax: -0.5,
-      child: Container({
-        width: SW * 0.25,
-        height: SH * 0.07,
-        color: color(0xFF0053B6),
-        borderRadius: 16.0,
-        alignment: [0.0, 0.0],
-        child: InkWell({
-          onTap: async () => {
+      child: InkWell({
+        label: 'CONFIRMAR',
+        onTap: async () => {
             playSound(model, 'soundPlayer6', 'assets/audios/undertale-select-sound.mp3', 0.6);
-            await animationsMap.transformOnActionTriggerAnimation.controller.forward();
+            animationsMap.transformOnActionTriggerAnimation.controller.forward();
   
             FFAppState.ordemNumeros = embaralhaQuestoes();
-            FFAppState.update();
-  
+        
             if (nomeOfensivo(model.textFieldNomeTextController.text)) {
               await showDialog({ builder: () => NomeOfensivoWidget() });
               model.invalido = model.invalido + 1;
@@ -5213,6 +7361,12 @@
               },
             });
           },
+        child: Container({
+          width: SW * 0.25,
+          height: SH * 0.07,
+          color: color(0xFF0053B6),
+          borderRadius: 16.0,
+          alignment: [0.0, 0.0],
           child: TransformSkew({
             ax: 0.5,
             child: Align({
@@ -5255,9 +7409,13 @@
     animateOnPageLoad(privacyText, animationsMap.textOnPageLoadAnimation);
   
     /* ---------------------------------------------------------- hidden bits -- */
-    // The Dart keeps the timer inside an Opacity(0) and prints the total number
-    // of `usuarios` rows plus a stray "Hello World" - all invisible or leftover,
-    // reproduced so the layout matches.
+    // O cronometro conta a inatividade e nao e para ser visto: fica num
+    // Opacity(0), como no Dart.
+    //
+    // O Dart tambem imprimia aqui um "Hello World" solto e a CONTAGEM de linhas
+    // de `usuarios` — 14px, visiveis, na primeira tela que o jogador ve, e a
+    // contagem disparava uma consulta a cada abertura do cadastro. Os dois eram
+    // lixo do FlutterFlow reproduzido por fidelidade, e sairam.
   
     const timer = FlutterFlowTimer({
       initialTime: 0,
@@ -5335,6 +7493,9 @@
             playSound(model, 'soundPlayer2', 'assets/audios/adriantnt_u_click.mp3', 1.0);
             restartIdleTimer();
           },
+          // Cobre a tela inteira so para captar o toque no fundo e reiniciar a
+          // contagem de inatividade: nao e um botao, e nao deve afundar.
+          feedback: false,
           style: { width: '100%', height: '100%' },
           child: Container({
             width: Infinity,
@@ -5350,13 +7511,17 @@
                 mainAxisSize: 'max',
                 mainAxisAlignment: 'center',
                 children: [
-                  Txt(L('sk6w3j28') /* Hello World */, style('bodyMedium')),
-                  animateOnPageLoad(
-                    ClipRRect({
-                      borderRadius: 8.0,
-                      child: Img('assets/images/Selo_2.png', { width: SW * 0.23, height: SH * 0.25, fit: 'cover' }),
-                    }),
-                    animationsMap.imageOnPageLoadAnimation
+                  // O selo é também a porta da administração: cinco toques nele,
+                  // dentro de 3s, pedem a senha. Não tem marca nenhuma de
+                  // propósito — é para o operador, não para o jogador.
+                  registrarToqueSecreto(
+                    animateOnPageLoad(
+                      ClipRRect({
+                        borderRadius: 8.0,
+                        child: Img('assets/images/Selo_2.png', { width: SW * 0.23, height: SH * 0.25, fit: 'cover' }),
+                      }),
+                      animationsMap.imageOnPageLoadAnimation
+                    )
                   ),
                   Container({
                     width: SW * 0.574,
@@ -5367,10 +7532,6 @@
                     }),
                   }),
                   Opacity({ opacity: 0.0, child: timer }),
-                  FutureBuilder({
-                    future: queryUsuariosRecordCount(),
-                    builder: (count) => Txt(String(count), style('bodyMedium')),
-                  }),
                 ],
               })
             ),
@@ -5405,6 +7566,12 @@
     // Um jogador novo comecando e o momento de pegar o que a area administrativa
     // publicou desde a ultima partida.
     FFAppState.recarregarBaralho();
+    // E puxa da nuvem em paralelo. Sem esperar: a tela não pode ficar refém da
+    // internet da feira. Se vier conteúdo novo enquanto o jogador ainda está se
+    // cadastrando, ele já vale para esta partida; senão, para a próxima.
+    sincronizarBaralho().then((mudou) => {
+      if (mudou && root.isConnected) FFAppState.recarregarBaralho();
+    });
     FFAppState.finalizou = false;
     playSound(model, 'soundPlayer1', 'assets/audios/adriantnt_u_click.mp3', 1.0);
     model.timerController.onStartTimer();
@@ -5462,7 +7629,7 @@
         __transition_info__: new TransitionInfo({
           hasTransition: true,
           transitionType: PageTransitionType.fade,
-          duration: 0,
+          duration: 300,
         }),
       },
     });
@@ -5494,7 +7661,7 @@
     const skipButton = InkWell({
       onTap: async () => {
         playSound(model, 'soundPlayer', 'assets/audios/adriantnt_u_click.mp3', 1.0);
-        await animationsMap.containerOnActionTriggerAnimation.controller.forward();
+        animationsMap.containerOnActionTriggerAnimation.controller.forward();
         left = true;
         NEXT();
       },
@@ -5643,17 +7810,61 @@
   // administrativa troca, adiciona ou remove um veículo, o PNG passaria a mostrar
   // carro que não está mais em jogo, e aí esta roda entra no lugar.
   //
-  // O desenho segue a arte original de perto: alternância azul/dourado, aro com
+  // O desenho segue a arte original de perto: alternância azul/dourado, aro de
   // lâmpadas, fatia 0 apontada para baixo (é onde fica a seta) e a foto de cada
   // veículo dentro da sua fatia.
   
   const NS = 'http://www.w3.org/2000/svg';
   
-  /** As duas cores das fatias, amostradas da arte original. */
+  /** As cores das fatias, amostradas da arte original. */
   const AZUL = '#0d8ce8';
   const DOURADO = '#e5a83c';
-  const ARO = '#c8892c';
+  /** A terceira cor, da fatia que sobra quando N é ímpar (ver `corDaFatia`). */
+  const DOURADO_ESCURO = '#b8801f';
+  /** O anel do miolo, mais aceso que as fatias — é assim na arte. */
+  const MIOLO = '#f2a931';
   const LAMPADA = '#ffd97a';
+  const NUCLEO = '#fffdf2';
+  
+  /**
+   * As proporções da arte original (assets/images/Roleta.png), medidas no pixel e
+   * escritas como fração do meio-lado do viewBox — que é exatamente meia caixa na
+   * tela, porque o viewBox é quadrado e a caixa o recebe com `meet`.
+   *
+   * Elas existem para o desenho ter o mesmo tamanho que a arte pronta: a roda
+   * troca de uma para a outra quando a área administrativa muda os veículos, e um
+   * disco maior que o outro faria a roleta mudar de tamanho de uma partida para a
+   * seguinte.
+   *
+   * Quem manda no limite é o brilho, não o disco: as lâmpadas ficam na borda da
+   * fatia e o halo delas vai para fora. `R_LUZ + BRILHO * R_LAMPADA` dá 0,9997 —
+   * o brilho encosta na borda da caixa e não passa. Com os números antigos passava
+   * 13,6px, e o halo saía cortado reto no alto e nos dois lados. O único número
+   * que não é o da arte é o BRILHO: na arte o halo se apaga em 2,5 raios da
+   * lâmpada, e os últimos 0,4 ficariam para fora da caixa. É onde ele já está
+   * transparente, então perder essa ponta não se vê; perder o disco, sim.
+   */
+  const R_FATIA = 0.9165; //        onde a fatia acaba
+  const R_LUZ = 0.92; //            onde ficam as lâmpadas do aro, na borda da fatia
+  const R_LAMPADA = 0.0385; //      o raio de uma lâmpada do aro
+  const BRILHO = 2.07; //           o halo de uma lâmpada, em raios dela
+  const R_MIOLO = 0.195; //         o anel dourado do miolo
+  const R_MIOLO_LUZ = 0.158; //     onde ficam as lâmpadas do miolo
+  const R_MIOLO_LAMPADA = 0.016; // o raio de uma delas
+  const R_MIOLO_BRANCO = 0.125; //  o disco branco onde a roleta.js põe o logo
+  
+  /**
+   * Quantas lâmpadas o aro tem, no mínimo. A arte tem dez, uma por divisa, e
+   * amarrar a conta a N deixava o aro com uma lâmpada só num baralho de uma
+   * rodada. Quando as divisas não chegam a dez, o arco de cada fatia é repartido
+   * até chegar — toda divisa continua com a sua lâmpada e o aro nunca fica ralo.
+   */
+  const LUZES_MINIMAS = 10;
+  
+  /** A proporção com que a caixa da foto nasce, antes de a foto ser medida. */
+  const FOTO_PROPORCAO = 1.5;
+  /** Folga da caixa da foto, para a borda serrilhada não encostar no arco. */
+  const FOTO_FOLGA = 0.94;
   
   const svg = (tag, attrs = {}) => {
     const node = document.createElementNS(NS, tag);
@@ -5664,11 +7875,34 @@
   };
   
   /**
+   * O id do gradiente do brilho é por roda, e não fixo, porque `url(#id)` casa
+   * com o primeiro id igual do documento: duas rodas na mesma página (a tela e
+   * uma pré-visualização, digamos) apagariam o brilho de uma delas.
+   */
+  let sequencia = 0;
+  
+  /**
+   * Uma lâmpada: o brilho quente em volta, o corpo dourado e o núcleo aceso. Na
+   * arte o núcleo claro ocupa pouco mais da metade do corpo.
+   */
+  function lampada(pai, halo, x, y, r) {
+    pai.appendChild(svg('circle', { cx: x, cy: y, r: r * BRILHO, fill: `url(#${halo})` }));
+    pai.appendChild(svg('circle', { cx: x, cy: y, r, fill: LAMPADA }));
+    pai.appendChild(svg('circle', { cx: x, cy: y, r: r * 0.54, fill: NUCLEO }));
+  }
+  
+  /**
    * O caminho de uma fatia: do centro até a borda, arco, e volta.
    * Os ângulos estão em graus, medidos do eixo x, como no SVG.
    */
   function fatia(cx, cy, r, de, ate) {
     const rad = (g) => (g * Math.PI) / 180;
+    // Baralho de uma rodada so: a "fatia" e a volta inteira, e um arco de 360
+    // graus comeca e termina no mesmo ponto — o SVG nao desenha nada. Vira um
+    // circulo cheio, montado com dois semiarcos.
+    if (ate - de >= 360) {
+      return `M ${cx - r} ${cy} A ${r} ${r} 0 1 1 ${cx + r} ${cy} A ${r} ${r} 0 1 1 ${cx - r} ${cy} Z`;
+    }
     const x1 = cx + r * Math.cos(rad(de));
     const y1 = cy + r * Math.sin(rad(de));
     const x2 = cx + r * Math.cos(rad(ate));
@@ -5678,113 +7912,660 @@
   }
   
   /**
-   * @param {Array} slots as rodadas do baralho, na ordem das fatias
-   * @returns {SVGElement} uma roda do mesmo tamanho que o PNG original
+   * A cor da fatia `i` de `n`.
+   *
+   * Alternar duas cores é o que a arte faz, e fecha o ciclo enquanto N é par. Com
+   * N ímpar não fecha: a fatia 0 e a fatia N-1 caem as duas em dourado, se
+   * encostam e viram um bloco único do dobro da largura — a roda passa a mostrar
+   * uma rodada a menos do que tem, e a seta parando ali fica ambígua. Duas cores
+   * não colorem um ciclo ímpar, então uma fatia recebe uma terceira cor, escolhida
+   * no alto da roda para ficar longe da seta.
+   *
+   * A tentativa anterior foi um traço em cada divisa, na cor do aro: dourado sobre
+   * dourado, que é justamente onde ele precisava aparecer.
    */
-  function rodaGerada(slots) {
-    const n = Math.max(slots.length, 1);
-    const LADO = 893.2; // o mesmo tamanho do PNG original
+  function corDaFatia(i, n) {
+    if (n % 2 === 0) return i % 2 === 0 ? DOURADO : AZUL;
+    const terceira = Math.round(n / 2);
+    if (i === terceira) return DOURADO_ESCURO;
+    // Fora da terceira, a alternância corre pelo caminho que sobra do ciclo.
+    return (i < terceira ? i : i + 1) % 2 === 0 ? DOURADO : AZUL;
+  }
+  
+  /**
+   * A caixa da foto na fatia, na proporção da própria foto. `alt` é radial e
+   * `larg` é tangencial, porque o carro fica deitado no sentido da fatia, como na
+   * arte, e `dist` é o raio em que ela fica centrada.
+   *
+   * A regra é a da arte: a foto é tão larga quanto a fatia é no raio dela. As
+   * quinas de dentro sobram da fatia — a fatia estreita indo para o centro — e é
+   * para elas que existe o recorte; nas fotos do jogo essas quinas são margem
+   * transparente. O que faltava era o limite de FORA: nada segurava a quina
+   * externa contra o arco, e a foto encostada na borda saía cortada.
+   */
+  function caixaDaFoto(passo, rFatia, rMiolo, proporcao) {
+    const meia = (Math.min(passo, 360) / 2) * (Math.PI / 180);
+    // De meia-volta para cima as divisas não apertam nada — elas abrem 180° ou
+    // mais — e quem limita passa a ser só o arco. Aí a foto encosta no miolo.
+    const abertura = meia >= Math.PI / 2 ? Infinity : Math.tan(meia);
+    const raio = (alt) => Math.max((alt * proporcao) / 2 / abertura, rMiolo + alt / 2);
+    const cabe = (alt) => Math.hypot(raio(alt) + alt / 2, (alt * proporcao) / 2) <= rFatia;
+  
+    // `cabe` é monotônica em `alt`, então a maior altura sai por bissecção.
+    let cabendo = 0;
+    let estourando = rFatia * 2;
+    for (let i = 0; i < 40; i++) {
+      const meio = (cabendo + estourando) / 2;
+      if (cabe(meio)) cabendo = meio;
+      else estourando = meio;
+    }
+  
+    const alt = cabendo * FOTO_FOLGA;
+    return { dist: raio(alt), larg: alt * proporcao, alt };
+  }
+  
+  /**
+   * @param {Array} slots as rodadas do baralho, na ordem das fatias
+   * @param {{largura: number, altura: number}} caixa a mesma que o PNG ocupa
+   * @returns {SVGElement} uma roda do tamanho da caixa, sempre circular
+   */
+  function rodaGerada(slots, { largura = 836.1, altura = 839.8 } = {}) {
+    // Baralho vazio não chega aqui em jogo (deck.js recusa publicar um), mas esta
+    // função é pública: uma fatia em branco é melhor que um disco sem nada.
+    const fatias = slots?.length ? slots : [null];
+    const n = fatias.length;
+    // O viewBox e quadrado para o disco sair circular; o preserveAspectRatio
+    // padrao encaixa esse quadrado na caixa que a roleta.js passa, que e a mesma
+    // que o PNG original ocupa — assim a roda nao muda de tamanho quando a area
+    // administrativa troca o baralho e o desenho entra no lugar da arte.
+    const LADO = 893.2;
     const c = LADO / 2;
-    const rFatia = c * 0.94;
-    const rAro = c * 0.985;
+    const rFatia = c * R_FATIA;
+    const rMiolo = c * R_MIOLO;
+  
+    const halo = `roda-halo-${(sequencia += 1)}`;
   
     const root = svg('svg', {
       viewBox: `0 0 ${LADO} ${LADO}`,
-      width: 864.3,
-      height: LADO,
+      width: largura,
+      height: altura,
       role: 'img',
       'aria-label': `Roleta com ${n} veículo${n === 1 ? '' : 's'}`,
     });
     root.style.display = 'block';
     root.style.flex = 'none';
   
-    // Aro externo com as lâmpadas, como na arte original.
-    root.appendChild(svg('circle', { cx: c, cy: c, r: rAro, fill: ARO }));
+    // O brilho das lâmpadas, uma vez só para todas.
+    const defs = svg('defs');
+    root.appendChild(defs);
+    const gradiente = svg('radialGradient', { id: halo });
+    for (const [parada, opacidade] of [[0, 0.75], [0.5, 0.3], [1, 0]]) {
+      gradiente.appendChild(
+        svg('stop', { offset: `${parada * 100}%`, 'stop-color': LAMPADA, 'stop-opacity': opacidade })
+      );
+    }
+    defs.appendChild(gradiente);
   
     const passo = 360 / n;
-    // A fatia 0 tem de ficar centrada para BAIXO, onde a seta aponta: a rotação
-    // de `escolha` voltas termina num múltiplo inteiro de volta mais k/N, então a
-    // fatia k para onde a fatia 0 começou.
+    // A fatia 0 fica centrada para BAIXO, onde a seta aponta, e as demais correm
+    // no sentido ANTI-HORÁRIO — que é como o PNG original as dispõe. A rotação de
+    // `escolha` = 1 + k/N voltas é horária, então quem sobra sob a seta é a
+    // fatia k. Desenhar no sentido horário espelhava a roda e a fazia parar na
+    // fatia -k: a seta mostrava um carro e o jogo abria outro.
     const base = 90 - passo / 2;
   
     const grupo = svg('g');
     root.appendChild(grupo);
   
-    slots.forEach((slot, i) => {
-      const de = base + i * passo;
-      const ate = de + passo;
-      grupo.appendChild(
-        svg('path', {
-          d: fatia(c, c, rFatia, de, ate),
-          fill: i % 2 === 0 ? DOURADO : AZUL,
-        })
-      );
+    // As fatias. Na arte não há anel dourado em volta delas: elas vão até a borda
+    // e as lâmpadas ficam por cima. O anel que havia aqui aparecia como uma faixa
+    // dourada por baixo das fatias azuis, que a arte não tem.
+    fatias.forEach((_, i) => {
+      const de = base - i * passo;
+      grupo.appendChild(svg('path', { d: fatia(c, c, rFatia, de, de + passo), fill: corDaFatia(i, n) }));
     });
   
-    // As fotos, uma por fatia. Cada uma é recortada pela própria fatia, para
-    // nunca invadir a vizinha nem passar do aro — e o tamanho é limitado pela
-    // corda da fatia naquele raio, que é o que aperta quando N cresce.
-    const defs = svg('defs');
-    root.appendChild(defs);
+    // As fotos, uma por fatia. Cada uma é recortada pela própria fatia: a caixa
+    // encosta nas divisas no raio da foto, e mais para dentro as quinas dela
+    // sobram da fatia (ver `caixaDaFoto`) — sem o recorte invadiriam a vizinha.
+    fatias.forEach((slot, i) => {
+      const veiculo = slot?.veiculo;
+      if (!veiculo?.imagem) return;
   
-    slots.forEach((slot, i) => {
-      const imagem = slot?.veiculo?.imagem;
-      if (!imagem) return;
-  
-      const de = base + i * passo;
+      const de = base - i * passo;
       const meio = de + passo / 2;
       const rad = (meio * Math.PI) / 180;
   
-      const clipId = `fatia-${i}`;
+      const clipId = `${halo}-fatia-${i}`;
       const clip = svg('clipPath', { id: clipId });
       clip.appendChild(svg('path', { d: fatia(c, c, rFatia, de, de + passo) }));
       defs.appendChild(clip);
   
-      // Distância do centro em que a foto fica, e o maior quadrado que cabe ali:
-      // a corda da fatia nesse raio, com folga, limitada pelo próprio raio.
-      const dist = rFatia * 0.6;
-      const corda = 2 * dist * Math.sin((passo * Math.PI) / 360);
-      const lado = Math.max(24, Math.min(corda * 0.92, rFatia * 0.42));
-      const px = c + dist * Math.cos(rad);
-      const py = c + dist * Math.sin(rad);
-  
       const g = svg('g', { 'clip-path': `url(#${clipId})` });
-      const img = svg('image', {
-        href: imagem,
-        x: px - lado / 2,
-        y: py - lado / 2,
-        width: lado,
-        height: lado,
-        preserveAspectRatio: 'xMidYMid meet',
-      });
-      // Como na arte original, o carro aponta para fora do centro.
-      img.setAttribute('transform', `rotate(${meio - 90} ${px} ${py})`);
+      const img = svg('image', { href: veiculo.imagem, preserveAspectRatio: 'xMidYMid meet' });
       g.appendChild(img);
       grupo.appendChild(g);
+  
+      const posicionar = (proporcao) => {
+        const { dist, larg, alt } = caixaDaFoto(passo, rFatia, rMiolo, proporcao);
+        const px = c + dist * Math.cos(rad);
+        const py = c + dist * Math.sin(rad);
+        img.setAttribute('x', px - larg / 2);
+        img.setAttribute('y', py - alt / 2);
+        img.setAttribute('width', larg);
+        img.setAttribute('height', alt);
+        // Como na arte original, o carro aponta para fora do centro.
+        img.setAttribute('transform', `rotate(${meio - 90} ${px} ${py})`);
+      };
+  
+      // A caixa tem de sair na proporção da foto: o `meet` encaixa a foto dentro
+      // dela sem distorcer, então caixa de proporção diferente vira sobra vazia e
+      // carro pequeno. E a proporção é medida na imagem, não lida do baralho: as
+      // fotos do jogo têm margem transparente larga e são quase quadradas (1,08),
+      // enquanto a `largura`/`altura` do veículo é a caixa da tela do carro
+      // sorteado (1,83). Usar a declarada devolvia um carro 40% menor.
+      posicionar(FOTO_PROPORCAO);
+      const medida = new Image();
+      medida.addEventListener('load', () => {
+        if (medida.naturalWidth > 0 && medida.naturalHeight > 0) {
+          posicionar(medida.naturalWidth / medida.naturalHeight);
+        }
+      });
+      medida.src = veiculo.imagem;
     });
   
-    // Lâmpadas do aro: uma em cada divisa de fatia.
-    for (let i = 0; i < n; i++) {
-      const rad = ((base + i * passo) * Math.PI) / 180;
-      grupo.appendChild(
-        svg('circle', {
-          cx: c + rAro * 0.97 * Math.cos(rad),
-          cy: c + rAro * 0.97 * Math.sin(rad),
-          r: Math.max(6, (rAro * 0.5) / n),
-          fill: LAMPADA,
-          stroke: ARO,
-          'stroke-width': 2,
-        })
-      );
+    // As lâmpadas do aro: uma em cada divisa, e o arco de cada fatia dividido em
+    // partes iguais quando o baralho é curto, para o aro não ficar ralo (ver
+    // LUZES_MINIMAS). A divisão é ÍMPAR de propósito: com um número par de partes
+    // uma lâmpada cai no MEIO da fatia, e o meio da fatia é onde a seta para —
+    // a lâmpada acendia por dentro do vão da seta, atrás da ponta dela.
+    // O raio é o da arte, limitado pelo espaço entre duas lâmpadas vizinhas, o
+    // que impede que elas se encostem num baralho longo.
+    let partes = Math.ceil(LUZES_MINIMAS / n);
+    if (partes % 2 === 0) partes += 1;
+    const luzes = n * partes;
+    const rLuz = c * R_LUZ;
+    const rLampada = Math.max(4, Math.min(c * R_LAMPADA, (Math.PI * rLuz) / (luzes * 1.25)));
+    for (let i = 0; i < luzes; i++) {
+      const rad = ((base + (i * 360) / luzes) * Math.PI) / 180;
+      lampada(grupo, halo, c + rLuz * Math.cos(rad), c + rLuz * Math.sin(rad), rLampada);
     }
   
-    // Miolo, onde o logo da Tecnomotor é sobreposto pela roleta.js.
-    root.appendChild(svg('circle', { cx: c, cy: c, r: c * 0.16, fill: ARO }));
-    root.appendChild(svg('circle', { cx: c, cy: c, r: c * 0.125, fill: '#ffffff' }));
+    // Miolo, onde o logo da Tecnomotor é sobreposto pela roleta.js. Como na arte
+    // original, é um anel dourado com lâmpadas em volta do disco branco. O anel
+    // tem doze luzes fixas: amarrá-las a N deixava o miolo ralo num baralho curto.
+    root.appendChild(svg('circle', { cx: c, cy: c, r: rMiolo, fill: MIOLO }));
+    for (let i = 0; i < 12; i++) {
+      const rad = (i * 30 * Math.PI) / 180;
+      lampada(root, halo, c + c * R_MIOLO_LUZ * Math.cos(rad), c + c * R_MIOLO_LUZ * Math.sin(rad), c * R_MIOLO_LAMPADA);
+    }
+    root.appendChild(svg('circle', { cx: c, cy: c, r: c * R_MIOLO_BRANCO, fill: '#ffffff' }));
   
     return root;
   }
   Object.defineProperty(__exports, "rodaGerada", { get: () => rodaGerada, enumerable: true });
+  });
+
+  /* ===== giro.js ===== */
+  __define("giro.js", function (__exports, __require) {
+  // A vida da roleta.
+  //
+  // O giro que veio do FlutterFlow era uma curva `easeInOut` de 5s sobre 1 a 1,9
+  // volta: acelera e freia do mesmo jeito, como uma transição de CSS, e para
+  // exatamente onde o sorteio mandou sem nunca ter parecido pesada. Roda de
+  // verdade não se move assim — leva um empurrão curto, corre solta e vai
+  // perdendo velocidade com o atrito até quase parar, e no fim a seta ainda a
+  // segura e a puxa um pouco para trás.
+  //
+  // Este módulo troca a curva por essa física e pendura nela o resto do que faz
+  // a roda parecer coisa do mundo, e não desenho girando:
+  //
+  //   - a seta vira lingueta: cada divisa que passa a empurra e ela volta
+  //     batendo, por uma mola amortecida de verdade, integrada a cada quadro;
+  //   - o disco borra quando corre, com cópias dele atrasadas alguns graus —
+  //     é borrão ANGULAR, que é o que a câmera vê, e não desfoque;
+  //   - o eixo não é perfeito, então o disco bambeia um par de pixels;
+  //   - a luz fica PARADA enquanto o disco passa por baixo. É o que mais separa
+  //     um objeto de uma imagem girando: brilho que gira junto vira adesivo;
+  //   - e ela ESTALA, um som por divisa que cruza a seta, disparado pela mesma
+  //     conta que move a lingueta. A gravação que tocava junto durava 4,87s num
+  //     giro de 7,11s e não sabia onde a roda estava; isto sabe, por construção.
+  //
+  // O sorteio não muda em nada. As voltas que este módulo acrescenta são
+  // INTEIRAS, então a fatia que sobra debaixo da seta continua sendo a mesma que
+  // `escolhaParaIndice` calcula — o jogo abre o carro que a seta mostra.
+  //
+  // Tudo aqui sai quando o sistema pede menos movimento.
+  
+  const { Curves, RotateEffect, menosMovimento } = __require("anim.js");
+  const { tique } = __require("audio.js");
+  const { el } = __require("widgets.js");
+  
+  /* ----------------------------------------------------------- o giro ------ */
+  
+  /**
+   * O RITMO DO GIRO.
+   *
+   * A primeira versão picava em 3,4 voltas/s. Com dez fatias isso são 34 fatias
+   * por segundo: ninguém lê nada, a roda vira um borrão cinza e o suspense só
+   * começa no último segundo. Medido, não achado.
+   *
+   * Agora o pico é ~1,9 volta/s — rápido o bastante para borrar e ainda deixar
+   * ver que são carros passando — e a cauda lenta, o trecho em que dá para contar
+   * fatia por fatia, quase dobrou: de 1,2s para 2,1s. É lá que está o jogo.
+   */
+  
+  /** Empurrão inicial: do repouso à velocidade máxima. */
+  const T_ARRANQUE = 650;
+  /** O trecho solto, em que só o atrito age. */
+  const T_FREIO = 5900;
+  /** A seta prendendo a última divisa e puxando a roda de volta. */
+  const T_RECUO = 560;
+  
+  /**
+   * Como a velocidade cai no trecho solto: `v = v0 * (1 - u)^EXPOENTE`.
+   *
+   * 1 seria atrito seco puro — desaceleração constante, que é o que uma roda bem
+   * lubrificada faz e na tela parece mecânico demais, um freio de motor. Acima de
+   * 1 a cauda estica: a roda passa a maior parte do tempo devagar, contando as
+   * últimas fatias uma a uma, que é o que prende quem olha. 1,9 é onde ela ainda
+   * anda no meio do giro e mesmo assim chega arrastando no fim.
+   */
+  const EXPOENTE = 1.9;
+  
+  /**
+   * Voltas INTEIRAS somadas ao que o sorteio pede.
+   *
+   * `escolha` vale de 1 a 1,9 volta: menos de duas voltas é pouco para a roda
+   * ganhar velocidade, e o giro inteiro cabia no campo de visão sem nunca borrar.
+   * Sendo inteiras, não mexem em qual fatia para na seta (ver o cabeçalho).
+   *
+   * Eram 5, e é daí que vinha a maior parte da pressa: 6,5 voltas espremidas em
+   * 5,8s. Com 3 dá 4,5 voltas, que continua sendo giro de roda de prêmio e cabe
+   * no tempo sem precisar correr.
+   */
+  const VOLTAS_EXTRAS = 3;
+  
+  /**
+   * O giro é uma curva contínua, e o motor de animação só sabe interpolar
+   * pedaços. Então a curva é AMOSTRADA: cada pedaço entra como um trecho linear,
+   * e é a quantidade deles que faz a emenda sumir. Com poucos, a aceleração
+   * aparece em degraus no arranque, que é onde a velocidade muda mais rápido.
+   */
+  const PASSOS_GIRO = 140;
+  const PASSOS_RECUO = 26;
+  
+  /** Quanto tempo o giro inteiro leva, do toque à roda parada. */
+  const DURACAO_DO_GIRO = T_ARRANQUE + T_FREIO + T_RECUO;
+  
+  const entre = (v, min, max) => Math.max(min, Math.min(max, v));
+  /** Módulo que devolve sempre positivo — `%` do JS guarda o sinal. */
+  const sobra = (v, m) => ((v % m) + m) % m;
+  
+  /**
+   * Quanto a roda passa do alvo antes de a seta puxá-la de volta, em voltas.
+   *
+   * O limite é a meia fatia: passar disso é a seta apontando o vizinho, e o jogo
+   * abriria um carro que a roda não mostrou. Um quarto de meia fatia se vê bem e
+   * fica longe da divisa mesmo num baralho comprido.
+   */
+  const recuoDaSeta = (fatias) => Math.min(0.022, 0.25 / Math.max(fatias || 1, 1));
+  
+  /** Quanto a roda já girou no instante `t`, em unidades de velocidade x ms. */
+  function anguloCru(t) {
+    if (t <= 0) return 0;
+    if (t < T_ARRANQUE) {
+      // A velocidade sobe por um smoothstep, que começa e termina sem solavanco;
+      // a integral dele em [0, u] é u³ - u⁴/2, e vale 1/2 na volta inteira.
+      const u = t / T_ARRANQUE;
+      return T_ARRANQUE * (u ** 3 - u ** 4 / 2);
+    }
+    const u = Math.min((t - T_ARRANQUE) / T_FREIO, 1);
+    return T_ARRANQUE / 2 + (T_FREIO / (EXPOENTE + 1)) * (1 - (1 - u) ** (EXPOENTE + 1));
+  }
+  
+  /**
+   * A lista de efeitos do giro, para o `effectsBuilder` da tela.
+   *
+   * @param {number} voltas quantas voltas o sorteio pediu (`FFAppState.escolha`)
+   * @param {number} fatias quantas rodadas o baralho tem
+   */
+  function efeitosDoGiro(voltas, fatias) {
+    const alvo = (voltas ?? 1) + VOLTAS_EXTRAS;
+    const recuo = recuoDaSeta(fatias);
+    const fimDoFreio = T_ARRANQUE + T_FREIO;
+    // O trecho solto acaba PASSADO do alvo; o recuo é que fecha a conta em cima
+    // dele. `anguloCru` está em unidades cruas, então a escala traz para voltas.
+    const escala = (alvo + recuo) / anguloCru(fimDoFreio);
+  
+    const efeitos = [];
+    let anterior = 0;
+    const trecho = (t0, t1, de, ate) => {
+      efeitos.push(RotateEffect({ curve: Curves.linear, delay: t0, duration: t1 - t0, begin: de, end: ate }));
+      anterior = ate;
+    };
+  
+    for (let i = 1; i <= PASSOS_GIRO; i++) {
+      const t = (i / PASSOS_GIRO) * fimDoFreio;
+      trecho(((i - 1) / PASSOS_GIRO) * fimDoFreio, t, anterior, anguloCru(t) * escala);
+    }
+  
+    // O recuo: uma oscilação amortecida que sai do ponto passado, cruza o alvo,
+    // afunda um pouco do outro lado e morre nele. A janela (1 - u) garante que o
+    // ÚLTIMO valor é o alvo exato — a roda tem de parar onde o sorteio mandou, e
+    // um resto de milésimo de volta aqui é uma fatia errada num baralho grande.
+    for (let i = 1; i <= PASSOS_RECUO; i++) {
+      const u = i / PASSOS_RECUO;
+      const t = fimDoFreio + u * T_RECUO;
+      const a = alvo + recuo * (1 - u) * Math.exp(-2.5 * u) * Math.cos(2 * Math.PI * u);
+      trecho(fimDoFreio + ((i - 1) / PASSOS_RECUO) * T_RECUO, t, anterior, a);
+    }
+  
+    return efeitos;
+  }
+  
+  /* -------------------------------------------------------- a lingueta ----- */
+  
+  /** O quanto a seta é empurrada de lado por um pino, em graus. */
+  const SETA_ABERTURA = 11;
+  /**
+   * Que fração do vão entre duas divisas o pino passa encostado na seta. Fora
+   * dela a seta está solta e só a mola manda.
+   */
+  const SETA_CONTATO = 0.34;
+  /** Rigidez e amortecimento da mola: ~8,7 Hz, subamortecida, como lâmina fina. */
+  const SETA_MOLA = 3000;
+  const SETA_ATRITO = 21;
+  /** Passo fixo da integração; um quadro de 60 Hz é grosso demais para a mola. */
+  const SETA_SUBPASSO = 0.002;
+  
+  /* ----------------------------------------------------------- o borrão ---- */
+  
+  /**
+   * Quantas cópias atrasadas o disco arrasta quando corre.
+   *
+   * Com a base, são quatro amostras dentro de um quadro. Três é onde o rastro
+   * para de mostrar degrau entre uma cópia e a seguinte na velocidade de pico,
+   * e cada uma custa só uma camada a mais para o compositor — `transform` e
+   * `opacity`, que é o que a placa de vídeo faz de graça.
+   */
+  const ECOS = 3;
+  /** Velocidade (graus/s) em que o borrão começa e em que satura. */
+  const BORRAO_DE = 130;
+  const BORRAO_ATE = 620;
+  /** Bamboleio do eixo, em pixels, na velocidade cheia. */
+  const EIXO_FOLGA = 2.2;
+  
+  /**
+   * O ESTALO DE CADA DIVISA.
+   *
+   * A gravação `roleta-normal-1` dura 4,87s e o giro leva 7,11s: ela acabava
+   * antes, e o trecho lento — justo onde se conta fatia por fatia e onde está o
+   * suspense — corria em silêncio. Nenhum ajuste de volume conserta isso, porque
+   * o problema não é a mistura, é que a faixa não sabe onde a roda está.
+   *
+   * Então a gravação cobre a parte rápida, onde estalo individual seria um zumbido
+   * de 30 por segundo de qualquer jeito, e daí para baixo quem soa é a roda: um
+   * estalo por divisa que passa, disparado pelo MESMO `u` que move a lingueta.
+   * Sincronizado por construção — cada som é um pino de verdade cruzando a seta,
+   * e ele desacelera junto porque é a mesma conta.
+   */
+  
+  /**
+   * A roda pica em 18 fatias/s, e estala do começo ao fim — é assim que soa uma
+   * roda de prêmio de verdade. Este teto fica acima do pico de propósito: ele não
+   * corta nada, só serve de escala para o volume e o tom.
+   *
+   * A mistura se faz sozinha: no começo o estalo é agudo e quase inaudível, e a
+   * gravação manda; no fim ele é grave e presente, e a gravação já acabou. É uma
+   * passagem de bastão, não duas faixas brigando.
+   */
+  const ESTALO_ATE = 20;
+  /** Abaixo disto a roda já parou; estalo aqui seria ruído. */
+  const ESTALO_DE = 0.08;
+  
+  /** O ângulo que o disco está mostrando agora, em graus, lido da própria tela. */
+  function anguloNaTela(no) {
+    const t = getComputedStyle(no).transform;
+    if (!t || t === 'none') return 0;
+    const numeros = t.slice(t.indexOf('(') + 1, t.lastIndexOf(')')).split(',').map(Number);
+    if (numeros.length < 6 || numeros.some(Number.isNaN)) return 0;
+    // matrix(a, b, ...) — a = cos, b = sen. matrix3d não aparece aqui: o giro é
+    // um `rotate()` 2D, e o navegador devolve a forma curta.
+    return (Math.atan2(numeros[1], numeros[0]) * 180) / Math.PI;
+  }
+  
+  /**
+   * Liga a roda ao mundo físico.
+   *
+   * @param {object} pecas
+   * @param {HTMLElement} pecas.disco o que o motor de animação gira
+   * @param {HTMLElement} pecas.eixo  a caixa em volta do disco, que bambeia
+   * @param {HTMLElement} pecas.pista onde as cópias do borrão entram
+   * @param {Element}     pecas.arte  o desenho da roda, que vai ser copiado
+   * @param {HTMLElement} pecas.seta  a lingueta
+   * @param {HTMLElement} pecas.faisca a luz que responde ao giro
+   * @param {number}      pecas.fatias quantas rodadas o baralho tem
+   */
+  function criarVida({ disco, eixo, pista, arte, seta, faisca, fatias }) {
+    const passoDaFatia = 360 / Math.max(fatias || 1, 1);
+    const ecos = [];
+  
+    let quadro = 0;
+    let inicio = 0;
+    let ultimo = 0;
+    let lido = 0;
+    /** A roda já parou? A seta ainda treme um pouco depois disso. */
+    let pousou = false;
+    /** Ângulo acumulado desde o toque, sem voltar a zero a cada volta. */
+    let angulo = 0;
+    let velocidade = 0;
+  
+    /** Estado da mola da seta: desvio em graus e a velocidade dele. */
+    let setaAngulo = 0;
+    let setaVelocidade = 0;
+  
+    function criarEcos() {
+      if (ecos.length || !arte) return;
+      for (let i = 0; i < ECOS; i++) {
+        // A cópia carrega os mesmos `id` dos gradientes e recortes da roda
+        // desenhada. Não é problema: `url(#id)` casa com o primeiro do documento,
+        // que é o da roda de verdade, e o desenho é idêntico — a cópia empresta
+        // as definições dela. O que não pode é a cópia ser anunciada de novo.
+        const copia = arte.cloneNode(true);
+        copia.removeAttribute?.('role');
+        copia.removeAttribute?.('aria-label');
+        copia.setAttribute?.('aria-hidden', 'true');
+        const caixa = el('div', { class: 'roleta-eco', 'aria-hidden': 'true' }, copia);
+        pista.appendChild(caixa);
+        ecos.push(caixa);
+      }
+    }
+  
+    function tirarEcos() {
+      for (const eco of ecos) eco.remove();
+      ecos.length = 0;
+    }
+  
+    /**
+     * Um passo da mola da seta. `limite` é até onde o pino a empurra: enquanto
+     * ele encosta, a seta não pode voltar além dali; quando ele passa, o limite
+     * some e a mola a traz de volta batendo, que é o estalo.
+     */
+    function moverSeta(dt, limite) {
+      const vezes = Math.max(1, Math.ceil(dt / SETA_SUBPASSO));
+      const h = dt / vezes;
+      for (let i = 0; i < vezes; i++) {
+        setaVelocidade += (-SETA_MOLA * setaAngulo - SETA_ATRITO * setaVelocidade) * h;
+        setaAngulo += setaVelocidade * h;
+        if (setaAngulo > limite) {
+          setaAngulo = limite;
+          if (setaVelocidade > 0) setaVelocidade = 0;
+        }
+      }
+    }
+  
+    /** Onde `u` estava no quadro anterior, para achar a virada (ver o estalo). */
+    let uAnterior = null;
+  
+    function passo(agora) {
+      const dt = Math.min((agora - ultimo) / 1000, 0.05);
+      ultimo = agora;
+  
+      // O ângulo vem da tela, e não do relógio: assim a seta bate junto com a
+      // divisa que ela está mostrando, mesmo que a animação tenha começado um
+      // quadro depois do toque.
+      const atual = anguloNaTela(disco);
+      let avanco = atual - lido;
+      // A leitura volta a zero a cada volta; o salto de mais de meia volta num
+      // quadro é a virada, não movimento. No pico o disco anda menos de 20° por
+      // quadro a 60 Hz — longe dos 180 que confundiriam a conta.
+      if (avanco > 180) avanco -= 360;
+      if (avanco <= -180) avanco += 360;
+      lido = atual;
+      angulo += avanco;
+  
+      const bruta = dt > 0 ? avanco / dt : 0;
+      // Um pouco de suavização: quadro perdido vira pico de velocidade, e o pico
+      // apareceria como um tranco no borrão.
+      velocidade += (bruta - velocidade) * 0.45;
+  
+      // --- a lingueta ------------------------------------------------------
+      // `u` é onde a seta está dentro do vão entre duas divisas: 0 logo depois de
+      // uma passar, 1 quando a seguinte chega. A meia fatia de deslocamento é
+      // porque a roda para com a seta no MEIO da fatia, e não sobre a divisa.
+      const u = sobra(angulo / passoDaFatia + 0.5, 1);
+  
+      // --- o estalo --------------------------------------------------------
+      // `u` corre de 0 a 1 dentro do vão e volta a 0 quando uma divisa cruza a
+      // seta. Essa virada é o momento exato do estalo.
+      //
+      // A VIRADA, e não "u diminuiu". No fim do giro a seta puxa a roda de volta
+      // e `u` fica oscilando em torno da divisa: qualquer queda servia de
+      // gatilho, e o estalo virava um zumbido de 120 por segundo. Uma travessia
+      // de verdade leva `u` de perto de 1 para perto de 0, então o salto é
+      // grande; tremor é sempre pequeno.
+      const fatiasPorSeg = Math.abs(velocidade) / passoDaFatia;
+      if (uAnterior != null && uAnterior - u > 0.5 && fatiasPorSeg > ESTALO_DE && fatiasPorSeg < ESTALO_ATE) {
+        // Mais grave e mais forte conforme a roda pesa e desacelera: o último
+        // estalo é o mais baixo e o mais presente, que é o que fecha o giro.
+        const corre = entre(fatiasPorSeg / ESTALO_ATE, 0, 1);
+        tique({
+          frequencia: 620 + corre * 520,
+          // Curto quando os estalos se atropelam (55ms entre eles no pico), longo
+          // quando sobra espaço.
+          duracao: 0.02 + (1 - corre) * 0.045,
+          volume: 0.04 + (1 - corre) * 0.17,
+        });
+      }
+      uAnterior = u;
+  
+      const encosta = u - (1 - SETA_CONTATO);
+      // O disco gira no sentido horário, então lá embaixo os pinos correm para a
+      // esquerda e empurram a ponta da seta para esse lado — giro negativo.
+      const limite = encosta <= 0 ? Infinity : -SETA_ABERTURA * (encosta / SETA_CONTATO) ** 1.3;
+      moverSeta(dt, limite);
+      seta.style.transform = `rotate(${setaAngulo.toFixed(2)}deg)`;
+  
+      // --- o borrão --------------------------------------------------------
+      const corrida = entre((Math.abs(velocidade) - BORRAO_DE) / (BORRAO_ATE - BORRAO_DE), 0, 1);
+      if (ecos.length) {
+        // O rastro cobre o que o disco varre em um quadro, repartido entre as
+        // cópias: é o que uma câmera registraria com o obturador aberto.
+        const varrido = velocidade / 60;
+        for (let i = 0; i < ecos.length; i++) {
+          const atraso = (-varrido * (i + 1)) / (ecos.length + 1);
+          ecos[i].style.transform = `rotate(${atraso.toFixed(2)}deg)`;
+          // As opacidades NÃO são iguais. Empilhadas uma sobre a outra, cópias de
+          // mesma opacidade dão peso maior à de cima e o rastro pende para trás;
+          // 1/(i+2) é o que faz as quatro amostras pesarem um quarto cada, que é
+          // a média que o obturador tira.
+          ecos[i].style.opacity = (corrida / (i + 2)).toFixed(3);
+        }
+      }
+      // Aqui houve um fio de `blur()` por cima do rastro, para apagar o degrau
+      // entre uma cópia e a seguinte. Saiu: mudar o raio do desfoque a cada
+      // quadro obriga o navegador a redesenhar a roda inteira fora da placa de
+      // vídeo, e isso travava o giro por 250ms de cada vez, quatro vezes. Uma
+      // cópia a mais custa uma camada e resolve o mesmo degrau de graça.
+  
+      // --- o eixo torto ----------------------------------------------------
+      const folga = EIXO_FOLGA * corrida;
+      const rad = (angulo * Math.PI) / 180;
+      eixo.style.transform = folga
+        ? `translate(${(Math.cos(rad) * folga).toFixed(2)}px, ${(Math.sin(rad) * folga).toFixed(2)}px)`
+        : '';
+  
+      // --- a luz -----------------------------------------------------------
+      if (faisca && !pousou) faisca.style.opacity = (corrida * 0.85).toFixed(3);
+  
+      const decorrido = agora - inicio;
+      if (!pousou && decorrido >= DURACAO_DO_GIRO) {
+        pousou = true;
+        pousar();
+      }
+      // A seta ainda está batendo quando a roda já parou: a última divisa a
+      // segurou e a mola leva um tempinho para devolvê-la ao prumo. Sair do laço
+      // junto com a roda travava a seta torta na tela.
+      if (decorrido < DURACAO_DO_GIRO + 420) {
+        quadro = requestAnimationFrame(passo);
+        return;
+      }
+      quadro = 0;
+      desmontar();
+    }
+  
+    /**
+     * A roda parou. Sai tudo que só existia enquanto ela corria, e o aro dá o
+     * estalo de luz — que precisa acontecer AQUI, e não quando o laço acaba: o
+     * jogo abre o carro um segundo depois, e o piscar não caberia na sobra.
+     */
+    function pousar() {
+      tirarEcos();
+      if (faisca) {
+        // A opacidade fica com a animação; o valor em linha a engessaria no fim.
+        faisca.style.opacity = '';
+        faisca.classList.remove('roleta-faisca--parou');
+        void faisca.offsetWidth;
+        faisca.classList.add('roleta-faisca--parou');
+      }
+    }
+  
+    /** A seta assentou: nada mais se mexe até o próximo toque. */
+    function desmontar() {
+      seta.style.transform = '';
+      eixo.style.transform = '';
+      setaAngulo = 0;
+      setaVelocidade = 0;
+    }
+  
+    return {
+      /** Começa a acompanhar o giro. Chamar junto do `forward()` da animação. */
+      girar() {
+        if (menosMovimento()) return;
+        criarEcos();
+        pousou = false;
+        angulo = 0;
+        velocidade = 0;
+        lido = anguloNaTela(disco);
+        inicio = performance.now();
+        ultimo = inicio;
+        faisca?.classList.remove('roleta-faisca--parou');
+        cancelAnimationFrame(quadro);
+        quadro = requestAnimationFrame(passo);
+      },
+      /** A tela saiu no meio do giro. */
+      parar() {
+        cancelAnimationFrame(quadro);
+        quadro = 0;
+        tirarEcos();
+        desmontar();
+      },
+    };
+  }
+  Object.defineProperty(__exports, "DURACAO_DO_GIRO", { get: () => DURACAO_DO_GIRO, enumerable: true });
+  Object.defineProperty(__exports, "efeitosDoGiro", { get: () => efeitosDoGiro, enumerable: true });
+  Object.defineProperty(__exports, "criarVida", { get: () => criarVida, enumerable: true });
   });
 
   /* ===== pages/roleta.js ===== */
@@ -5792,22 +8573,32 @@
   // Port of lib/pages/escolha/roleta/roleta_widget.dart
   //
   // The prize wheel. Pressing GIRAR draws a new `escolha` (1.0 - 1.9, never one
-  // of the last five), spins the wheel by that many turns over 5s, remembers the
-  // draw and moves on to the selected car.
+  // of the last five), spins the wheel by that many turns, remembers the draw and
+  // moves on to the selected car.
+  //
+  // O sorteio e a navegacao sao os do Dart. O que a roda FAZ enquanto gira nao e:
+  // a fisica do giro, a seta batendo nas divisas, o borrao e a luz que nao gira
+  // junto moram em giro.js, e esta tela so monta as pecas e as entrega a ele.
   
-  const { Align, ClipRRect, Column, Container, Img, InkWell, Padding, Stack, StackAlign, Txt, color, decorationImage, el, linearGradient, unfocus } = __require("widgets.js");
+  const { Align, ClipRRect, Column, Container, Img, InkWell, Padding, Stack, StackAlign, Txt, color, decorationImage, el, linearGradient, px, unfocus } = __require("widgets.js");
   const { style } = __require("theme.js");
   const { L } = __require("i18n.js");
   const { FFAppState } = __require("state.js");
   const { numeroAleatorio } = __require("functions.js");
   const { usaArteOriginal } = __require("deck.js");
   const { rodaGerada } = __require("roda.js");
+  const { criarVida, efeitosDoGiro } = __require("giro.js");
   const { playSound } = __require("audio.js");
   const { goNamed, TransitionInfo, PageTransitionType } = __require("router.js");
-  const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, RotateEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad, delayed } = __require("anim.js");
+  const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad, delayed, menosMovimento } = __require("anim.js");
   
   function RoletaWidget() {
     const model = { apertaButton: true };
+    // O giro leva 5s e só então navega. Se a tela sair nesse meio-tempo (o botão
+    // Voltar do navegador, ou o endereço trocado à mão), a navegação de dentro do
+    // `onTap` chegaria depois e arrancaria o jogador de onde ele estivesse. É o
+    // mesmo guarda que as outras telas de espera usam.
+    let left = false;
   
     const animationsMap = {
       columnOnPageLoadAnimation: new AnimationInfo({
@@ -5838,38 +8629,117 @@
     // Ela continua valendo enquanto a lista de veiculos for a original — mexer so
     // no texto das perguntas nao invalida o desenho. Fora disso a roda e gerada,
     // porque o PNG mostraria carros que nao estao mais em jogo.
-    const arte = usaArteOriginal(FFAppState.baralho)
+    // O Dart declara a roda com 836.1x946 e a arte com 864.3x893.2, mas o Stack
+    // que a contem tem 839.8 de altura, e no Flutter um filho nunca passa da
+    // restricao que recebe: a caixa que aparece na tela e 836.1x839.8. Declarar
+    // os numeros crus aqui fazia a roda estourar o Stack, que recorta com
+    // Clip.hardEdge — sumiam ~50px do fundo do disco e, junto, a seta inteira,
+    // que se alinha pelo fundo do Stack. Entao a caixa ja entra resolvida.
+    const RODA_LARGURA = 836.1;
+    const RODA_ALTURA = 839.8;
+  
+    const arteOriginal = usaArteOriginal(FFAppState.baralho);
+    const arte = arteOriginal
       ? ClipRRect({
           borderRadius: 20.0,
-          child: Img('assets/images/Roleta.png', { width: 864.3, height: 893.2, fit: 'cover' }),
+          child: Img('assets/images/Roleta.png', { width: RODA_LARGURA, height: RODA_ALTURA, fit: 'cover' }),
         })
-      : rodaGerada(FFAppState.baralho?.slots ?? []);
+      : rodaGerada(FFAppState.baralho?.slots ?? [], { largura: RODA_LARGURA, altura: RODA_ALTURA });
+  
+    /**
+     * Onde o disco acaba dentro da caixa, em pixels de RAIO.
+     *
+     * A luz e a unica coisa desta tela que precisa saber disso: ela e um desenho
+     * parado por cima do disco, e uma vinheta de aro fora de lugar aparece como
+     * um anel escuro solto em cima da arte.
+     *
+     * Sao dois numeros porque sao duas rodas. A arte pronta e um PNG de 766x730
+     * encaixado com `cover` numa caixa de 836,1x839,8: ele sobe para 1,1504 e
+     * sobra pelos lados, e sai levemente OVAL — os valores vem de medir o disco
+     * no proprio arquivo. A roda desenhada e redonda e sai da geometria de
+     * roda.js (R_FATIA e R_LUZ sobre o viewBox, encaixados com `meet`).
+     */
+    const DISCO = arteOriginal
+      ? { raioX: 380.6, raioY: 368.0, aroX: 398.0, aroY: 384.8 }
+      : { raioX: 383.2, raioY: 383.2, aroX: 400.7, aroY: 400.7 };
+  
+    /** Uma camada de luz: do tamanho da caixa da roda e sabendo onde o aro esta. */
+    const camadaDeLuz = (classe) => {
+      const no = el('div', {
+        class: `roleta-camada ${classe}`,
+        'aria-hidden': 'true',
+        style: { width: px(RODA_LARGURA), height: px(RODA_ALTURA) },
+      });
+      no.style.setProperty('--disco-x', `${DISCO.raioX}px`);
+      no.style.setProperty('--disco-y', `${DISCO.raioY}px`);
+      no.style.setProperty('--aro-x', `${DISCO.aroX}px`);
+      no.style.setProperty('--aro-y', `${DISCO.aroY}px`);
+      return no;
+    };
+  
+    // Atras do disco: a sombra que ele joga na caixa e o halo morno das lampadas,
+    // que respira sozinho para a roda parada nao parecer desligada.
+    const fundo = camadaDeLuz('roleta-fundo');
+    // Na frente: o brilho especular, a sombra de forma e a vinheta do aro. Elas
+    // NAO giram — e por elas que o disco vira objeto em vez de figura girando.
+    const luz = camadaDeLuz('roleta-luz');
+    // O arco de luz que ronda o aro, como roleta de parque. Ele so existe se o
+    // navegador souber recortar por mascara: e a mascara que o prende ao aro, e
+    // sem ela o cone de luz lavaria o disco inteiro.
+    const temMascara =
+      typeof CSS !== 'undefined' &&
+      typeof CSS.supports === 'function' &&
+      (CSS.supports('mask-image', 'radial-gradient(#000, transparent)') ||
+        CSS.supports('-webkit-mask-image', 'radial-gradient(#000, transparent)'));
+    const ronda = temMascara ? camadaDeLuz('roleta-ronda') : null;
+    // O acender do giro, que o giro.js controla pela velocidade.
+    const faisca = camadaDeLuz('roleta-faisca');
+  
+    // A pista guarda a arte e, so enquanto a roda corre, as copias do borrao.
+    const pista = el('div', { class: 'roleta-pista' }, arte);
   
     const wheel = Container({
-      width: 836.1,
-      height: 946.0,
+      width: RODA_LARGURA,
+      height: RODA_ALTURA,
       color: color(0x00FFFFFF),
       borderRadius: 22.0,
       alignment: [0.0, 0.0],
-      child: arte,
+      child: pista,
     });
+    // O eixo fica FORA do disco porque o `transform` do disco e do motor de
+    // animacao: o bamboleio precisa de uma caixa so dele para nao brigar com ele.
+    const eixo = el('div', { class: 'roleta-eixo' }, wheel);
     // `effects:` is read when forward() runs, so the rotation always uses the
     // value drawn a moment earlier.
     animateOnActionTrigger(wheel, animationsMap.containerOnActionTriggerAnimation1, null);
-    animationsMap.containerOnActionTriggerAnimation1.effectsBuilder = () => [
-      RotateEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 5000.0, begin: 0.0, end: FFAppState.escolha }),
-    ];
+    animationsMap.containerOnActionTriggerAnimation1.effectsBuilder = () =>
+      // Seis segundos de tela inteira girando é exatamente o que quem pediu menos
+      // movimento no sistema não quer ver. Sem efeito nenhum o `forward()`
+      // resolve na hora, e o jogo segue para o carro sorteado: o resultado do
+      // sorteio é o mesmo, a roda só não gira.
+      menosMovimento() ? [] : efeitosDoGiro(FFAppState.escolha, FFAppState.totalSlots);
   
     const spinButton = InkWell({
       onTap: async () => {
-        await animationsMap.containerOnActionTriggerAnimation2.controller.forward();
-        if (!model.apertaButton) return;
+        animationsMap.containerOnActionTriggerAnimation2.controller.forward();
+        if (!model.apertaButton || left) return;
   
         model.apertaButton = false;
         FFAppState.escolha = numeroAleatorio([...FFAppState.listaEscolhas], FFAppState.totalSlots);
-        playSound(model, 'soundPlayer', 'assets/audios/roleta-normal-1_2GXmNRPk.mp3', 0.6);
-        await animationsMap.containerOnActionTriggerAnimation1.controller.forward();
+        // 0,45 e nao 0,6: a roda agora estala sozinha, um som por divisa que
+        // cruza a seta (ver giro.js). A gravacao passou a ser o leito por baixo
+        // disso, e no volume antigo ela abafava os estalos justo no comeco, que e
+        // onde eles sao mais fracos.
+        playSound(model, 'soundPlayer', 'assets/audios/roleta-normal-1_2GXmNRPk.mp3', 0.45);
+        // Este `await` E sequencia: e o giro inteiro, e o jogo so segue depois.
+        // O `girar()` vem logo atras porque ele LE o angulo que a animacao ja
+        // escreveu na tela — e assim a seta bate na divisa que esta mostrando,
+        // e nao na que um relogio paralelo teria calculado.
+        const giro = animationsMap.containerOnActionTriggerAnimation1.controller.forward();
+        vida.girar();
+        await giro;
         await delayed(1000);
+        if (left || !root.isConnected) return;
   
         // Keep a rolling window of the last five draws so the same car can't come
         // up again too soon.
@@ -5884,7 +8754,11 @@
             __transition_info__: new TransitionInfo({
               hasTransition: true,
               transitionType: PageTransitionType.fade,
-              duration: 0,
+              // Era 0, que o roteador trata como SEM transição: a roda parava e a
+              // tela trocava de estalo, no momento mais dramático do jogo. Este é
+              // o mais longo dos quatro de propósito — é o único em que a troca
+              // vale como pausa.
+              duration: 420,
             }),
           },
         });
@@ -5907,6 +8781,18 @@
     });
     animateOnActionTrigger(spinButton, animationsMap.containerOnActionTriggerAnimation2);
   
+    // A seta gira pela BASE, que é onde uma lingueta de roleta é presa: o pino
+    // empurra a ponta e ela volta batendo. O `transform` fica no recorte, e não
+    // na imagem, porque a imagem está dentro de um `overflow: hidden` — girada lá
+    // dentro, a ponta sairia cortada.
+    const seta = ClipRRect({
+      borderRadius: 8.0,
+      style: { transformOrigin: '50% 100%' },
+      child: Img('assets/images/Seta_.png', { width: 101.4, height: 85.0, fit: 'cover' }),
+    });
+  
+    const vida = criarVida({ disco: wheel, eixo, pista, arte, seta, faisca, fatias: FFAppState.totalSlots });
+  
     const content = Column({
       mainAxisSize: 'max',
       crossAxisAlignment: 'center',
@@ -5918,16 +8804,17 @@
             height: 839.8,
             child: Stack({
               children: [
-                StackAlign({ alignment: [0.0, 0.0], child: wheel }),
+                // A ordem aqui é a ordem em que o Stack pinta, e ela é a pilha
+                // física: sombra e halo por baixo do disco, disco, luz por cima
+                // dele, e só então a seta e o logo, que ficam na frente de tudo.
+                StackAlign({ alignment: [0.0, 0.0], child: fundo }),
+                StackAlign({ alignment: [0.0, 0.0], child: eixo }),
+                StackAlign({ alignment: [0.0, 0.0], child: luz }),
+                ronda ? StackAlign({ alignment: [0.0, 0.0], child: ronda }) : null,
+                StackAlign({ alignment: [0.0, 0.0], child: faisca }),
                 StackAlign({
                   alignment: [0.0, 1.0],
-                  child: Padding({
-                    padding: [0.0, 0.0, 0.0, 30.0],
-                    child: ClipRRect({
-                      borderRadius: 8.0,
-                      child: Img('assets/images/Seta_.png', { width: 101.4, height: 85.0, fit: 'cover' }),
-                    }),
-                  }),
+                  child: Padding({ padding: [0.0, 0.0, 0.0, 30.0], child: seta }),
                 }),
                 StackAlign({
                   alignment: [0.0, 0.0],
@@ -5966,6 +8853,13 @@
       })
     );
     root.addEventListener('click', unfocus);
+  
+    root.__dispose = () => {
+      left = true;
+      vida.parar();
+      model.soundPlayer?.stop();
+    };
+  
     return root;
   }
   Object.defineProperty(__exports, "RoletaWidget", { get: () => RoletaWidget, enumerable: true });
@@ -6013,6 +8907,18 @@
   //
   // Reveals the car the wheel landed on, then fades out and moves to the scanner
   // picker after 6s.
+  //
+  // A ENTRADA. O Dart escalava de [-1, -1] até [1, 1]: escala negativa é
+  // ESPELHAMENTO, então o carro nascia invertido, encolhia até sumir num ponto e
+  // voltava desvirado — era isso o "o carro vem ao contrário". Trocamos por uma
+  // entrada que tem a ver com o que acabou de acontecer na tela anterior: a roda
+  // parou, e o prêmio chega.
+  //
+  //   - o carro entra pela direita com velocidade e freia, passando um pouco do
+  //     ponto e voltando (o mesmo excesso amortecido do recuo da roleta);
+  //   - a placa com o nome bate depois, como carimbo;
+  //   - pousado, o carro respira devagar, para os segundos que sobram até a
+  //     próxima tela não serem uma foto parada.
   
   const { Align, Column, Container, Padding, Txt, decorationImage, el, color, unfocus } = __require("widgets.js");
   const { style } = __require("theme.js");
@@ -6026,13 +8932,33 @@
     let left = false;
   
     const animationsMap = {
-      columnOnPageLoadAnimation: new AnimationInfo({
+      // A chegada: entra pela direita, freia passando do ponto e volta.
+      //
+      // O excesso é o que faz parecer massa em movimento e não uma imagem sendo
+      // posicionada — o mesmo motivo do recuo da roleta. São três trechos porque
+      // o motor de efeitos interpola por pedaço: corrida, passagem do ponto,
+      // acomodação.
+      carroOnPageLoadAnimation: new AnimationInfo({
         trigger: AnimationTrigger.onPageLoad,
         applyInitialState: true,
         effectsBuilder: () => [
-          ScaleEffect({ curve: Curves.easeInOut, delay: 600.0, duration: 2000.0, begin: [-1.0, -1.0], end: [1.0, 1.0] }),
-          FadeEffect({ curve: Curves.easeInOut, delay: 600.0, duration: 2000.0, begin: 0.0, end: 1.0 }),
-          MoveEffect({ curve: Curves.easeInOut, delay: 600.0, duration: 2000.0, begin: [0.0, 100.0], end: [0.0, 0.0] }),
+          FadeEffect({ curve: Curves.easeOut, delay: 120.0, duration: 260.0, begin: 0.0, end: 1.0 }),
+          MoveEffect({ curve: Curves.easeOut, delay: 120.0, duration: 620.0, begin: [620.0, 0.0], end: [-26.0, 0.0] }),
+          MoveEffect({ curve: Curves.easeInOut, delay: 740.0, duration: 260.0, begin: [-26.0, 0.0], end: [9.0, 0.0] }),
+          MoveEffect({ curve: Curves.easeInOut, delay: 1000.0, duration: 220.0, begin: [9.0, 0.0], end: [0.0, 0.0] }),
+          // Um respiro de 1,02 enquanto o carro corre: dá peso à frenagem.
+          ScaleEffect({ curve: Curves.easeOut, delay: 120.0, duration: 620.0, begin: [1.05, 1.05], end: [1.02, 1.02] }),
+          ScaleEffect({ curve: Curves.easeInOut, delay: 740.0, duration: 480.0, begin: [1.02, 1.02], end: [1.0, 1.0] }),
+        ],
+      }),
+      // A placa do nome, batendo depois que o carro para.
+      nomeOnPageLoadAnimation: new AnimationInfo({
+        trigger: AnimationTrigger.onPageLoad,
+        applyInitialState: true,
+        effectsBuilder: () => [
+          FadeEffect({ curve: Curves.easeOut, delay: 900.0, duration: 180.0, begin: 0.0, end: 1.0 }),
+          ScaleEffect({ curve: Curves.easeOut, delay: 900.0, duration: 300.0, begin: [1.32, 1.32], end: [0.98, 0.98] }),
+          ScaleEffect({ curve: Curves.easeInOut, delay: 1200.0, duration: 180.0, begin: [0.98, 0.98], end: [1.0, 1.0] }),
         ],
       }),
       columnOnActionTriggerAnimation: new AnimationInfo({
@@ -6044,28 +8970,33 @@
       }),
     };
   
+    const foto = CarroFotoWidget();
+    animateOnPageLoad(foto, animationsMap.carroOnPageLoadAnimation);
+  
+    // O respiro parado fica NO INVÓLUCRO, e não na foto: a entrada escreve
+    // `transform` na foto pela Web Animations API, e uma animação CSS de
+    // transform no mesmo elemento seria simplesmente ignorada. Em pai e filho as
+    // duas se compõem.
+    const carro = el('div', { class: 'ff-carro-respira' }, foto);
+  
+    // O nome vinha de uma tabela fixa por indice no Dart (que, aliás, nao era o
+    // campo `nome` da questao — esse o jogo nunca exibia). Agora e o nome do
+    // veiculo da rodada.
+    const nome = Txt(FFAppState.slotAtual?.veiculo?.nome || 'SEM CARRO SELECIONADO', {
+      ...style('bodyMedium', {
+        fontFamily: 'Roboto',
+        fontWeight: 700,
+        color: '#FFFFFF',
+        fontSize: 70.0,
+        letterSpacing: 5.0,
+      }),
+    });
+    animateOnPageLoad(nome, animationsMap.nomeOnPageLoadAnimation);
+  
     const content = Column({
       mainAxisSize: 'max',
-      children: [
-        CarroFotoWidget(),
-        Padding({
-          padding: [0.0, 52.0, 0.0, 0.0],
-                  // O nome vinha de uma tabela fixa por indice no Dart (que, aliás, nao
-          // era o campo `nome` da questao — esse o jogo nunca exibia). Agora e o
-          // nome do veiculo da rodada.
-          child: Txt(FFAppState.slotAtual?.veiculo?.nome || 'SEM CARRO SELECIONADO', {
-            ...style('bodyMedium', {
-              fontFamily: 'Roboto',
-              fontWeight: 700,
-              color: '#FFFFFF',
-              fontSize: 70.0,
-              letterSpacing: 5.0,
-            }),
-          }),
-        }),
-      ],
+      children: [carro, Padding({ padding: [0.0, 52.0, 0.0, 0.0], child: nome })],
     });
-    animateOnPageLoad(content, animationsMap.columnOnPageLoadAnimation);
     animateOnActionTrigger(content, animationsMap.columnOnActionTriggerAnimation);
   
     const root = el(
@@ -6087,6 +9018,7 @@
   
     delayed(6000).then(async () => {
       if (left || !root.isConnected) return;
+      // Sequencia de verdade: e a animacao de SAIDA da tela, antes de navegar.
       await animationsMap.columnOnActionTriggerAnimation.controller.forward();
       if (left || !root.isConnected) return;
       goNamed('scanner', {
@@ -6094,7 +9026,9 @@
           __transition_info__: new TransitionInfo({
             hasTransition: true,
             transitionType: PageTransitionType.fade,
-            duration: 0,
+            // Curto porque o conteúdo desta tela já se apagou sozinho antes de
+            // navegar (a animação de saída acima): o que falta é só a entrada.
+            duration: 280,
           }),
         },
       });
@@ -6211,7 +9145,7 @@
   const { playSound } = __require("audio.js");
   const { showDialog } = __require("dialog.js");
   const { EquipamentoInvalidoWidget } = __require("components/equipamento_invalido.js");
-  const { pushNamed, TransitionInfo, PageTransitionType, Alignment } = __require("router.js");
+  const { goNamed, TransitionInfo, PageTransitionType, Alignment } = __require("router.js");
   const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnActionTrigger } = __require("anim.js");
   
   const TOOLS = {
@@ -6250,9 +9184,9 @@
   
     const onTap = async () => {
       playSound(model, tool.sound, 'assets/audios/undertale-select-sound.mp3', 0.6);
-      await animationsMap.stackOnActionTriggerAnimation.controller.forward();
+      animationsMap.stackOnActionTriggerAnimation.controller.forward();
       if (enabled) {
-        pushNamed('telaVideoScanner', {
+        goNamed('telaVideoScanner', {
           extra: {
             __transition_info__: new TransitionInfo({
               hasTransition: true,
@@ -6262,8 +9196,7 @@
           },
         });
         FFAppState.scannerEscolhido = tool.escolhido;
-        FFAppState.update();
-      } else {
+        } else {
         await showDialog({ builder: () => EquipamentoInvalidoWidget() });
       }
     };
@@ -6308,6 +9241,15 @@
   //
   // "ESCOLHA O EQUIPAMENTO IDEAL" - three scanners on the first row, two on the
   // second. Which of them are valid depends on the current question.
+  //
+  // A ENTRADA. O Dart escalava o bloco inteiro de [-1, -1] ate [1, 1] — escala
+  // negativa e ESPELHAMENTO, entao os cinco equipamentos nasciam invertidos,
+  // encolhiam ate sumir num ponto e voltavam desvirados, os cinco de uma vez. Era
+  // o mesmo defeito da tela do carro.
+  //
+  // Agora eles pousam um a um, na ordem de leitura. Numa tela cuja unica pergunta
+  // e "qual destes?", as opcoes chegando em sequencia sao o convite a escolher;
+  // chegando juntas, sao uma imagem que apareceu.
   
   const { Align, Column, Container, Padding, Row, Txt, color, decorationImage, el, unfocus } = __require("widgets.js");
   const { style } = __require("theme.js");
@@ -6315,16 +9257,58 @@
   const { FerramentaWidget } = __require("components/ferramenta.js");
   const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnPageLoad } = __require("anim.js");
   
+  /** O titulo chega primeiro, e sozinho: e ele que faz a pergunta. */
+  const entradaDoTitulo = () =>
+    new AnimationInfo({
+      trigger: AnimationTrigger.onPageLoad,
+      applyInitialState: true,
+      effectsBuilder: () => [
+        FadeEffect({ curve: Curves.easeOut, delay: 60.0, duration: 340.0, begin: 0.0, end: 1.0 }),
+        MoveEffect({ curve: Curves.easeOut, delay: 60.0, duration: 420.0, begin: [0.0, -26.0], end: [0.0, 0.0] }),
+      ],
+    });
+  
+  /**
+   * Um equipamento pousando. `ordem` e a posicao na leitura (0 a 4).
+   *
+   * A escala passa de 1.04 antes de assentar: sem esse exagero curto a peca
+   * parece colada na tela, e nao pousada nela.
+   */
+  const entradaDaFerramenta = (ordem) => {
+    const atraso = 300.0 + ordem * 90.0;
+    return new AnimationInfo({
+      trigger: AnimationTrigger.onPageLoad,
+      applyInitialState: true,
+      effectsBuilder: () => [
+        FadeEffect({ curve: Curves.easeOut, delay: atraso, duration: 240.0, begin: 0.0, end: 1.0 }),
+        MoveEffect({ curve: Curves.easeOut, delay: atraso, duration: 400.0, begin: [0.0, 52.0], end: [0.0, 0.0] }),
+        ScaleEffect({ curve: Curves.easeOut, delay: atraso, duration: 400.0, begin: [0.88, 0.88], end: [1.04, 1.04] }),
+        ScaleEffect({
+          curve: Curves.easeInOut,
+          delay: atraso + 400.0,
+          duration: 200.0,
+          begin: [1.04, 1.04],
+          end: [1.0, 1.0],
+        }),
+      ],
+    });
+  };
+  
   function ScannerWidget() {
-    const animationsMap = {
-      columnOnPageLoadAnimation: new AnimationInfo({
-        trigger: AnimationTrigger.onPageLoad,
-        effectsBuilder: () => [
-          ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 2000.0, begin: [-1.0, -1.0], end: [1.0, 1.0] }),
-          FadeEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 2000.0, begin: 0.0, end: 1.0 }),
-          MoveEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 2000.0, begin: [0.0, 100.0], end: [0.0, 0.0] }),
-        ],
-      }),
+    /**
+     * Cada equipamento entra dentro de um involucro, e nao no proprio no.
+     *
+     * O `FerramentaWidget` ja carrega a animacao de aperto do toque, e
+     * `applyInitialState` escreve o quadro 0 no estilo inline — um `opacity: 0`
+     * que so fica escondido enquanto a animacao corre. Empilhar as duas no mesmo
+     * elemento e como a resposta certa sumiu da tela da pergunta. Em pai e filho,
+     * uma nao alcanca a outra.
+     */
+    let ordem = 0;
+    const pousando = (ferramenta) => {
+      const caixa = el('div', { class: 'ff-ferramenta-entra' }, ferramenta);
+      animateOnPageLoad(caixa, entradaDaFerramenta(ordem++));
+      return caixa;
     };
   
     const content = Column({
@@ -6334,15 +9318,18 @@
           alignment: [0.0, 0.0],
           child: Padding({
             padding: [0.0, 32.0, 0.0, 40.0],
-            child: Txt(
-              L('q55g6kdp') /* ESCOLHA O EQUIPAMENTO IDEAL */,
-              style('bodyMedium', {
-                fontFamily: 'pirulen',
-                color: '#FFFFFF',
-                fontSize: 46.0,
-                letterSpacing: 5.0,
-                fontWeight: 400,
-              })
+            child: animateOnPageLoad(
+              Txt(
+                L('q55g6kdp') /* ESCOLHA O EQUIPAMENTO IDEAL */,
+                style('bodyMedium', {
+                  fontFamily: 'pirulen',
+                  color: '#FFFFFF',
+                  fontSize: 46.0,
+                  letterSpacing: 5.0,
+                  fontWeight: 400,
+                })
+              ),
+              entradaDoTitulo()
             ),
           }),
         }),
@@ -6355,11 +9342,11 @@
               alignment: [0.0, 0.0],
               child: Padding({
                 padding: [1.0, 0.0, 0.0, 0.0],
-                child: FerramentaWidget({ ferramenta: '3s', util: true }),
+                child: pousando(FerramentaWidget({ ferramenta: '3s', util: true })),
               }),
             }),
-            FerramentaWidget({ ferramenta: 'rts', util: true }),
-            FerramentaWidget({ ferramenta: 'td90', util: false }),
+            pousando(FerramentaWidget({ ferramenta: 'rts', util: true })),
+            pousando(FerramentaWidget({ ferramenta: 'td90', util: false })),
           ],
         }),
         Padding({
@@ -6373,16 +9360,15 @@
                 alignment: [0.0, 0.0],
                 child: Padding({
                   padding: [1.0, 0.0, 0.0, 0.0],
-                  child: FerramentaWidget({ ferramenta: 'rb', util: true }),
+                  child: pousando(FerramentaWidget({ ferramenta: 'rb', util: true })),
                 }),
               }),
-              FerramentaWidget({ ferramenta: 'td80', util: true }),
+              pousando(FerramentaWidget({ ferramenta: 'td80', util: true })),
             ],
           }),
         }),
       ],
     });
-    animateOnPageLoad(content, animationsMap.columnOnPageLoadAnimation);
   
     const root = el(
       'div',
@@ -6416,7 +9402,7 @@
   const { L } = __require("i18n.js");
   const { FFAppState } = __require("state.js");
   const { CONFIG } = __require("config.js");
-  const { pushNamed, TransitionInfo, PageTransitionType, Alignment } = __require("router.js");
+  const { goNamed, TransitionInfo, PageTransitionType, Alignment } = __require("router.js");
   const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnPageLoad, delayed } = __require("anim.js");
   
   const BASE = 'https://firebasestorage.googleapis.com/v0/b/projeto-assis-3qcf6v.appspot.com/o/videoScanners';
@@ -6498,7 +9484,7 @@
   
     delayed(14000).then(() => {
       if (left || !root.isConnected) return;
-      pushNamed('telaAcao', {
+      goNamed('telaAcao', {
         extra: {
           __transition_info__: new TransitionInfo({
             hasTransition: true,
@@ -6518,6 +9504,37 @@
   Object.defineProperty(__exports, "TelaVideoScannerWidget", { get: () => TelaVideoScannerWidget, enumerable: true });
   });
 
+  /* ===== textos.js ===== */
+  __define("textos.js", function (__exports, __require) {
+  // Os textos que não vieram do FlutterFlow.
+  //
+  // As traduções do Dart vivem em `translations.js`, que é GERADO por
+  // `scripts/gen_data.py` a partir do projeto original — a CI roda o gerador e
+  // falha se o arquivo tiver sido editado à mão. Então tudo que este porte
+  // acrescenta de texto novo mora aqui, na mesma forma (pt/en/es) e lido pelo
+  // mesmo `FFLocalizations`, para a troca de idioma continuar valendo para o
+  // jogo inteiro.
+  //
+  // Se um dia isto crescer, o lugar certo é o baralho (área administrativa), não
+  // este arquivo — aqui ficam só as palavras de interface.
+  
+  const { FFLocalizations } = __require("i18n.js");
+  
+  const TEXTOS = {
+    alternativa: { pt: 'Alternativa', en: 'Answer', es: 'Alternativa' },
+    respostaCerta: { pt: 'A resposta certa', en: 'The right answer', es: 'La respuesta correcta' },
+    voceRespondeu: { pt: 'Você respondeu', en: 'You answered', es: 'Respondiste' },
+  };
+  
+  /** `T('alternativa')` — o mesmo formato de `L()`, para as strings daqui. */
+  function T(chave) {
+    const linha = TEXTOS[chave];
+    if (!linha) return '';
+    return FFLocalizations.getVariableText({ ptText: linha.pt, enText: linha.en, esText: linha.es });
+  }
+  Object.defineProperty(__exports, "T", { get: () => T, enumerable: true });
+  });
+
   /* ===== components/confirmacao.js ===== */
   __define("components/confirmacao.js", function (__exports, __require) {
   // Port of lib/pages/components/confirmacao/confirmacao_widget.dart
@@ -6525,10 +9542,17 @@
   // "Confirmar resposta?" - Cancelar just pops, Confirmar sets
   // FFAppState().finalizou = true and pops, which is what tells the caller in
   // perguntas_erespostas to score the answer.
+  //
+  // MUDANÇA DELIBERADA sobre o Dart: o diálogo agora recebe e mostra a
+  // alternativa escolhida. No original ele não recebia nada — e ainda por cima
+  // abre bem em cima da lista de respostas, então quem se distraiu confirmava sem
+  // ver o que tinha tocado. A caixa cresceu para caber o texto, e por isso a
+  // altura fixa de 232,6 saiu: com resposta longa ela cortaria.
   
   const { Align, Column, Container, Icon, InkWell, Padding, Row, Stack, StackAlign, Txt, color, linearGradient } = __require("widgets.js");
   const { style } = __require("theme.js");
   const { L } = __require("i18n.js");
+  const { T } = __require("textos.js");
   const { pop } = __require("dialog.js");
   const { FFAppState } = __require("state.js");
   const { playSound } = __require("audio.js");
@@ -6562,7 +9586,12 @@
     end: [-1.0, -0.17],
   });
   
-  function ConfirmacaoWidget() {
+  /**
+   * @param {object} escolha
+   * @param {number} [escolha.numero]  o número que o jogador vê no cartão (1 a 4)
+   * @param {string} [escolha.texto]   o enunciado da alternativa escolhida
+   */
+  function ConfirmacaoWidget({ numero = null, texto = null } = {}) {
     const model = {};
     const animationsMap = {
       containerOnPageLoadAnimation1: pulse(),
@@ -6592,6 +9621,50 @@
       return node;
     };
   
+    // O que o jogador tocou, repetido aqui porque a caixa cobre a lista.
+    const escolhida =
+      numero != null && texto
+        ? Padding({
+            padding: [48.0, 20.0, 48.0, 4.0],
+            child: Container({
+              width: Infinity,
+              color: color(0x26FFFFFF),
+              borderRadius: 8.0,
+              border: '1px solid rgba(255, 255, 255, 0.45)',
+              child: Padding({
+                padding: [20.0, 14.0, 20.0, 14.0],
+                child: Column({
+                  mainAxisSize: 'max',
+                  crossAxisAlignment: 'center',
+                  children: [
+                    Txt(
+                      `${T('alternativa')} ${numero}`,
+                      style('bodyMedium', {
+                        fontFamily: 'pirulen',
+                        fontSize: 16.0,
+                        letterSpacing: 3.0,
+                        fontWeight: 400,
+                      })
+                    ),
+                    Padding({
+                      padding: [0.0, 8.0, 0.0, 0.0],
+                      child: Txt(
+                        texto,
+                        style('bodyMedium', {
+                          fontFamily: 'Open Sans',
+                          fontWeight: 400,
+                          fontSize: 20.0,
+                          textAlign: 'center',
+                        })
+                      ),
+                    }),
+                  ],
+                }),
+              }),
+            }),
+          })
+        : null;
+  
     return Align({
       alignment: [0.0, 0.0],
       child: Column({
@@ -6600,7 +9673,6 @@
         children: [
           Container({
             width: 749.9,
-            height: 232.6,
             color: color(0xFF0051FF),
             borderRadius: 8.0,
             child: Stack({
@@ -6616,10 +9688,11 @@
                           L('ut066twm') /* Confirmar resposta? */,
                           style('bodyMedium', { fontFamily: 'pirulen', fontSize: 32.0 })
                         ),
+                        escolhida,
                         Padding({
-                          padding: [0.0, 8.0, 0.0, 0.0],
+                          padding: [0.0, 12.0, 0.0, 0.0],
                           child: Txt(
-                            L('8lqt2gtq') /* Você deseja confirma sua resposta? ... */,
+                            L('8lqt2gtq') /* Você deseja confirmar sua resposta? ... */,
                             style('bodyMedium', { fontFamily: 'Open Sans', fontWeight: 200, fontSize: 18.0 })
                           ),
                         }),
@@ -6634,7 +9707,7 @@
                                 actionAnimation: animationsMap.containerOnActionTriggerAnimation1,
                                 onTap: async () => {
                                   playSound(model, 'soundPlayer1', 'assets/audios/adriantnt_u_click.mp3', 1.0);
-                                  await animationsMap.containerOnActionTriggerAnimation1.controller.forward();
+                                  animationsMap.containerOnActionTriggerAnimation1.controller.forward();
                                   pop();
                                 },
                               }),
@@ -6643,7 +9716,7 @@
                                 actionAnimation: animationsMap.containerOnActionTriggerAnimation2,
                                 onTap: async () => {
                                   playSound(model, 'soundPlayer2', 'assets/audios/undertale-select-sound.mp3', 1.0);
-                                  await animationsMap.containerOnActionTriggerAnimation2.controller.forward();
+                                  animationsMap.containerOnActionTriggerAnimation2.controller.forward();
                                   FFAppState.finalizou = true;
                                   pop();
                                 },
@@ -6677,17 +9750,34 @@
 
   /* ===== components/pop_up.js ===== */
   __define("components/pop_up.js", function (__exports, __require) {
-  // Port of lib/pages/components/pop_up/pop_up_widget.dart
+  // O popup de dica de suporte. `tipo` escolhe o logo e a foto, `texto` e a dica
+  // da questao no idioma atual.
   //
-  // The support hint popup. `tipo` selects the logo + photo pair, `texto` is the
-  // hint text for the current question in the current language.
+  // POR QUE ESTE ARQUIVO NAO E UM PORTE DIRETO DO DART
+  // O widget original (pop_up_widget.dart) empilhava um Column com um Row
+  // centralizado e um Padding de 62px por cima de um PNG de fundo com `cover`.
+  // Na pratica nada caia no lugar: a foto do notebook subia acima da faixa azul,
+  // o texto encostava na borda de baixo do cartao e vazava, e o X de fechar
+  // flutuava no meio do cartao (alignment 0.52/0.72). Estava fiel ao Dart e
+  // quebrado na tela.
+  //
+  // Aqui o layout sai da PROPRIA ARTE, medida no pixel (assets/images/Pop_Up.png,
+  // 1480x767):
+  //
+  //   - o cartao e um paralelogramo de largura constante 1234 que desliza 0,3px
+  //     para a esquerda por pixel de altura;
+  //   - a faixa azul do cabecalho vai de y 45 a y 172;
+  //   - o corpo claro vai de y 175 ao fim.
+  //
+  // Como os lados sao inclinados, o conteudo vive em duas caixas seguras — o
+  // retangulo que cabe dentro do paralelogramo na altura de cada uma. Os numeros
+  // abaixo sao a medicao em px de arte multiplicada pela escala do cartao.
   
-  const { Align, ClipRRect, Column, Container, Img, InkWell, Padding, Row, Stack, StackAlign, Txt, decorationImage, divide, valueOrDefault } = __require("widgets.js");
-  const { style } = __require("theme.js");
+  const { el, Img, valueOrDefault } = __require("widgets.js");
   const { pop } = __require("dialog.js");
-  const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
+  const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, animateOnPageLoad } = __require("anim.js");
   
-  /** tipo -> the logo image on the left of the header. */
+  /** tipo -> o logo da faixa do cabecalho. */
   const LOGOS = {
     'Apoio Tecnico': 'assets/images/Apoio_1.png',
     'Cursos EAD': 'assets/images/Cursos_EAD_1.png',
@@ -6696,112 +9786,117 @@
     TecnomotorTV: 'assets/images/TecnomotorTV_(1).png',
   };
   
-  /** tipo -> the photo on the right, with its own size in the Dart. */
-  const PHOTOS = {
-    Representante: { src: 'assets/images/Representantes_(1).png', width: 357.2, height: 188.1 },
-    TecnomotorTV: { src: 'assets/images/TecnmotorTV.png', width: 293.7, height: 206.1 },
-    Comunidade: { src: 'assets/images/Comunidade.png', width: 293.7, height: 206.1 },
-    'Cursos EAD': { src: 'assets/images/Instrutores_(1)_(1).png', width: 293.7, height: 206.1 },
-    'Apoio Tecnico': { src: 'assets/images/Apoio_(1).png', width: 293.7, height: 206.1 },
+  /** tipo -> a foto do corpo. */
+  const FOTOS = {
+    Representante: 'assets/images/Representantes_(1).png',
+    TecnomotorTV: 'assets/images/TecnmotorTV.png',
+    Comunidade: 'assets/images/Comunidade.png',
+    'Cursos EAD': 'assets/images/Instrutores_(1)_(1).png',
+    'Apoio Tecnico': 'assets/images/Apoio_(1).png',
   };
   
+  /** A arte tem 1480x767; o cartao entra com a MESMA proporcao, para nao cortar. */
+  const CARTAO = { largura: 1340, altura: 694 };
+  /** A faixa azul do cabecalho (arte y 45..172). */
+  const FAIXA = { topo: 41, altura: 115 };
+  /** O retangulo que cabe na faixa (arte x 250..1345 nas linhas dela). */
+  const CABECALHO = { esquerda: 226, largura: 991 };
+  /** O retangulo que cabe no corpo (arte x 215..1230, y 195..720). */
+  const CORPO = { esquerda: 195, topo: 177, largura: 919, altura: 475 };
+  /** A foto ocupa a direita do corpo; o texto fica com o que sobra. */
+  const FOTO = { largura: 300, altura: 212 };
+  const FOLGA = 48;
+  
+  const px = (n) => `${n}px`;
+  
   function PopUpWidget({ texto, tipo } = {}) {
-    const animationsMap = {
-      stackOnPageLoadAnimation: new AnimationInfo({
-        trigger: AnimationTrigger.onPageLoad,
-        effectsBuilder: () => [
-          FadeEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 1200.0, begin: 0.0, end: 1.0 }),
-          MoveEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 1200.0, begin: [0.0, 100.0], end: [0.0, 0.0] }),
-        ],
-      }),
-      imageOnActionTriggerAnimation: new AnimationInfo({
-        trigger: AnimationTrigger.onActionTrigger,
-        applyInitialState: true,
-        effectsBuilder: () => [
-          ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 200.0, begin: [1.0, 1.0], end: [0.9, 0.9] }),
-          ScaleEffect({ curve: Curves.easeInOut, delay: 200.0, duration: 200.0, begin: [0.9, 0.9], end: [1.0, 1.0] }),
-        ],
-      }),
-    };
-  
-    const logo = LOGOS[tipo];
-    const photo = PHOTOS[tipo];
-  
-    const closeButton = InkWell({
-      onTap: async () => {
-        await animationsMap.imageOnActionTriggerAnimation.controller.forward();
-        pop();
-      },
-      child: ClipRRect({
-        borderRadius: 8.0,
-        child: Img('assets/images/Icones_Suporte_(1).png', { width: 200.0, height: 200.0, fit: 'cover' }),
-      }),
-    });
-    animateOnActionTrigger(closeButton, animationsMap.imageOnActionTriggerAnimation);
-  
-    const root = Stack({
-      children: [
-        StackAlign({
-          alignment: [0.0, 0.0],
-          child: Container({
-            width: 1304.5,
-            height: 689.6,
-            constraints: { minWidth: '200px' },
-            image: decorationImage('assets/images/Pop_Up.png', 'cover'),
-            child: Column({
-              mainAxisSize: 'max',
-              mainAxisAlignment: 'start',
-              children: [
-                Row({
-                  mainAxisSize: 'max',
-                  mainAxisAlignment: 'center',
-                  crossAxisAlignment: 'center',
-                  children: divide(
-                    [
-                      Column({
-                        mainAxisSize: 'max',
-                        children: [
-                          logo &&
-                            ClipRRect({
-                              borderRadius: 8.0,
-                              child: Img(logo, { width: 400.0, height: 100.0, fit: 'contain' }),
-                            }),
-                        ],
-                      }),
-                      Column({
-                        mainAxisSize: 'max',
-                        children: [
-                          photo &&
-                            ClipRRect({
-                              borderRadius: 8.0,
-                              child: Img(photo.src, { width: photo.width, height: photo.height, fit: 'cover' }),
-                            }),
-                        ],
-                      }),
-                    ],
-                    32.0
-                  ),
-                }),
-                Align({
-                  alignment: [0.0, 0.0],
-                  child: Padding({
-                    padding: [0.0, 62.0, 0.0, 0.0],
-                    child: Container({
-                      width: 902.36,
-                      alignment: [0.0, 0.0],
-                      child: Txt(valueOrDefault(texto, 'Texto'), style('bodyMedium', { color: '#000000', fontSize: 32.0 })),
-                    }),
-                  }),
-                }),
-              ],
-            }),
-          }),
-        }),
-        StackAlign({ alignment: [0.52, 0.72], child: closeButton }),
+    const entrada = new AnimationInfo({
+      trigger: AnimationTrigger.onPageLoad,
+      effectsBuilder: () => [
+        FadeEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 420.0, begin: 0.0, end: 1.0 }),
+        MoveEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 420.0, begin: [0.0, 60.0], end: [0.0, 0.0] }),
       ],
     });
   
-    return animateOnPageLoad(root, animationsMap.stackOnPageLoadAnimation);
+    const logo = LOGOS[tipo];
+    const foto = FOTOS[tipo];
+  
+    /* ------------------------------------------------------------- cabecalho -- */
+  
+    const marca = logo
+      ? el('div', { class: 'pop-logo', style: { left: px(CABECALHO.esquerda), top: px(FAIXA.topo + 16) } },
+          Img(logo, { width: 300, height: FAIXA.altura - 32, fit: 'contain', alignment: [-1.0, 0.0] }))
+      : null;
+  
+    // O X fica no canto do cabecalho, que e onde se procura por ele — e nao no
+    // meio do cartao, como o Dart o punha. 56px de lado da area de toque folgada.
+    const fechar = el(
+      'div',
+      {
+        class: 'ff-inkwell pop-fechar',
+        role: 'button',
+        tabindex: '0',
+        'aria-label': 'Fechar',
+        style: {
+          left: px(CABECALHO.esquerda + CABECALHO.largura - 56),
+          top: px(FAIXA.topo + (FAIXA.altura - 56) / 2),
+        },
+      },
+      Img('assets/images/Icones_Suporte_(1).png', { width: 56, height: 56, fit: 'contain' })
+    );
+    // Fecha na hora. O Dart esperava 400ms de animacao antes de fazer qualquer
+    // coisa, o que faz o toque parecer que nao pegou.
+    const aoFechar = () => pop();
+    fechar.addEventListener('click', (event) => {
+      event.stopPropagation();
+      aoFechar();
+    });
+    fechar.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+        event.preventDefault();
+        event.stopPropagation();
+        aoFechar();
+      }
+    });
+  
+    /* ----------------------------------------------------------------- corpo -- */
+  
+    const dica = el('div', {
+      class: 'ff-text pop-texto',
+      style: {
+        left: px(CORPO.esquerda),
+        top: px(CORPO.topo),
+        width: px(CORPO.largura - (foto ? FOTO.largura + FOLGA : 0)),
+        height: px(CORPO.altura),
+      },
+      text: valueOrDefault(texto, ''),
+    });
+  
+    const imagem = foto
+      ? el('div', {
+          class: 'pop-foto',
+          style: {
+            left: px(CORPO.esquerda + CORPO.largura - FOTO.largura),
+            top: px(CORPO.topo),
+            width: px(FOTO.largura),
+            height: px(CORPO.altura),
+          },
+        },
+        Img(foto, { width: FOTO.largura, height: FOTO.altura, fit: 'contain' }))
+      : null;
+  
+    const cartao = el(
+      'div',
+      {
+        class: 'pop-cartao',
+        role: 'dialog',
+        'aria-modal': 'true',
+        style: { width: px(CARTAO.largura), height: px(CARTAO.altura) },
+      },
+      [marca, fechar, dica, imagem].filter(Boolean)
+    );
+  
+    return animateOnPageLoad(cartao, entrada);
   }
   Object.defineProperty(__exports, "PopUpWidget", { get: () => PopUpWidget, enumerable: true });
   });
@@ -6821,13 +9916,13 @@
   const { TH, style } = __require("theme.js");
   const { FFLocalizations, L } = __require("i18n.js");
   const { FFAppState } = __require("state.js");
-  const { playSound } = __require("audio.js");
+  const { playSound, tique } = __require("audio.js");
   const { showDialog } = __require("dialog.js");
   const { ConfirmacaoWidget } = __require("components/confirmacao.js");
   const { PopUpWidget } = __require("components/pop_up.js");
-  const { pushNamed, TransitionInfo, PageTransitionType } = __require("router.js");
+  const { goNamed, TransitionInfo, PageTransitionType } = __require("router.js");
   const { addUsuario, createUsuariosRecordData } = __require("backend.js");
-  const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
+  const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad, delayed, menosMovimento } = __require("anim.js");
   const { FlutterFlowTimer, FlutterFlowTimerController, InstantTimer, StopWatchMode, StopWatchTimer } = __require("timer.js");
   
   /* ------------------------------------------------------- scanner skinning -- */
@@ -6980,6 +10075,42 @@
       ],
     });
   
+  /**
+   * Relevo: um realce no alto e uma sombra embaixo, sobre a cor lisa do cartão.
+   *
+   * Vai pelo `gradient` do Container, e não por CSS: `color` vira a abreviação
+   * `background` no estilo inline, que zera `background-image` — uma regra de
+   * folha não alcançaria. O `Container` escreve `backgroundImage` depois de
+   * `background`, então o gradiente pousa por cima da cor.
+   *
+   * Em rgba porque o painel troca de pele conforme o scanner escolhido: branco e
+   * preto translúcidos funcionam sobre qualquer uma das cores.
+   */
+  const relevo = () =>
+    linearGradient({
+      colors: ['rgba(255, 255, 255, 0.30)', 'rgba(255, 255, 255, 0.04)', 'rgba(0, 0, 0, 0.07)'],
+      stops: [0.0, 0.46, 1.0],
+      begin: [0.0, -1.0],
+      end: [0.0, 1.0],
+    });
+  
+  /** A entrada das quatro alternativas, uma atrás da outra. */
+  const entradaDaResposta = (ordem) =>
+    new AnimationInfo({
+      trigger: AnimationTrigger.onPageLoad,
+      applyInitialState: true,
+      effectsBuilder: () => [
+        FadeEffect({ curve: Curves.easeOut, delay: 260.0 + ordem * 90.0, duration: 320.0, begin: 0.0, end: 1.0 }),
+        MoveEffect({
+          curve: Curves.easeOut,
+          delay: 260.0 + ordem * 90.0,
+          duration: 420.0,
+          begin: [64.0, 0.0],
+          end: [0.0, 0.0],
+        }),
+      ],
+    });
+  
   const hintPulse = () =>
     new AnimationInfo({
       loop: true,
@@ -7018,7 +10149,13 @@
     return pergunta(field, { enField });
   }
   
-  function PerguntasErespostasWidget() {
+  /**
+   * @param {object}   [opcoes]
+   * @param {Function} [opcoes.aoEntrarNaRetaFinal]  chamado uma vez quando o
+   *   relógio cruza os 15s. Quem desenha a moldura do defeito é a tela (o painel
+   *   só tem a metade direita), então a tela pede para ser avisada.
+   */
+  function PerguntasErespostasWidget({ aoEntrarNaRetaFinal = null } = {}) {
     const model = {
       apoio: false,
       youtube: false,
@@ -7027,6 +10164,7 @@
       representante: false,
       numeroDicas: 0,
       apertou: false,
+      revelando: false,
       timerMilliseconds: 60000,
       timerValue: StopWatchTimer.getDisplayTime(60000, { hours: false }),
       timerController: new FlutterFlowTimerController({ mode: StopWatchMode.countDown }),
@@ -7066,18 +10204,27 @@
   
       const card = InkWell({
         onTap: async () => {
+          // Durante a revelação a tela está congelada de propósito.
+          if (model.revelando) return;
           // Slots 0, 1 and 3 guard on `_model.apertou`; slot 2 guards on
           // FFAppState().finalizou instead - kept exactly as written.
           if (slot === 2 ? FFAppState.finalizou : model.apertou) return;
   
           model.apertou = true;
           playSound(model, sound, 'assets/audios/undertale-select-sound.mp3', 0.53);
-          await animation.controller.forward();
-          await showDialog({ builder: () => ConfirmacaoWidget() });
+          animation.controller.forward();
+          marcarEscolha(slot);
+          await showDialog({ builder: () => ConfirmacaoWidget({ numero: slot + 1, texto: text }) });
   
           if (FFAppState.finalizou) {
+            model.revelando = true;
             model.soundPlayer1?.stop();
             model.timerController.onStopTimer();
+            // O relógio não pode mandar para "Perdeu" no meio da revelação. No
+            // Dart só o slot 0 cancelava este timer — com a tela trocando na
+            // mesma batida da confirmação isso nunca aparecia; agora que existe
+            // uma pausa entre uma coisa e outra, aparece.
+            model.instantTimer?.cancel();
   
             const gabarito = valueOrDefault(
               FFAppState.questoesBrasil[FFAppState.indiceAtual]?.gabarito,
@@ -7095,7 +10242,22 @@
               invalido: FFAppState.cadastro.invalido,
             });
   
-            pushNamed(acertou ? 'Ganhou' : 'Perdeu', {
+            // A tela de fim precisa saber o que era certo para poder contar.
+            const slotCerto = FFAppState.ordemNumeros.findIndex((n) => String(n) === String(gabarito));
+            FFAppState.resultado = {
+              acertou,
+              numeroCerto: slotCerto >= 0 ? slotCerto + 1 : null,
+              textoCerto: slotCerto >= 0 ? respostaText(slotCerto, FFAppState.ordemNumeros[slotCerto]) : null,
+              numeroEscolhido: slot + 1,
+              textoEscolhido: text,
+            };
+  
+            // A pausa antes do veredito. É o pedaço do Jogo do Milhão que faltava
+            // aqui: sem ela o jogo julga e troca de tela na mesma batida, e
+            // ninguém chega a ver o que era certo.
+            await revelar({ slotEscolhido: slot, slotCerto });
+  
+            goNamed(acertou ? 'Ganhou' : 'Perdeu', {
               extra: {
                 __transition_info__: new TransitionInfo({
                   hasTransition: true,
@@ -7111,9 +10273,10 @@
             model.treinamento = false;
             model.representante = false;
             model.timerController.onResetTimer();
-            // Only the first answer cancels the tick timer in the Dart.
-            if (slot === 0) model.instantTimer?.cancel();
             FFAppState.finalizou = false;
+          } else {
+            // Cancelou: o cartão volta a ser um cartão como os outros.
+            marcarEscolha(null);
           }
           model.apertou = false;
         },
@@ -7121,6 +10284,7 @@
           width: 550.0,
           height: 125.0,
           color: cardColor(scanner()),
+          gradient: relevo(),
           boxShadow: boxShadow({ blurRadius: 10.0, color: color(0x5D000000), offset: [-10.0, 10.0], spreadRadius: 1.0 }),
           borderRadius: 12.0,
           child: Padding({
@@ -7143,6 +10307,8 @@
         }),
       });
   
+      card.classList.add('ff-resposta-cartao');
+  
       const stack = Stack({
         alignment: [-1.0, 0.0],
         children: [
@@ -7161,7 +10327,63 @@
         ],
       });
   
+      stack.dataset.resposta = String(slot);
+      // As quatro chegavam de uma vez, prontas. Entrando uma atrás da outra, o
+      // olho as lê na ordem em que vai precisar delas — e é a batida do gênero.
+      animateOnPageLoad(stack, entradaDaResposta(slot));
       return animateOnActionTrigger(stack, animation);
+    }
+  
+    /* ------------------------------------------------------------ revelação -- */
+  
+    /** Quanto o veredito fica na tela antes de trocar de página. */
+    const PAUSA_DA_REVELACAO = 1500;
+  
+    const cartoes = () => [...root.querySelectorAll('[data-resposta]')];
+  
+    /** Acende o cartão que o jogador tocou; `null` apaga todos. */
+    function marcarEscolha(slot) {
+      for (const no of cartoes()) {
+        no.classList.toggle('ff-resposta--escolhida', Number(no.dataset.resposta) === slot);
+      }
+    }
+  
+    /**
+     * Congela a tela, apaga as alternativas descartadas, acende a certa em verde
+     * e — se foi o caso — a errada em vermelho. Devolve quando a pausa acabou.
+     */
+    function revelar({ slotEscolhido, slotCerto }) {
+      root.classList.add('ff-revelando');
+      for (const no of cartoes()) {
+        const slot = Number(no.dataset.resposta);
+        // Solta as animações que ainda seguram este cartão — a entrada e o aperto
+        // do toque. As duas têm `fill: both`, e animação preenchida ganha de
+        // regra de folha: sem soltar, o `opacity` que apaga as descartadas
+        // simplesmente não valeria.
+        //
+        // Mas cancelar não basta, e foi assim que a resposta certa sumia da tela:
+        // `applyInitialState` escreve o QUADRO 0 no estilo inline — para a
+        // entrada, `opacity: 0` e `translate(64px)` — e nunca o apaga. Enquanto a
+        // animação corria ela mascarava isso; cancelada, o quadro 0 voltava a
+        // valer e o cartão desaparecia 64px fora do lugar. Limpar as duas
+        // propriedades é o que devolve o elemento ao CSS.
+        for (const animacao of no.getAnimations()) animacao.cancel();
+        no.style.transform = no.dataset.baseTransform ?? '';
+        no.classList.remove('ff-resposta--escolhida');
+  
+        // Opacidade cheia, escrita INLINE. Não é enfeite: sem isto o cartão fica
+        // com o `opacity: 0` que o `applyInitialState` deixou, e some — era esse
+        // o defeito. Quem recua é o filtro da classe `--fria`, que ninguém mais
+        // disputa. Aqui não há espaço para "quase": ou o jogador vê qual era a
+        // certa, ou o veredito não serviu para nada.
+        no.style.opacity = '1';
+        if (slot === slotCerto) no.classList.add('ff-resposta--certa');
+        else if (slot === slotEscolhido) no.classList.add('ff-resposta--errada');
+        else no.classList.add('ff-resposta--fria');
+      }
+      // Sem movimento ligado, o veredito ainda precisa ser lido: as cores ficam,
+      // só a espera encurta.
+      return delayed(menosMovimento() ? 700 : PAUSA_DA_REVELACAO);
     }
   
     /* -------------------------------------------------------- support hints -- */
@@ -7172,7 +10394,7 @@
           playSound(model, spec.sound, 'assets/audios/adriantnt_u_click.mp3', 0.5);
           if (model[spec.key]) return;
   
-          await actionAnimation.controller.forward();
+          actionAnimation.controller.forward();
           model[spec.key] = true;
           refreshHints();
   
@@ -7275,14 +10497,48 @@
   
     /* ----------------------------------------------------------- the timer -- */
   
+    /**
+     * A reta final.
+     *
+     * `FFAppState.tempoAcabando` existia desde o Dart e ninguém a lia: a tela da
+     * pergunta a ligava aos 15s DE TELA e a tela de fim a zerava. Agora ela é
+     * ligada pelos 15s QUE FALTAM, que é onde a tensão mora, e tem dois ouvintes:
+     * o CSS (relógio vermelho pulsando, moldura do defeito quente) e o tique.
+     */
+    const RETA_FINAL_MS = 15000;
+    const TIQUE_MS = 10000;
+  
+    // A caixa branca do relógio, presa mais abaixo na árvore. Fica `null` até lá;
+    // o relógio só cruza os 15s muito depois da árvore existir.
+    let caixaDoRelogio = null;
+  
+    function olharORelogio(value, deveAtualizar) {
+      if (model.revelando) return;
+  
+      if (!FFAppState.tempoAcabando && value <= RETA_FINAL_MS) {
+        FFAppState.tempoAcabando = true;
+        caixaDoRelogio?.classList.add('ff-cronometro--reta-final');
+        aoEntrarNaRetaFinal?.();
+      }
+  
+      // `deveAtualizar` vem do próprio FlutterFlowTimer e é verdadeiro uma vez por
+      // segundo — é o batimento que o tique quer, e não o quadro.
+      if (!deveAtualizar || value > TIQUE_MS || value <= 0) return;
+      // Sobe meio tom por segundo nos últimos dez: o ouvido percebe a subida sem
+      // precisar contar.
+      const restantes = Math.max(0, Math.ceil(value / 1000));
+      tique({ frequencia: 880 + (10 - restantes) * 26, duracao: 0.07, volume: 0.16 });
+    }
+  
     const timer = FlutterFlowTimer({
       initialTime: 60000,
       controller: model.timerController,
       getDisplayTime: (value) => StopWatchTimer.getDisplayTime(value, { hours: false }),
       updateStateInterval: 1000,
-      onChanged: (value, displayTime) => {
+      onChanged: (value, displayTime, deveAtualizar) => {
         model.timerMilliseconds = value;
         model.timerValue = displayTime;
+        olharORelogio(value, deveAtualizar);
       },
       textAlign: 'justify',
       style: style('headlineSmall', {
@@ -7464,6 +10720,7 @@
                                 }),
                                 Container({
                                   color: cardColor(scanner()),
+                                  gradient: relevo(),
                                   boxShadow: boxShadow({
                                     blurRadius: 10.0,
                                     color: color(0x5D000000),
@@ -7492,18 +10749,20 @@
           alignment: [1.0, 1.0],
           child: Padding({
             padding: [0.0, 0.0, 52.0, 32.0],
-            child: Container({
+            child: (caixaDoRelogio = Container({
               width: 385.0,
               height: 90.0,
               color: '#FFFFFF',
+              gradient: relevo(),
               boxShadow: boxShadow({ blurRadius: 10.0, color: color(0x5D000000), offset: [-5.0, 5.0], spreadRadius: 1.0 }),
               borderRadius: 8.0,
               child: Padding({ padding: [8.0, 8.0, 8.0, 8.0], child: timer }),
-            }),
+            })),
           }),
         }),
       ],
     });
+    caixaDoRelogio.classList.add('ff-cronometro');
   
     /* --------------------------------------------------------- on page load -- */
     // Background music, then a 1Hz tick that sends the player to Perdeu when the
@@ -7526,7 +10785,7 @@
         model.timerController.onResetTimer();
         model.soundPlayer1?.stop();
         model.instantTimer?.cancel();
-        pushNamed('Perdeu', {
+        goNamed('Perdeu', {
           extra: {
             __transition_info__: new TransitionInfo({
               hasTransition: true,
@@ -7563,15 +10822,19 @@
   // Port of lib/pages/acao/tela_acao/tela_acao_widget.dart
   //
   // The game screen: the fault brief on the left, the scanner panel with the
-  // answers on the right. A background task flips `tempoAcabando` after 15s
-  // (write-only state in the original) and then waits another 15s.
+  // answers on the right.
+  //
+  // A RETA FINAL. O Dart tinha uma tarefa de fundo que ligava `tempoAcabando`
+  // 15s DEPOIS DA TELA ABRIR e ninguém lia a bandeira — era um recurso desenhado
+  // e nunca ligado. Agora quem a liga é o relógio, aos 15s QUE FALTAM (ver
+  // perguntas_erespostas.js), e ela tem ouvintes: a moldura do defeito esquenta
+  // aqui, o relógio pulsa e o tique começa lá.
   
   const { Align, ClipRRect, Column, Container, Flexible, Img, Padding, Row, Stack, Txt, TransformRotate, color, decorationImage, degrees, el, valueOrDefault } = __require("widgets.js");
   const { style } = __require("theme.js");
   const { FFLocalizations, L } = __require("i18n.js");
   const { FFAppState } = __require("state.js");
   const { PerguntasErespostasWidget } = __require("components/perguntas_erespostas.js");
-  const { delayed } = __require("anim.js");
   
   function TelaAcaoWidget() {
     const index = FFAppState.indiceAtual;
@@ -7582,7 +10845,13 @@
       enText: FFAppState.questoesEnglish[index]?.pergunta,
     });
   
-    const panel = PerguntasErespostasWidget();
+    // A moldura branca em volta do enunciado, presa mais abaixo na árvore: é ela
+    // que esquenta quando o relógio entra na reta final.
+    let molduraDoDefeito = null;
+  
+    const panel = PerguntasErespostasWidget({
+      aoEntrarNaRetaFinal: () => molduraDoDefeito?.classList.add('ff-moldura--reta-final'),
+    });
   
     const root = el(
       'div',
@@ -7609,7 +10878,7 @@
                         Padding({
                           padding: [86.0, 86.0, 68.0, 68.0],
                           style: { width: '100%', height: '100%' },
-                          child: Container({
+                          child: molduraDoDefeito = Container({
                             width: Infinity,
                             height: Infinity,
                             color: color(0x10FFFFFF),
@@ -7694,17 +10963,11 @@
       })
     );
   
-    // Future.wait([...]) on page load: flip tempoAcabando at 15s, then idle.
-    let left = false;
-    (async () => {
-      await delayed(15000);
-      if (left) return;
-      FFAppState.tempoAcabando = true;
-      await delayed(15000);
-    })();
+    // A partida começa com o relógio cheio; quem ligar `tempoAcabando` daqui em
+    // diante é o próprio relógio.
+    FFAppState.tempoAcabando = false;
   
     root.__dispose = () => {
-      left = true;
       panel.__dispose?.();
     };
   
@@ -7723,10 +10986,21 @@
   //
   // Both read the top 5 winners and show the first 3, then REINICIAR sends the
   // WhatsApp message, clears the run state and restarts at the transition video.
+  //
+  // E a tela de DERROTA passou a contar qual era a resposta certa. O jogo julgava
+  // e ia embora sem dizer — num jogo feito para ensinar técnico a usar scanner,
+  // quem errava saía sem ter aprendido nada, que é o contrário do ponto.
+  //
+  // A de vitória não mostra: a revelação na tela da pergunta já acendeu em verde
+  // a alternativa certa, e ela era justamente a que o jogador escolheu. Repetir
+  // ali é contar a alguém o que essa pessoa acabou de dizer.
+  //
+  // O que mostrar vem de `FFAppState.resultado`, escrito na hora do veredito.
   
   const { Align, ClipRRect, Column, Container, Expanded, FutureBuilder, Img, Padding, Row, Stack, StackAlign, Txt, color, decorationImage, divide, el, maybeHandleOverflow, unfocus, valueOrDefault } = __require("widgets.js");
   const { TH, style } = __require("theme.js");
   const { L } = __require("i18n.js");
+  const { T } = __require("textos.js");
   const { CadastroStruct, FFAppState } = __require("state.js");
   const { formatMillisecondsToTime, transformaNumero } = __require("functions.js");
   const { playSound } = __require("audio.js");
@@ -7778,7 +11052,7 @@
   
     const restart = async () => {
       playSound(model, 'soundPlayer2', 'assets/audios/undertale-select-sound.mp3', 0.6);
-      await animationsMap.buttonOnActionTriggerAnimation.controller.forward();
+      animationsMap.buttonOnActionTriggerAnimation.controller.forward();
   
       await enviarMensagemZap({
         numero: transformaNumero(FFAppState.cadastro.telefone),
@@ -7789,7 +11063,7 @@
       FFAppState.tempoAcabando = false;
       FFAppState.cadastro = new CadastroStruct();
       FFAppState.ajuda = 0;
-      FFAppState.update();
+      FFAppState.resultado = null;
   
       goNamed('telaVideoTransisao', {
         queryParameters: { tipo: serializeParam(0) },
@@ -7797,7 +11071,7 @@
           __transition_info__: new TransitionInfo({
             hasTransition: true,
             transitionType: PageTransitionType.fade,
-            duration: 0,
+            duration: 300,
           }),
         },
       });
@@ -7883,6 +11157,80 @@
         animationsMap.textOnPageLoadAnimation
       );
   
+      // O gabarito, contado a QUEM ERROU. Entra atrasado de propósito (1,1s): a
+      // manchete chega primeiro, a explicação depois — na ordem em que a pessoa
+      // quer as duas coisas.
+      //
+      // Quem acertou não vê este cartão. A revelação na tela da pergunta já
+      // acendeu a alternativa certa em verde, e ela era a que o jogador tinha
+      // escolhido: repetir aqui é contar a alguém o que essa pessoa acabou de
+      // dizer. Quem errou é que precisa da resposta — é a única coisa que ele
+      // leva embora.
+      const resultado = FFAppState.resultado;
+      const gabarito =
+        !resultado?.acertou && resultado?.numeroCerto && resultado?.textoCerto
+          ? animateOnPageLoad(
+              Container({
+                // 520 e não mais: o botão REINICIAR começa em x≈615 do palco, e
+                // o canto de baixo à esquerda é o único vazio das duas telas.
+                width: 520.0,
+                color: color(0xB3000E24),
+                borderRadius: 12.0,
+                border: '2px solid #FF5963',
+                child: Padding({
+                  padding: [28.0, 20.0, 28.0, 20.0],
+                  child: Column({
+                    mainAxisSize: 'max',
+                    crossAxisAlignment: 'start',
+                    children: [
+                      Txt(
+                        `${T('respostaCerta')}: ${T('alternativa')} ${resultado.numeroCerto}`,
+                        style('bodyMedium', {
+                          fontFamily: 'pirulen',
+                          color: '#FF9A94',
+                          fontSize: 22.0,
+                          letterSpacing: 2.0,
+                          fontWeight: 400,
+                          textAlign: 'left',
+                        })
+                      ),
+                      Padding({
+                        padding: [0.0, 10.0, 0.0, 0.0],
+                        child: Txt(
+                          resultado.textoCerto,
+                          style('bodyMedium', {
+                            fontFamily: 'Open Sans',
+                            color: '#FFFFFF',
+                            fontSize: 22.0,
+                            fontWeight: 400,
+                            textAlign: 'left',
+                          })
+                        ),
+                      }),
+                      // Sem isto a pessoa não liga o que escolheu ao que era certo.
+                      resultado.textoEscolhido
+                        ? Padding({
+                            padding: [0.0, 14.0, 0.0, 0.0],
+                            child: Txt(
+                              `${T('voceRespondeu')}: ${T('alternativa')} ${resultado.numeroEscolhido}`,
+                              style('bodyMedium', {
+                                fontFamily: 'Open Sans',
+                                color: '#B9C6DA',
+                                fontSize: 18.0,
+                                fontWeight: 400,
+                                textAlign: 'left',
+                              })
+                            ),
+                          })
+                        : null,
+                    ],
+                  }),
+                }),
+              }),
+              slideIn(1100.0, 700.0)
+            )
+          : null;
+  
       const ranking = animateOnPageLoad(
         Container({
           width: spec.rankingWidth,
@@ -7929,6 +11277,10 @@
             child: Padding({ padding: [0.0, 32.0, 0.0, 40.0], child: headline }),
           }),
           StackAlign({ alignment: spec.rankingAlignment, child: ranking }),
+          // Ancorado por baixo (y perto de 1): o cartão cresce com o tamanho da
+          // resposta e a borda de baixo fica onde está, em vez de descer para
+          // fora do palco.
+          gabarito ? StackAlign({ alignment: [-0.897, 0.93], child: gabarito }) : null,
         ],
       });
     };
@@ -8026,9 +11378,15 @@
   const { TelaAcaoWidget } = __require("pages/tela_acao.js");
   const { GanhouWidget } = __require("pages/ganhou.js");
   const { PerdeuWidget } = __require("pages/perdeu.js");
+  const { PortaDoAdmWidget } = __require("admin/porta.js");
   
   // GoRouter's initialLocation is '/', which builds CadastroWidget - as does the
   // errorBuilder, so an unknown path lands on the registration screen too.
+  //
+  // `/adm` nao vem do Dart: e a administracao, que desde a v2 mora neste mesmo
+  // documento (um endereco so, para o GitHub Pages). Ela nao desenha no palco --
+  // levanta a propria camada por fora --, entao o builder devolve uma casca
+  // vazia. Ver web/js/admin/porta.js.
   const ROUTES = [
     { name: '_initialize', path: '/', builder: CadastroWidget },
     { name: 'roleta', path: '/roleta', builder: RoletaWidget },
@@ -8041,6 +11399,7 @@
     { name: 'telaVideoScanner', path: '/telaVideoScanner', builder: TelaVideoScannerWidget },
     { name: 'instrucoes', path: '/instrucoes', builder: InstrucoesWidget },
     { name: 'carroSleecionado', path: '/carro', builder: CarroSleecionadoWidget },
+    { name: 'adm', path: '/adm', builder: PortaDoAdmWidget },
   ];
   
   function main() {

@@ -6,6 +6,16 @@
 //
 // Both read the top 5 winners and show the first 3, then REINICIAR sends the
 // WhatsApp message, clears the run state and restarts at the transition video.
+//
+// E a tela de DERROTA passou a contar qual era a resposta certa. O jogo julgava
+// e ia embora sem dizer — num jogo feito para ensinar técnico a usar scanner,
+// quem errava saía sem ter aprendido nada, que é o contrário do ponto.
+//
+// A de vitória não mostra: a revelação na tela da pergunta já acendeu em verde
+// a alternativa certa, e ela era justamente a que o jogador escolheu. Repetir
+// ali é contar a alguém o que essa pessoa acabou de dizer.
+//
+// O que mostrar vem de `FFAppState.resultado`, escrito na hora do veredito.
 
 import {
   Align,
@@ -30,6 +40,7 @@ import {
 } from '../widgets.js';
 import { TH, style } from '../theme.js';
 import { L } from '../i18n.js';
+import { T } from '../textos.js';
 import { CadastroStruct, FFAppState } from '../state.js';
 import { formatMillisecondsToTime, transformaNumero } from '../functions.js';
 import { playSound } from '../audio.js';
@@ -90,7 +101,7 @@ export function FimWidget(spec) {
 
   const restart = async () => {
     playSound(model, 'soundPlayer2', 'assets/audios/undertale-select-sound.mp3', 0.6);
-    await animationsMap.buttonOnActionTriggerAnimation.controller.forward();
+    animationsMap.buttonOnActionTriggerAnimation.controller.forward();
 
     await enviarMensagemZap({
       numero: transformaNumero(FFAppState.cadastro.telefone),
@@ -101,7 +112,7 @@ export function FimWidget(spec) {
     FFAppState.tempoAcabando = false;
     FFAppState.cadastro = new CadastroStruct();
     FFAppState.ajuda = 0;
-    FFAppState.update();
+    FFAppState.resultado = null;
 
     goNamed('telaVideoTransisao', {
       queryParameters: { tipo: serializeParam(0) },
@@ -109,7 +120,7 @@ export function FimWidget(spec) {
         __transition_info__: new TransitionInfo({
           hasTransition: true,
           transitionType: PageTransitionType.fade,
-          duration: 0,
+          duration: 300,
         }),
       },
     });
@@ -195,6 +206,80 @@ export function FimWidget(spec) {
       animationsMap.textOnPageLoadAnimation
     );
 
+    // O gabarito, contado a QUEM ERROU. Entra atrasado de propósito (1,1s): a
+    // manchete chega primeiro, a explicação depois — na ordem em que a pessoa
+    // quer as duas coisas.
+    //
+    // Quem acertou não vê este cartão. A revelação na tela da pergunta já
+    // acendeu a alternativa certa em verde, e ela era a que o jogador tinha
+    // escolhido: repetir aqui é contar a alguém o que essa pessoa acabou de
+    // dizer. Quem errou é que precisa da resposta — é a única coisa que ele
+    // leva embora.
+    const resultado = FFAppState.resultado;
+    const gabarito =
+      !resultado?.acertou && resultado?.numeroCerto && resultado?.textoCerto
+        ? animateOnPageLoad(
+            Container({
+              // 520 e não mais: o botão REINICIAR começa em x≈615 do palco, e
+              // o canto de baixo à esquerda é o único vazio das duas telas.
+              width: 520.0,
+              color: color(0xB3000E24),
+              borderRadius: 12.0,
+              border: '2px solid #FF5963',
+              child: Padding({
+                padding: [28.0, 20.0, 28.0, 20.0],
+                child: Column({
+                  mainAxisSize: 'max',
+                  crossAxisAlignment: 'start',
+                  children: [
+                    Txt(
+                      `${T('respostaCerta')}: ${T('alternativa')} ${resultado.numeroCerto}`,
+                      style('bodyMedium', {
+                        fontFamily: 'pirulen',
+                        color: '#FF9A94',
+                        fontSize: 22.0,
+                        letterSpacing: 2.0,
+                        fontWeight: 400,
+                        textAlign: 'left',
+                      })
+                    ),
+                    Padding({
+                      padding: [0.0, 10.0, 0.0, 0.0],
+                      child: Txt(
+                        resultado.textoCerto,
+                        style('bodyMedium', {
+                          fontFamily: 'Open Sans',
+                          color: '#FFFFFF',
+                          fontSize: 22.0,
+                          fontWeight: 400,
+                          textAlign: 'left',
+                        })
+                      ),
+                    }),
+                    // Sem isto a pessoa não liga o que escolheu ao que era certo.
+                    resultado.textoEscolhido
+                      ? Padding({
+                          padding: [0.0, 14.0, 0.0, 0.0],
+                          child: Txt(
+                            `${T('voceRespondeu')}: ${T('alternativa')} ${resultado.numeroEscolhido}`,
+                            style('bodyMedium', {
+                              fontFamily: 'Open Sans',
+                              color: '#B9C6DA',
+                              fontSize: 18.0,
+                              fontWeight: 400,
+                              textAlign: 'left',
+                            })
+                          ),
+                        })
+                      : null,
+                  ],
+                }),
+              }),
+            }),
+            slideIn(1100.0, 700.0)
+          )
+        : null;
+
     const ranking = animateOnPageLoad(
       Container({
         width: spec.rankingWidth,
@@ -241,6 +326,10 @@ export function FimWidget(spec) {
           child: Padding({ padding: [0.0, 32.0, 0.0, 40.0], child: headline }),
         }),
         StackAlign({ alignment: spec.rankingAlignment, child: ranking }),
+        // Ancorado por baixo (y perto de 1): o cartão cresce com o tamanho da
+        // resposta e a borda de baixo fica onde está, em vez de descer para
+        // fora do palco.
+        gabarito ? StackAlign({ alignment: [-0.897, 0.93], child: gabarito }) : null,
       ],
     });
   };

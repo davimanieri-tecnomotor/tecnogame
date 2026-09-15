@@ -5,14 +5,23 @@
 //  1. o baralho embutido reproduz questions.js campo por campo;
 //  2. as dez voltas da roleta são os mesmos números do Dart;
 //  3. a arte original é usada enquanto os veículos são os originais;
-//  4. um baralho de tamanho diferente sorteia, gera a roda e joga até o fim.
+//  4. um baralho de tamanho diferente sorteia, gera a roda e joga até o fim;
+//  5. a fatia que para sob a seta é a mesma rodada que o jogo abre em seguida.
 import puppeteer from 'puppeteer';
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8099';
 const pageUrl = (route) => (BASE.endsWith('.html') ? `${BASE}#${route}` : `${BASE}/#${route}`);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
+const browser = await puppeteer.launch({
+  headless: 'new',
+  args: ['--no-sandbox'],
+  // Sozinho este teste roda em ~46s, mas ele joga partidas inteiras e a suite o
+  // corre junto com outros cinco Chromes; numa maquina disputada ele ja passou
+  // de 188s e morreu no teto padrao de 180s do puppeteer, que e rede de
+  // seguranca do puppeteer e nao exigencia deste projeto.
+  protocolTimeout: 420000,
+});
 const page = await browser.newPage();
 await page.setViewport({ width: 1920, height: 1080 });
 const falhas = [];
@@ -45,20 +54,28 @@ const paridade = await page.evaluate(async () => {
 
   if (slots.length !== 10) problemas.push(`baralho embutido tem ${slots.length} slots, esperava 10`);
 
+  // Desde a v2 do baralho um veiculo tem um BANCO de perguntas; o embutido nasce
+  // com uma por veiculo, que e a do Dart.
   slots.forEach((slot, i) => {
+    if ((slot.perguntas ?? []).length !== 1) {
+      problemas.push(`slot ${i}: o embutido deveria ter 1 pergunta, tem ${(slot.perguntas ?? []).length}`);
+      return;
+    }
+    const pergunta = slot.perguntas[0];
+    if (pergunta.ativa !== true) problemas.push(`slot ${i}: a pergunta do embutido deveria nascer ativa`);
     for (const lang of deck.IDIOMAS) {
       const q = QUESTIONS[lang][i];
       for (const campo of deck.CAMPOS_QUESTAO) {
         const esperado = q[campo] ?? '';
-        const obtido = slot[lang][campo];
+        const obtido = pergunta[lang][campo];
         if (obtido !== esperado) {
           problemas.push(`slot ${i} ${lang}.${campo}: ${JSON.stringify(obtido)} != ${JSON.stringify(esperado)}`);
         }
       }
     }
-    if (slot.gabarito !== String(QUESTIONS.pt[i].gabarito)) problemas.push(`slot ${i}: gabarito`);
+    if (pergunta.gabarito !== String(QUESTIONS.pt[i].gabarito)) problemas.push(`slot ${i}: gabarito`);
     for (const flag of ['raster3S', 'rasher4', 'xtool']) {
-      if (slot.scanners[flag] !== Boolean(QUESTIONS.pt[i][flag])) problemas.push(`slot ${i}: flag ${flag}`);
+      if (pergunta.scanners[flag] !== Boolean(QUESTIONS.pt[i][flag])) problemas.push(`slot ${i}: flag ${flag}`);
     }
   });
 
@@ -84,7 +101,7 @@ const paridade = await page.evaluate(async () => {
   // 3: a arte original vale para o baralho embutido, e não para um alterado.
   if (!deck.usaArteOriginal(deck.BARALHO_ORIGINAL)) problemas.push('usaArteOriginal deveria ser true no embutido');
   const trocado = {
-    versao: 1,
+    versao: 2,
     slots: deck.SLOTS_ORIGINAIS.map((s, i) =>
       i === 0 ? { ...s, veiculo: { ...s.veiculo, imagem: 'assets/images/BMW.png' } } : s
     ),
@@ -93,9 +110,11 @@ const paridade = await page.evaluate(async () => {
 
   // Só mexer no texto não invalida a arte: os veículos continuam os mesmos.
   const soTexto = {
-    versao: 1,
+    versao: 2,
     slots: deck.SLOTS_ORIGINAIS.map((s, i) =>
-      i === 0 ? { ...s, pt: { ...s.pt, pergunta: 'outra pergunta' } } : s
+      i === 0
+        ? { ...s, perguntas: [{ ...s.perguntas[0], pt: { ...s.perguntas[0].pt, pergunta: 'outra pergunta' } }] }
+        : s
     ),
   };
   if (!deck.usaArteOriginal(soTexto)) problemas.push('editar so o texto nao deveria invalidar a arte');
@@ -123,13 +142,14 @@ await page.evaluate(async (n) => {
   const slots = Array.from({ length: n }, (_, i) => {
     const s = JSON.parse(JSON.stringify(base[i % base.length]));
     s.veiculo.nome = `Veiculo de teste ${i + 1}`;
+    const p = s.perguntas[0];
     // Todos resolvem com qualquer equipamento, para o teste sempre conseguir avançar.
-    s.scanners = { raster3S: true, rasher4: true, xtool: true };
-    s.gabarito = '2';
-    for (const lang of deck.IDIOMAS) s[lang].pergunta = `Pergunta de teste ${i + 1}`;
+    p.scanners = { raster3S: true, rasher4: true, xtool: true };
+    p.gabarito = '2';
+    for (const lang of deck.IDIOMAS) p[lang].pergunta = `Pergunta de teste ${i + 1}`;
     return s;
   });
-  deck.publicarBaralho({ versao: 1, slots });
+  deck.publicarBaralho({ versao: 2, slots });
 }, N_CUSTOM);
 
 // Caminho 1: o totem reinicia. Um reload sempre le o baralho publicado.
@@ -237,8 +257,12 @@ for (let i = 0; i < 90; i++) {
 await wait(1500);
 
 const jogo = await page.evaluate(() => {
+  // O valor COMPUTADO, e nao `n.style.fontSize`: o piso de legibilidade emite
+  // `max(55px, var(--piso-fonte))`, entao a string do estilo inline nao e mais
+  // "55px". Em 1x o computado continua 55.
+  const fontePx = (n) => Math.round(parseFloat(getComputedStyle(n).fontSize));
   const cards = [...document.querySelectorAll('#pages .ff-text')]
-    .filter((n) => /^[1-4]$/.test(n.textContent.trim()) && n.style.fontSize === '55px')
+    .filter((n) => /^[1-4]$/.test(n.textContent.trim()) && fontePx(n) === 55)
     .map((n) => n.closest('.ff-stack'));
   const enunciado = [...document.querySelectorAll('#pages .ff-text')]
     .map((n) => n.textContent.trim())
@@ -249,9 +273,345 @@ console.log('   tela de jogo ->', JSON.stringify(jogo));
 if (jogo.alternativas !== 4) falhas.push(`a tela de jogo mostrou ${jogo.alternativas} alternativas`);
 if (!jogo.enunciado) falhas.push('o enunciado nao veio do baralho publicado');
 
+/* ---- 5: a fatia que para sob a seta e a rodada que o jogo abre em seguida --
+ * A roda gerada desenha as fatias e o `escolha` sorteado gira a roda; se os
+ * dois discordarem, a seta mostra um carro e o jogo abre outro. Ja aconteceu:
+ * as fatias corriam no sentido horario, o giro tambem, e a roda parava na
+ * fatia -k. Isto confere as duas pontas para todo N e todo k. */
+
+const alinhamento = await page.evaluate(async () => {
+  const carregar = async (nome) =>
+    window.__tecgameRequire ? window.__tecgameRequire(nome) : await import(`./js/${nome}`);
+  const { rodaGerada } = await carregar('roda.js');
+  const fns = await carregar('functions.js');
+
+  // O angulo do meio de cada fatia, lido do proprio `d` que a roda gerou:
+  // "M cx cy L x1 y1 A r r 0 f 1 x2 y2 Z".
+  const anguloDoMeio = (d, c) => {
+    // "M cx cy L x1 y1 A r r 0 f 1 x2 y2 Z" -> so os numeros, na ordem.
+    const n = d.split(' ').map(Number).filter((v) => !Number.isNaN(v));
+    const grau = (x, y) => ((Math.atan2(y - c, x - c) * 180) / Math.PI + 360) % 360;
+    const a = grau(n[2], n[3]);
+    let b = grau(n[9], n[10]);
+    if (b <= a) b += 360; // a fatia sempre varre no sentido horario
+    return ((a + b) / 2) % 360;
+  };
+
+  const problemas = [];
+  for (const N of [3, 7, 9, 10, 12, 20]) {
+    const svgEl = rodaGerada(Array.from({ length: N }, () => ({ veiculo: { imagem: '' } })));
+    const c = Number(svgEl.getAttribute('viewBox').split(' ')[2]) / 2;
+    const fatias = [...svgEl.querySelectorAll('path')]
+      .filter((p) => !p.closest('clipPath'))
+      .map((p) => anguloDoMeio(p.getAttribute('d'), c));
+    if (fatias.length !== N) {
+      problemas.push(`N=${N}: a roda tem ${fatias.length} fatias`);
+      continue;
+    }
+    for (let k = 0; k < N; k++) {
+      const escolha = fns.voltaDoIndice(k, N);
+      const giro = escolha * 360; // rotate() e horario
+      // 90 graus e para BAIXO no SVG, que e onde a seta aponta.
+      const perto = fatias.map((ang) => {
+        const d = ((((ang + giro - 90) % 360) + 360) % 360);
+        return Math.min(d, 360 - d);
+      });
+      const naSeta = perto.indexOf(Math.min(...perto));
+      const abre = fns.escolhaParaIndice(escolha, N);
+      if (naSeta !== abre) {
+        problemas.push(`N=${N} k=${k}: a seta para na fatia ${naSeta}, mas o jogo abre a ${abre}`);
+      }
+    }
+  }
+  return problemas;
+});
+console.log(
+  alinhamento.length
+    ? '5. ALINHAMENTO FALHOU:'
+    : '5. a fatia sob a seta e a rodada que o jogo abre, para todo N e todo k'
+);
+alinhamento.slice(0, 10).forEach((p) => console.log('   - ' + p));
+falhas.push(...alinhamento);
+
+/* ------- 6: a roda gerada cabe na caixa, se le, e nao corta as fotos -------
+ * Quatro bugs de desenho, um teste. (a) O brilho das lampadas passava 13,6px da
+ * caixa e saia cortado reto no alto e nos dois lados. (b) Com N impar a
+ * primeira e a ultima fatia caiam na mesma cor, se encostavam e viravam um
+ * bloco do dobro da largura — a roda mostrava uma rodada a menos do que tem.
+ * (c) Nada segurava a quina de fora da foto contra o arco, e o carro encostado
+ * na borda saia cortado. (d) O aro tinha uma lampada por fatia, o que deixava
+ * uma lampada so num baralho de uma rodada, e a divisao que consertava isso
+ * punha uma lampada no meio da fatia — acesa por dentro do vao da seta. */
+
+const desenho = await page.evaluate(async () => {
+  const carregar = async (nome) =>
+    window.__tecgameRequire ? window.__tecgameRequire(nome) : await import(`./js/${nome}`);
+  const { rodaGerada } = await carregar('roda.js');
+
+  // A roda mede a foto para acertar a proporcao da caixa dela, e isso chega por
+  // evento. Deixa a foto no cache antes, para o que este teste le ser a
+  // geometria final e nao a provisoria.
+  const FOTO = 'assets/images/FIAT_TORO.png';
+  await new Promise((ok) => {
+    const i = new Image();
+    i.onload = ok;
+    i.onerror = ok;
+    i.src = FOTO;
+  });
+
+  const problemas = [];
+  for (const N of [1, 2, 3, 5, 7, 9, 10, 12, 16, 30]) {
+    const slots = Array.from({ length: N }, () => ({
+      veiculo: { imagem: FOTO, largura: 1235, altura: 674 },
+    }));
+    const el = rodaGerada(slots);
+    await new Promise((ok) => setTimeout(ok, 40));
+    const lado = Number(el.getAttribute('viewBox').split(' ')[2]);
+    const c = lado / 2;
+
+    // (a) nada desenhado passa da caixa: o viewBox quadrado E a caixa.
+    let alcance = 0;
+    for (const n of el.querySelectorAll('circle')) {
+      const d = Math.hypot(+n.getAttribute('cx') - c, +n.getAttribute('cy') - c) + +n.getAttribute('r');
+      if (d > alcance) alcance = d;
+    }
+    if (alcance > c + 0.5) problemas.push(`N=${N}: a roda passa ${(alcance - c).toFixed(1)} do viewBox`);
+    // e ela tambem nao pode ser pequena demais, senao a troca da arte pronta
+    // para o desenho faria a roleta mudar de tamanho no meio do jogo.
+    if (alcance < c * 0.9) problemas.push(`N=${N}: a roda so ocupa ${((alcance / c) * 100).toFixed(0)}% da caixa`);
+
+    // (b) nenhuma fatia tem a cor da vizinha.
+    const cores = [...el.querySelectorAll('path')]
+      .filter((p) => !p.closest('clipPath'))
+      .map((p) => p.getAttribute('fill'));
+    if (cores.length !== N) problemas.push(`N=${N}: a roda tem ${cores.length} fatias`);
+    if (N > 1) {
+      for (let i = 0; i < cores.length; i++) {
+        const j = (i + 1) % cores.length;
+        if (cores[i] === cores[j]) problemas.push(`N=${N}: fatias ${i} e ${j} estao as duas em ${cores[i]}`);
+      }
+    }
+
+    // (c) a quina de fora de cada foto fica dentro do arco da fatia.
+    const rFatia = Math.max(
+      ...[...el.querySelectorAll('path')]
+        .filter((p) => !p.closest('clipPath'))
+        .map((p) => {
+          const v = p.getAttribute('d').split(' ').map(Number).filter((x) => !Number.isNaN(x));
+          return Math.max(Math.hypot(v[2] - c, v[3] - c), Math.hypot(v[0] - c, v[1] - c));
+        })
+    );
+    for (const img of el.querySelectorAll('image')) {
+      const x = +img.getAttribute('x');
+      const y = +img.getAttribute('y');
+      const larg = +img.getAttribute('width');
+      const alt = +img.getAttribute('height');
+      // A rotacao e em volta do centro da foto, entao a quina mais longe do
+      // centro da roda nao muda de distancia com ela.
+      const dist = Math.hypot(x + larg / 2 - c, y + alt / 2 - c);
+      const quina = Math.hypot(dist + alt / 2, larg / 2);
+      if (quina > rFatia + 0.5) problemas.push(`N=${N}: a foto passa ${(quina - rFatia).toFixed(1)} do arco`);
+    }
+
+    // (d) o aro nunca fica ralo, toda divisa tem a sua lampada, e nenhuma cai
+    // no meio de uma fatia — o meio da fatia e onde a seta para, e a lampada
+    // ali acendia por dentro do vao da seta.
+    const halos = [...el.querySelectorAll('circle')].filter((n) =>
+      (n.getAttribute('fill') || '').startsWith('url')
+    );
+    const doAro = halos.filter((n) => Math.hypot(+n.getAttribute('cx') - c, +n.getAttribute('cy') - c) > c * 0.5);
+    if (doAro.length < 10) problemas.push(`N=${N}: o aro ficou com ${doAro.length} lampadas`);
+    if (doAro.length % N !== 0) problemas.push(`N=${N}: ${doAro.length} lampadas nao caem uma em cada divisa`);
+    const passo = 360 / N;
+    for (const luz of doAro) {
+      const ang = (Math.atan2(+luz.getAttribute('cy') - c, +luz.getAttribute('cx') - c) * 180) / Math.PI;
+      // 90 graus e para baixo no SVG: o meio da fatia 0, onde a seta aponta.
+      const doMeio = (((ang - 90) % passo) + passo) % passo;
+      if (Math.min(doMeio, passo - doMeio) < 0.5) {
+        problemas.push(`N=${N}: uma lampada caiu no meio de uma fatia (${ang.toFixed(1)}deg)`);
+      }
+    }
+  }
+  return problemas;
+});
+console.log(
+  desenho.length ? '6. DESENHO FALHOU:' : '6. a roda gerada cabe na caixa, se le fatia a fatia, e nao corta as fotos'
+);
+desenho.slice(0, 10).forEach((p) => console.log('   - ' + p));
+falhas.push(...desenho);
+
+/* ------------- 7: banco de perguntas por veiculo, e o sorteio -------------- */
+
+// Desde a v2 um veiculo pode ter varias perguntas e o jogo sorteia entre as
+// LIGADAS. Duas coisas tem de valer: nunca cair numa desligada (senao o
+// operador nao consegue guardar rascunho) e nao cair sempre na mesma (senao o
+// segundo da fila recebe a pergunta do primeiro, que e o defeito que o banco
+// existe para resolver).
+
+const banco = await page.evaluate(async () => {
+  const carregar = async (nome) =>
+    window.__tecgameRequire ? window.__tecgameRequire(nome) : await import(`./js/${nome}`);
+
+  const deck = await carregar('deck.js');
+  const st = await carregar('state.js');
+  const problemas = [];
+  const clonar = (x) => JSON.parse(JSON.stringify(x));
+
+  const molde = clonar(deck.SLOTS_ORIGINAIS[0]);
+  const perguntaDe = (rotulo, ativa) => {
+    const p = clonar(molde.perguntas[0]);
+    p.id = `t-${rotulo}`;
+    p.ativa = ativa;
+    for (const lang of deck.IDIOMAS) p[lang].pergunta = rotulo;
+    return p;
+  };
+
+  // Tres veiculos; o do meio com quatro perguntas, das quais duas ligadas.
+  const slots = [0, 1, 2].map((i) => {
+    const s = clonar(molde);
+    s.veiculo.nome = `Veiculo ${i}`;
+    s.perguntas =
+      i === 1
+        ? [
+            perguntaDe('A-ligada', true),
+            perguntaDe('B-desligada', false),
+            perguntaDe('C-ligada', true),
+            perguntaDe('D-desligada', false),
+          ]
+        : [perguntaDe(`unica-${i}`, true)];
+    return s;
+  });
+  const comBanco = { versao: 2, slots };
+
+  // Rascunho desligado com campo vazio nao pode impedir publicar.
+  const rascunhoVazio = clonar(comBanco);
+  for (const lang of deck.IDIOMAS) rascunhoVazio.slots[1].perguntas[1][lang].pergunta = '';
+  const erros = deck.validarBaralho(rascunhoVazio);
+  if (erros.length) problemas.push('validar reprovou por causa de rascunho desligado: ' + erros.join('; '));
+
+  // Mas um veiculo SEM nenhuma ligada tem de reprovar: a roleta cairia nele sem jogo.
+  const todasDesligadas = clonar(comBanco);
+  todasDesligadas.slots[1].perguntas.forEach((p) => {
+    p.ativa = false;
+  });
+  if (!deck.validarBaralho(todasDesligadas).some((m) => /desligadas/.test(m))) {
+    problemas.push('validar deixou passar um veiculo com todas as perguntas desligadas');
+  }
+
+  // O sorteio, muitas vezes: sempre entre as ligadas, e cobrindo as duas.
+  deck.publicarBaralho(comBanco);
+  st.FFAppState.recarregarBaralho();
+  const vistas = new Set();
+  for (let n = 0; n < 200; n++) {
+    st.FFAppState.sortearPerguntas();
+    vistas.add(st.FFAppState.questoesBrasil[1].pergunta);
+  }
+  if (![...vistas].every((t) => t.endsWith('-ligada'))) {
+    problemas.push('o sorteio caiu numa pergunta desligada: ' + [...vistas].join(', '));
+  }
+  if (vistas.size !== 2) {
+    problemas.push(`o sorteio cobriu ${vistas.size} perguntas em 200 partidas, esperava as 2 ligadas`);
+  }
+  // Veiculo de uma pergunta so continua deterministico.
+  if (st.FFAppState.questoesBrasil[0].pergunta !== 'unica-0') {
+    problemas.push('veiculo de uma pergunta nao devolveu a dele');
+  }
+
+  // E um baralho v1 (a pergunta solta no slot) tem de continuar abrindo.
+  const antigo = clonar(molde.perguntas[0]);
+  deck.publicarBaralho({
+    versao: 1,
+    slots: [
+      {
+        veiculo: clonar(molde.veiculo),
+        gabarito: '3',
+        scanners: { raster3S: true, rasher4: false, xtool: false },
+        pt: { ...antigo.pt, pergunta: 'veio da v1' },
+        en: antigo.en,
+        es: antigo.es,
+      },
+    ],
+  });
+  const migrado = deck.carregarBaralho();
+  const p0 = migrado.slots[0].perguntas?.[0];
+  if (migrado.versao !== 2) problemas.push(`migracao nao marcou versao 2 (${migrado.versao})`);
+  if (migrado.slots[0].perguntas?.length !== 1) problemas.push('migracao nao criou o banco de uma pergunta');
+  if (p0?.pt?.pergunta !== 'veio da v1') problemas.push('migracao perdeu o enunciado');
+  if (p0?.gabarito !== '3') problemas.push('migracao perdeu o gabarito');
+  if (p0?.scanners?.rasher4 !== false) problemas.push('migracao perdeu as flags de equipamento');
+  if (p0?.ativa !== true) problemas.push('migracao nao deixou a pergunta ativa');
+
+  deck.restaurarOriginal();
+  return problemas;
+});
+
+console.log(
+  banco.length
+    ? '7. BANCO DE PERGUNTAS FALHOU:'
+    : '7. o sorteio so cai em pergunta ligada, cobre todas elas, e baralho v1 migra sozinho'
+);
+banco.slice(0, 10).forEach((p) => console.log('   - ' + p));
+falhas.push(...banco);
+
+/* ------------- 8: para a nuvem vai o baralho inteiro ---------------------- */
+
+// Veiculo, regras e perguntas, tudo por extenso. Houve uma versao que subia so o
+// que diferia da fabrica; ela economizava 37 KB num teto de 1 MB e em troca
+// fazia o texto de uma pergunta original vir do questions.js do totem em vez do
+// que estava gravado. O que se afirma aqui e que isso acabou.
+
+const nuvem = await page.evaluate(async () => {
+  const carregar = async (nome) =>
+    window.__tecgameRequire ? window.__tecgameRequire(nome) : await import(`./js/${nome}`);
+
+  const deck = await carregar('deck.js');
+  const { cabeNaNuvem } = await carregar('nuvem.js');
+  const problemas = [];
+  const clonar = (x) => JSON.parse(JSON.stringify(x));
+
+  // (a) nada de referencia: cada pergunta sobe com os seus tres idiomas, o seu
+  //     gabarito e os seus equipamentos, e cada veiculo com os seus campos.
+  const original = deck.BARALHO_ORIGINAL;
+  for (const [i, slot] of original.slots.entries()) {
+    if (!slot.veiculo?.nome || !slot.veiculo?.imagem) problemas.push(`slot ${i}: veiculo incompleto`);
+    for (const [j, p] of slot.perguntas.entries()) {
+      if (!p.gabarito) problemas.push(`slot ${i} pergunta ${j}: sem gabarito`);
+      if (!p.scanners) problemas.push(`slot ${i} pergunta ${j}: sem equipamentos`);
+      for (const lang of deck.IDIOMAS) {
+        if (!p[lang]?.pergunta) problemas.push(`slot ${i} pergunta ${j}: sem enunciado em ${lang}`);
+      }
+      if ('deFabrica' in p) problemas.push(`slot ${i} pergunta ${j}: virou referencia`);
+    }
+  }
+
+  // (b) o baralho de fabrica cabe no documento com folga larga.
+  const cabe = cabeNaNuvem(original);
+  if (!cabe.ok) problemas.push(`o baralho de fabrica nao cabe: ${cabe.motivo}`);
+  if (cabe.kb > 120) problemas.push(`o de fabrica ficou com ${cabe.kb} KB, mais do que o esperado`);
+
+  // (c) mas fotos enviadas do computador estouram, e a recusa tem de dizer por
+  //     que — o operador precisa saber o que trocar.
+  const pesado = clonar(original);
+  const fotoFalsa = `data:image/webp;base64,${'A'.repeat(120 * 1024)}`;
+  for (const slot of pesado.slots) slot.veiculo.imagem = fotoFalsa;
+  const naoCabe = cabeNaNuvem(pesado);
+  if (naoCabe.ok) problemas.push('um baralho de mais de 1 MB passou pela conferencia');
+  if (naoCabe.ok === false && !/Imagens enviadas/.test(naoCabe.motivo)) {
+    problemas.push(`a recusa nao aponta a causa: ${naoCabe.motivo}`);
+  }
+
+  return problemas;
+});
+
+console.log(
+  nuvem.length ? '8. O QUE VAI PARA A NUVEM FALHOU:' : '8. para a nuvem vai o baralho inteiro, e o que nao cabe e recusado com o motivo'
+);
+nuvem.slice(0, 10).forEach((p) => console.log('   - ' + p));
+falhas.push(...nuvem);
+
 await browser.close();
 if (falhas.length) {
   console.log('\nFALHOU:\n- ' + falhas.slice(0, 15).join('\n- '));
   process.exit(1);
 }
-console.log('\nbaralho: fidelidade do original preservada e tamanho livre funcionando');
+console.log('\nbaralho: fidelidade do original, tamanho livre e banco de perguntas funcionando');

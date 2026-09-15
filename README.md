@@ -7,17 +7,20 @@ CSS e JavaScript puros — sem framework, sem build, sem dependências de runtim
 tec_game.zip          o projeto Flutter original (intocado)
 src_game/             o zip extraído, usado como fonte pelos scripts
 web/                  o jogo portado (é isto que se publica)
-  index.html            o jogo
-  admin.html            a administração do baralho
+  index.html            o jogo E a administração, num documento só
   css/app.css           o jogo
-  css/admin.css         a administração
+  css/admin.css         a administração (tudo preso em `.adm`)
   css/fonts.css         gerado: as cinco famílias auto-hospedadas
   js/                   os módulos ES — o código-fonte
-  js/bundle.js          gerado: os módulos do jogo em um script clássico
-  js/admin/bundle.js    gerado: idem, para a administração
+  js/admin/             a administração: porta.js, painel.js, editor.js, ui.js
+  js/firebase.js        o SDK, carregado sob demanda (recusado por file://)
+  js/nuvem.js           o baralho no Firestore + o login do operador
+  js/bundle.js          gerado: tudo isso em um script clássico
   assets/               imagens, áudios, fontes e vídeos do original
 firebase/             regras e índices do Firestore
 scripts/              geradores e verificadores
+shots/                saída dos testes (ignorada pelo git)
+CLAUDE.md             as regras e as armadilhas, para quem for mexer
 ```
 
 ## Como rodar
@@ -31,8 +34,13 @@ npm start                         # http://localhost:8099
 # ou: cd web && python -m http.server 8080
 ```
 
-Para publicar, sobe a pasta `web/` inteira — não há passo de build.
-(Uma exceção: veja **Administração** abaixo se o totem for público.)
+Para publicar, sobe a pasta `web/` inteira — não há passo de build. É o que o
+`.github/workflows/pages.yml` faz a cada push na `main`: manda `web/` para o
+GitHub Pages tal como está. Antes do primeiro uso, em **Settings → Pages**,
+escolha **Source: GitHub Actions**.
+
+Como todo caminho é relativo, o mesmo `web/` serve na raiz de um domínio, em
+`/<repo>/` (que é onde o Pages de projeto publica) e num pendrive.
 
 ### Por que existem dois modos de boot
 
@@ -47,7 +55,9 @@ código concatenado em **um script clássico**, que o `file://` permite.
 - Se os dois falharem, aparece uma mensagem explicando o que fazer, em vez de
   tela preta.
 
-O `admin.html` tem o mesmo par (`js/admin/main.js` → `js/admin/bundle.js`).
+Há um documento e um bundle só: a administração entra no mesmo grafo. Um
+`import()` dinâmico separaria os pesos, mas `import()` é recusado por `file://`
+como qualquer módulo ES, e o totem abre o jogo do disco.
 
 > **Ao editar qualquer coisa em `web/js/`, rode `npm run bundle`**, senão o
 > modo `file://` continua rodando a versão antiga. O `npm run check` avisa
@@ -70,6 +80,7 @@ host estático:
 | `/telaAcao` | `#/telaAcao` | pergunta e respostas |
 | `/ganhou` | `#/ganhou` | vitória |
 | `/perdeu` | `#/perdeu` | derrota |
+| — | `#/adm` | administração (não vem do Dart; pede senha) |
 
 ## O baralho
 
@@ -85,10 +96,15 @@ uma décima primeira era impossível.
 ```js
 {
   veiculo: { nome, imagem, largura, altura, fit },
-  gabarito: '3',                              // qual alternativa é a certa
-  scanners: { raster3S: true, rasher4: true, xtool: false },
-  pt: { pergunta, respostaUm..respostaQuatro, ajuda*, ... },
-  en: { ... }, es: { ... }                    // os mesmos 12 campos por idioma
+  perguntas: [                                // o banco deste veículo
+    {
+      id, ativa: true,
+      gabarito: '3',                          // qual alternativa é a certa
+      scanners: { raster3S: true, rasher4: true, xtool: false },
+      pt: { pergunta, respostaUm..respostaQuatro, ajuda*, ... },
+      en: { ... }, es: { ... }                // os mesmos 12 campos por idioma
+    },
+  ],
 }
 ```
 
@@ -112,12 +128,20 @@ suposto (`npm run verify:baralho`).
 
 ## Administração
 
-`web/admin.html` é a tela de operação do baralho — uma página separada, fora do
-palco de 1920x1080, porque não é uma tela do jogo:
+A administração é a tela de operação do baralho. Mora no mesmo `index.html`,
+mas **fora** do palco de 1920x1080 — numa camada por cima dele —, porque não é
+uma tela do jogo: é uma ferramenta de notebook, com layout fluido e rolagem.
+
+**Como entrar:** cinco toques no selo do cadastro, dentro de 3 segundos, ou
+`#/adm` na barra do navegador. Os dois caminhos pedem a senha **2040**. Uma vez
+aberta, a porta fica destrancada até a aba fechar.
+
+O que dá para fazer:
 
 - **ver** as rodadas, com a foto, o gabarito e os 12 campos nos 3 idiomas;
 - **editar** qualquer texto, com aba por idioma;
-- **adicionar** e **remover** rodadas (cada uma é uma fatia da roleta);
+- **adicionar** e **remover** veículos (cada um é uma fatia da roleta) e as
+  perguntas do banco de cada um;
 - **veículos**: nome, caminho da imagem, largura, altura e encaixe, com atalho
   para as dez fotos que já vêm no projeto — ou **enviar uma imagem do
   computador**, que fica guardada dentro do baralho (então o totem mostra a
@@ -125,13 +149,91 @@ palco de 1920x1080, porque não é uma tela do jogo:
 - **regras**: qual alternativa é a correta e quais equipamentos resolvem a
   rodada (os não marcados abrem *"equipamento inválido"*);
 - **validação ao vivo** — cada problema aparece na lista e acende o campo
-  correspondente; **publicar fica bloqueado** enquanto houver problema;
-- **restaurar o original** a qualquer momento.
+  correspondente; **salvar fica bloqueado** enquanto houver problema;
+- **resetar todos os dados**: volta ao baralho de fábrica e apaga deste
+  navegador o ranking e os telefones das partidas já jogadas. O que já foi para
+  o Firebase só sai pelo console.
 
-O baralho publicado vai para o `localStorage` do navegador, na chave
-`tecgame:baralho`. Ou seja: **o admin e o jogo precisam ser abertos na mesma
-origem** (o mesmo `http://host:porta`, ou os dois pelo mesmo caminho de disco)
-para que um veja o que o outro gravou. Não há servidor no meio.
+### Um veículo, várias perguntas
+
+Até a v1 do baralho, um veículo tinha exatamente uma pergunta grudada nele:
+caiu no VW Delivery, era sempre aquela — e numa feira o segundo da fila já sabia
+a resposta. Agora cada veículo tem um **banco**, e quando a roleta para nele o
+jogo **sorteia uma das ligadas**.
+
+A seta ao lado de cada veículo abre e fecha o banco dele; fechado, ele mostra
+só a contagem. A marca ao lado de cada pergunta liga e desliga. Desligada, ela fica no
+banco como rascunho: não cai em partida, e campo vazio nela **não** impede
+publicar. O que impede é um veículo ficar sem nenhuma ligada — aí a roleta
+cairia num carro sem jogo.
+
+Gabarito e equipamentos pertencem à **pergunta**, não ao veículo: duas perguntas
+do mesmo carro podem ter resposta certa diferente e pedir scanners diferentes.
+
+O baralho publicado antes desta mudança continua abrindo — `carregarBaralho()`
+converte v1 em v2 na leitura, transformando a pergunta solta num banco de uma.
+
+### Onde o baralho mora
+
+Em dois lugares, e a ordem importa:
+
+| | |
+| --- | --- |
+| `localStorage`, chave `tecgame:baralho` | o que o jogo **lê**, inteiro. Publicar grava aqui primeiro. |
+| Firestore, `conteudo/baralho` | o que **atravessa máquinas**: o baralho inteiro. |
+
+Para a nuvem vai **tudo** — veículo, regras e perguntas, as dez de fábrica
+incluídas, mesmo intocadas. O que está gravado lá é o que o jogo joga, por
+extenso, e é isso que o painel mostra quando abre.
+
+> Houve uma versão que subia só o que diferia da fábrica e guardava o resto por
+> referência. Economizava 37 KB num teto de 1 MB e, em troca, fazia o texto de
+> uma pergunta original vir do `questions.js` do totem em vez do que estava
+> gravado — e quem abrisse o Firestore não via o conteúdo do jogo. Não valia o
+> que custava.
+
+Salvar grava local primeiro e sobe depois, de propósito: se a internet da feira
+estiver fora, o que foi editado não se perde e o painel diz o que faltou. O
+totem puxa da nuvem quando a tela de cadastro monta — sem esperar, para a
+partida não ficar refém da conexão — e, se vier conteúdo novo, ele vale já na
+partida seguinte. Isso é o que mantém o totem jogando com a internet caída: ele
+fica com a última cópia que baixou.
+
+> **Mexendo pelo `npm start`?** Em `localhost` o jogo não fala com o Firebase —
+> é o que impede a suíte de verificação, que joga quatro partidas por rodada, de
+> encher o ranking da feira com dados de teste. Para trabalhar no baralho e ver
+> chegar na nuvem, abra com **`?comNuvem=1`**:
+>
+> ```
+> http://localhost:8099/index.html?comNuvem=1#/adm
+> ```
+>
+> O ranking continua local mesmo assim, de propósito: `comNuvem` serve para
+> mexer no conteúdo, não para semear `usuarios` e `contatos` com partidas de
+> teste. E `?semNuvem=1` desliga tudo em qualquer lugar.
+
+> **Salvar não pede login.** A escrita do baralho no Firestore é aberta, por
+> decisão do projeto: o endereço do jogo não será divulgado. O custo está
+> registrado em [`firebase/firestore.rules`](firebase/firestore.rules) e não é
+> pequeno — **quem descobrir a URL reescreve o jogo**. As regras ainda validam o
+> formato, então a coleção não vira depósito de dados quaisquer.
+>
+> O que **não** foi afrouxado junto: `contatos`, com nome e telefone dos
+> jogadores. Nenhum cliente lê de lá.
+>
+> A única coisa que ainda só existe pelo console do Firebase — criar o Firestore
+> — está em [`firebase/README.md`](firebase/README.md).
+
+E há um teto: **o Firestore recusa documento acima de 1 MB**. O baralho de
+fábrica inteiro dá 38 KB, então texto não chega perto; quem estoura é foto
+enviada do computador, que vira um `data:` URL de ~88 KB dentro do baralho. O
+painel confere antes de enviar e diz o tamanho e o motivo, em vez de deixar o
+Firestore recusar com uma mensagem críptica.
+
+O jogo relê o baralho quando o **cadastro** monta, e não a cada tela — publicar
+no meio de uma partida não pode trocar o carro debaixo do jogador. Sair pelo
+"Voltar ao jogo" cai no cadastro, então a partida seguinte já usa o que você
+acabou de publicar.
 
 Uma imagem enviada do computador vira um `data:` URL dentro do baralho, e por
 isso é reduzida para no máximo 1280px de maior lado e regravada em **WebP** —
@@ -143,10 +245,17 @@ só alguns megabytes, a barra do admin acende `KB — perto do limite` a partir 
 — são problemas com soluções opostas. Para muitas fotos, o caminho barato
 continua sendo copiá-las para `web/assets/images/` e referenciar pelo caminho.
 
-> **Se o totem ficar acessível a estranhos, não copie o `admin.html` nem a
-> pasta `js/admin/` para ele.** Não há senha — a proteção é a página não estar
-> lá. Edite o baralho na sua máquina e leve o `localStorage`, ou sirva o admin
-> em outra porta atrás da sua própria autenticação.
+> **Até onde a senha protege.** Até a v1 a administração era um `admin.html`
+> separado, e a proteção era real: bastava não copiar aquele arquivo para o
+> totem. Um endereço único no GitHub Pages custou isso. Agora o código do admin
+> viaja para todo navegador que abre o jogo, a senha `2040` inclusive — quem
+> apertar F12 a lê em dez segundos.
+>
+> É **tranca de gaveta**: impede o curioso e o toque errado do visitante numa
+> feira, e nada além disso. Proteção de verdade mora no servidor, e este jogo
+> não tem servidor — o baralho vive no armazenamento do próprio navegador. Se
+> um dia o conteúdo passar a valer alguma coisa, o lugar de resolver isso é o
+> Firestore, com regra de escrita e login de verdade.
 
 Os três idiomas são independentes, e o jogo **não** tem retorno para o
 português quando um campo fica vazio — a tela aparece em branco. É por isso que
@@ -199,16 +308,50 @@ python scripts/gen_data.py
 
 ## Como fica em telas que não são 1920x1080
 
-O palco é escalado uniformemente, então a proporção nunca distorce. O que
-mudou em relação a simplesmente sobrar preto em volta:
+O palco é escalado uniformemente, então a proporção nunca distorce — mas tudo
+encolhe junto, e é aí que mora a responsividade. As telas atendidas vão de
+**1280x800** (escala 0,667) a **4K** (escala 2), passando por 1366x768,
+1920x1080 e ultrawide. Nessa faixa o jogo garante **12px de texto** e **24px de
+área de toque**, no mínimo, medidos na tela.
+
+Isso não sai da escala sozinho: em 0,667 o texto de 14px do cadastro chegava a
+9,3px e o link da política de privacidade a 11px de alvo. Quem sustenta o piso
+são duas variáveis em `css/app.css`:
+
+```css
+#stage {
+  --piso-fonte: calc(12px / min(var(--stage-scale, 1), 1));
+  --piso-alvo:  calc(24px / min(var(--stage-scale, 1), 1));
+}
+```
+
+Elas são escritas em px **de tela** e convertidas para px do palco pela própria
+escala, então **em 1x não alcançam nada** — o totem continua pixel a pixel como
+o Dart — e crescem sozinhas conforme a janela encolhe. `fonte()` em
+`js/widgets.js` aplica o piso da fonte em todo texto (`max(declarado, piso)`), e
+o `min-height` do `.ff-inkwell` aplica o do alvo, crescendo só a área clicável:
+o desenho dentro dela não muda de tamanho. A única mudança visível em 1x é o
+link da política, que ganhou 7px de altura clicável — ele tinha 17px, abaixo do
+mínimo até no próprio totem.
+
+`npm run verify:sizes` é o teste do envelope: percorre as 8 rotas em cada tela
+atendida e falha se algum texto ficar abaixo de 12px, algum alvo abaixo de 24px,
+algum texto for cortado ou a página rolar na horizontal. Ele também **lista as
+artes que o 4K amplia** — 11 PNGs, com a largura que cada um precisaria. Isso
+não se conserta em código: o `Img` desenha em px do palco, então basta
+reexportar o arquivo maior e o navegador passa a reduzi-lo em vez de ampliá-lo.
+
+O resto do que mudou em relação a simplesmente sobrar preto em volta:
 
 - as tarjas viraram **moldura**: a arte do jogo desfocada e escurecida atrás do
   palco (`#viewport::before`), com uma vinheta suave (`::after`) — em vez de
   duas faixas pretas duras;
 - em **retrato com toque** (celular na vertical) aparece um aviso para virar o
   aparelho, porque um jogo de 16:9 em 9:16 fica com 20% da altura útil;
-- `prefers-reduced-motion` desliga as animações de entrada e a rotação da
-  roleta (o resultado do sorteio é o mesmo, só não gira);
+- `prefers-reduced-motion` desliga os laços infinitos (o fundo que pulsa, a seta
+  do aviso de virar o aparelho) e a rotação de 5s da roleta — o resultado do
+  sorteio é o mesmo, a roda só não gira. As animações curtas de um disparo
+  ficam, porque comunicam estado: o botão afundando ao toque, a tela entrando;
 - as cinco famílias de fonte são **auto-hospedadas** em
   `web/assets/fonts/`, com o `css/fonts.css` gerado por `npm run fonts`, então
   o totem não depende de internet para o texto sair certo.
@@ -283,17 +426,31 @@ mas **o token da z-api é** — se este repositório virar público, gire o toke
 
 ```bash
 npm run verify        # tudo: HTTP e file://, subindo o servidor sozinho
+npm run verify:rapido # só HTTP, 6 em paralelo — a volta rápida do dia a dia
 ```
 
 Isso roda a checagem estática, regera os bundles e passa os nove testes de
 navegador nos **dois transportes** — 18 execuções. Sobe o `http-server` se a
-porta 8099 estiver livre e reaproveita o que já estiver de pé. Para recortar:
+porta 8099 estiver livre e reaproveita o que já estiver de pé.
+
+As 18 execuções correm **em paralelo** (4 de cada vez por padrão). Cada teste
+sobe o próprio Chrome e só lê do servidor, então não disputam nada entre si; o
+que os prendia era o laço sequencial do `all.mjs`. A saída de cada um sai
+inteira quando ele termina, e no fim vem o tempo de cada execução — é assim que
+se descobre qual teste está segurando a fila. Para recortar:
 
 ```bash
 npm run verify -- corte       # só os testes cujo nome casa
 npm run verify -- --http      # só HTTP
 npm run verify -- --file      # só file://
+npm run verify -- -j 8        # quantos em paralelo (cada um é um Chrome)
+npm run verify -- -j 1 corte  # um de cada vez, com a saída ao vivo
 ```
+
+Cada par (teste, transporte) escreve suas imagens em
+`shots/<transporte>/<teste>`, para o `file://` não sobrescrever o do HTTP. Um
+teste rodado sozinho escreve em `shots/<teste>`. Tudo dentro de `shots/`, que o
+git ignora.
 
 Os testes individuais, se quiser rodar um de cada vez (precisam do `npm start`
 em outro terminal, ou de `BASE=` apontando para o `file://`):

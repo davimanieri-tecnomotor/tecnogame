@@ -2,7 +2,7 @@
 // TextFormField + InputDecoration, FlutterFlowDropDown (dropdown_button2),
 // FlutterFlowLanguageSelector, FFButtonWidget and MaskTextInputFormatter.
 
-import { el, px, Icon, Txt, Colors } from './widgets.js';
+import { el, px, fonte, Icon, Txt, Colors } from './widgets.js';
 import { LANGUAGE_NAMES } from './i18n.js';
 
 /* --------------------------------------------------- MaskTextInputFormatter */
@@ -37,7 +37,7 @@ export class MaskTextInputFormatter {
 
 const styleToCss = (style = {}) => ({
   fontFamily: style.fontFamily ? `'${style.fontFamily}', sans-serif` : null,
-  fontSize: style.fontSize != null ? `${style.fontSize}px` : null,
+  fontSize: fonte(style.fontSize),
   fontWeight: style.fontWeight != null ? String(style.fontWeight) : null,
   fontStyle: style.fontStyle || null,
   color: style.color || null,
@@ -102,7 +102,9 @@ export function TextFormField({
       borderRadius: `${borderRadius}px`,
       borderColor,
       borderWidth: `${borderWidth}px`,
-      minHeight: `${(style?.fontSize ?? 14) * 1.2109 + 40 + borderWidth * 2}px`,
+      // A altura acompanha o piso de legibilidade da fonte, senao o texto
+      // crescido numa janela pequena encostaria na borda do campo.
+      minHeight: `calc(${fonte(style?.fontSize ?? 14)} * 1.2109 + ${40 + borderWidth * 2}px)`,
     },
   }, input);
 
@@ -204,6 +206,42 @@ export class FormState {
 
 /* ------------------------------------------------- FlutterFlowDropDown ---- */
 
+/**
+ * A camada dos menus: fica DENTRO do palco (para herdar a escala e as unidades
+ * dele) e ANTES de `#overlays`, para um menu ficar acima das telas e abaixo dos
+ * dialogos. Criada na primeira vez que alguem abre um menu.
+ */
+let sequenciaDeMenus = 0;
+
+function camadaDeMenus() {
+  let camada = document.getElementById('popups');
+  if (camada) return camada;
+  const palco = document.getElementById('stage');
+  camada = el('div', { id: 'popups' });
+  palco.insertBefore(camada, document.getElementById('overlays'));
+  return camada;
+}
+
+/**
+ * A caixa de `node` em coordenadas DO PALCO. O palco e escalado por transform,
+ * entao `getBoundingClientRect` devolve px de tela; a escala sai da razao entre
+ * a largura desenhada e a de layout, sem depender de ler a variavel CSS.
+ */
+function paraOPalco(node) {
+  const palco = document.getElementById('stage');
+  if (!palco) return null;
+  const p = palco.getBoundingClientRect();
+  const escala = p.width / palco.offsetWidth || 1;
+  const r = node.getBoundingClientRect();
+  return {
+    x: (r.left - p.left) / escala,
+    y: (r.top - p.top) / escala,
+    largura: r.width / escala,
+    altura: r.height / escala,
+    alturaDoPalco: palco.offsetHeight,
+  };
+}
+
 /** FormFieldController<T> */
 export class FormFieldController {
   constructor(value = null) {
@@ -256,22 +294,25 @@ export function FlutterFlowDropDown({
 
   const [ml, , mr] = margin;
 
+  // O menu vive fora do botao (ver abre/fecha), entao a ligacao entre os dois e
+  // declarada: `aria-controls` aponta para ele. Isso serve ao leitor de tela e
+  // da a quem testa um jeito estavel de achar o menu de um dropdown especifico,
+  // em vez de andar pela arvore.
+  const menuId = `ff-menu-${(sequenciaDeMenus += 1)}`;
   const menu = el('div', {
+    id: menuId,
     class: 'ff-dropdown-menu',
+    role: 'listbox',
     style: {
       background: menuColor || fillColor || null,
       borderRadius: '4px',
-      left: '0',
-      right: '0',
-      top: '100%',
-      maxHeight: maxHeight != null ? `${maxHeight}px` : '420px',
     },
   });
-  menu.hidden = true;
 
   options.forEach((option, index) => {
     const item = el('div', {
       class: 'ff-dropdown-item ff-text',
+      role: 'option',
       style: { ...styleToCss(textStyle), padding: `${(height ?? 48) / 4}px ${mr}px ${(height ?? 48) / 4}px ${ml}px` },
       text: labelFor(option, index),
     });
@@ -314,27 +355,96 @@ export function FlutterFlowDropDown({
         border: `${borderWidth}px solid ${borderColor}`,
       },
     },
-    [button, menu]
+    [button]
   );
 
-  const close = () => {
-    menu.hidden = true;
-    document.removeEventListener('click', onDocumentClick, true);
-  };
-  const onDocumentClick = (event) => {
-    if (!root.contains(event.target)) close();
+  /* ------------------------------------------------------------ abre/fecha -- */
+  /*
+   * O menu e desenhado numa CAMADA propria do palco, e nao como filho absoluto
+   * do botao. Dois defeitos vinham dali:
+   *
+   *   1. o `z-index: 40` do menu ficava preso no contexto de empilhamento do
+   *      pedaco de tela onde o dropdown vive, entao o botao CONFIRMAR e a linha
+   *      de termos, que vem depois na arvore, eram pintados POR CIMA do menu
+   *      aberto;
+   *   2. o menu abria sempre para baixo. No cadastro ele comeca em y=802 e tem
+   *      420px, ou seja, vazava 142px abaixo do palco — e o palco recorta, o que
+   *      deixava as ultimas opcoes inalcancaveis.
+   *
+   * Na camada, o menu escapa de qualquer contexto de empilhamento e da para
+   * posicionar em coordenadas do palco: abre para baixo se cabe, para cima se
+   * nao cabe, e no pior caso encolhe e rola por dentro.
+   */
+  let aberto = false;
+
+  const fechar = () => {
+    if (!aberto) return;
+    aberto = false;
+    menu.remove();
+    button.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('click', aoClicarFora, true);
+    document.removeEventListener('keydown', aoTeclar, true);
+    window.removeEventListener('resize', fechar);
   };
 
+  const aoClicarFora = (event) => {
+    if (!root.contains(event.target) && !menu.contains(event.target)) fechar();
+  };
+
+  const aoTeclar = (event) => {
+    if (event.key === 'Escape') {
+      event.stopPropagation();
+      fechar();
+    }
+  };
+
+  const abrir = () => {
+    if (aberto) return;
+    aberto = true;
+    camadaDeMenus().appendChild(menu);
+    button.setAttribute('aria-expanded', 'true');
+    posicionar();
+    document.addEventListener('click', aoClicarFora, true);
+    document.addEventListener('keydown', aoTeclar, true);
+    window.addEventListener('resize', fechar);
+  };
+
+  /** Poe o menu embaixo do botao, ou em cima se nao couber. */
+  function posicionar() {
+    const alvo = paraOPalco(button);
+    if (!alvo) return;
+    const { x, y, largura, altura, alturaDoPalco } = alvo;
+
+    const FOLGA = 4;
+    const BORDA = 8;
+    const abaixo = alturaDoPalco - (y + altura) - FOLGA - BORDA;
+    const acima = y - FOLGA - BORDA;
+    const tetoPedido = maxHeight != null ? maxHeight : 420;
+
+    menu.style.left = `${x}px`;
+    menu.style.width = `${largura}px`;
+    menu.style.maxHeight = `${Math.max(80, Math.min(tetoPedido, Math.max(abaixo, acima)))}px`;
+
+    // Mede com o teto ja aplicado, para decidir com a altura real.
+    const alto = menu.offsetHeight;
+    if (alto <= abaixo || abaixo >= acima) {
+      menu.style.top = `${Math.min(y + altura + FOLGA, alturaDoPalco - BORDA - alto)}px`;
+    } else {
+      menu.style.top = `${Math.max(BORDA, y - FOLGA - alto)}px`;
+    }
+  }
+
+  button.setAttribute('role', 'button');
+  button.setAttribute('aria-haspopup', 'listbox');
+  button.setAttribute('aria-controls', menuId);
+  button.setAttribute('aria-expanded', 'false');
   button.addEventListener('click', (event) => {
     event.stopPropagation();
-    if (menu.hidden) {
-      menu.hidden = false;
-      document.addEventListener('click', onDocumentClick, true);
-    } else {
-      close();
-    }
+    if (aberto) fechar();
+    else abrir();
   });
 
+  const close = fechar;
   return root;
 }
 

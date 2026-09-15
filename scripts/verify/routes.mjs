@@ -9,7 +9,7 @@ const BASE = process.env.BASE ?? 'http://127.0.0.1:8099';
 // (file:///.../web/index.html), which is how the file:// build is checked.
 const pageUrl = (route) => (BASE.endsWith('.html') ? `${BASE}#${route}` : `${BASE}/#${route}`);
 const LOCAL_FILE = BASE.startsWith('file:');
-const OUT = process.env.OUT ?? 'shots';
+const OUT = process.env.OUT ?? 'shots/routes';
 const THEME = process.env.THEME ?? 'dark';
 fs.mkdirSync(OUT, { recursive: true });
 

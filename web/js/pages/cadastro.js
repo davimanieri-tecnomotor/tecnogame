@@ -9,7 +9,6 @@ import {
   ClipRRect,
   Column,
   Container,
-  FutureBuilder,
   Icon,
   Img,
   InkWell,
@@ -36,8 +35,9 @@ import { showDialog } from '../dialog.js';
 import { NomeOfensivoWidget } from '../components/nome_ofensivo.js';
 import { PoliticaPrivacidadeWidget } from '../components/politica_privacidade.js';
 import { RankingWidget } from '../components/ranking.js';
+import { registrarToqueSecreto } from '../admin/porta.js';
+import { sincronizarBaralho } from '../nuvem.js';
 import { goNamed, TransitionInfo, PageTransitionType, Alignment } from '../router.js';
-import { queryUsuariosRecordCount } from '../backend.js';
 import {
   AnimationInfo,
   AnimationTrigger,
@@ -261,22 +261,26 @@ export function CadastroWidget() {
 
   /* ------------------------------------------------------ confirm button -- */
 
+  // O InkWell embrulha o BOTÃO, e não o texto dentro dele.
+  //
+  // No Dart ele estava por dentro do Container, e o Container centraliza o
+  // filho: o alvo era o tamanho da palavra "CONFIRMAR", e todo o azul em volta
+  // não respondia a nada. Numa tela de toque isso é um botão que parece
+  // quebrado — o dedo acerta o retângulo e não acontece nada.
+  //
+  // Por fora, o alvo passa a ser exatamente a forma azul que se vê (o
+  // `TransformSkew` é o pai, então a inclinação vale para o acerto também), e o
+  // afundar do `.ff-press` passa a ser do botão inteiro em vez de só da palavra.
   const confirmar = TransformSkew({
     ax: -0.5,
-    child: Container({
-      width: SW * 0.25,
-      height: SH * 0.07,
-      color: color(0xFF0053B6),
-      borderRadius: 16.0,
-      alignment: [0.0, 0.0],
-      child: InkWell({
-        onTap: async () => {
+    child: InkWell({
+      label: 'CONFIRMAR',
+      onTap: async () => {
           playSound(model, 'soundPlayer6', 'assets/audios/undertale-select-sound.mp3', 0.6);
-          await animationsMap.transformOnActionTriggerAnimation.controller.forward();
+          animationsMap.transformOnActionTriggerAnimation.controller.forward();
 
           FFAppState.ordemNumeros = embaralhaQuestoes();
-          FFAppState.update();
-
+      
           if (nomeOfensivo(model.textFieldNomeTextController.text)) {
             await showDialog({ builder: () => NomeOfensivoWidget() });
             model.invalido = model.invalido + 1;
@@ -306,6 +310,12 @@ export function CadastroWidget() {
             },
           });
         },
+      child: Container({
+        width: SW * 0.25,
+        height: SH * 0.07,
+        color: color(0xFF0053B6),
+        borderRadius: 16.0,
+        alignment: [0.0, 0.0],
         child: TransformSkew({
           ax: 0.5,
           child: Align({
@@ -348,9 +358,13 @@ export function CadastroWidget() {
   animateOnPageLoad(privacyText, animationsMap.textOnPageLoadAnimation);
 
   /* ---------------------------------------------------------- hidden bits -- */
-  // The Dart keeps the timer inside an Opacity(0) and prints the total number
-  // of `usuarios` rows plus a stray "Hello World" - all invisible or leftover,
-  // reproduced so the layout matches.
+  // O cronometro conta a inatividade e nao e para ser visto: fica num
+  // Opacity(0), como no Dart.
+  //
+  // O Dart tambem imprimia aqui um "Hello World" solto e a CONTAGEM de linhas
+  // de `usuarios` — 14px, visiveis, na primeira tela que o jogador ve, e a
+  // contagem disparava uma consulta a cada abertura do cadastro. Os dois eram
+  // lixo do FlutterFlow reproduzido por fidelidade, e sairam.
 
   const timer = FlutterFlowTimer({
     initialTime: 0,
@@ -428,6 +442,9 @@ export function CadastroWidget() {
           playSound(model, 'soundPlayer2', 'assets/audios/adriantnt_u_click.mp3', 1.0);
           restartIdleTimer();
         },
+        // Cobre a tela inteira so para captar o toque no fundo e reiniciar a
+        // contagem de inatividade: nao e um botao, e nao deve afundar.
+        feedback: false,
         style: { width: '100%', height: '100%' },
         child: Container({
           width: Infinity,
@@ -443,13 +460,17 @@ export function CadastroWidget() {
               mainAxisSize: 'max',
               mainAxisAlignment: 'center',
               children: [
-                Txt(L('sk6w3j28') /* Hello World */, style('bodyMedium')),
-                animateOnPageLoad(
-                  ClipRRect({
-                    borderRadius: 8.0,
-                    child: Img('assets/images/Selo_2.png', { width: SW * 0.23, height: SH * 0.25, fit: 'cover' }),
-                  }),
-                  animationsMap.imageOnPageLoadAnimation
+                // O selo é também a porta da administração: cinco toques nele,
+                // dentro de 3s, pedem a senha. Não tem marca nenhuma de
+                // propósito — é para o operador, não para o jogador.
+                registrarToqueSecreto(
+                  animateOnPageLoad(
+                    ClipRRect({
+                      borderRadius: 8.0,
+                      child: Img('assets/images/Selo_2.png', { width: SW * 0.23, height: SH * 0.25, fit: 'cover' }),
+                    }),
+                    animationsMap.imageOnPageLoadAnimation
+                  )
                 ),
                 Container({
                   width: SW * 0.574,
@@ -460,10 +481,6 @@ export function CadastroWidget() {
                   }),
                 }),
                 Opacity({ opacity: 0.0, child: timer }),
-                FutureBuilder({
-                  future: queryUsuariosRecordCount(),
-                  builder: (count) => Txt(String(count), style('bodyMedium')),
-                }),
               ],
             })
           ),
@@ -498,6 +515,12 @@ export function CadastroWidget() {
   // Um jogador novo comecando e o momento de pegar o que a area administrativa
   // publicou desde a ultima partida.
   FFAppState.recarregarBaralho();
+  // E puxa da nuvem em paralelo. Sem esperar: a tela não pode ficar refém da
+  // internet da feira. Se vier conteúdo novo enquanto o jogador ainda está se
+  // cadastrando, ele já vale para esta partida; senão, para a próxima.
+  sincronizarBaralho().then((mudou) => {
+    if (mudou && root.isConnected) FFAppState.recarregarBaralho();
+  });
   FFAppState.finalizou = false;
   playSound(model, 'soundPlayer1', 'assets/audios/adriantnt_u_click.mp3', 1.0);
   model.timerController.onStartTimer();

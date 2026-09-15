@@ -38,18 +38,36 @@ service cloud.firestore {
     // --------------------------------------------------------------- contatos
     // Nome + telefone, para o disparo de WhatsApp. Escrita cega: o cliente
     // grava e não lê de volta. Só quem estiver autenticado enxerga.
+    // NADA aqui foi afrouxado junto com `conteudo`: isto e nome e telefone de
+    // jogador de verdade, e a politica de privacidade que o proprio jogo exibe
+    // promete que nao vaza. Nenhum cliente le — quem precisa do telefone le
+    // pelo console do Firebase ou por uma Cloud Function.
     match /contatos/{document} {
       allow read: if request.auth != null;
       allow create: if isContatoValido(request.resource.data);
-      allow update, delete: if request.auth != null;
+      allow update, delete: if false;
     }
 
     // ------------------------------------------------------------- conteúdo
-    // Baralho de perguntas e veículos publicado pela área administrativa.
-    // O totem lê; só um administrador autenticado escreve.
+    // Baralho de perguntas e veículos salvo pela área administrativa.
+    //
+    // ESCRITA ABERTA, POR DECISÃO DO PROJETO (11/09/2026). O desenho anterior
+    // exigia `request.auth != null`, e o operador entrava uma vez por máquina.
+    // Foi trocado por escrita livre com a justificativa de que o endereço não
+    // será divulgado.
+    //
+    // O que isso custa, para ficar escrito: QUEM DESCOBRIR O ENDEREÇO REESCREVE
+    // O JOGO. Não há segredo possível no cliente — a chave web vai no bundle —,
+    // então a única proteção passa a ser ninguém saber a URL, e URL de GitHub
+    // Pages é indexável. Se um dia o conteúdo valer alguma coisa, o conserto é
+    // voltar a exigir `request.auth != null` aqui e o botão Entrar no painel.
+    //
+    // O que ainda é defendido: o formato. Sem isto a coleção vira depósito de
+    // dados arbitrários de quem passar.
     match /conteudo/{document} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isBaralhoValido(request.resource.data);
+      allow delete: if false;
     }
 
     // Nada mais é acessível.
@@ -71,6 +89,17 @@ function isPartidaValida(d) {
     && (!('tempo' in d) || (d.tempo is number && d.tempo >= 0 && d.tempo <= 60000))
     && (!('invalido' in d) || (d.invalido is int && d.invalido >= 0 && d.invalido <= 100))
     && (!('data' in d) || d.data is timestamp);
+}
+
+// O documento do baralho: um campo `baralho` com uma lista de rodadas, mais o
+// carimbo de quando e por onde foi salvo. Sem isto, escrita aberta significaria
+// que qualquer um pode usar a colecao para guardar o que quiser.
+function isBaralhoValido(d) {
+  return d.keys().hasOnly(['baralho', 'atualizadoEm', 'publicadoPor'])
+    && d.keys().hasAll(['baralho'])
+    && d.baralho.slots is list
+    && d.baralho.slots.size() > 0
+    && d.baralho.slots.size() <= 200;
 }
 
 function isContatoValido(d) {

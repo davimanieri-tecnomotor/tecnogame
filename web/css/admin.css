@@ -1,6 +1,20 @@
 /* Área administrativa. Nada aqui imita o Flutter: é uma ferramenta de trabalho
    num navegador de notebook, então layout fluido e alvos de tamanho normal. As
-   cores conversam com a marca do jogo (azul Tecnomotor sobre fundo escuro). */
+   cores conversam com a marca do jogo (azul Tecnomotor sobre fundo escuro).
+
+   Esta folha divide o documento com o css/app.css desde que o admin passou a
+   morar dentro do index.html. As duas só não brigam porque tudo aqui está preso
+   em `.adm`:
+
+     - nenhuma classe tem o mesmo nome nos dois lados (as do jogo são `ff-*` e
+       `roleta-*`), então as regras de classe já estavam separadas;
+     - o que precisava de trava era o resto: `* { box-sizing }` saiu porque o
+       app.css já tem o mesmo; `html, body` virou o próprio `.adm`; e os
+       seletores de elemento (h1..h3, code) ganharam o prefixo.
+
+   Variáveis ficam em `:root`: os nomes daqui (--azul, --fundo, --texto...) não
+   existem no app.css, e assim a caixa de senha, que é desenhada na camada do
+   jogo, pinta com as mesmas cores do painel. */
 
 :root {
   --azul: #0053B6;
@@ -16,29 +30,28 @@
   --erro: #ef5350;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-html,
-body {
-  margin: 0;
+/* A raiz da camada. O jogo prende a rolagem no `html, body` (totem não rola sob
+   o dedo); com o admin aberto o `data-modo="adm"` solta isso no app.css, e é
+   este bloco que passa a mandar no tamanho e na tipografia. */
+.adm {
   min-height: 100%;
   background: var(--fundo);
   color: var(--texto);
   font: 15px/1.5 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
-h1, h2, h3 {
+.adm h1,
+.adm h2,
+.adm h3 {
   margin: 0;
   font-family: 'Inter Tight', 'Inter', sans-serif;
   font-weight: 600;
 }
 
-h2 { font-size: 1.05rem; }
-h3 { font-size: 0.95rem; letter-spacing: 0.02em; text-transform: uppercase; color: var(--texto-2); }
+.adm h2 { font-size: 1.05rem; }
+.adm h3 { font-size: 0.95rem; letter-spacing: 0.02em; text-transform: uppercase; color: var(--texto-2); }
 
-code {
+.adm code {
   font-family: 'Roboto Mono', ui-monospace, monospace;
   font-size: 0.9em;
   background: #00000055;
@@ -50,23 +63,6 @@ code {
   margin: 0 0 12px;
   font-size: 0.85rem;
   color: var(--texto-2);
-}
-
-.sem-js {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 6vw;
-  text-align: center;
-  background: var(--fundo);
-  color: var(--texto);
-}
-
-.sem-js strong {
-  display: block;
-  margin-bottom: 10px;
-  font-size: 1.3em;
 }
 
 /* ----------------------------------------------------------------- barra -- */
@@ -237,6 +233,90 @@ code {
 
 .item.com-problema { border-color: #ef535055; }
 
+/* A seta que abre e fecha o banco de um veículo. */
+.seta-banco {
+  flex: none;
+  width: 26px;
+  align-self: stretch;
+  border: 0;
+  background: none;
+  color: var(--texto-2);
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 140ms ease-out, color 140ms ease-out;
+}
+
+.seta-banco:hover { color: var(--texto); }
+
+.seta-banco.aberta { transform: rotate(90deg); }
+
+.seta-banco:focus-visible {
+  outline: 2px solid var(--azul-claro);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seta-banco { transition: color 140ms ease-out; }
+}
+
+/* ------------------------------------- o banco de perguntas de um veículo -- */
+/* Recuadas e mais baixas que a linha do veículo: a lista tem dois níveis, e o
+   olho precisa ver de quem cada pergunta é sem ler. */
+
+.item.pergunta {
+  margin-left: 22px;
+  border-left: 2px solid var(--borda);
+  border-radius: 0 8px 8px 0;
+  background: transparent;
+}
+
+.item.pergunta .item-botao {
+  padding: 7px 10px;
+  gap: 8px;
+}
+
+.item.pergunta .item-pergunta {
+  font-size: 0.8rem;
+}
+
+.item.pergunta.selecionado {
+  border-left-color: var(--azul-claro);
+  background: #0053b61f;
+}
+
+/* Desligada continua legível — é rascunho, não lixo —, mas sai do primeiro
+   plano e o texto ganha o risco que diz "isto não cai em partida". */
+.item.pergunta.desligada .item-pergunta {
+  color: var(--texto-2);
+  text-decoration: line-through;
+  text-decoration-color: var(--texto-2);
+}
+
+.pq-marca {
+  flex: none;
+  margin-left: 10px;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--azul-claro);
+  cursor: pointer;
+}
+
+.pq-marca:focus-visible {
+  outline: 2px solid var(--azul-claro);
+  outline-offset: 2px;
+}
+
+.item.pergunta.acrescentar {
+  border-left-style: dashed;
+  padding: 4px 0 4px 10px;
+}
+
+.item.pergunta.acrescentar .botao {
+  font-size: 0.8rem;
+}
+
 .item-botao {
   flex: 1 1 auto;
   display: flex;
@@ -320,7 +400,19 @@ code {
 
 /* ---------------------------------------------------------------- painel -- */
 
-.painel { min-width: 0; }
+/* A direita rola sozinha, como a esquerda. Antes o editor crescia e quem rolava
+   era a pagina inteira: a barra de acoes subia para fora da tela justamente
+   quando o formulario estava longo, que e quando se quer salvar. Agora as duas
+   colunas rolam no proprio espaco e a barra fica sempre a vista. */
+.painel {
+  min-width: 0;
+  position: sticky;
+  top: 78px;
+  max-height: calc(100vh - 100px);
+  overflow: auto;
+  /* Sem isto o anel de foco do campo mais alto fica recortado pela rolagem. */
+  padding: 2px;
+}
 
 .editor {
   display: grid;
@@ -342,6 +434,11 @@ code {
   border: 1px solid var(--borda);
   font-size: 0.75rem;
   color: var(--texto-2);
+}
+
+.selo-desligado {
+  border-color: #f0b42955;
+  color: var(--atencao);
 }
 
 .bloco {
@@ -514,6 +611,16 @@ code {
 
 /* ---------------------------------------------------------------- avisos -- */
 
+/* Os avisos e o diálogo são pendurados no `document.body`, e não dentro de
+   `.adm`: são `position: fixed` e precisam escapar de qualquer rolagem do
+   painel. Fora do `.adm` eles não herdam a tipografia dele, então repetem-na
+   aqui — sem isso saem com a fonte do jogo, que é de totem. */
+.avisos,
+.modal-fundo {
+  font: 15px/1.5 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--texto);
+}
+
 .avisos {
   position: fixed;
   right: 16px;
@@ -572,6 +679,14 @@ code {
   display: grid;
   gap: 12px;
   box-shadow: 0 20px 60px #000c;
+}
+
+/* Repetido porque o diálogo mora fora do `.adm` (ver a nota em `.avisos`). */
+.modal h2 {
+  margin: 0;
+  font-family: 'Inter Tight', 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 1.05rem;
 }
 
 .modal p {

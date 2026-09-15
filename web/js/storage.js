@@ -96,6 +96,25 @@ export function writeRaw(name, value) {
   }
 }
 
+/**
+ * Apaga uma chave — a nossa e a antiga do FlutterFlow, se houver.
+ *
+ * Existe para o "resetar todos os dados" da área administrativa: sobrescrever
+ * com `null` deixaria a string "null" guardada, e `temBaralhoPublicado()`
+ * continuaria dizendo que há baralho publicado.
+ */
+export function removerChave(name) {
+  const s = store();
+  if (!s) return false;
+  try {
+    s.removeItem(PREFIX + name);
+    if (LEGACY[name]) s.removeItem(LEGACY[name]);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 export function readJson(name, fallback) {
   const raw = readRaw(name);
   if (raw == null) return fallback;

@@ -1,32 +1,95 @@
-// Backend switches.
+// As chaves do que sai desta máquina.
 //
-// The Dart app wrote every game result into the live Firestore collection
-// `usuarios` and sent a WhatsApp message through a production z-api instance.
-// Both are wired up in backend.js with the original credentials, but they start
-// switched OFF so that opening this port does not touch production data.
+// Duas, e separadas de propósito:
 //
-// Turn `useFirestore` on to get the real shared ranking back (the same project,
-// collection and query as the Dart). With it off, results are kept in this
-// browser's localStorage and the ranking screens work exactly the same way.
+//   useFirestore     falar com o Firebase — o baralho em `conteudo`.
+//   rankingNaNuvem   gravar RESULTADO DE PARTIDA em `usuarios`/`contatos`.
+//
+// A segunda é mais rígida que a primeira: numa máquina de trabalho ela fica
+// desligada mesmo com `?comNuvem=1`. Mexer no baralho pelo `npm start` é
+// legítimo; semear o ranking da feira com partidas de teste não é, e já
+// aconteceu.
+//
+// O disparo de WhatsApp (`useWhatsApp`) continua desligado, porque a credencial
+// dele não pode viajar no cliente.
+
+/**
+ * Cópia de desenvolvimento? Então a nuvem fica fora — a não ser que você peça.
+ *
+ * Isto não é preciosismo: com o Firestore ligado, CADA partida escreve em
+ * `usuarios` e `contatos`. Uma rodada do `npm run verify` joga o jogo inteiro
+ * quatro vezes, e essas partidas de mentira foram parar no ranking de verdade —
+ * com nome e telefone de teste dentro da coleção de contatos. Aconteceu.
+ *
+ * A regra é a origem: `file://` e localhost são, sem ambiguidade, alguém
+ * mexendo no jogo. Um IP de rede local (o totem servido de outra máquina do
+ * estande) continua valendo como produção.
+ *
+ * AS DUAS CHAVES, porque os dois casos existem:
+ *
+ *   ?comNuvem=1   liga aqui mesmo. É o que se usa para mexer no baralho pelo
+ *                 `npm start` e ver o resultado chegar no Firebase. A suíte de
+ *                 verificação não passa por aqui, então continua hermética.
+ *   ?semNuvem=1   desliga em qualquer outro lugar — uma cópia de demonstração
+ *                 no ar, um totem que não deve mandar nada.
+ */
+const busca = () => new URLSearchParams(typeof location === 'undefined' ? '' : location.search);
+
+/** `file://` ou localhost: alguém mexendo no jogo, não um totem em feira. */
+function maquinaDeTrabalho() {
+  if (typeof location === 'undefined') return true;
+  if (location.protocol === 'file:') return true;
+  return ['localhost', '127.0.0.1', '::1', '0.0.0.0'].includes(location.hostname);
+}
+
+function origemDeDesenvolvimento() {
+  if (busca().has('semNuvem')) return true;
+  if (busca().has('comNuvem')) return false;
+  return maquinaDeTrabalho();
+}
 
 export const CONFIG = {
-  /** Read/write the `usuarios` collection in Firestore. */
-  useFirestore: false,
+  /**
+   * Liga o Firebase: o ranking compartilhado (`usuarios`) e o baralho na nuvem
+   * (`conteudo`, ver nuvem.js).
+   *
+   * Aponta para `tecnogame-c7e46`, o projeto da Tecnomotor — e não mais para o
+   * `projeto-assis-3qcf6v` do FlutterFlow original, que está morto (o bucket
+   * dele responde 402).
+   *
+   * Vale saber: `file://` recusa o SDK de qualquer forma, então o jogo aberto do
+   * disco continua jogando só com o que tem guardado no próprio navegador.
+   */
+  useFirestore: !origemDeDesenvolvimento(),
+
+  /**
+   * O RANKING é caso à parte, e mais rígido: numa máquina de trabalho ele NUNCA
+   * vai para a nuvem, nem com `?comNuvem=1`.
+   *
+   * `comNuvem` existe para mexer no baralho pelo `npm start` e ver chegar no
+   * Firebase — não para semear o ranking da feira com partidas de teste. Foi
+   * exatamente isso que encheu `usuarios` e `contatos` de "Davi" e "Vencedor"
+   * com telefone de mentira. Numa máquina de trabalho o ranking é local, e é o
+   * local que o jogo lê de volta, para a tela de fim ficar coerente.
+   */
+  rankingNaNuvem: !maquinaDeTrabalho() && !busca().has('semNuvem'),
 
   /** POST the "you finished TECNOGAME" WhatsApp message on the end screens. */
   useWhatsApp: false,
 
-  /** The n8n webhook in EnviarMensagemAgenteCall (never called by the UI). */
-  useAgentWebhook: false,
-
-  // lib/backend/firebase/firebase_config.dart
+  /**
+   * A chave web do Firebase pode ficar aqui: ela é identificador público por
+   * design, não credencial. Quem defende os dados são as regras em
+   * firebase/firestore.rules — leitura do ranking sem telefone, escrita do
+   * conteúdo só autenticada.
+   */
   firebaseOptions: {
-    apiKey: 'AIzaSyAZTmRXL83WY-KjmtAhsE-ERAdWRkEEKMY',
-    authDomain: 'projeto-assis-3qcf6v.firebaseapp.com',
-    projectId: 'projeto-assis-3qcf6v',
-    storageBucket: 'projeto-assis-3qcf6v.appspot.com',
-    messagingSenderId: '269670706726',
-    appId: '1:269670706726:web:5bcb2a2dd730efcb91c0e7',
+    apiKey: 'AIzaSyB46OQK72wBKDBCy538oiCd0sC_08KWd6E',
+    authDomain: 'tecnogame-c7e46.firebaseapp.com',
+    projectId: 'tecnogame-c7e46',
+    storageBucket: 'tecnogame-c7e46.firebasestorage.app',
+    messagingSenderId: '373113273748',
+    appId: '1:373113273748:web:c78fb6538edd0da32ae381',
   },
 
   /**
@@ -37,9 +100,21 @@ export const CONFIG = {
    */
   useLocalScannerVideos: false,
 
-  // lib/backend/api_requests/api_calls.dart
-  zapApiUrl:
-    'https://api.z-api.io/instances/3DF6AF6878FFE0BA1789FA8592F99CB9/token/957757C50A408830EA4E34A1/send-link',
-  zapClientToken: 'F6fe8ad64e65d43f38881110afffab493S',
-  agentWebhookUrl: 'https://d0ed-200-210-23-242.ngrok-free.app/webhook-test/lutterflow-webhook',
+  /**
+   * A credencial do z-api (lib/backend/api_requests/api_calls.dart no Dart).
+   *
+   * Ela vinha CRAVADA aqui, com a instancia e o token no caminho da URL. O
+   * problema nao e o repositorio: e que este arquivo entra no `bundle.js`
+   * servido ao navegador, ou seja, qualquer pessoa que abrisse o jogo lia uma
+   * credencial capaz de disparar WhatsApp pela conta da Tecnomotor.
+   *
+   * Agora nasce vazia e o envio se recusa a rodar sem ela (ver backend.js).
+   * Para ligar o disparo: preencha as duas linhas na copia que vai para o
+   * totem, com `useWhatsApp: true` — e NAO comite os valores.
+   *
+   * O token que estava aqui tem de ser considerado exposto e ROTACIONADO no
+   * painel do z-api, porque ja foi servido e esta no historico do git.
+   */
+  zapApiUrl: '',
+  zapClientToken: '',
 };

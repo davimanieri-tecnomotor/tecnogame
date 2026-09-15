@@ -1,25 +1,27 @@
-// Port of lib/pages/components/pop_up/pop_up_widget.dart
+// O popup de dica de suporte. `tipo` escolhe o logo e a foto, `texto` e a dica
+// da questao no idioma atual.
 //
-// The support hint popup. `tipo` selects the logo + photo pair, `texto` is the
-// hint text for the current question in the current language.
+// POR QUE ESTE ARQUIVO NAO E UM PORTE DIRETO DO DART
+// O widget original (pop_up_widget.dart) empilhava um Column com um Row
+// centralizado e um Padding de 62px por cima de um PNG de fundo com `cover`.
+// Na pratica nada caia no lugar: a foto do notebook subia acima da faixa azul,
+// o texto encostava na borda de baixo do cartao e vazava, e o X de fechar
+// flutuava no meio do cartao (alignment 0.52/0.72). Estava fiel ao Dart e
+// quebrado na tela.
+//
+// Aqui o layout sai da PROPRIA ARTE, medida no pixel (assets/images/Pop_Up.png,
+// 1480x767):
+//
+//   - o cartao e um paralelogramo de largura constante 1234 que desliza 0,3px
+//     para a esquerda por pixel de altura;
+//   - a faixa azul do cabecalho vai de y 45 a y 172;
+//   - o corpo claro vai de y 175 ao fim.
+//
+// Como os lados sao inclinados, o conteudo vive em duas caixas seguras — o
+// retangulo que cabe dentro do paralelogramo na altura de cada uma. Os numeros
+// abaixo sao a medicao em px de arte multiplicada pela escala do cartao.
 
-import {
-  Align,
-  ClipRRect,
-  Column,
-  Container,
-  Img,
-  InkWell,
-  Padding,
-  Row,
-  Stack,
-  StackAlign,
-  Txt,
-  decorationImage,
-  divide,
-  valueOrDefault,
-} from '../widgets.js';
-import { style } from '../theme.js';
+import { el, Img, valueOrDefault } from '../widgets.js';
 import { pop } from '../dialog.js';
 import {
   AnimationInfo,
@@ -27,12 +29,10 @@ import {
   Curves,
   FadeEffect,
   MoveEffect,
-  ScaleEffect,
-  animateOnActionTrigger,
   animateOnPageLoad,
 } from '../anim.js';
 
-/** tipo -> the logo image on the left of the header. */
+/** tipo -> o logo da faixa do cabecalho. */
 const LOGOS = {
   'Apoio Tecnico': 'assets/images/Apoio_1.png',
   'Cursos EAD': 'assets/images/Cursos_EAD_1.png',
@@ -41,110 +41,115 @@ const LOGOS = {
   TecnomotorTV: 'assets/images/TecnomotorTV_(1).png',
 };
 
-/** tipo -> the photo on the right, with its own size in the Dart. */
-const PHOTOS = {
-  Representante: { src: 'assets/images/Representantes_(1).png', width: 357.2, height: 188.1 },
-  TecnomotorTV: { src: 'assets/images/TecnmotorTV.png', width: 293.7, height: 206.1 },
-  Comunidade: { src: 'assets/images/Comunidade.png', width: 293.7, height: 206.1 },
-  'Cursos EAD': { src: 'assets/images/Instrutores_(1)_(1).png', width: 293.7, height: 206.1 },
-  'Apoio Tecnico': { src: 'assets/images/Apoio_(1).png', width: 293.7, height: 206.1 },
+/** tipo -> a foto do corpo. */
+const FOTOS = {
+  Representante: 'assets/images/Representantes_(1).png',
+  TecnomotorTV: 'assets/images/TecnmotorTV.png',
+  Comunidade: 'assets/images/Comunidade.png',
+  'Cursos EAD': 'assets/images/Instrutores_(1)_(1).png',
+  'Apoio Tecnico': 'assets/images/Apoio_(1).png',
 };
 
+/** A arte tem 1480x767; o cartao entra com a MESMA proporcao, para nao cortar. */
+const CARTAO = { largura: 1340, altura: 694 };
+/** A faixa azul do cabecalho (arte y 45..172). */
+const FAIXA = { topo: 41, altura: 115 };
+/** O retangulo que cabe na faixa (arte x 250..1345 nas linhas dela). */
+const CABECALHO = { esquerda: 226, largura: 991 };
+/** O retangulo que cabe no corpo (arte x 215..1230, y 195..720). */
+const CORPO = { esquerda: 195, topo: 177, largura: 919, altura: 475 };
+/** A foto ocupa a direita do corpo; o texto fica com o que sobra. */
+const FOTO = { largura: 300, altura: 212 };
+const FOLGA = 48;
+
+const px = (n) => `${n}px`;
+
 export function PopUpWidget({ texto, tipo } = {}) {
-  const animationsMap = {
-    stackOnPageLoadAnimation: new AnimationInfo({
-      trigger: AnimationTrigger.onPageLoad,
-      effectsBuilder: () => [
-        FadeEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 1200.0, begin: 0.0, end: 1.0 }),
-        MoveEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 1200.0, begin: [0.0, 100.0], end: [0.0, 0.0] }),
-      ],
-    }),
-    imageOnActionTriggerAnimation: new AnimationInfo({
-      trigger: AnimationTrigger.onActionTrigger,
-      applyInitialState: true,
-      effectsBuilder: () => [
-        ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 200.0, begin: [1.0, 1.0], end: [0.9, 0.9] }),
-        ScaleEffect({ curve: Curves.easeInOut, delay: 200.0, duration: 200.0, begin: [0.9, 0.9], end: [1.0, 1.0] }),
-      ],
-    }),
-  };
-
-  const logo = LOGOS[tipo];
-  const photo = PHOTOS[tipo];
-
-  const closeButton = InkWell({
-    onTap: async () => {
-      await animationsMap.imageOnActionTriggerAnimation.controller.forward();
-      pop();
-    },
-    child: ClipRRect({
-      borderRadius: 8.0,
-      child: Img('assets/images/Icones_Suporte_(1).png', { width: 200.0, height: 200.0, fit: 'cover' }),
-    }),
-  });
-  animateOnActionTrigger(closeButton, animationsMap.imageOnActionTriggerAnimation);
-
-  const root = Stack({
-    children: [
-      StackAlign({
-        alignment: [0.0, 0.0],
-        child: Container({
-          width: 1304.5,
-          height: 689.6,
-          constraints: { minWidth: '200px' },
-          image: decorationImage('assets/images/Pop_Up.png', 'cover'),
-          child: Column({
-            mainAxisSize: 'max',
-            mainAxisAlignment: 'start',
-            children: [
-              Row({
-                mainAxisSize: 'max',
-                mainAxisAlignment: 'center',
-                crossAxisAlignment: 'center',
-                children: divide(
-                  [
-                    Column({
-                      mainAxisSize: 'max',
-                      children: [
-                        logo &&
-                          ClipRRect({
-                            borderRadius: 8.0,
-                            child: Img(logo, { width: 400.0, height: 100.0, fit: 'contain' }),
-                          }),
-                      ],
-                    }),
-                    Column({
-                      mainAxisSize: 'max',
-                      children: [
-                        photo &&
-                          ClipRRect({
-                            borderRadius: 8.0,
-                            child: Img(photo.src, { width: photo.width, height: photo.height, fit: 'cover' }),
-                          }),
-                      ],
-                    }),
-                  ],
-                  32.0
-                ),
-              }),
-              Align({
-                alignment: [0.0, 0.0],
-                child: Padding({
-                  padding: [0.0, 62.0, 0.0, 0.0],
-                  child: Container({
-                    width: 902.36,
-                    alignment: [0.0, 0.0],
-                    child: Txt(valueOrDefault(texto, 'Texto'), style('bodyMedium', { color: '#000000', fontSize: 32.0 })),
-                  }),
-                }),
-              }),
-            ],
-          }),
-        }),
-      }),
-      StackAlign({ alignment: [0.52, 0.72], child: closeButton }),
+  const entrada = new AnimationInfo({
+    trigger: AnimationTrigger.onPageLoad,
+    effectsBuilder: () => [
+      FadeEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 420.0, begin: 0.0, end: 1.0 }),
+      MoveEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 420.0, begin: [0.0, 60.0], end: [0.0, 0.0] }),
     ],
   });
 
-  return animateOnPageLoad(root, animationsMap.stackOnPageLoadAnimation);
+  const logo = LOGOS[tipo];
+  const foto = FOTOS[tipo];
+
+  /* ------------------------------------------------------------- cabecalho -- */
+
+  const marca = logo
+    ? el('div', { class: 'pop-logo', style: { left: px(CABECALHO.esquerda), top: px(FAIXA.topo + 16) } },
+        Img(logo, { width: 300, height: FAIXA.altura - 32, fit: 'contain', alignment: [-1.0, 0.0] }))
+    : null;
+
+  // O X fica no canto do cabecalho, que e onde se procura por ele — e nao no
+  // meio do cartao, como o Dart o punha. 56px de lado da area de toque folgada.
+  const fechar = el(
+    'div',
+    {
+      class: 'ff-inkwell pop-fechar',
+      role: 'button',
+      tabindex: '0',
+      'aria-label': 'Fechar',
+      style: {
+        left: px(CABECALHO.esquerda + CABECALHO.largura - 56),
+        top: px(FAIXA.topo + (FAIXA.altura - 56) / 2),
+      },
+    },
+    Img('assets/images/Icones_Suporte_(1).png', { width: 56, height: 56, fit: 'contain' })
+  );
+  // Fecha na hora. O Dart esperava 400ms de animacao antes de fazer qualquer
+  // coisa, o que faz o toque parecer que nao pegou.
+  const aoFechar = () => pop();
+  fechar.addEventListener('click', (event) => {
+    event.stopPropagation();
+    aoFechar();
+  });
+  fechar.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+      event.preventDefault();
+      event.stopPropagation();
+      aoFechar();
+    }
+  });
+
+  /* ----------------------------------------------------------------- corpo -- */
+
+  const dica = el('div', {
+    class: 'ff-text pop-texto',
+    style: {
+      left: px(CORPO.esquerda),
+      top: px(CORPO.topo),
+      width: px(CORPO.largura - (foto ? FOTO.largura + FOLGA : 0)),
+      height: px(CORPO.altura),
+    },
+    text: valueOrDefault(texto, ''),
+  });
+
+  const imagem = foto
+    ? el('div', {
+        class: 'pop-foto',
+        style: {
+          left: px(CORPO.esquerda + CORPO.largura - FOTO.largura),
+          top: px(CORPO.topo),
+          width: px(FOTO.largura),
+          height: px(CORPO.altura),
+        },
+      },
+      Img(foto, { width: FOTO.largura, height: FOTO.altura, fit: 'contain' }))
+    : null;
+
+  const cartao = el(
+    'div',
+    {
+      class: 'pop-cartao',
+      role: 'dialog',
+      'aria-modal': 'true',
+      style: { width: px(CARTAO.largura), height: px(CARTAO.altura) },
+    },
+    [marca, fechar, dica, imagem].filter(Boolean)
+  );
+
+  return animateOnPageLoad(cartao, entrada);
 }

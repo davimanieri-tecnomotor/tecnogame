@@ -158,6 +158,41 @@ body {
   pointer-events: none;
 }
 
+/* --------------------------------------------------- pisos de legibilidade -- */
+/* O palco e escalado inteiro, entao tudo encolhe junto. As telas atendidas vao
+   de 1280x800 (escala 0,667) a 4K (escala 2), e no pe dessa faixa o texto de
+   14px do cadastro chegava a 9,3px na tela e o link da politica a 11px de alvo.
+
+   Estes dois pisos sao escritos em px DE TELA e convertidos para px do palco
+   pela propria escala. Em 1x eles valem 12px e 24px, que nenhum texto do jogo
+   e quase nenhum alvo alcanca — o totem continua identico ao Dart — e crescem
+   sozinhos conforme a janela encolhe. Sao 12px de texto e 24px de area de
+   toque, o minimo que a faixa atendida tem de entregar.
+
+   O `min(escala, 1)` trava o piso em 1x para cima: sem ele o 4K, que escala
+   por 2, receberia um piso de 12px do palco em vez de 24px, e a geometria do
+   palco passaria a depender do monitor — o totem e o 4K desenhariam a mesma
+   tela com alturas diferentes. Com ele existem so dois regimes: 1x ou acima,
+   que e o layout do Dart mais o piso de toque, e abaixo de 1x, onde os pisos
+   crescem.
+
+   Quem usa: `fonte()` em js/widgets.js (todo texto) e o min-height abaixo. */
+#stage {
+  --piso-fonte: calc(12px / min(var(--stage-scale, 1), 1));
+  --piso-alvo: calc(24px / min(var(--stage-scale, 1), 1));
+}
+
+/* Cresce so a AREA CLICAVEL. O desenho continua do tamanho que era, porque o
+   .ff-inkwell nao tem fundo nem borda proprios: ele so embrulha o filho. Alvo
+   que ja passa do piso nao muda em nada.
+
+   O padrao e `auto`, e nao `0px`, de proposito: fora do palco a variavel nao
+   existe, e `min-height: 0` num item flex desliga o `min-height: auto` que o
+   impede de encolher abaixo do proprio conteudo — os alvos colapsariam. */
+.ff-inkwell {
+  min-height: var(--piso-alvo, auto);
+}
+
 /* Centred by translating half its own (unscaled) size, which the scale that
    follows does not affect - a grid/flex centre would instead centre the
    1920x1080 box and let it overflow once the window is smaller than that. */
@@ -265,9 +300,32 @@ body {
 }
 
 #pages,
+#popups,
 #overlays {
   position: absolute;
   inset: 0;
+}
+
+/* A camada dos menus abertos (ver camadaDeMenus em js/forms.js). Fica entre as
+   telas e os dialogos, e nao intercepta toque: so o menu dentro dela recebe. */
+#popups {
+  pointer-events: none;
+}
+
+#popups > * {
+  pointer-events: auto;
+}
+
+/* O chão do palco: a mesma arte que cada tela desenha, parada por baixo de
+   todas. Existe para a transição entre telas não piscar — o roteador desmonta a
+   página que sai antes de montar a que entra, e sem isto o intervalo mostra o
+   vazio. Fica antes de #pages no DOM, os dois absolutos, então a ordem de
+   pintura já resolve: nada de z-index. */
+#fundo {
+  position: absolute;
+  inset: 0;
+  background: #000B18 url('../assets/images/BG_Seleo_Equipamento.png') center / cover no-repeat;
+  pointer-events: none;
 }
 
 #overlays {
@@ -365,9 +423,17 @@ body {
 
 .ff-stack > * {
   grid-area: stack;
-  /* O Stack tem tamanho definido, e no Flutter nenhum filho passa da restrição
-     que ele recebe: a roleta declara 946px de altura numa caixa de 839.8 e é
-     comprimida, não recortada. */
+  /* PINTURA. Sem isto, um filho que ANIMA `transform` — a roleta girando — e
+     promovido a camada composta e passa a ser desenhado por cima dos filhos
+     seguintes: durante o giro a seta e o logo da Tecnomotor desapareciam atras
+     do disco. Com todos os filhos posicionados, eles voltam a ser pintados na
+     ordem do DOM, que e a ordem do Stack. `relative` sem deslocamento nao move
+     nada, entao o layout fica igual. */
+  position: relative;
+  /* Segura o filho que só é largo/alto demais por pouco. Não resolve o filho
+     que declara mais que o Stack: a porcentagem resolve contra a grid area,
+     que cresce com o maior filho, e aí o Stack recorta. Era o caso da roleta,
+     hoje corrigido em pages/roleta.js declarando a caixa já resolvida. */
   max-width: 100%;
   max-height: 100%;
 }
@@ -406,6 +472,41 @@ body {
   cursor: pointer;
   -webkit-user-select: none;
   user-select: none;
+}
+
+/* -------------------------------------------------------- toque que responde -- */
+/* O aperto tem de aparecer no dedo, nao depois. Duas escolhas importam aqui:
+
+   1. a propriedade e `scale`, e nao `transform`. Metade dos botoes do jogo
+      carrega `transform` inline de uma animacao com `fill: both` (o
+      `applyInitialState`), e animacao ganha de regra CSS — um `:active` no
+      transform simplesmente nao apareceria justo onde mais precisa (REINICIAR,
+      os botoes de dica, "Pular instrucoes"). `scale` e propriedade separada e
+      se compoe com o transform em vez de brigar com ele.
+
+   2. quem afunda e `.ff-press`, que o InkWell so poe em alvo interativo de
+      verdade (ver widgets.js) — nao no InkWell que cobre a tela inteira. */
+.ff-press,
+.ff-btn {
+  transition: scale 90ms ease-out, filter 90ms ease-out;
+}
+
+.ff-press:active,
+.ff-btn:active {
+  scale: 0.96;
+  filter: brightness(0.92);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ff-press,
+  .ff-btn {
+    transition: filter 90ms ease-out;
+  }
+
+  .ff-press:active,
+  .ff-btn:active {
+    scale: 1;
+  }
 }
 
 .ff-inkwell,
@@ -625,4 +726,557 @@ body {
 .ff-video {
   display: block;
   background: #000;
+}
+
+/* ------------------------------------------------------- popup de suporte -- */
+/* O layout sai da arte, medida no pixel; os numeros estao em
+   js/components/pop_up.js, que explica de onde vem cada um. Aqui fica so o
+   que e CSS: o fundo sem corte, a pilha absoluta e o texto que nunca vaza. */
+.pop-cartao {
+  position: relative;
+  flex: none;
+  /* `100% 100%` e nao `cover`: o cartao entra com a proporcao da arte, entao
+     esticar para os dois lados nao distorce e nao corta as bordas. */
+  background: url('../assets/images/Pop_Up.png') 0 0 / 100% 100% no-repeat;
+}
+
+.pop-logo,
+.pop-fechar,
+.pop-texto,
+.pop-foto {
+  position: absolute;
+}
+
+.pop-logo {
+  display: flex;
+  align-items: center;
+}
+
+.pop-fechar {
+  display: flex;
+  width: 56px;
+  height: 56px;
+  align-items: center;
+  justify-content: center;
+}
+
+.pop-texto {
+  display: grid;
+  /* `safe center` centra o texto curto e, quando ele e longo demais, desiste de
+     centrar em vez de empurrar o comeco para fora da area rolavel. */
+  align-content: safe center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: max(32px, var(--piso-fonte, 0px));
+  line-height: 1.35;
+  color: #0a2540;
+}
+
+.pop-foto {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* ------------------------------------------------------------- roleta ----- */
+/* A roda de verdade. O giro, a seta batendo nas divisas e o borrao estao em
+   js/giro.js, que explica a fisica; aqui fica o que e desenho: a luz que NAO
+   gira com o disco e o rastro que ele deixa quando corre.
+
+   Todas as camadas tem o tamanho da caixa da roda e recebem de pages/roleta.js
+   onde o disco acaba (--disco-x/y, o raio das fatias) e onde o aro de lampadas
+   passa (--aro-x/y), porque a arte pronta e a roda desenhada nao tem o mesmo
+   diametro — um aro fora de lugar aparece como anel solto em cima da arte. */
+
+.roleta-camada {
+  position: relative;
+  flex: none;
+  pointer-events: none;
+  /* Nao entra na ordem de leitura: e luz, nao conteudo. */
+  user-select: none;
+}
+
+/* Atras do disco. A sombra vive no vao que sobra embaixo dele — o Stack recorta
+   com Clip.hardEdge e nao ha um pixel de folga fora da caixa —, e o halo das
+   lampadas fica logo depois do aro, morrendo antes da borda para o recorte nao
+   cortar o brilho num risco reto. */
+.roleta-fundo {
+  background: radial-gradient(
+    ellipse 36% 3.1% at 50% 96%,
+    rgba(2, 6, 18, 0.5) 0%,
+    rgba(2, 6, 18, 0.2) 42%,
+    rgba(2, 6, 18, 0) 78%
+  );
+}
+
+.roleta-fundo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse var(--aro-x) var(--aro-y) at 50% 50%,
+    rgba(255, 188, 86, 0) 99%,
+    rgba(255, 188, 86, 0.26) 101.8%,
+    rgba(255, 188, 86, 0) 105%
+  );
+  /* A roda parada com a luz fixa parece desligada. Este respiro e a unica coisa
+     que se mexe enquanto ninguem toca em nada. */
+  animation: roleta-respira 3.4s ease-in-out infinite alternate;
+}
+
+@keyframes roleta-respira {
+  from {
+    opacity: 0.55;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* Na frente do disco, e PARADA: e o que separa um objeto de um desenho girando.
+   Brilho no alto a esquerda, sombra de forma no baixo a direita, e a vinheta
+   que arredonda o aro. As duas primeiras sao maiores que o disco de proposito,
+   mas ja chegam em zero antes da borda dele — nao ha o que vazar para o fundo. */
+.roleta-luz {
+  background:
+    radial-gradient(
+      ellipse 46% 40% at 34% 26%,
+      rgba(255, 255, 255, 0.15) 0%,
+      rgba(255, 255, 255, 0.05) 40%,
+      rgba(255, 255, 255, 0) 72%
+    ),
+    radial-gradient(
+      ellipse 50% 46% at 68% 80%,
+      rgba(2, 8, 24, 0.24) 0%,
+      rgba(2, 8, 24, 0.08) 44%,
+      rgba(2, 8, 24, 0) 76%
+    ),
+    radial-gradient(
+      ellipse var(--disco-x) var(--disco-y) at 50% 50%,
+      rgba(2, 6, 18, 0) 78%,
+      rgba(2, 6, 18, 0.13) 92%,
+      rgba(2, 6, 18, 0.22) 98.5%,
+      rgba(2, 6, 18, 0) 100%
+    );
+}
+
+/* A ronda: um arco de luz dando a volta no aro, que e o que roleta de parque
+   faz o dia inteiro. Ele nao precisa saber onde cada lampada esta — passa por
+   cima do aro inteiro e acende o que encontra, e as lampadas ja sao o que ha de
+   mais claro ali. A mascara e que o prende ao aro; sem ela o cone de luz cobria
+   o disco todo, entao pages/roleta.js so monta esta camada onde ha mascara. */
+.roleta-ronda {
+  /* O arco gira, e caixa girada tem moldura maior que a caixa parada: o Stack
+     passava a ter conteudo mais alto que ele e o teste de recorte acusava a
+     roleta. Quem gira e o ::after; a camada em volta e so uma caixa parada que
+     promete nao pintar fora de si — que e verdade, o anel cabe nela — e assim a
+     moldura girada nao chega ao Stack. */
+  contain: paint;
+}
+
+.roleta-ronda::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: conic-gradient(
+    from 0deg,
+    rgba(255, 232, 170, 0) 0deg,
+    rgba(255, 232, 170, 0.85) 24deg,
+    rgba(255, 232, 170, 0.24) 50deg,
+    rgba(255, 232, 170, 0) 74deg,
+    rgba(255, 232, 170, 0) 174deg,
+    rgba(255, 232, 170, 0.55) 198deg,
+    rgba(255, 232, 170, 0.16) 222deg,
+    rgba(255, 232, 170, 0) 244deg,
+    rgba(255, 232, 170, 0) 360deg
+  );
+  -webkit-mask-image: radial-gradient(
+    ellipse var(--aro-x) var(--aro-y) at 50% 50%,
+    transparent 0 88%,
+    #000 94%,
+    #000 99%,
+    transparent 106%
+  );
+  mask-image: radial-gradient(
+    ellipse var(--aro-x) var(--aro-y) at 50% 50%,
+    transparent 0 88%,
+    #000 94%,
+    #000 99%,
+    transparent 106%
+  );
+  animation: roleta-ronda 4.4s linear infinite;
+}
+
+@keyframes roleta-ronda {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* O acender do giro: o giro.js sobe a opacidade com a velocidade. */
+.roleta-faisca {
+  opacity: 0;
+  background:
+    radial-gradient(
+      ellipse var(--disco-x) var(--disco-y) at 50% 50%,
+      rgba(255, 214, 138, 0) 76%,
+      rgba(255, 214, 138, 0.15) 95%,
+      rgba(255, 214, 138, 0) 100%
+    ),
+    radial-gradient(
+      ellipse var(--aro-x) var(--aro-y) at 50% 50%,
+      rgba(255, 190, 90, 0) 99%,
+      rgba(255, 190, 90, 0.38) 102%,
+      rgba(255, 190, 90, 0) 105.5%
+    );
+}
+
+/* Parou: um estalo de luz, uma vez so, como o aro comemorando o resultado. Ele
+   cabe na sobra de 1s entre a roda parar e o jogo abrir o carro sorteado. */
+.roleta-faisca--parou {
+  animation: roleta-estalo 680ms ease-out 1;
+}
+
+@keyframes roleta-estalo {
+  0% {
+    opacity: 0.75;
+  }
+
+  32% {
+    opacity: 0.45;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+/* A caixa que bambeia. O `transform` do disco e do motor de animacao, entao a
+   folga do eixo precisa de uma caixa propria para nao brigar com ele. */
+.roleta-eixo {
+  display: flex;
+  flex: none;
+  will-change: transform;
+}
+
+/* A pista carrega a arte e, so enquanto a roda corre, as copias do borrao. */
+.roleta-pista {
+  position: relative;
+  display: flex;
+  flex: none;
+}
+
+/* Uma copia atrasada alguns graus. Sobrepostas, elas cobrem o arco que o disco
+   varre em um quadro — que e o que uma camera registra, e nao desfoque. */
+.roleta-eco {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  opacity: 0;
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roleta-fundo::after {
+    animation: none;
+    opacity: 0.8;
+  }
+
+  /* A ronda e movimento em loop, e loop e justamente o que sai aqui. */
+  .roleta-ronda::after {
+    animation: none;
+    opacity: 0;
+  }
+
+  .roleta-faisca--parou {
+    animation: none;
+  }
+}
+
+/* --- administração: a porta e o modo --- */
+
+/* Com o painel aberto o documento deixa de ser um totem e volta a ser uma
+   página: o jogo tranca rolagem, seleção e gesto de toque para o dedo não
+   arrastar o palco, e uma ferramenta de edição precisa dos três de volta. O
+   `data-modo` é posto e tirado por js/admin/porta.js. */
+html[data-modo="adm"],
+html[data-modo="adm"] body {
+  height: auto;
+  min-height: 100%;
+  overflow: auto;
+  touch-action: auto;
+  overscroll-behavior: auto;
+  -webkit-user-select: text;
+  user-select: text;
+  background: var(--fundo);
+}
+
+/* A caixa de senha é desenhada por fora do palco, para não ser escalada junto
+   com ele: senha se digita em px de tela, não em px de totem. As cores vêm das
+   variáveis do admin (css/admin.css), para a porta e o painel combinarem. */
+.porta-fundo {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  /* Escurece o jogo sem apagá-lo: a tela do cadastro já é escura, e um véu de
+     80% preto fazia parecer que o jogo tinha caído. Mesma densidade do
+     barrierColor dos diálogos do próprio jogo (Colors.black54). */
+  background: rgba(0, 11, 24, 0.66);
+  font: 15px/1.5 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--texto);
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.porta-caixa {
+  width: min(340px, 100%);
+  display: grid;
+  gap: 10px;
+  padding: 22px;
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  background: var(--fundo-2);
+  box-shadow: 0 20px 60px #000c;
+}
+
+.porta-titulo {
+  margin: 0;
+  font-family: 'Inter Tight', 'Inter', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.porta-texto {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--texto-2);
+}
+
+.porta-campo {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--fundo-3);
+  color: var(--texto);
+  font: inherit;
+  /* Senha curta e numérica: espaçar ajuda a conferir o que foi digitado. */
+  letter-spacing: 0.35em;
+  text-align: center;
+}
+
+.porta-campo:focus-visible {
+  outline: 2px solid var(--azul-claro);
+  outline-offset: 1px;
+}
+
+/* `:empty` some sozinho: sem erro não há espaço reservado empurrando o botão. */
+.porta-erro {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--erro);
+}
+
+.porta-erro:empty {
+  display: none;
+}
+
+.porta-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.porta-botao {
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--fundo-3);
+  color: var(--texto);
+  font: inherit;
+  cursor: pointer;
+}
+
+.porta-botao:hover {
+  border-color: var(--azul-claro);
+}
+
+.porta-botao:focus-visible {
+  outline: 2px solid var(--azul-claro);
+  outline-offset: 2px;
+}
+
+.porta-botao--ok {
+  border-color: transparent;
+  background: var(--azul);
+}
+
+.porta-botao--ok:hover {
+  background: var(--azul-claro);
+}
+
+/* --- a partida: escolha, revelacao e reta final --- */
+
+/* O Stack recorta (`Clip.hardEdge` do Flutter), e o cartao ocupa o Stack
+   inteiro: anel, brilho e tremida ficavam todos do lado de fora e eram
+   aparados. Aqui nada transborda por acidente — o numero grande fica por cima
+   do cartao, dentro dele —, entao liberar a borda e seguro. */
+[data-resposta] {
+  overflow: visible;
+}
+
+/* O cartao tocado, enquanto a caixa de confirmacao esta aberta. Antes nada
+   marcava a escolha, e a propria caixa cobre a lista: quem se distraiu
+   confirmava sem ver o que tinha tocado. */
+.ff-resposta-cartao {
+  transition: transform 160ms ease-out, box-shadow 160ms ease-out, opacity 220ms ease-out,
+    outline-color 160ms ease-out;
+  outline: 3px solid transparent;
+  outline-offset: 3px;
+}
+
+.ff-resposta--escolhida .ff-resposta-cartao {
+  outline-color: #0051FF;
+  transform: translateX(10px);
+}
+
+/* A revelacao. A tela congela, as descartadas apagam, a certa acende. E o
+   momento que faltava: antes o jogo julgava e trocava de pagina na mesma
+   batida, e ninguem chegava a ver o que era certo. */
+.ff-revelando {
+  pointer-events: none;
+}
+
+/* Apaga o cartao INTEIRO, numero junto: e o conjunto que sai de cena. Uma
+   opacidade no cartao e outra no involucro se multiplicariam, e o resultado
+   some de vez.
+
+   A OPACIDADE NAO ESTA AQUI de proposito: ela e escrita inline por revelar()
+   em perguntas_erespostas.js. Neste elemento ela e disputada por duas animacoes
+   preenchidas e pelo quadro 0 do `applyInitialState`, e a regra de folha perdia
+   em silencio. O que fica aqui e so o que ninguem mais escreve. */
+/* O cartao descartado recua por FILTRO, e nao por opacidade.
+
+   Opacidade neste elemento e propriedade disputada: a entrada a anima, o
+   `applyInitialState` escreve o quadro 0 inline, e animacao ganha de inline no
+   cascade. O resultado era um cartao frio saindo apagado e o outro nao, na
+   mesma revelacao. `filter` ninguem mais toca, entao a regra vale sempre. */
+.ff-resposta--fria {
+  filter: saturate(0.15) brightness(0.62) contrast(0.9);
+}
+
+.ff-resposta--certa .ff-resposta-cartao {
+  outline-width: 5px;
+  outline-color: #22C069;
+  box-shadow: inset 0 0 0 2px rgba(34, 192, 105, 0.55), 0 0 46px 6px rgba(34, 192, 105, 0.55);
+  animation: ff-acertou 520ms cubic-bezier(0.22, 1.2, 0.36, 1) 1;
+}
+
+.ff-resposta--errada .ff-resposta-cartao {
+  outline-width: 5px;
+  outline-color: #FF3B30;
+  box-shadow: inset 0 0 0 2px rgba(255, 59, 48, 0.55), 0 0 40px 4px rgba(255, 59, 48, 0.45);
+  animation: ff-errou 420ms ease-out 1;
+}
+
+@keyframes ff-acertou {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.045); }
+  100% { transform: scale(1); }
+}
+
+/* Um "nao" curto, na horizontal: tres idas e vindas que morrem. */
+@keyframes ff-errou {
+  0%, 100% { transform: translateX(0); }
+  18% { transform: translateX(-12px); }
+  38% { transform: translateX(9px); }
+  60% { transform: translateX(-5px); }
+  82% { transform: translateX(2px); }
+}
+
+/* A reta final: os ultimos 15s. A bandeira `tempoAcabando` ja existia no Dart e
+   ninguem a lia; estes dois blocos sao os ouvintes que faltavam. */
+.ff-cronometro {
+  transition: background 400ms ease-out, box-shadow 400ms ease-out;
+}
+
+.ff-cronometro--reta-final {
+  animation: ff-relogio-apertado 1s ease-in-out infinite;
+}
+
+@keyframes ff-relogio-apertado {
+  0%, 100% {
+    box-shadow: -5px 5px 10px 1px rgba(0, 0, 0, 0.36);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: -5px 5px 10px 1px rgba(0, 0, 0, 0.36), 0 0 0 6px rgba(255, 0, 0, 0.28);
+    transform: scale(1.025);
+  }
+}
+
+/* A moldura do enunciado esquenta junto — e a metade esquerda da tela, e sem
+   ela so o canto de baixo a direita saberia que o tempo esta acabando. */
+.ff-moldura--reta-final {
+  animation: ff-moldura-apertada 1s ease-in-out infinite;
+}
+
+@keyframes ff-moldura-apertada {
+  0%, 100% { border-color: #FFFFFF; box-shadow: none; }
+  50% { border-color: #FF6B63; box-shadow: inset 0 0 60px rgba(255, 0, 13, 0.18); }
+}
+
+/* Involucro de um equipamento na tela de escolha: so existe para carregar a
+   animacao de entrada sem disputar propriedade com a do toque (ver scanner.js).
+   `flex` para nao mudar o layout da linha. */
+.ff-ferramenta-entra {
+  display: flex;
+}
+
+/* --- o carro sorteado --- */
+
+/* Parado, o carro respira. Sao ~4,8s entre o fim da entrada e a proxima tela, e
+   sem isto eles sao uma foto estatica.
+
+   Mora no INVOLUCRO de proposito: a entrada escreve `transform` na foto pela
+   Web Animations API, e uma animacao CSS de transform no mesmo elemento seria
+   ignorada. Em pai e filho, as duas se compoem. */
+.ff-carro-respira {
+  display: flex;
+  animation: ff-carro-respira 4.2s ease-in-out 1.4s infinite alternate;
+}
+
+@keyframes ff-carro-respira {
+  from { transform: translateY(0) scale(1); }
+  to { transform: translateY(-9px) scale(1.012); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* O veredito continua sendo lido pela cor; o que sai e o movimento. */
+  .ff-resposta--certa .ff-resposta-cartao,
+  .ff-resposta--errada .ff-resposta-cartao,
+  .ff-cronometro--reta-final,
+  .ff-moldura--reta-final,
+  .ff-carro-respira {
+    animation: none;
+  }
+
+  .ff-resposta--escolhida .ff-resposta-cartao {
+    transform: none;
+  }
+
+  /* Sem o pulso, a reta final precisa ficar dita de outro jeito. */
+  .ff-moldura--reta-final {
+    border-color: #FF6B63;
+  }
 }

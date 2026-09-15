@@ -134,34 +134,7 @@ export function confirmar({ titulo, texto, confirmarTexto = 'Confirmar', perigos
   });
 }
 
-/** Faz o navegador salvar um arquivo, sem servidor. */
-export function baixarArquivo(nome, conteudo, tipo = 'application/json') {
-  const blob = new Blob([conteudo], { type: `${tipo};charset=utf-8` });
-  const url = URL.createObjectURL(blob);
-  const a = el('a', { href: url, download: nome });
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 
-/** Lê um arquivo escolhido pelo usuário como texto. */
-export function escolherArquivo({ accept = '.json' } = {}) {
-  return new Promise((resolve) => {
-    const input = el('input', { type: 'file', accept, style: { display: 'none' } });
-    input.addEventListener('change', () => {
-      const f = input.files?.[0];
-      if (!f) return resolve(null);
-      const leitor = new FileReader();
-      leitor.onload = () => resolve({ nome: f.name, texto: String(leitor.result) });
-      leitor.onerror = () => resolve(null);
-      leitor.readAsText(f, 'utf-8');
-      input.remove();
-    });
-    document.body.appendChild(input);
-    input.click();
-  });
-}
 
 /* ------------------------------------------------------- imagem embutida -- */
 

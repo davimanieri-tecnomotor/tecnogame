@@ -58,14 +58,12 @@ for (const [nome, rota] of ROTAS) {
       const r = node.getBoundingClientRect();
       if (r.width < 20 || r.height < 20) continue;
 
-      // Aceito: recorte só na vertical de uma caixa que contém apenas imagem.
-      // É o caso da roleta, cuja arte declara 946px de altura numa caixa de
-      // 839.8 — o Flutter comprime, aqui recorta a moldura, e o círculo aparece
-      // igual (conferido por screenshot). Recorte horizontal, ou vertical com
-      // texto dentro, continua sendo falha: era ali que estavam os dois bugs
-      // que este teste passou a pegar.
-      const soImagem = node.querySelectorAll('.ff-text').length === 0 && node.querySelector('img, svg');
-      if (dx <= tol && soImagem) continue;
+      // Aqui havia uma excecao para caixa que so tem imagem, escrita para a
+      // roleta: ela declarava 946px de altura numa caixa de 839.8 e a nota
+      // dizia que so a moldura era recortada, que o circulo aparecia igual.
+      // Nao aparecia — sumiam ~50px do fundo do disco e a seta inteira junto,
+      // porque a seta se alinha pelo fundo do Stack. A roleta agora entra com
+      // a caixa ja resolvida, entao a excecao saiu e o caso volta a ser coberto.
 
       // O texto que sobrou é o que importa: um filho de tamanho fixo maior que
       // a caixa que o contém significa palavra cortada na tela.

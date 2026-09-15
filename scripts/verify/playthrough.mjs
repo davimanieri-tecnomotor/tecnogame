@@ -12,7 +12,7 @@ const LOCAL_FILE = BASE.startsWith('file:');
 // On file:// the module boot is expected to fail and index.html falls back to
 // js/bundle.js; that pair of messages is not an app error.
 const isBootNoise = (t) => LOCAL_FILE && /js\/main\.js|net::ERR_FAILED/.test(t);
-const OUT = process.env.OUT ?? 'play';
+const OUT = process.env.OUT ?? 'shots/playthrough';
 fs.mkdirSync(OUT, { recursive: true });
 
 const browser = await puppeteer.launch({
@@ -94,13 +94,13 @@ await page.evaluate((sel) => document.querySelectorAll(sel)[0].click(), DD);
 await wait(200);
 await shot('02-dropdown');
 const optionCount = await page.evaluate(
-  (sel) => document.querySelectorAll(sel)[0].parentElement.querySelectorAll('.ff-dropdown-item').length,
+  () => document.querySelectorAll('.ff-dropdown-item').length,
   DD
 );
 log(`3. oficina dropdown options: ${optionCount}`);
 if (optionCount !== 10) throw new Error(`expected 10 options, got ${optionCount}`);
 await page.evaluate(
-  (sel) => document.querySelectorAll(sel)[0].parentElement.querySelectorAll('.ff-dropdown-item')[2].click(),
+  () => document.querySelectorAll('.ff-dropdown-item')[2].click(),
   DD
 );
 await wait(200);
@@ -170,7 +170,7 @@ log('11. telaAcao');
 // ---- inspect the question panel -----------------------------------------
 const ANSWER_FINDER = `
   [...document.querySelectorAll('#pages .ff-text')]
-    .filter((n) => /^[1-4]$/.test(n.textContent.trim()) && n.style.fontSize === '55px')
+    .filter((n) => /^[1-4]$/.test(n.textContent.trim()) && Math.round(parseFloat(getComputedStyle(n).fontSize)) === 55)
     .map((n) => n.closest('.ff-stack'))
 `;
 const panel = await page.evaluate((finder) => {
@@ -195,7 +195,10 @@ const popupText = await page.evaluate(
   () => document.querySelector('#overlays .ff-dialog .ff-text')?.textContent?.slice(0, 60) ?? null
 );
 log(`13. hint popup: ${JSON.stringify(popupText)}`);
-await page.evaluate(() => document.querySelector('#overlays .ff-dialog .ff-inkwell:last-of-type').click());
+// Fecha pelo ROTULO, e nao pela posicao na arvore: o `:last-of-type` que
+// estava aqui casava a antiga forma do popup e parou de achar o X quando ele
+// foi para o canto do cabecalho.
+await page.evaluate(() => document.querySelector('#overlays [aria-label="Fechar"]').click());
 await wait(800);
 const dicasAfter = await page.evaluate(
   () => [...document.querySelectorAll('#pages .ff-text')].find((n) => /^\dX$/.test(n.textContent.trim()))?.textContent
@@ -213,7 +216,10 @@ const answered = await page.evaluate((finder) => {
   const cards = eval(finder);
   if (!cards.length) return null;
   const card = cards[0];
-  const text = [...card.querySelectorAll('.ff-text')].find((n) => n.style.fontSize === '24px')?.textContent;
+  // Computado, nao inline: ver a nota em baralho.mjs sobre o piso de legibilidade.
+  const text = [...card.querySelectorAll('.ff-text')].find(
+    (n) => Math.round(parseFloat(getComputedStyle(n).fontSize)) === 24
+  )?.textContent;
   card.querySelector('.ff-inkwell').click();
   return text;
 }, ANSWER_FINDER);

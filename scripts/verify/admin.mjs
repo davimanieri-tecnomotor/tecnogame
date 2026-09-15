@@ -8,10 +8,11 @@ const RAIZ_DISCO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8099';
 // BASE pode ser a origem (http://host:porta) ou o arquivo do jogo
-// (file:///.../web/index.html); as duas paginas ficam lado a lado.
+// (file:///.../web/index.html). Desde a v2 ha um documento so: o admin e uma
+// camada dentro do proprio index.html, atras da rota /adm e da senha.
 const raiz = BASE.endsWith('.html') ? BASE.replace(/[^/]+$/, '') : `${BASE}/`;
-const urlAdmin = `${raiz}admin.html`;
 const urlJogo = (rota) => `${raiz}index.html#${rota}`;
+const SENHA = '2040';
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = await puppeteer.launch({
@@ -24,7 +25,9 @@ await page.setViewport({ width: 1500, height: 1000 });
 const falhas = [];
 page.on('pageerror', (e) => falhas.push('pageerror: ' + e.message));
 page.on('console', (m) => {
-  if (m.type() === 'error' && !/ERR_FAILED|admin\/main\.js|js\/main\.js/.test(m.text())) {
+  // Por file:// o boot por modulo ES falha de proposito e o index.html cai para
+  // o js/bundle.js; esse par de mensagens nao e erro do app.
+  if (m.type() === 'error' && !/ERR_FAILED|js\/main\.js/.test(m.text())) {
     falhas.push('console: ' + m.text());
   }
 });
@@ -59,15 +62,111 @@ const confirmarModal = async () => {
   await wait(500);
 };
 
+/**
+ * Atravessa a porta: rota /adm e, na primeira vez da aba, a senha. Depois disso
+ * a porta fica destrancada na sessao, entao as idas seguintes so navegam.
+ */
+const abrirAdmin = async () => {
+  await page.goto(urlJogo('/adm'), { waitUntil: 'networkidle2' });
+  await wait(700);
+  const campo = await page.$('.porta-campo');
+  if (campo) {
+    await campo.type(SENHA);
+    await page.evaluate(() => document.querySelector('.porta-botao--ok').click());
+  }
+  await page.waitForSelector('#adm .barra', { timeout: 10000 });
+  await wait(500);
+};
+
+/* ------------------------------------------------------------- 0. a porta -- */
+
+// O admin viaja no mesmo JavaScript que o jogador recebe, entao a senha nao
+// protege de ninguem que abra o console -- e esta escrito assim em porta.js. O
+// que este trecho afirma e o que a porta REALMENTE promete: o jogador que so
+// toca na tela nao cai la dentro por acidente.
+
+await page.goto(urlJogo('/cadastro'), { waitUntil: 'networkidle2' });
+await page.evaluate(() => {
+  localStorage.clear();
+  sessionStorage.clear();
+});
+await page.reload({ waitUntil: 'networkidle2' });
+await wait(2000);
+
+// Quatro toques no selo nao abrem nada.
+const selo = 'img[src*="Selo_2"]';
+await page.waitForSelector(selo, { timeout: 10000 });
+for (let i = 0; i < 4; i++) await page.click(selo);
+await wait(400);
+const aos4 = await page.evaluate(() => ({
+  porta: !!document.querySelector('.porta-campo'),
+  rota: document.querySelector('.ff-page')?.dataset.route,
+}));
+console.log('0. quatro toques ->', JSON.stringify(aos4));
+if (aos4.porta) falhas.push('quatro toques ja abriram a porta');
+
+// O quinto abre a caixa de senha -- e a senha errada nao entra.
+await page.click(selo);
+await wait(500);
+const pediuSenha = await page.$('.porta-campo');
+if (!pediuSenha) {
+  falhas.push('cinco toques no selo nao pediram a senha');
+} else {
+  await pediuSenha.type('1234');
+  await page.evaluate(() => document.querySelector('.porta-botao--ok').click());
+  await wait(400);
+  const comSenhaErrada = await page.evaluate(() => ({
+    aindaPede: !!document.querySelector('.porta-campo'),
+    erro: document.querySelector('.porta-erro')?.textContent ?? '',
+    admAberto: !document.getElementById('adm').hidden,
+  }));
+  console.log('   senha errada ->', JSON.stringify(comSenhaErrada));
+  if (!comSenhaErrada.aindaPede) falhas.push('a senha errada fechou a porta');
+  if (comSenhaErrada.admAberto) falhas.push('a senha errada abriu a administracao');
+  if (!comSenhaErrada.erro) falhas.push('a senha errada nao avisou nada');
+
+  // E a certa entra, com o palco do jogo escondido por baixo.
+  await page.type('.porta-campo', SENHA);
+  await page.evaluate(() => document.querySelector('.porta-botao--ok').click());
+  await page.waitForSelector('#adm .barra', { timeout: 10000 });
+  const dentro = await page.evaluate(() => ({
+    jogoEscondido: document.getElementById('viewport').hidden,
+    modo: document.documentElement.dataset.modo ?? null,
+    rolagem: getComputedStyle(document.body).overflowY,
+  }));
+  console.log('   senha certa ->', JSON.stringify(dentro));
+  if (!dentro.jogoEscondido) falhas.push('o palco do jogo continuou visivel sob o admin');
+  if (dentro.modo !== 'adm') falhas.push(`data-modo ficou ${dentro.modo}`);
+  if (dentro.rolagem === 'hidden') falhas.push('o admin abriu com a rolagem travada pelo jogo');
+}
+
+// Voltar ao jogo desfaz tudo o que a camada mexeu no documento.
+await clicar('Voltar ao jogo');
+await wait(700);
+const devolta = await page.evaluate(() => ({
+  rota: document.querySelector('.ff-page')?.dataset.route,
+  admEscondido: document.getElementById('adm').hidden,
+  jogoVisivel: !document.getElementById('viewport').hidden,
+  modo: document.documentElement.dataset.modo ?? null,
+  rolagem: getComputedStyle(document.body).overflowY,
+}));
+console.log('   voltou ->', JSON.stringify(devolta));
+if (devolta.rota !== '_initialize' && devolta.rota !== 'cadastro') falhas.push(`voltou para ${devolta.rota}`);
+if (!devolta.admEscondido) falhas.push('a camada do admin ficou no ar depois de sair');
+if (!devolta.jogoVisivel) falhas.push('o jogo nao voltou a aparecer');
+if (devolta.modo !== null) falhas.push('o data-modo do admin ficou grudado no documento');
+if (devolta.rolagem !== 'hidden') falhas.push('a rolagem do totem nao voltou a ser travada');
+
 /* ------------------------------------------------------- 1. abre e lista -- */
 
-await page.goto(urlAdmin, { waitUntil: 'networkidle2' });
+await abrirAdmin();
 await page.evaluate(() => localStorage.clear());
 await page.reload({ waitUntil: 'networkidle2' });
-await wait(1200);
+await page.waitForSelector('#adm .barra', { timeout: 10000 });
+await wait(900);
 
 const inicial = await page.evaluate(() => ({
-  itens: document.querySelectorAll('.itens .item').length,
+  itens: document.querySelectorAll('.itens .item.veiculo').length,
   rodada: document.querySelector('.editor-cabecalho h2')?.textContent,
   primeiroNome: document.querySelector('.veiculo-campos .campo-entrada')?.value,
   situacao: [...document.querySelectorAll('.situacao')].map((n) => n.textContent),
@@ -79,7 +178,7 @@ if (inicial.itens !== 10) falhas.push(`listou ${inicial.itens} rodadas, esperava
 if (inicial.primeiroNome !== 'FIAT TORO - 10GF') falhas.push(`primeiro veiculo: ${inicial.primeiroNome}`);
 if (inicial.abas.length !== 3) falhas.push('faltam abas de idioma');
 if (inicial.campos !== 12) falhas.push(`${inicial.campos} campos de texto, esperava 12`);
-if (!inicial.situacao.some((s) => /pronto para publicar/.test(s))) falhas.push('o baralho de fabrica deveria estar valido');
+if (!inicial.situacao.some((s) => /pronto para salvar/.test(s))) falhas.push('o baralho de fabrica deveria estar valido');
 
 /* ------------------------------------------- 2. troca de idioma nas abas -- */
 
@@ -103,15 +202,15 @@ await wait(400);
 const comErro = await page.evaluate(() => ({
   problemas: [...document.querySelectorAll('.situacao')].map((n) => n.textContent).find((t) => /problema/.test(t)),
   campoAceso: document.querySelectorAll('.textos .campo.tem-erro').length,
-  seloNaLista: document.querySelector('.itens .item.com-problema .item-selo')?.textContent,
+  seloNaLista: document.querySelector('.itens .item.veiculo.com-problema .item-selo')?.textContent,
 }));
 console.log('3. com enunciado vazio ->', JSON.stringify(comErro));
 if (!comErro.problemas) falhas.push('a validacao nao acusou o enunciado vazio');
 if (!comErro.campoAceso) falhas.push('o campo vazio nao foi marcado');
 if (!comErro.seloNaLista) falhas.push('a rodada com problema nao foi selada na lista');
 
-// Publicar tem de ser bloqueado.
-await clicar('Publicar');
+// Salvar tem de ser bloqueado.
+await clicar('Salvar');
 const bloqueou = await page.evaluate(() => ({
   aviso: document.querySelector('.aviso-erro')?.textContent ?? null,
   modal: Boolean(document.querySelector('.modal')),
@@ -132,9 +231,9 @@ await wait(400);
 
 /* ---------------------------------------------------- 4. adiciona rodada -- */
 
-await clicar('Adicionar');
+await clicar('Veículo');
 const apos = await page.evaluate(() => ({
-  itens: document.querySelectorAll('.itens .item').length,
+  itens: document.querySelectorAll('.itens .item.veiculo').length,
   rodada: document.querySelector('.editor-cabecalho h2')?.textContent,
   problemas: [...document.querySelectorAll('.situacao')].map((n) => n.textContent).find((t) => /problema/.test(t)),
 }));
@@ -173,17 +272,15 @@ await wait(400);
 
 const preenchida = await page.evaluate(() => ({
   problemas: [...document.querySelectorAll('.situacao')].map((n) => n.textContent).find((t) => /problema/.test(t)) ?? null,
-  pronto: [...document.querySelectorAll('.situacao')].some((n) => /pronto para publicar/.test(n.textContent)),
-  arte: [...document.querySelectorAll('.situacao')].some((n) => /roleta desenhada/.test(n.textContent)),
+  pronto: [...document.querySelectorAll('.situacao')].some((n) => /pronto para salvar/.test(n.textContent)),
 }));
 console.log('   preenchida ->', JSON.stringify(preenchida));
 if (preenchida.problemas) falhas.push('ainda ha problemas depois de preencher: ' + preenchida.problemas);
-if (!preenchida.pronto) falhas.push('deveria estar pronto para publicar');
-if (!preenchida.arte) falhas.push('com 11 veiculos a arte pronta nao serve, e a barra deveria avisar');
+if (!preenchida.pronto) falhas.push('deveria estar pronto para salvar');
 
 /* ---------------------------------------------------------- 5. publica --- */
 
-await clicar('Publicar');
+await clicar('Salvar');
 await confirmarModal();
 const publicado = await page.evaluate(() => {
   const raw = localStorage.getItem('tecgame:baralho');
@@ -192,7 +289,8 @@ const publicado = await page.evaluate(() => {
     gravou: Boolean(deck),
     slots: deck?.slots?.length ?? 0,
     ultimo: deck?.slots?.[deck.slots.length - 1]?.veiculo?.nome ?? null,
-    primeiraPergunta: deck?.slots?.[0]?.pt?.pergunta ?? null,
+    // v2: a pergunta mora no banco do veiculo, e nao mais solta no slot.
+    primeiraPergunta: deck?.slots?.[0]?.perguntas?.[0]?.pt?.pergunta ?? null,
     situacao: [...document.querySelectorAll('.situacao')].map((n) => n.textContent),
   };
 });
@@ -230,26 +328,23 @@ if (!/11 ve/.test(naRoleta.rotulo ?? '')) falhas.push(`rotulo da roleta: ${naRol
 
 /* ----------------------------------------- 7. remover e restaurar fabrica -- */
 
-await page.goto(urlAdmin, { waitUntil: 'networkidle2' });
-await wait(1200);
-await page.evaluate(() => document.querySelectorAll('.itens .item')[10].querySelector('.item-acoes button:last-child').click());
+await abrirAdmin();
+await page.evaluate(() => document.querySelectorAll('.itens .item.veiculo')[10].querySelector('.item-acoes button:last-child').click());
 await wait(300);
 await confirmarModal();
-const removido = await page.evaluate(() => document.querySelectorAll('.itens .item').length);
+const removido = await page.evaluate(() => document.querySelectorAll('.itens .item.veiculo').length);
 console.log('7. removeu ->', removido, 'rodadas');
 if (removido !== 10) falhas.push(`apos remover tem ${removido} rodadas`);
 
-await clicar('Restaurar fábrica');
+await clicar('Resetar todos os dados');
 await confirmarModal();
 const restaurado = await page.evaluate(() => ({
-  itens: document.querySelectorAll('.itens .item').length,
+  itens: document.querySelectorAll('.itens .item.veiculo').length,
   primeiro: document.querySelector('.veiculo-campos .campo-entrada')?.value,
-  arteOriginal: ![...document.querySelectorAll('.situacao')].some((n) => /roleta desenhada/.test(n.textContent)),
 }));
 console.log('   restaurou ->', JSON.stringify(restaurado));
 if (restaurado.itens !== 10) falhas.push('restaurar nao voltou para 10 rodadas');
 if (restaurado.primeiro !== 'FIAT TORO - 10GF') falhas.push('restaurar nao trouxe o veiculo original');
-if (!restaurado.arteOriginal) falhas.push('com o baralho de fabrica a arte pronta da roleta deveria voltar');
 
 /* --------------------------------- 8. enviar uma imagem do computador ----- */
 
@@ -288,7 +383,7 @@ if (!entradaArquivo) {
   if (enviada.encaixe !== 'contain') falhas.push(`encaixe apos envio: ${enviada.encaixe}`);
   if (!enviada.chipVisivel) falhas.push('o campo de caminho deveria dar lugar ao resumo da imagem enviada');
 
-  await clicar('Publicar');
+  await clicar('Salvar');
   await wait(300);
   await confirmarModal();
   await wait(700);
@@ -302,6 +397,15 @@ if (!entradaArquivo) {
   if (!gravadaComFoto.gravou) falhas.push('publicar com imagem enviada nao gravou');
   if (gravadaComFoto.embutidas !== 1) falhas.push(`slots com imagem embutida: ${gravadaComFoto.embutidas}`);
 
+  // Pelo caminho de verdade: sair da administracao e comecar uma partida. O
+  // jogo rele o baralho quando o cadastro monta -- e nao a cada tela --, porque
+  // publicar no meio de uma partida nao pode trocar o carro debaixo do jogador.
+  // Ate a v2 isto vinha de graca, ja que o admin era outro documento e voltar
+  // ao jogo recarregava a pagina; agora e uma camada, e o cadastro e quem
+  // recarrega.
+  await clicar('Voltar ao jogo');
+  await page.waitForSelector('.ff-page[data-route="cadastro"]', { timeout: 10000 });
+  await wait(1600);
   await page.goto(urlJogo('/roleta'), { waitUntil: 'networkidle2' });
   await wait(2400);
   const noJogo = await page.evaluate(() => {
@@ -316,9 +420,8 @@ if (!entradaArquivo) {
     falhas.push(`a roda do jogo deveria trazer 1 foto embutida, trouxe ${noJogo.comEmbutida}`);
   }
 
-  await page.goto(urlAdmin, { waitUntil: 'networkidle2' });
-  await wait(1200);
-  await clicar('Restaurar fábrica');
+  await abrirAdmin();
+  await clicar('Resetar todos os dados');
   await confirmarModal();
 }
 
