@@ -20,7 +20,7 @@
 // Salvar não pede login. A escrita do baralho no Firestore é aberta por decisão
 // do projeto — ver a nota em firebase/firestore.rules, que diz o que isso custa.
 
-import { el, botao, aviso, confirmar, limpar } from './ui.js';
+import { el, botao, aviso, confirmar, limpar, mostrarNotas } from './ui.js';
 import { editorDeSlot } from './editor.js';
 import {
   BARALHO_ORIGINAL,
@@ -38,6 +38,7 @@ import {
 import { motivoDaFalha, removerChave } from '../storage.js';
 import { podeUsarNuvem } from '../firebase.js';
 import { publicarNaNuvem, sincronizarBaralho, ultimaPublicacao } from '../nuvem.js';
+import { VERSAO_DO_JOGO, NOTAS_DE_ATUALIZACAO, temNovidade, marcarVersaoVista } from '../changelog.js';
 
 /* -------------------------------------------------------------- o estado -- */
 
@@ -375,6 +376,35 @@ function seloDaSituacao() {
   return { texto: 'usando o baralho de fábrica', tipo: 'neutra' };
 }
 
+/**
+ * Abre as notas de atualização e marca a versão atual como vista, para o
+ * ponto do sininho sumir e ele não reabrir sozinho até a próxima versão.
+ */
+async function abrirNotas() {
+  await mostrarNotas({ titulo: `Novidades do TecGame — v${VERSAO_DO_JOGO}`, notas: NOTAS_DE_ATUALIZACAO });
+  marcarVersaoVista(VERSAO_DO_JOGO);
+  atualizarChrome();
+}
+
+/** O sino da barra: sempre clicável, com um ponto quando há nota não vista. */
+function sininho() {
+  const novidade = temNovidade();
+  return el(
+    'button',
+    {
+      type: 'button',
+      class: ['sininho', novidade ? 'com-novidade' : null],
+      title: 'Novidades desta versão',
+      'aria-label': novidade ? 'Novidades desta versão — ainda não vistas' : 'Novidades desta versão',
+      onClick: abrirNotas,
+    },
+    [
+      el('span', { 'aria-hidden': 'true', text: '🔔' }),
+      novidade ? el('span', { class: 'sininho-ponto', 'aria-hidden': 'true' }) : null,
+    ]
+  );
+}
+
 function barra() {
   const { total } = errosPorRodada(estado.baralho);
   const peso = pesoDoBaralho();
@@ -383,8 +413,9 @@ function barra() {
   return el('header', { class: 'barra' }, [
     el('div', { class: 'marca' }, [
       el('strong', { text: 'TecGame' }),
-      el('span', { text: 'administração' }),
+      el('span', { text: `administração · v${VERSAO_DO_JOGO}` }),
     ]),
+    sininho(),
     el('div', { class: 'barra-info' }, [
       el('span', {
         class: `situacao situacao-${situacao.tipo}`,
@@ -670,6 +701,13 @@ export function montarAdmin(raiz, { aoSair = null } = {}) {
   // tela é o conteúdo que veio com o jogo.
   if (!temBaralhoPublicado() && estado.baralho.slots.length === SLOTS_ORIGINAIS.length) {
     setTimeout(() => aviso('Você está vendo o baralho de fábrica. Edite e clique em Salvar.'), 400);
+  }
+
+  // Novidade não vista: abre sozinho na primeira tela depois da versão mudar.
+  // Fechar marca como visto (ver abrirNotas), então isto não repete a cada
+  // abertura do painel — só quando a versão andar de novo.
+  if (temNovidade()) {
+    setTimeout(() => abrirNotas(), 350);
   }
 
   window.addEventListener('beforeunload', aoDescarregar);

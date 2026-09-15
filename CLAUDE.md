@@ -51,6 +51,7 @@ web/js/            os módulos ES — a fonte
   deck.js            o baralho: veículos, regras e perguntas
   giro.js            a física da roleta, a lingueta, o borrão, os estalos
   nuvem.js           o baralho no Firestore
+  changelog.js       versão do jogo e as notas do sininho de novidades
   pages/ components/ admin/
 web/js/bundle.js   GERADO. Não editar.
 scripts/verify/    a suíte (puppeteer), um arquivo por afirmação
@@ -61,6 +62,23 @@ O jogo vive num **palco fixo de 1920x1080** escalado para caber na janela, entã
 toda medida no código é absoluta e cai no mesmo pixel do Dart. A administração
 mora **fora** desse palco, numa camada por cima (`#adm`), porque é ferramenta de
 notebook e precisa de rolagem.
+
+## O sininho de novidades
+
+O painel de administração mostra, num sino na barra, as últimas atualizações
+do jogo — para quem opera o totem em feiras diferentes perceber o que mudou
+sem ler commit. O conteúdo mora em `web/js/changelog.js`: `VERSAO_DO_JOGO`
+(acompanha o `version` do `package.json` e a tag git) e
+`NOTAS_DE_ATUALIZACAO` (mais recente primeiro). O sino abre sozinho na
+primeira tela depois que a versão muda e some ao fechar, só reaparecendo
+sozinho na próxima mudança de versão — ver `temNovidade()`.
+
+**Toda atualização grande — funcionalidade nova, mudança de comportamento que
+o operador perceberia — sobe as três juntas**: `VERSAO_DO_JOGO` em
+`changelog.js`, `version` em `package.json`, e um item novo em
+`NOTAS_DE_ATUALIZACAO` contando em uma frase o que mudou, em linguagem de
+quem opera o totem — não de commit. Fix interno sem efeito perceptível
+(refatoração, ajuste de teste, documentação) não entra.
 
 ## Armadilhas que já custaram caro
 

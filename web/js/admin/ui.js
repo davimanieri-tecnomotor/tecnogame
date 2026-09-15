@@ -134,7 +134,46 @@ export function confirmar({ titulo, texto, confirmarTexto = 'Confirmar', perigos
   });
 }
 
+/* ---------------------------------------------------------------- notas -- */
 
+/**
+ * O painel de novidades que o sininho abre. Ao contrário de `confirmar`, não
+ * há duas saídas — só "Entendi" —, porque não é uma pergunta, é um aviso.
+ */
+export function mostrarNotas({ titulo, notas, fecharTexto = 'Entendi' }) {
+  return new Promise((resolve) => {
+    const fechar = () => {
+      fundo.remove();
+      document.removeEventListener('keydown', onTecla);
+      resolve();
+    };
+    const onTecla = (e) => {
+      if (e.key === 'Escape') fechar();
+    };
+
+    const botaoOk = botao(fecharTexto, { tipo: 'primario', onClick: fechar });
+    const blocos = notas.map((nota) =>
+      el('div', { class: 'notas-versao' }, [
+        el('h3', { text: `v${nota.versao}${nota.data ? ` — ${nota.data}` : ''}` }),
+        el(
+          'ul',
+          { class: 'notas-itens' },
+          nota.itens.map((item) => el('li', { text: item }))
+        ),
+      ])
+    );
+
+    const caixa = el('div', { class: 'modal modal-notas', role: 'dialog', 'aria-modal': 'true', 'aria-label': titulo }, [
+      el('h2', { text: titulo }),
+      ...blocos,
+      el('div', { class: 'modal-acoes' }, [botaoOk]),
+    ]);
+    const fundo = el('div', { class: 'modal-fundo', onClick: (e) => e.target === fundo && fechar() }, caixa);
+    document.body.appendChild(fundo);
+    document.addEventListener('keydown', onTecla);
+    botaoOk.focus();
+  });
+}
 
 /* ------------------------------------------------------- imagem embutida -- */
 

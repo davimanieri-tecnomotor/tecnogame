@@ -165,6 +165,47 @@ await page.reload({ waitUntil: 'networkidle2' });
 await page.waitForSelector('#adm .barra', { timeout: 10000 });
 await wait(900);
 
+/* -------------------------------------------- 1a. sininho de novidades --- */
+
+// localStorage acabou de ser limpo: é exatamente a primeira abertura que a
+// nota promete abrir sozinha.
+const aoAbrir = await page.evaluate(() => ({
+  modalAberto: !!document.querySelector('.modal-notas'),
+  tituloModal: document.querySelector('.modal-notas h2')?.textContent ?? null,
+  comPonto: !!document.querySelector('.sininho-ponto'),
+  versaoNaBarra: document.querySelector('.marca span')?.textContent ?? '',
+}));
+console.log('1a. sininho na primeira abertura ->', JSON.stringify(aoAbrir));
+if (!aoAbrir.modalAberto) falhas.push('as notas de atualizacao nao abriram sozinhas na primeira vez');
+if (!aoAbrir.comPonto) falhas.push('o sininho deveria mostrar o ponto de novidade antes de fechar as notas');
+if (!/v\d+\.\d+\.\d+/.test(aoAbrir.versaoNaBarra)) falhas.push(`a barra nao mostrou a versao: "${aoAbrir.versaoNaBarra}"`);
+
+// Fechar marca como vista: nao deve reaparecer sozinho de novo.
+await page.evaluate(() => document.querySelector('.modal-notas .modal-acoes button').click());
+await wait(300);
+const aposFechar = await page.evaluate(() => ({
+  modalAberto: !!document.querySelector('.modal-notas'),
+  comPonto: !!document.querySelector('.sininho-ponto'),
+}));
+if (aposFechar.modalAberto) falhas.push('o modal de notas deveria fechar ao clicar em Entendi');
+if (aposFechar.comPonto) falhas.push('o ponto de novidade deveria sumir depois de ler as notas');
+
+await page.reload({ waitUntil: 'networkidle2' });
+await page.waitForSelector('#adm .barra', { timeout: 10000 });
+await wait(900);
+if (await page.evaluate(() => !!document.querySelector('.modal-notas'))) {
+  falhas.push('as notas reabriram sozinhas mesmo sem novidade');
+}
+
+// Mas o sino continua clicavel manualmente, a qualquer momento.
+await page.evaluate(() => document.querySelector('.sininho').click());
+await wait(300);
+if (!(await page.evaluate(() => !!document.querySelector('.modal-notas')))) {
+  falhas.push('clicar no sininho deveria reabrir as notas manualmente');
+}
+await page.evaluate(() => document.querySelector('.modal-notas .modal-acoes button').click());
+await wait(300);
+
 const inicial = await page.evaluate(() => ({
   itens: document.querySelectorAll('.itens .item.veiculo').length,
   rodada: document.querySelector('.editor-cabecalho h2')?.textContent,

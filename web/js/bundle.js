@@ -5522,7 +5522,46 @@
     });
   }
   
+  /* ---------------------------------------------------------------- notas -- */
   
+  /**
+   * O painel de novidades que o sininho abre. Ao contrário de `confirmar`, não
+   * há duas saídas — só "Entendi" —, porque não é uma pergunta, é um aviso.
+   */
+  function mostrarNotas({ titulo, notas, fecharTexto = 'Entendi' }) {
+    return new Promise((resolve) => {
+      const fechar = () => {
+        fundo.remove();
+        document.removeEventListener('keydown', onTecla);
+        resolve();
+      };
+      const onTecla = (e) => {
+        if (e.key === 'Escape') fechar();
+      };
+  
+      const botaoOk = botao(fecharTexto, { tipo: 'primario', onClick: fechar });
+      const blocos = notas.map((nota) =>
+        el('div', { class: 'notas-versao' }, [
+          el('h3', { text: `v${nota.versao}${nota.data ? ` — ${nota.data}` : ''}` }),
+          el(
+            'ul',
+            { class: 'notas-itens' },
+            nota.itens.map((item) => el('li', { text: item }))
+          ),
+        ])
+      );
+  
+      const caixa = el('div', { class: 'modal modal-notas', role: 'dialog', 'aria-modal': 'true', 'aria-label': titulo }, [
+        el('h2', { text: titulo }),
+        ...blocos,
+        el('div', { class: 'modal-acoes' }, [botaoOk]),
+      ]);
+      const fundo = el('div', { class: 'modal-fundo', onClick: (e) => e.target === fundo && fechar() }, caixa);
+      document.body.appendChild(fundo);
+      document.addEventListener('keydown', onTecla);
+      botaoOk.focus();
+    });
+  }
   
   /* ------------------------------------------------------- imagem embutida -- */
   
@@ -5635,6 +5674,7 @@
   Object.defineProperty(__exports, "caixaDeMarcar", { get: () => caixaDeMarcar, enumerable: true });
   Object.defineProperty(__exports, "aviso", { get: () => aviso, enumerable: true });
   Object.defineProperty(__exports, "confirmar", { get: () => confirmar, enumerable: true });
+  Object.defineProperty(__exports, "mostrarNotas", { get: () => mostrarNotas, enumerable: true });
   Object.defineProperty(__exports, "reduzirImagem", { get: () => reduzirImagem, enumerable: true });
   Object.defineProperty(__exports, "entradaDeImagem", { get: () => entradaDeImagem, enumerable: true });
   });
@@ -6185,6 +6225,51 @@
   Object.defineProperty(__exports, "ultimaPublicacao", { get: () => ultimaPublicacao, enumerable: true });
   });
 
+  /* ===== changelog.js ===== */
+  __define("changelog.js", function (__exports, __require) {
+  // A versão do jogo e as notas que o sininho do painel mostra.
+  //
+  // Sem build, esta constante não nasce do package.json — o navegador nunca lê
+  // aquele arquivo. É mantida à mão, do mesmo jeito que VERSAO_SDK em
+  // firebase.js, e é exatamente o que a regra do CLAUDE.md cobra: toda
+  // atualização grande sobe as duas juntas (aqui e no package.json/tag git).
+  //
+  // O texto das notas é para quem opera o totem, não para quem lê commit — fala
+  // do que o jogador ou o operador percebem.
+  
+  const { readRaw, writeRaw } = __require("storage.js");
+  
+  const VERSAO_DO_JOGO = '2.0.0';
+  
+  /** Mais recente primeiro — é a ordem em que o painel lista. */
+  const NOTAS_DE_ATUALIZACAO = [
+    {
+      versao: '2.0.0',
+      data: '2026-09-15',
+      itens: [
+        'Salvar o baralho na nuvem não pede mais login — qualquer notebook do time publica direto.',
+        'A roleta gira mais devagar e estala a cada fatia, para o giro parecer de verdade.',
+        'Quem acerta a resposta não vê mais o gabarito repetido na tela de fim.',
+      ],
+    },
+  ];
+  
+  const CHAVE = 'admin.versaoVista';
+  
+  /** Última versão que o operador já viu no sininho, ou null se nunca abriu. */
+  const versaoVista = () => readRaw(CHAVE);
+  
+  const marcarVersaoVista = (versao) => writeRaw(CHAVE, versao);
+  
+  /** Há nota de atualização que o operador ainda não viu? */
+  const temNovidade = () => versaoVista() !== VERSAO_DO_JOGO;
+  Object.defineProperty(__exports, "VERSAO_DO_JOGO", { get: () => VERSAO_DO_JOGO, enumerable: true });
+  Object.defineProperty(__exports, "NOTAS_DE_ATUALIZACAO", { get: () => NOTAS_DE_ATUALIZACAO, enumerable: true });
+  Object.defineProperty(__exports, "versaoVista", { get: () => versaoVista, enumerable: true });
+  Object.defineProperty(__exports, "marcarVersaoVista", { get: () => marcarVersaoVista, enumerable: true });
+  Object.defineProperty(__exports, "temNovidade", { get: () => temNovidade, enumerable: true });
+  });
+
   /* ===== admin/painel.js ===== */
   __define("admin/painel.js", function (__exports, __require) {
   // Área administrativa do TecGame: ver, adicionar, editar e remover as rodadas
@@ -6209,12 +6294,13 @@
   // Salvar não pede login. A escrita do baralho no Firestore é aberta por decisão
   // do projeto — ver a nota em firebase/firestore.rules, que diz o que isso custa.
   
-  const { el, botao, aviso, confirmar, limpar } = __require("admin/ui.js");
+  const { el, botao, aviso, confirmar, limpar, mostrarNotas } = __require("admin/ui.js");
   const { editorDeSlot } = __require("admin/editor.js");
   const { BARALHO_ORIGINAL, SLOTS_ORIGINAIS, carregarBaralho, novoIdDePergunta, perguntaVazia, publicarBaralho, restaurarOriginal, slotVazio, temBaralhoPublicado, usaArteOriginal, validarBaralho } = __require("deck.js");
   const { motivoDaFalha, removerChave } = __require("storage.js");
   const { podeUsarNuvem } = __require("firebase.js");
   const { publicarNaNuvem, sincronizarBaralho, ultimaPublicacao } = __require("nuvem.js");
+  const { VERSAO_DO_JOGO, NOTAS_DE_ATUALIZACAO, temNovidade, marcarVersaoVista } = __require("changelog.js");
   
   /* -------------------------------------------------------------- o estado -- */
   
@@ -6552,6 +6638,35 @@
     return { texto: 'usando o baralho de fábrica', tipo: 'neutra' };
   }
   
+  /**
+   * Abre as notas de atualização e marca a versão atual como vista, para o
+   * ponto do sininho sumir e ele não reabrir sozinho até a próxima versão.
+   */
+  async function abrirNotas() {
+    await mostrarNotas({ titulo: `Novidades do TecGame — v${VERSAO_DO_JOGO}`, notas: NOTAS_DE_ATUALIZACAO });
+    marcarVersaoVista(VERSAO_DO_JOGO);
+    atualizarChrome();
+  }
+  
+  /** O sino da barra: sempre clicável, com um ponto quando há nota não vista. */
+  function sininho() {
+    const novidade = temNovidade();
+    return el(
+      'button',
+      {
+        type: 'button',
+        class: ['sininho', novidade ? 'com-novidade' : null],
+        title: 'Novidades desta versão',
+        'aria-label': novidade ? 'Novidades desta versão — ainda não vistas' : 'Novidades desta versão',
+        onClick: abrirNotas,
+      },
+      [
+        el('span', { 'aria-hidden': 'true', text: '🔔' }),
+        novidade ? el('span', { class: 'sininho-ponto', 'aria-hidden': 'true' }) : null,
+      ]
+    );
+  }
+  
   function barra() {
     const { total } = errosPorRodada(estado.baralho);
     const peso = pesoDoBaralho();
@@ -6560,8 +6675,9 @@
     return el('header', { class: 'barra' }, [
       el('div', { class: 'marca' }, [
         el('strong', { text: 'TecGame' }),
-        el('span', { text: 'administração' }),
+        el('span', { text: `administração · v${VERSAO_DO_JOGO}` }),
       ]),
+      sininho(),
       el('div', { class: 'barra-info' }, [
         el('span', {
           class: `situacao situacao-${situacao.tipo}`,
@@ -6847,6 +6963,13 @@
     // tela é o conteúdo que veio com o jogo.
     if (!temBaralhoPublicado() && estado.baralho.slots.length === SLOTS_ORIGINAIS.length) {
       setTimeout(() => aviso('Você está vendo o baralho de fábrica. Edite e clique em Salvar.'), 400);
+    }
+  
+    // Novidade não vista: abre sozinho na primeira tela depois da versão mudar.
+    // Fechar marca como visto (ver abrirNotas), então isto não repete a cada
+    // abertura do painel — só quando a versão andar de novo.
+    if (temNovidade()) {
+      setTimeout(() => abrirNotas(), 350);
     }
   
     window.addEventListener('beforeunload', aoDescarregar);

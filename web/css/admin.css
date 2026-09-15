@@ -130,6 +130,40 @@
 .situacao-atencao { color: var(--atencao); border-color: #f0b42955; }
 .situacao-neutra { color: var(--texto-2); }
 
+/* --------------------------------------------------------------- sininho -- */
+
+.sininho {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  border: 1px solid var(--borda);
+  background: var(--fundo-3);
+  color: var(--texto);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+
+.sininho:hover { background: #1d2b45; }
+.sininho:focus-visible { outline: 3px solid var(--atencao); outline-offset: 2px; }
+
+.sininho-ponto {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--erro);
+  border: 2px solid var(--fundo-2);
+}
+
 /* ----------------------------------------------------------------- botão -- */
 
 .botao {
@@ -699,6 +733,37 @@
   justify-content: flex-end;
   gap: 8px;
   margin-top: 4px;
+}
+
+/* ------------------------------------------------------------------ notas -- */
+
+.modal-notas {
+  width: min(520px, 100%);
+  max-height: min(600px, 80vh);
+  overflow: auto;
+}
+
+.notas-versao + .notas-versao {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--borda);
+}
+
+.notas-versao h3 {
+  margin: 0 0 6px;
+  font-family: 'Inter Tight', 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--texto);
+}
+
+.notas-itens {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  color: var(--texto-2);
+  font-size: 0.88rem;
 }
 
 @media (prefers-reduced-motion: reduce) {
