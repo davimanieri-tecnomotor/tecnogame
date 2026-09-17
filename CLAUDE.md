@@ -4,9 +4,9 @@ Jogo de quiz de totem da Tecnomotor, para feira. O jogador se cadastra, gira uma
 roleta, recebe um veículo com defeito, escolhe um scanner e tem 60 segundos para
 apontar a alternativa certa. Inspirado no Jogo do Milhão.
 
-O código é um **porte** de um projeto FlutterFlow (`tec_game.zip`, na raiz) para
-HTML, CSS e JavaScript puros: **sem framework, sem build, sem dependência de
-runtime**. Abre com dois cliques ou por HTTP.
+O código é um **porte** de um projeto FlutterFlow (`tec_game`) para HTML, CSS e
+JavaScript puros: **sem framework, sem build, sem dependência de runtime**.
+Abre com dois cliques ou por HTTP.
 
 ```bash
 npm start          # http://localhost:8099
@@ -27,6 +27,12 @@ módulo ES por origem nula). Esquecer significa o totem rodando código antigo. 
 São gerados por `npm run gen` a partir do Dart original, e a CI roda o gerador e
 falha se o resultado diferir do commitado. **Texto de interface novo vai em
 `web/js/textos.js`**, que é lido pelo mesmo `FFLocalizations`.
+
+> `tec_game.zip` — a fonte de onde `npm run gen` extrai esses três arquivos —
+> saiu do repositório (tinha 48 MB). Sem ele, `scripts/gen_data.py` recusa
+> rodar, e o passo "Dados gerados estão em sincronia" da CI falha sempre, não
+> só quando alguém edita à mão. Rodar `npm run gen`/regenerar esses arquivos
+> continua bloqueado até alguém decidir onde a fonte passa a morar.
 
 **3. Os dois transportes são reais.** `npm run verify` roda tudo por HTTP **e**
 por `file://`, porque o totem abre do disco. Já passou bug por essa fresta (um

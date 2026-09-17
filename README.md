@@ -1,11 +1,9 @@
 # TecGame — porte HTML/CSS/JS
 
-Reescrita completa do jogo FlutterFlow `tec_game` (o `.zip` na raiz) em HTML,
-CSS e JavaScript puros — sem framework, sem build, sem dependências de runtime.
+Reescrita completa do jogo FlutterFlow `tec_game` em HTML, CSS e JavaScript
+puros — sem framework, sem build, sem dependências de runtime.
 
 ```
-tec_game.zip          o projeto Flutter original (intocado)
-src_game/             o zip extraído, usado como fonte pelos scripts
 web/                  o jogo portado (é isto que se publica)
   index.html            o jogo E a administração, num documento só
   css/app.css           o jogo
@@ -322,6 +320,11 @@ de tradução e as 288 palavras do filtro de nomes são extraídos do Dart por
 ```bash
 python scripts/gen_data.py
 ```
+
+> `tec_game.zip` (o projeto Flutter original, de onde este script extrai) saiu
+> do repositório. Sem ele no lugar esperado, o comando acima recusa rodar — e
+> o mesmo vale para `npm run gen` e o passo correspondente da CI (ver
+> CLAUDE.md).
 
 **Restante da camada FlutterFlow**, arquivo por arquivo:
 
