@@ -20,7 +20,7 @@
 // Salvar não pede login. A escrita do baralho no Firestore é aberta por decisão
 // do projeto — ver a nota em firebase/firestore.rules, que diz o que isso custa.
 
-import { el, botao, aviso, confirmar, limpar, mostrarNotas } from './ui.js';
+import { el, botao, aviso, confirmar, limpar, mostrarNotas, pedirCredenciais } from './ui.js';
 import { editorDeSlot } from './editor.js';
 import {
   BARALHO_ORIGINAL,
@@ -39,6 +39,7 @@ import { motivoDaFalha, removerChave } from '../storage.js';
 import { podeUsarNuvem } from '../firebase.js';
 import { publicarNaNuvem, sincronizarBaralho, ultimaPublicacao } from '../nuvem.js';
 import { VERSAO_DO_JOGO, NOTAS_DE_ATUALIZACAO, temNovidade, marcarVersaoVista } from '../changelog.js';
+import { COLUNAS, aoMudarOperador, baixarArquivo, buscarRespostas, entrar, formatarCelula, paraCSV, sair } from './respostas.js';
 
 /* -------------------------------------------------------------- o estado -- */
 
@@ -65,6 +66,13 @@ const estado = {
    * contagem, que já responde "quantas perguntas este carro tem".
    */
   abertos: new Set([0]),
+
+  /** 'veiculos' | 'respostas' — qual aba do painel está visível. */
+  aba: 'veiculos',
+  /** E-mail da conta do Firebase autenticada nesta aba, ou null. */
+  operador: null,
+  /** O que a aba Respostas mostra — ver `buscarRespostas` em respostas.js. */
+  respostas: { linhas: [], fonte: null, comTelefone: false, carregado: false, carregando: false },
 };
 
 /** A raiz que `montarAdmin` recebe. Fora da camada aberta, é null. */
@@ -177,6 +185,65 @@ async function atualizarUltimaNuvem() {
   if (!app) return;
   estado.ultimaNuvem = info;
   atualizarChrome();
+}
+
+/* ---------------------------------------------------------- respostas ---- */
+
+function trocarAba(aba) {
+  if (estado.aba === aba) return;
+  estado.aba = aba;
+  if (aba === 'respostas' && !estado.respostas.carregado && !estado.respostas.carregando) atualizarRespostas();
+  desenhar();
+}
+
+async function atualizarRespostas() {
+  estado.respostas.carregando = true;
+  if (estado.aba === 'respostas') atualizarChrome();
+  try {
+    const r = await buscarRespostas();
+    if (!app) return;
+    estado.respostas = { ...r, carregado: true, carregando: false };
+  } catch (erro) {
+    estado.respostas.carregando = false;
+    aviso(`Não deu para carregar as respostas: ${erro?.message ?? erro}`, 'erro');
+  }
+  if (app && estado.aba === 'respostas') atualizarChrome();
+}
+
+/**
+ * A conta do Firebase para ler telefone — não a senha 2040 da porta. Ver a
+ * nota grande em `admin/respostas.js` sobre por que uma exige a outra.
+ */
+async function entrarComFirebase() {
+  const dados = await pedirCredenciais({
+    titulo: 'Entrar para ver telefone',
+    texto: 'A conta do Firebase do projeto. Sem ela, a tabela mostra os dados da partida sem telefone.',
+  });
+  if (!dados) return;
+  const r = await entrar(dados.email, dados.senha);
+  if (!r.ok) {
+    aviso(`Não entrou: ${r.motivo}`, 'erro');
+    return;
+  }
+  aviso(`Conectado como ${dados.email}.`);
+  // A tabela é atualizada pelo aoMudarOperador (montarAdmin), que dispara
+  // sozinho quando o login mudar.
+}
+
+async function sairComFirebase() {
+  await sair();
+  aviso('Desconectado. A tabela volta a mostrar sem telefone.');
+}
+
+function baixarRespostas() {
+  const { linhas, comTelefone } = estado.respostas;
+  if (!linhas.length) {
+    aviso('Não há dados para baixar.', 'erro');
+    return;
+  }
+  const colunas = comTelefone ? COLUNAS : COLUNAS.filter((c) => c.chave !== 'telefone');
+  const hoje = new Date().toISOString().slice(0, 10);
+  baixarArquivo(`tecgame-respostas-${hoje}.csv`, paraCSV(linhas, colunas));
 }
 
 async function descartar() {
@@ -405,17 +472,30 @@ function sininho() {
   );
 }
 
-function barra() {
+/** As duas abas do painel. Trocar de aba não perde o que a outra tinha. */
+function abas() {
+  const item = (aba, rotulo) =>
+    el('button', {
+      type: 'button',
+      class: ['aba-painel', estado.aba === aba ? 'ativa' : null],
+      role: 'tab',
+      'aria-selected': estado.aba === aba ? 'true' : 'false',
+      text: rotulo,
+      onClick: () => trocarAba(aba),
+    });
+  return el('nav', { class: 'abas-painel', role: 'tablist', 'aria-label': 'Seção do painel' }, [
+    item('veiculos', 'Veículos'),
+    item('respostas', 'Respostas'),
+  ]);
+}
+
+/** `.barra-info` + `.barra-acoes` da aba Veículos — o que já existia. */
+function infoEAcoesDeVeiculos() {
   const { total } = errosPorRodada(estado.baralho);
   const peso = pesoDoBaralho();
   const situacao = seloDaSituacao();
 
-  return el('header', { class: 'barra' }, [
-    el('div', { class: 'marca' }, [
-      el('strong', { text: 'TecGame' }),
-      el('span', { text: `administração · v${VERSAO_DO_JOGO}` }),
-    ]),
-    sininho(),
+  return [
     el('div', { class: 'barra-info' }, [
       el('span', {
         class: `situacao situacao-${situacao.tipo}`,
@@ -439,6 +519,60 @@ function barra() {
       botao('Resetar todos os dados', { onClick: resetarTudo, tipo: 'perigo' }),
       estado.sujo ? botao('Descartar', { onClick: descartar }) : null,
       botao('Salvar', { onClick: publicar, tipo: 'primario' }),
+    ]),
+  ];
+}
+
+/** `.barra-info` + `.barra-acoes` da aba Respostas. */
+function infoEAcoesDeRespostas() {
+  const { fonte, comTelefone, carregando, linhas } = estado.respostas;
+
+  return [
+    el('div', { class: 'barra-info' }, [
+      fonte
+        ? el('span', {
+            class: `situacao ${fonte === 'nuvem' ? 'situacao-ok' : 'situacao-atencao'}`,
+            text: fonte === 'nuvem' ? 'todos os totens' : 'só este navegador',
+            title:
+              fonte === 'nuvem'
+                ? 'Lendo o Firestore: partidas de qualquer totem com internet.'
+                : 'A nuvem está desligada ou fora do alcance — mostrando só o que este navegador jogou.',
+          })
+        : null,
+      el('span', {
+        class: `situacao ${comTelefone ? 'situacao-ok' : 'situacao-neutra'}`,
+        text: comTelefone ? 'com telefone' : 'sem telefone',
+        title: comTelefone
+          ? null
+          : 'Entre com a conta do Firebase para ver o telefone de quem jogou nos outros totens.',
+      }),
+      estado.operador
+        ? el('span', { class: 'situacao situacao-ok', text: estado.operador, title: 'Conectado ao Firebase' })
+        : null,
+      linhas.length ? el('span', { class: 'situacao situacao-neutra', text: `${linhas.length} partida(s)` }) : null,
+    ]),
+    el('div', { class: 'barra-acoes' }, [
+      botao('Atualizar', { onClick: atualizarRespostas, titulo: 'Buscar de novo' }),
+      podeUsarNuvem()
+        ? estado.operador
+          ? botao('Sair da conta', { onClick: sairComFirebase, titulo: `Conectado como ${estado.operador}` })
+          : botao('Entrar', { onClick: entrarComFirebase, titulo: 'Conta do Firebase, para ver telefone' })
+        : null,
+      botao('Baixar dados', { onClick: baixarRespostas, tipo: 'primario', disabled: carregando || !linhas.length }),
+    ]),
+  ];
+}
+
+function barra() {
+  return el('header', { class: 'barra' }, [
+    el('div', { class: 'marca' }, [
+      el('strong', { text: 'TecGame' }),
+      el('span', { text: `administração · v${VERSAO_DO_JOGO}` }),
+    ]),
+    sininho(),
+    abas(),
+    ...(estado.aba === 'veiculos' ? infoEAcoesDeVeiculos() : infoEAcoesDeRespostas()),
+    el('div', { class: 'barra-acoes barra-acoes-sair' }, [
       botao('Voltar ao jogo', { onClick: voltarAoJogo, titulo: 'Fecha a administração e volta para a tela do jogador' }),
     ]),
   ]);
@@ -586,9 +720,47 @@ function lista() {
   ]);
 }
 
+/**
+ * A tabela de partidas. As colunas seguem `COLUNAS` de respostas.js; sem
+ * telefone autenticado, a coluna nem aparece — em vez de vir vazia, que
+ * insinuaria um dado perdido em vez de um dado que a conta atual não vê.
+ */
+function telaRespostas() {
+  const { linhas, carregado, carregando } = estado.respostas;
+  const colunas = estado.respostas.comTelefone ? COLUNAS : COLUNAS.filter((c) => c.chave !== 'telefone');
+
+  if (carregando && !carregado) {
+    return el('main', { class: 'corpo-respostas' }, [el('p', { class: 'nota', text: 'Carregando respostas…' })]);
+  }
+
+  if (!linhas.length) {
+    return el('main', { class: 'corpo-respostas' }, [
+      el('p', { class: 'nota', text: 'Nenhuma partida registrada ainda.' }),
+    ]);
+  }
+
+  return el('main', { class: 'corpo-respostas' }, [
+    el('div', { class: 'tabela-rolo' }, [
+      el('table', { class: 'tabela' }, [
+        el('thead', {}, [el('tr', {}, colunas.map((c) => el('th', { text: c.rotulo })))]),
+        el(
+          'tbody',
+          {},
+          linhas.map((linha) => el('tr', {}, colunas.map((c) => el('td', { text: formatarCelula(c.chave, linha[c.chave]) }))))
+        ),
+      ]),
+    ]),
+  ]);
+}
+
 function desenhar() {
   limpar(app);
   app.appendChild(barra());
+
+  if (estado.aba === 'respostas') {
+    app.appendChild(telaRespostas());
+    return;
+  }
 
   const slot = estado.baralho.slots[estado.selecionado];
   // A pergunta aberta pode ter sumido (removida, ou veículo trocado); volta
@@ -620,8 +792,17 @@ function desenhar() {
   app.__editor = editor;
 }
 
-/** Redesenha só a barra e a lista, preservando o foco no editor. */
+/**
+ * Redesenha a barra e o corpo. Na aba Veículos, troca só a lista e preserva o
+ * foco no editor — redesenhar tudo tiraria o foco do campo em que se digita.
+ * Na aba Respostas não há campo de texto para perder, então é mais simples
+ * redesenhar tudo.
+ */
 function atualizarChrome() {
+  if (estado.aba !== 'veiculos') {
+    desenhar();
+    return;
+  }
   const barraAntiga = app.querySelector('.barra');
   const listaAntiga = app.querySelector('.lateral');
   if (barraAntiga) barraAntiga.replaceWith(barra());
@@ -634,6 +815,9 @@ function atualizarChrome() {
 
 /** O que `porta.js` quer que aconteça quando o operador pede para sair. */
 let fecharCamada = null;
+
+/** Cancela a inscrição no login do Firebase, ao fechar a camada. */
+let pararDeOuvirLogin = null;
 
 /** Avisa o navegador antes de recarregar/fechar com edição por publicar. */
 function aoDescarregar(e) {
@@ -710,6 +894,19 @@ export function montarAdmin(raiz, { aoSair = null } = {}) {
     setTimeout(() => abrirNotas(), 350);
   }
 
+  // O SDK restaura a sessão do Firebase de forma assíncrona, então a aba
+  // Respostas nasce "sem telefone" e se corrige quando isto dispara. Se a
+  // aba já tinha sido aberta antes (troca de conta em sessão longa), busca de
+  // novo — é o login que decide se `contatos` entra na mistura.
+  aoMudarOperador((email) => {
+    estado.operador = email;
+    if (!app) return;
+    if (estado.respostas.carregado) atualizarRespostas();
+    else if (estado.aba === 'respostas') atualizarChrome();
+  }).then((cancelar) => {
+    pararDeOuvirLogin = cancelar;
+  });
+
   window.addEventListener('beforeunload', aoDescarregar);
   desenhar();
 }
@@ -717,6 +914,8 @@ export function montarAdmin(raiz, { aoSair = null } = {}) {
 /** Esvazia a camada e solta o que ela tinha preso no documento. */
 export function desmontarAdmin() {
   window.removeEventListener('beforeunload', aoDescarregar);
+  pararDeOuvirLogin?.();
+  pararDeOuvirLogin = null;
   if (app) limpar(app);
   app = null;
   fecharCamada = null;

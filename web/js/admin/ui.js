@@ -54,10 +54,10 @@ export function campo({ rotulo, valor = '', multilinha = false, onInput, dica, o
   return raiz;
 }
 
-export function botao(texto, { onClick, tipo = 'normal', titulo, icone } = {}) {
+export function botao(texto, { onClick, tipo = 'normal', titulo, icone, disabled = false } = {}) {
   return el(
     'button',
-    { type: 'button', class: `botao botao-${tipo}`, onClick, title: titulo, 'aria-label': titulo },
+    { type: 'button', class: `botao botao-${tipo}`, onClick, title: titulo, 'aria-label': titulo, disabled },
     [icone ? el('span', { class: 'botao-icone', 'aria-hidden': 'true', text: icone }) : null, el('span', { text: texto })]
   );
 }
@@ -132,6 +132,59 @@ export function confirmar({ titulo, texto, confirmarTexto = 'Confirmar', perigos
     document.addEventListener('keydown', onTecla);
     botaoOk.focus();
   });
+}
+
+/**
+ * Pede e-mail e senha — a conta de verdade do Firebase, não a senha 2040 da
+ * porta. Resolve com `{email, senha}`, ou `null` se desistir.
+ */
+export function pedirCredenciais({ titulo = 'Entrar', texto } = {}) {
+  return new Promise((resolve) => {
+    const email = entradaSimples({ tipo: 'email', rotulo: 'E-mail', auto: 'username' });
+    const senha = entradaSimples({ tipo: 'password', rotulo: 'Senha', auto: 'current-password' });
+
+    const fechar = (r) => {
+      fundo.remove();
+      document.removeEventListener('keydown', onTecla);
+      resolve(r);
+    };
+    const enviar = () => {
+      const e = email.entrada.value.trim();
+      const s = senha.entrada.value;
+      if (!e || !s) return;
+      fechar({ email: e, senha: s });
+    };
+    const onTecla = (ev) => {
+      if (ev.key === 'Escape') fechar(null);
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        enviar();
+      }
+    };
+
+    const caixa = el('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': titulo }, [
+      el('h2', { text: titulo }),
+      texto ? el('p', { text: texto }) : null,
+      email,
+      senha,
+      el('div', { class: 'modal-acoes' }, [
+        botao('Cancelar', { onClick: () => fechar(null) }),
+        botao('Entrar', { tipo: 'primario', onClick: enviar }),
+      ]),
+    ]);
+    const fundo = el('div', { class: 'modal-fundo', onClick: (ev) => ev.target === fundo && fechar(null) }, caixa);
+    document.body.appendChild(fundo);
+    document.addEventListener('keydown', onTecla);
+    email.entrada.focus();
+  });
+}
+
+/** Um campo de texto simples para os modais — sem a validação do editor. */
+function entradaSimples({ tipo, rotulo, auto }) {
+  const entrada = el('input', { class: 'campo-entrada', type: tipo, autocomplete: auto });
+  const raiz = el('label', { class: 'campo' }, [el('span', { class: 'campo-rotulo', text: rotulo }), entrada]);
+  raiz.entrada = entrada;
+  return raiz;
 }
 
 /* ---------------------------------------------------------------- notas -- */

@@ -13,8 +13,9 @@ web/                  o jogo portado (é isto que se publica)
   css/fonts.css         gerado: as cinco famílias auto-hospedadas
   js/                   os módulos ES — o código-fonte
   js/admin/             a administração: porta.js, painel.js, editor.js, ui.js
+  js/admin/respostas.js a aba Respostas: dados de partida, telefone com login, CSV
   js/firebase.js        o SDK, carregado sob demanda (recusado por file://)
-  js/nuvem.js           o baralho no Firestore + o login do operador
+  js/nuvem.js           o baralho no Firestore, sem login
   js/bundle.js          gerado: tudo isso em um script clássico
   assets/               imagens, áudios, fontes e vídeos do original
 firebase/             regras e índices do Firestore
@@ -219,10 +220,12 @@ fica com a última cópia que baixou.
 > formato, então a coleção não vira depósito de dados quaisquer.
 >
 > O que **não** foi afrouxado junto: `contatos`, com nome e telefone dos
-> jogadores. Nenhum cliente lê de lá.
+> jogadores, continua `allow read: if request.auth != null` — só quem tem uma
+> conta de verdade do Firebase lê, pela aba **Respostas** do painel (ver
+> abaixo). Essa conta não nasce sozinha: alguém do time cria pelo Console.
 >
-> A única coisa que ainda só existe pelo console do Firebase — criar o Firestore
-> — está em [`firebase/README.md`](firebase/README.md).
+> O que ainda só existe pelo console do Firebase — criar o Firestore e a conta
+> de quem vai ver telefone — está em [`firebase/README.md`](firebase/README.md).
 
 E há um teto: **o Firestore recusa documento acima de 1 MB**. O baralho de
 fábrica inteiro dá 38 KB, então texto não chega perto; quem estoura é foto
@@ -256,6 +259,37 @@ continua sendo copiá-las para `web/assets/images/` e referenciar pelo caminho.
 > não tem servidor — o baralho vive no armazenamento do próprio navegador. Se
 > um dia o conteúdo passar a valer alguma coisa, o lugar de resolver isso é o
 > Firestore, com regra de escrita e login de verdade.
+
+### Respostas
+
+A segunda aba do painel (ao lado de Veículos) mostra os dados de cada partida
+— nome, atuação, equipamento, se venceu, tempo restante, respostas inválidas
+— e baixa tudo num CSV, com **Baixar dados**.
+
+Nuvem quando dá, local quando não dá, a mesma regra do baralho: com o
+Firestore alcançável, a tabela junta as partidas de **todos os totens**; sem
+rede (ou `file://`), mostra só o que este navegador jogou. Os dois badges no
+topo da aba dizem qual dos dois está valendo, e se o **telefone** está na
+mistura.
+
+Telefone é caso à parte: `contatos` (nome + telefone) é a única coleção do
+projeto que continua exigindo login de verdade — não a senha 2040 da porta,
+uma conta do Firebase mesmo (**Entrar**, no topo da aba). Sem entrar, a tabela
+mostra os dados da partida sem telefone; é o que a política de privacidade do
+jogo promete. Local não pede login — é deste navegador mesmo, sem segredo
+possível para proteger dele.
+
+Como não há uma chave em comum entre `usuarios` e `contatos` (são dois
+`addDoc` separados), o telefone é casado pelo nome e pelo horário mais
+próximo (`combinar`, em `web/js/admin/respostas.js`) — palpite informado, não
+garantia. Duas pessoas do mesmo nome jogando quase junto em totens diferentes
+podem casar errado; para a escala de uma feira, é raro.
+
+> **Antes de usar telefone pela primeira vez**, habilite "E-mail/senha" em
+> Authentication → Sign-in method e crie a conta de quem for operar em
+> Authentication → Users, os dois pelo Console do Firebase — não existe
+> cadastro pela própria tela, de propósito (ver
+> [`firebase/README.md`](firebase/README.md)).
 
 Os três idiomas são independentes, e o jogo **não** tem retorno para o
 português quando um campo fica vazio — a tela aparece em branco. É por isso que
@@ -429,11 +463,11 @@ npm run verify        # tudo: HTTP e file://, subindo o servidor sozinho
 npm run verify:rapido # só HTTP, 6 em paralelo — a volta rápida do dia a dia
 ```
 
-Isso roda a checagem estática, regera os bundles e passa os nove testes de
-navegador nos **dois transportes** — 18 execuções. Sobe o `http-server` se a
+Isso roda a checagem estática, regera os bundles e passa os dez testes de
+navegador nos **dois transportes** — 20 execuções. Sobe o `http-server` se a
 porta 8099 estiver livre e reaproveita o que já estiver de pé.
 
-As 18 execuções correm **em paralelo** (4 de cada vez por padrão). Cada teste
+As 20 execuções correm **em paralelo** (4 de cada vez por padrão). Cada teste
 sobe o próprio Chrome e só lê do servidor, então não disputam nada entre si; o
 que os prendia era o laço sequencial do `all.mjs`. A saída de cada um sai
 inteira quando ele termina, e no fim vem o tempo de cada execução — é assim que
@@ -466,6 +500,7 @@ em outro terminal, ou de `BASE=` apontando para o `file://`):
 | `npm run verify:teclado` | os alvos são alcançáveis e acionáveis por teclado |
 | `npm run verify:baralho` | o embutido reproduz `questions.js`; baralho de outro tamanho joga |
 | `npm run verify:admin` | ver, editar, adicionar, validar, publicar, enviar imagem, remover e restaurar |
+| `npm run verify:respostas` | aba Respostas: dados locais com telefone, baixa CSV de verdade, sem nuvem não mostra Entrar |
 | `npm run verify:sizes` | escala do palco em 1366x768, 1280x1024, 3840x2160 e retrato |
 | `node scripts/verify/probe.mjs telaAcao` | despeja a árvore de layout de uma rota |
 

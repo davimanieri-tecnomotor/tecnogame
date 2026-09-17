@@ -10,10 +10,18 @@
 
 import { readRaw, writeRaw } from './storage.js';
 
-export const VERSAO_DO_JOGO = '2.0.0';
+export const VERSAO_DO_JOGO = '2.1.0';
 
 /** Mais recente primeiro — é a ordem em que o painel lista. */
 export const NOTAS_DE_ATUALIZACAO = [
+  {
+    versao: '2.1.0',
+    data: '2026-09-17',
+    itens: [
+      'Nova aba Respostas no painel: mostra os dados de cada partida — de todos os totens, quando há internet — e baixa tudo em CSV.',
+      'Telefone do jogador só aparece para quem entrar com uma conta de verdade do Firebase; a senha da porta continua sem acesso a isso.',
+    ],
+  },
   {
     versao: '2.0.0',
     data: '2026-09-15',

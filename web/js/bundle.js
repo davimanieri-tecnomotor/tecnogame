@@ -3857,9 +3857,10 @@
   __define("firebase.js", function (__exports, __require) {
   // O Firebase, carregado sob demanda.
   //
-  // Um lugar só para subir o SDK, porque dois assuntos diferentes o usam: o
-  // ranking (`backend.js`, coleção `usuarios`) e o conteúdo do jogo (`nuvem.js`,
-  // coleção `conteudo` + login do operador).
+  // Um lugar só para subir o SDK, porque três assuntos diferentes o usam: o
+  // ranking (`backend.js`, coleção `usuarios`), o conteúdo do jogo (`nuvem.js`,
+  // coleção `conteudo`, sem login) e as respostas com telefone
+  // (`admin/respostas.js`, coleção `contatos`, com login de verdade).
   //
   // POR QUE `import()` DINÂMICO E NÃO UM ARQUIVO NO REPOSITÓRIO
   // O SDK do Firebase vem da CDN do Google como módulo ES. Isso tem uma
@@ -3884,25 +3885,29 @@
     Boolean(CONFIG.useFirestore) && typeof location !== 'undefined' && location.protocol !== 'file:';
   
   /**
-   * Sobe o SDK e devolve `{ app, db, fs }`, ou `null` se não der.
+   * Sobe o SDK e devolve `{ app, db, fs, auth, fa }`, ou `null` se não der.
    *
-   * `fs` é o módulo inteiro do Firestore: o SDK v10 é modular, então quem chama
-   * usa `fs.collection(db, ...)`, `fs.getDoc(...)`.
+   * `fs` e `fa` são os módulos inteiros (firestore e auth): o SDK v10 é modular,
+   * então quem chama usa `fs.collection(db, ...)`, `fa.signInWithEmailAndPassword(auth, ...)`.
    *
-   * O módulo de autenticação não é carregado: desde que a escrita do baralho
-   * deixou de exigir login, ninguém o usa (ver nuvem.js).
+   * O módulo de autenticação voltou a carregar: a aba de respostas do painel
+   * lê `contatos`, e a regra desta coleção exige `request.auth != null` (ver
+   * firebase/firestore.rules — nome e telefone de jogador de verdade não é
+   * conteúdo de jogo, e por isso não segue a decisão de escrita aberta do
+   * baralho). Ver `admin/respostas.js`.
    */
   function firebase() {
     if (!podeUsarNuvem()) return Promise.resolve(null);
     if (promessa) return promessa;
   
     promessa = (async () => {
-      const [{ initializeApp }, fs] = await Promise.all([
+      const [{ initializeApp }, fs, fa] = await Promise.all([
         import(`${CDN}/firebase-app.js`),
         import(`${CDN}/firebase-firestore.js`),
+        import(`${CDN}/firebase-auth.js`),
       ]);
       const app = initializeApp(CONFIG.firebaseOptions);
-      return { app, db: fs.getFirestore(app), fs };
+      return { app, db: fs.getFirestore(app), fs, auth: fa.getAuth(app), fa };
     })().catch((erro) => {
       console.warn('Firebase indisponível; seguindo só com o armazenamento local.', erro);
       // Zera para uma próxima tentativa poder acontecer (rede que voltou).
@@ -5449,10 +5454,10 @@
     return raiz;
   }
   
-  function botao(texto, { onClick, tipo = 'normal', titulo, icone } = {}) {
+  function botao(texto, { onClick, tipo = 'normal', titulo, icone, disabled = false } = {}) {
     return el(
       'button',
-      { type: 'button', class: `botao botao-${tipo}`, onClick, title: titulo, 'aria-label': titulo },
+      { type: 'button', class: `botao botao-${tipo}`, onClick, title: titulo, 'aria-label': titulo, disabled },
       [icone ? el('span', { class: 'botao-icone', 'aria-hidden': 'true', text: icone }) : null, el('span', { text: texto })]
     );
   }
@@ -5527,6 +5532,59 @@
       document.addEventListener('keydown', onTecla);
       botaoOk.focus();
     });
+  }
+  
+  /**
+   * Pede e-mail e senha — a conta de verdade do Firebase, não a senha 2040 da
+   * porta. Resolve com `{email, senha}`, ou `null` se desistir.
+   */
+  function pedirCredenciais({ titulo = 'Entrar', texto } = {}) {
+    return new Promise((resolve) => {
+      const email = entradaSimples({ tipo: 'email', rotulo: 'E-mail', auto: 'username' });
+      const senha = entradaSimples({ tipo: 'password', rotulo: 'Senha', auto: 'current-password' });
+  
+      const fechar = (r) => {
+        fundo.remove();
+        document.removeEventListener('keydown', onTecla);
+        resolve(r);
+      };
+      const enviar = () => {
+        const e = email.entrada.value.trim();
+        const s = senha.entrada.value;
+        if (!e || !s) return;
+        fechar({ email: e, senha: s });
+      };
+      const onTecla = (ev) => {
+        if (ev.key === 'Escape') fechar(null);
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          enviar();
+        }
+      };
+  
+      const caixa = el('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': titulo }, [
+        el('h2', { text: titulo }),
+        texto ? el('p', { text: texto }) : null,
+        email,
+        senha,
+        el('div', { class: 'modal-acoes' }, [
+          botao('Cancelar', { onClick: () => fechar(null) }),
+          botao('Entrar', { tipo: 'primario', onClick: enviar }),
+        ]),
+      ]);
+      const fundo = el('div', { class: 'modal-fundo', onClick: (ev) => ev.target === fundo && fechar(null) }, caixa);
+      document.body.appendChild(fundo);
+      document.addEventListener('keydown', onTecla);
+      email.entrada.focus();
+    });
+  }
+  
+  /** Um campo de texto simples para os modais — sem a validação do editor. */
+  function entradaSimples({ tipo, rotulo, auto }) {
+    const entrada = el('input', { class: 'campo-entrada', type: tipo, autocomplete: auto });
+    const raiz = el('label', { class: 'campo' }, [el('span', { class: 'campo-rotulo', text: rotulo }), entrada]);
+    raiz.entrada = entrada;
+    return raiz;
   }
   
   /* ---------------------------------------------------------------- notas -- */
@@ -5681,6 +5739,7 @@
   Object.defineProperty(__exports, "caixaDeMarcar", { get: () => caixaDeMarcar, enumerable: true });
   Object.defineProperty(__exports, "aviso", { get: () => aviso, enumerable: true });
   Object.defineProperty(__exports, "confirmar", { get: () => confirmar, enumerable: true });
+  Object.defineProperty(__exports, "pedirCredenciais", { get: () => pedirCredenciais, enumerable: true });
   Object.defineProperty(__exports, "mostrarNotas", { get: () => mostrarNotas, enumerable: true });
   Object.defineProperty(__exports, "reduzirImagem", { get: () => reduzirImagem, enumerable: true });
   Object.defineProperty(__exports, "entradaDeImagem", { get: () => entradaDeImagem, enumerable: true });
@@ -6246,10 +6305,18 @@
   
   const { readRaw, writeRaw } = __require("storage.js");
   
-  const VERSAO_DO_JOGO = '2.0.0';
+  const VERSAO_DO_JOGO = '2.1.0';
   
   /** Mais recente primeiro — é a ordem em que o painel lista. */
   const NOTAS_DE_ATUALIZACAO = [
+    {
+      versao: '2.1.0',
+      data: '2026-09-17',
+      itens: [
+        'Nova aba Respostas no painel: mostra os dados de cada partida — de todos os totens, quando há internet — e baixa tudo em CSV.',
+        'Telefone do jogador só aparece para quem entrar com uma conta de verdade do Firebase; a senha da porta continua sem acesso a isso.',
+      ],
+    },
     {
       versao: '2.0.0',
       data: '2026-09-15',
@@ -6277,6 +6344,224 @@
   Object.defineProperty(__exports, "temNovidade", { get: () => temNovidade, enumerable: true });
   });
 
+  /* ===== admin/respostas.js ===== */
+  __define("admin/respostas.js", function (__exports, __require) {
+  // Os dados de partida (aba "Respostas" do painel): buscar, juntar telefone
+  // quando der, e exportar em CSV.
+  //
+  // DUAS COLEÇÕES, DUAS REGRAS (ver firebase/firestore.rules e backend.js):
+  //
+  //   usuarios   resultado da partida, SEM telefone   -> leitura pública
+  //   contatos   nome + telefone                      -> leitura só autenticada
+  //
+  // `contatos` ficou fechada de propósito quando o login saiu da escrita do
+  // baralho (ver nuvem.js): é nome e telefone de jogador de verdade, e a
+  // política de privacidade que o próprio jogo exibe promete que não vaza para
+  // qualquer visitante. Por isso esta aba pede uma conta do Firebase — e é
+  // autenticação de verdade, não a senha 2040 da porta (essa viaja no mesmo
+  // JavaScript que o jogador recebe; a de aqui vive na conta de vocês).
+  //
+  // ANTES DE USAR: no Console do Firebase do projeto,
+  //   1. Authentication > Sign-in method > habilitar "E-mail/senha";
+  //   2. Authentication > Users > Add user, com o e-mail e senha de quem for
+  //      operar — NÃO existe cadastro pela própria tela, de propósito: se
+  //      qualquer um pudesse criar a própria conta, `auth != null` deixaria de
+  //      significar alguma coisa e a regra do Firestore não protegeria nada.
+  //
+  // SEM JUNÇÃO GARANTIDA POR ID. `addUsuario` grava os dois documentos em
+  // escritas separadas (dois `addDoc`), sem chave em comum — só nome e um
+  // horário próximo. `combinar`, abaixo, casa pelo nome e pelo horário mais
+  // perto dentro de uma janela; é palpite informado, não certeza, e por isso
+  // existe `janelaMs` para poder ser ajustada se um dia casar errado.
+  
+  const { firebase, podeUsarNuvem } = __require("firebase.js");
+  const { getRecords } = __require("storage.js");
+  
+  /* ---------------------------------------------------------------- login -- */
+  
+  async function entrar(email, senha) {
+    const fb = await firebase();
+    if (!fb) return { ok: false, motivo: 'a nuvem está desligada ou o jogo foi aberto do disco.' };
+    try {
+      await fb.fa.signInWithEmailAndPassword(fb.auth, email, senha);
+      return { ok: true };
+    } catch (erro) {
+      const codigo = String(erro?.code ?? '');
+      if (codigo.includes('invalid-credential') || codigo.includes('wrong-password') || codigo.includes('user-not-found')) {
+        return { ok: false, motivo: 'e-mail ou senha não conferem.' };
+      }
+      if (codigo.includes('operation-not-allowed')) {
+        return { ok: false, motivo: 'o login por e-mail/senha não está habilitado no projeto do Firebase.' };
+      }
+      if (codigo.includes('network')) return { ok: false, motivo: 'sem conexão com o Firebase.' };
+      return { ok: false, motivo: erro?.message ?? String(erro) };
+    }
+  }
+  
+  async function sair() {
+    const fb = await firebase();
+    if (fb) await fb.fa.signOut(fb.auth).catch(() => {});
+  }
+  
+  /**
+   * Avisa quando o login muda. O SDK restaura a sessão de forma assíncrona no
+   * carregamento, então quem chama não pode desenhar "deslogado" e parar por
+   * aí — o painel se redesenha quando isto dispara.
+   *
+   * @returns {Promise<Function>} uma função que cancela a inscrição
+   */
+  async function aoMudarOperador(fn) {
+    const fb = await firebase();
+    if (!fb) return () => {};
+    return fb.fa.onAuthStateChanged(fb.auth, (u) => fn(u?.email ?? null));
+  }
+  
+  /* ------------------------------------------------------------- os dados -- */
+  
+  /** Não busca a coleção inteira sem fim: teto generoso para uma feira. */
+  const TETO_DE_LINHAS = 3000;
+  
+  async function buscarColecao(nome, { limit }) {
+    const fb = await firebase();
+    if (!fb) return [];
+    const { db, fs } = fb;
+    const snap = await fs.getDocs(fs.query(fs.collection(db, nome), fs.orderBy('data', 'desc'), fs.limit(limit)));
+    return snap.docs.map((d) => {
+      const dados = d.data();
+      // `data` pode ser Timestamp do Firestore (serverTimestamp) ou string ISO
+      // (gravações antigas, ou sem `serverTimestamp: true`) — normaliza para um
+      // jeito só antes de sair daqui.
+      const data = dados.data?.toDate ? dados.data.toDate().toISOString() : dados.data ?? null;
+      return { ...dados, data };
+    });
+  }
+  
+  /**
+   * Junta `usuarios` com `contatos` pelo nome e pelo horário mais próximo.
+   *
+   * Guloso e sem reposição: o `contato` mais próximo de um `usuario` é
+   * consumido, então dois jogadores do mesmo nome em horários parecidos não
+   * ficam ambos com o telefone do primeiro.
+   *
+   * @param {number} janelaMs quão longe em ms ainda vale como "o mesmo".
+   */
+  function combinar(usuarios, contatos, { janelaMs = 60_000 } = {}) {
+    const sobrando = contatos.map((c, i) => ({ ...c, __i: i }));
+    return usuarios.map((u) => {
+      const tUsuario = Date.parse(u.data ?? '');
+      let melhor = -1;
+      let melhorDelta = Infinity;
+      for (let i = 0; i < sobrando.length; i++) {
+        const c = sobrando[i];
+        if (!c || c.nome !== u.nome) continue;
+        const delta = Math.abs(Date.parse(c.data ?? '') - tUsuario);
+        if (Number.isFinite(delta) && delta < melhorDelta) {
+          melhor = i;
+          melhorDelta = delta;
+        }
+      }
+      if (melhor >= 0 && melhorDelta <= janelaMs) {
+        const [c] = sobrando.splice(melhor, 1);
+        return { ...u, telefone: c.telefone };
+      }
+      return { ...u, telefone: null };
+    });
+  }
+  
+  /**
+   * As linhas da aba, prontas para desenhar e exportar.
+   *
+   * NUVEM QUANDO DÁ, LOCAL QUANDO NÃO DÁ — mesma regra do baralho (nuvem.js).
+   * Não mistura as duas fontes: as partidas deste navegador já estão na nuvem
+   * (é o mesmo `addUsuario` que grava as duas), então somar as duas contaria
+   * cada partida bem-sucedida duas vezes.
+   *
+   * `comTelefone` é falso só quando a fonte é a nuvem e ninguém está
+   * autenticado — localmente o telefone é deste navegador mesmo, sem segredo
+   * nenhum para proteger dele.
+   *
+   * @returns {Promise<{linhas: object[], fonte: 'nuvem'|'local', comTelefone: boolean, autenticado: boolean}>}
+   */
+  async function buscarRespostas() {
+    if (podeUsarNuvem()) {
+      try {
+        const fb = await firebase();
+        const autenticado = Boolean(fb?.auth?.currentUser);
+        const usuarios = await buscarColecao('usuarios', { limit: TETO_DE_LINHAS });
+        const contatos = autenticado ? await buscarColecao('contatos', { limit: TETO_DE_LINHAS }) : [];
+        return { linhas: combinar(usuarios, contatos), fonte: 'nuvem', comTelefone: autenticado, autenticado };
+      } catch (erro) {
+        console.warn('não deu para ler as respostas da nuvem; caindo para o local.', erro);
+      }
+    }
+    const usuarios = getRecords('usuarios');
+    const contatos = getRecords('contatos');
+    return { linhas: combinar(usuarios, contatos), fonte: 'local', comTelefone: true, autenticado: false };
+  }
+  
+  /* --------------------------------------------------------------- export -- */
+  
+  /** As colunas, na ordem em que a tabela e o CSV mostram. */
+  const COLUNAS = [
+    { chave: 'nome', rotulo: 'Nome' },
+    { chave: 'telefone', rotulo: 'Telefone' },
+    { chave: 'atuacao', rotulo: 'Atuação' },
+    { chave: 'equipamento', rotulo: 'Equipamento' },
+    { chave: 'venceu', rotulo: 'Venceu' },
+    { chave: 'tempo', rotulo: 'Tempo restante (s)' },
+    { chave: 'invalido', rotulo: 'Respostas inválidas' },
+    { chave: 'data', rotulo: 'Quando' },
+  ];
+  
+  /** Um valor de linha, formatado como o humano lê — não como o banco grava. */
+  function formatarCelula(chave, valor) {
+    if (valor == null) return '';
+    if (chave === 'venceu') return valor ? 'Sim' : 'Não';
+    if (chave === 'tempo') return (Number(valor) / 1000).toFixed(1);
+    if (chave === 'data') {
+      const d = new Date(valor);
+      return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('pt-BR');
+    }
+    return String(valor);
+  }
+  
+  /** Escapa um campo para CSV: aspas duplicadas, e entre aspas só quando precisa. */
+  function celulaCsv(texto) {
+    if (/[",\n;]/.test(texto)) return `"${texto.replace(/"/g, '""')}"`;
+    return texto;
+  }
+  
+  function paraCSV(linhas, colunas = COLUNAS) {
+    const cabecalho = colunas.map((c) => celulaCsv(c.rotulo)).join(';');
+    const corpo = linhas.map((linha) => colunas.map((c) => celulaCsv(formatarCelula(c.chave, linha[c.chave]))).join(';'));
+    // ";" e não "," — é o separador que o Excel em pt-BR assume sem perguntar.
+    // BOM na frente para acentos não virarem "Ã§" ao abrir no Excel do Windows.
+    return '﻿' + [cabecalho, ...corpo].join('\n');
+  }
+  
+  /** Dispara o download de um texto como arquivo, sem precisar de servidor. */
+  function baixarArquivo(nome, texto, tipo = 'text/csv;charset=utf-8') {
+    const blob = new Blob([texto], { type: tipo });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = nome;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+  Object.defineProperty(__exports, "entrar", { get: () => entrar, enumerable: true });
+  Object.defineProperty(__exports, "sair", { get: () => sair, enumerable: true });
+  Object.defineProperty(__exports, "aoMudarOperador", { get: () => aoMudarOperador, enumerable: true });
+  Object.defineProperty(__exports, "combinar", { get: () => combinar, enumerable: true });
+  Object.defineProperty(__exports, "buscarRespostas", { get: () => buscarRespostas, enumerable: true });
+  Object.defineProperty(__exports, "COLUNAS", { get: () => COLUNAS, enumerable: true });
+  Object.defineProperty(__exports, "formatarCelula", { get: () => formatarCelula, enumerable: true });
+  Object.defineProperty(__exports, "paraCSV", { get: () => paraCSV, enumerable: true });
+  Object.defineProperty(__exports, "baixarArquivo", { get: () => baixarArquivo, enumerable: true });
+  });
+
   /* ===== admin/painel.js ===== */
   __define("admin/painel.js", function (__exports, __require) {
   // Área administrativa do TecGame: ver, adicionar, editar e remover as rodadas
@@ -6301,13 +6586,14 @@
   // Salvar não pede login. A escrita do baralho no Firestore é aberta por decisão
   // do projeto — ver a nota em firebase/firestore.rules, que diz o que isso custa.
   
-  const { el, botao, aviso, confirmar, limpar, mostrarNotas } = __require("admin/ui.js");
+  const { el, botao, aviso, confirmar, limpar, mostrarNotas, pedirCredenciais } = __require("admin/ui.js");
   const { editorDeSlot } = __require("admin/editor.js");
   const { BARALHO_ORIGINAL, SLOTS_ORIGINAIS, carregarBaralho, novoIdDePergunta, perguntaVazia, publicarBaralho, restaurarOriginal, slotVazio, temBaralhoPublicado, usaArteOriginal, validarBaralho } = __require("deck.js");
   const { motivoDaFalha, removerChave } = __require("storage.js");
   const { podeUsarNuvem } = __require("firebase.js");
   const { publicarNaNuvem, sincronizarBaralho, ultimaPublicacao } = __require("nuvem.js");
   const { VERSAO_DO_JOGO, NOTAS_DE_ATUALIZACAO, temNovidade, marcarVersaoVista } = __require("changelog.js");
+  const { COLUNAS, aoMudarOperador, baixarArquivo, buscarRespostas, entrar, formatarCelula, paraCSV, sair } = __require("admin/respostas.js");
   
   /* -------------------------------------------------------------- o estado -- */
   
@@ -6334,6 +6620,13 @@
      * contagem, que já responde "quantas perguntas este carro tem".
      */
     abertos: new Set([0]),
+  
+    /** 'veiculos' | 'respostas' — qual aba do painel está visível. */
+    aba: 'veiculos',
+    /** E-mail da conta do Firebase autenticada nesta aba, ou null. */
+    operador: null,
+    /** O que a aba Respostas mostra — ver `buscarRespostas` em respostas.js. */
+    respostas: { linhas: [], fonte: null, comTelefone: false, carregado: false, carregando: false },
   };
   
   /** A raiz que `montarAdmin` recebe. Fora da camada aberta, é null. */
@@ -6446,6 +6739,65 @@
     if (!app) return;
     estado.ultimaNuvem = info;
     atualizarChrome();
+  }
+  
+  /* ---------------------------------------------------------- respostas ---- */
+  
+  function trocarAba(aba) {
+    if (estado.aba === aba) return;
+    estado.aba = aba;
+    if (aba === 'respostas' && !estado.respostas.carregado && !estado.respostas.carregando) atualizarRespostas();
+    desenhar();
+  }
+  
+  async function atualizarRespostas() {
+    estado.respostas.carregando = true;
+    if (estado.aba === 'respostas') atualizarChrome();
+    try {
+      const r = await buscarRespostas();
+      if (!app) return;
+      estado.respostas = { ...r, carregado: true, carregando: false };
+    } catch (erro) {
+      estado.respostas.carregando = false;
+      aviso(`Não deu para carregar as respostas: ${erro?.message ?? erro}`, 'erro');
+    }
+    if (app && estado.aba === 'respostas') atualizarChrome();
+  }
+  
+  /**
+   * A conta do Firebase para ler telefone — não a senha 2040 da porta. Ver a
+   * nota grande em `admin/respostas.js` sobre por que uma exige a outra.
+   */
+  async function entrarComFirebase() {
+    const dados = await pedirCredenciais({
+      titulo: 'Entrar para ver telefone',
+      texto: 'A conta do Firebase do projeto. Sem ela, a tabela mostra os dados da partida sem telefone.',
+    });
+    if (!dados) return;
+    const r = await entrar(dados.email, dados.senha);
+    if (!r.ok) {
+      aviso(`Não entrou: ${r.motivo}`, 'erro');
+      return;
+    }
+    aviso(`Conectado como ${dados.email}.`);
+    // A tabela é atualizada pelo aoMudarOperador (montarAdmin), que dispara
+    // sozinho quando o login mudar.
+  }
+  
+  async function sairComFirebase() {
+    await sair();
+    aviso('Desconectado. A tabela volta a mostrar sem telefone.');
+  }
+  
+  function baixarRespostas() {
+    const { linhas, comTelefone } = estado.respostas;
+    if (!linhas.length) {
+      aviso('Não há dados para baixar.', 'erro');
+      return;
+    }
+    const colunas = comTelefone ? COLUNAS : COLUNAS.filter((c) => c.chave !== 'telefone');
+    const hoje = new Date().toISOString().slice(0, 10);
+    baixarArquivo(`tecgame-respostas-${hoje}.csv`, paraCSV(linhas, colunas));
   }
   
   async function descartar() {
@@ -6674,17 +7026,30 @@
     );
   }
   
-  function barra() {
+  /** As duas abas do painel. Trocar de aba não perde o que a outra tinha. */
+  function abas() {
+    const item = (aba, rotulo) =>
+      el('button', {
+        type: 'button',
+        class: ['aba-painel', estado.aba === aba ? 'ativa' : null],
+        role: 'tab',
+        'aria-selected': estado.aba === aba ? 'true' : 'false',
+        text: rotulo,
+        onClick: () => trocarAba(aba),
+      });
+    return el('nav', { class: 'abas-painel', role: 'tablist', 'aria-label': 'Seção do painel' }, [
+      item('veiculos', 'Veículos'),
+      item('respostas', 'Respostas'),
+    ]);
+  }
+  
+  /** `.barra-info` + `.barra-acoes` da aba Veículos — o que já existia. */
+  function infoEAcoesDeVeiculos() {
     const { total } = errosPorRodada(estado.baralho);
     const peso = pesoDoBaralho();
     const situacao = seloDaSituacao();
   
-    return el('header', { class: 'barra' }, [
-      el('div', { class: 'marca' }, [
-        el('strong', { text: 'TecGame' }),
-        el('span', { text: `administração · v${VERSAO_DO_JOGO}` }),
-      ]),
-      sininho(),
+    return [
       el('div', { class: 'barra-info' }, [
         el('span', {
           class: `situacao situacao-${situacao.tipo}`,
@@ -6708,6 +7073,60 @@
         botao('Resetar todos os dados', { onClick: resetarTudo, tipo: 'perigo' }),
         estado.sujo ? botao('Descartar', { onClick: descartar }) : null,
         botao('Salvar', { onClick: publicar, tipo: 'primario' }),
+      ]),
+    ];
+  }
+  
+  /** `.barra-info` + `.barra-acoes` da aba Respostas. */
+  function infoEAcoesDeRespostas() {
+    const { fonte, comTelefone, carregando, linhas } = estado.respostas;
+  
+    return [
+      el('div', { class: 'barra-info' }, [
+        fonte
+          ? el('span', {
+              class: `situacao ${fonte === 'nuvem' ? 'situacao-ok' : 'situacao-atencao'}`,
+              text: fonte === 'nuvem' ? 'todos os totens' : 'só este navegador',
+              title:
+                fonte === 'nuvem'
+                  ? 'Lendo o Firestore: partidas de qualquer totem com internet.'
+                  : 'A nuvem está desligada ou fora do alcance — mostrando só o que este navegador jogou.',
+            })
+          : null,
+        el('span', {
+          class: `situacao ${comTelefone ? 'situacao-ok' : 'situacao-neutra'}`,
+          text: comTelefone ? 'com telefone' : 'sem telefone',
+          title: comTelefone
+            ? null
+            : 'Entre com a conta do Firebase para ver o telefone de quem jogou nos outros totens.',
+        }),
+        estado.operador
+          ? el('span', { class: 'situacao situacao-ok', text: estado.operador, title: 'Conectado ao Firebase' })
+          : null,
+        linhas.length ? el('span', { class: 'situacao situacao-neutra', text: `${linhas.length} partida(s)` }) : null,
+      ]),
+      el('div', { class: 'barra-acoes' }, [
+        botao('Atualizar', { onClick: atualizarRespostas, titulo: 'Buscar de novo' }),
+        podeUsarNuvem()
+          ? estado.operador
+            ? botao('Sair da conta', { onClick: sairComFirebase, titulo: `Conectado como ${estado.operador}` })
+            : botao('Entrar', { onClick: entrarComFirebase, titulo: 'Conta do Firebase, para ver telefone' })
+          : null,
+        botao('Baixar dados', { onClick: baixarRespostas, tipo: 'primario', disabled: carregando || !linhas.length }),
+      ]),
+    ];
+  }
+  
+  function barra() {
+    return el('header', { class: 'barra' }, [
+      el('div', { class: 'marca' }, [
+        el('strong', { text: 'TecGame' }),
+        el('span', { text: `administração · v${VERSAO_DO_JOGO}` }),
+      ]),
+      sininho(),
+      abas(),
+      ...(estado.aba === 'veiculos' ? infoEAcoesDeVeiculos() : infoEAcoesDeRespostas()),
+      el('div', { class: 'barra-acoes barra-acoes-sair' }, [
         botao('Voltar ao jogo', { onClick: voltarAoJogo, titulo: 'Fecha a administração e volta para a tela do jogador' }),
       ]),
     ]);
@@ -6855,9 +7274,47 @@
     ]);
   }
   
+  /**
+   * A tabela de partidas. As colunas seguem `COLUNAS` de respostas.js; sem
+   * telefone autenticado, a coluna nem aparece — em vez de vir vazia, que
+   * insinuaria um dado perdido em vez de um dado que a conta atual não vê.
+   */
+  function telaRespostas() {
+    const { linhas, carregado, carregando } = estado.respostas;
+    const colunas = estado.respostas.comTelefone ? COLUNAS : COLUNAS.filter((c) => c.chave !== 'telefone');
+  
+    if (carregando && !carregado) {
+      return el('main', { class: 'corpo-respostas' }, [el('p', { class: 'nota', text: 'Carregando respostas…' })]);
+    }
+  
+    if (!linhas.length) {
+      return el('main', { class: 'corpo-respostas' }, [
+        el('p', { class: 'nota', text: 'Nenhuma partida registrada ainda.' }),
+      ]);
+    }
+  
+    return el('main', { class: 'corpo-respostas' }, [
+      el('div', { class: 'tabela-rolo' }, [
+        el('table', { class: 'tabela' }, [
+          el('thead', {}, [el('tr', {}, colunas.map((c) => el('th', { text: c.rotulo })))]),
+          el(
+            'tbody',
+            {},
+            linhas.map((linha) => el('tr', {}, colunas.map((c) => el('td', { text: formatarCelula(c.chave, linha[c.chave]) }))))
+          ),
+        ]),
+      ]),
+    ]);
+  }
+  
   function desenhar() {
     limpar(app);
     app.appendChild(barra());
+  
+    if (estado.aba === 'respostas') {
+      app.appendChild(telaRespostas());
+      return;
+    }
   
     const slot = estado.baralho.slots[estado.selecionado];
     // A pergunta aberta pode ter sumido (removida, ou veículo trocado); volta
@@ -6889,8 +7346,17 @@
     app.__editor = editor;
   }
   
-  /** Redesenha só a barra e a lista, preservando o foco no editor. */
+  /**
+   * Redesenha a barra e o corpo. Na aba Veículos, troca só a lista e preserva o
+   * foco no editor — redesenhar tudo tiraria o foco do campo em que se digita.
+   * Na aba Respostas não há campo de texto para perder, então é mais simples
+   * redesenhar tudo.
+   */
   function atualizarChrome() {
+    if (estado.aba !== 'veiculos') {
+      desenhar();
+      return;
+    }
     const barraAntiga = app.querySelector('.barra');
     const listaAntiga = app.querySelector('.lateral');
     if (barraAntiga) barraAntiga.replaceWith(barra());
@@ -6903,6 +7369,9 @@
   
   /** O que `porta.js` quer que aconteça quando o operador pede para sair. */
   let fecharCamada = null;
+  
+  /** Cancela a inscrição no login do Firebase, ao fechar a camada. */
+  let pararDeOuvirLogin = null;
   
   /** Avisa o navegador antes de recarregar/fechar com edição por publicar. */
   function aoDescarregar(e) {
@@ -6979,6 +7448,19 @@
       setTimeout(() => abrirNotas(), 350);
     }
   
+    // O SDK restaura a sessão do Firebase de forma assíncrona, então a aba
+    // Respostas nasce "sem telefone" e se corrige quando isto dispara. Se a
+    // aba já tinha sido aberta antes (troca de conta em sessão longa), busca de
+    // novo — é o login que decide se `contatos` entra na mistura.
+    aoMudarOperador((email) => {
+      estado.operador = email;
+      if (!app) return;
+      if (estado.respostas.carregado) atualizarRespostas();
+      else if (estado.aba === 'respostas') atualizarChrome();
+    }).then((cancelar) => {
+      pararDeOuvirLogin = cancelar;
+    });
+  
     window.addEventListener('beforeunload', aoDescarregar);
     desenhar();
   }
@@ -6986,6 +7468,8 @@
   /** Esvazia a camada e solta o que ela tinha preso no documento. */
   function desmontarAdmin() {
     window.removeEventListener('beforeunload', aoDescarregar);
+    pararDeOuvirLogin?.();
+    pararDeOuvirLogin = null;
     if (app) limpar(app);
     app = null;
     fecharCamada = null;

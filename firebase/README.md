@@ -10,14 +10,25 @@ cd firebase
 firebase deploy --only firestore:rules,firestore:indexes
 ```
 
-## Antes do primeiro uso — uma coisa só existe pelo console
+## Antes do primeiro uso — duas coisas só existem pelo console
 
 **Criar o Firestore** em `tecnogame-c7e46` (Build → Firestore Database → Criar
 banco de dados). Pode escolher *produção*: as regras deste repositório
 substituem as do assistente no `deploy` acima.
 
-Não é preciso habilitar login: desde 11/09/2026 a escrita do baralho é aberta
-(ver abaixo).
+**Login por e-mail/senha, para a aba Respostas do painel ver telefone.** A
+escrita do baralho continua sem exigir login (ver abaixo) — isto é só para
+quem administra enxergar o telefone de quem jogou. Dois passos, os dois pelo
+Console, nenhum pela tela do jogo:
+
+1. Authentication → Sign-in method → habilitar "E-mail/senha".
+2. Authentication → Users → Add user, com o e-mail e a senha de quem for
+   operar. **Não existe cadastro pela própria tela, de propósito**: se
+   qualquer um pudesse criar a própria conta, `request.auth != null` não
+   protegeria nada — é a regra que `contatos` usa (ver abaixo).
+
+Sem esses dois passos o painel funciona normalmente; só a coluna de telefone
+na aba Respostas fica de fora.
 
 ## A escrita do baralho é aberta, por decisão do projeto
 
@@ -35,13 +46,16 @@ O que as regras ainda defendem: o **formato**. Sem `isBaralhoValido`, a coleçã
 viraria depósito de dados arbitrários de quem passasse.
 
 E o que **não** foi afrouxado junto: `contatos`, que guarda nome e telefone de
-jogador de verdade. Nenhum cliente lê de lá — quem precisar do telefone lê pelo
-console do Firebase. A política de privacidade que o próprio jogo exibe promete
-isso.
+jogador de verdade. A regra continua `allow read: if request.auth != null` —
+só quem tem uma conta de verdade do Firebase lê, e essa conta só existe se
+alguém do time a criar pelo Console (ver "Antes do primeiro uso", acima). É o
+que a aba Respostas do painel (`web/js/admin/respostas.js`) usa para mostrar
+telefone; sem entrar, a aba mostra os dados da partida sem ele. A política de
+privacidade que o próprio jogo exibe promete que isso não fica público.
 
-O conserto, se um dia o conteúdo passar a valer alguma coisa: voltar
-`allow write: if request.auth != null` em `conteudo`, habilitar o provedor de
-e-mail/senha e devolver o botão Entrar ao painel.
+O conserto, se um dia o conteúdo do baralho passar a valer alguma coisa: voltar
+`allow write: if request.auth != null` em `conteudo` — o login de e-mail/senha
+já está de volta (ver acima), é só reaproveitar.
 
 > **O totem precisa abrir por HTTP.** O SDK do Firebase é módulo ES vindo da
 > CDN, e `file://` recusa módulo ES — o mesmo motivo de existir o `bundle.js`.
@@ -78,8 +92,8 @@ fechar a leitura, é **não colocar telefone no que é lido**:
 
 | coleção | conteúdo | cliente lê | cliente escreve |
 | --- | --- | --- | --- |
-| `usuarios` | nome, atuação, venceu, tempo, equipamento | sim (é o ranking) | só `create`, com formato validado |
-| `contatos` | nome, telefone | **não** | só `create`, com formato validado |
+| `usuarios` | nome, atuação, venceu, tempo, equipamento | sim (é o ranking, e a aba Respostas do painel) | só `create`, com formato validado |
+| `contatos` | nome, telefone | **só autenticado** (aba Respostas do painel, ver acima) | só `create`, com formato validado |
 | `conteudo` | baralho de veículos, regras e perguntas salvo pelo admin | sim | **qualquer um**, com formato validado (ver acima) |
 
 Escrita cega em `contatos`: o cliente grava e nunca lê de volta. Quem precisa do
@@ -97,9 +111,11 @@ telefone (o disparo de WhatsApp) passa a ler de lá autenticado, no servidor.
 3. **Retenção de 1 ano.** A política promete exclusão automática após um ano e
    nada no projeto implementa isso. Uma TTL policy no Firestore sobre o campo
    `data` cobre, sem código.
-4. ~~**Auth para o admin.**~~ Dispensado: a escrita do baralho ficou aberta por
-   decisão do projeto (ver acima). A leitura de `contatos` continua exigindo
-   `request.auth != null`, ou seja: nenhum cliente lê.
+4. **Auth para o admin — de volta, mas só para ler `contatos`.** A escrita do
+   baralho continua aberta (ver acima); o que passou a exigir login de
+   e-mail/senha foi ler telefone na aba Respostas do painel. Sem os dois
+   passos do Console em "Antes do primeiro uso", o painel funciona igual — só
+   a coluna de telefone some.
 
 A `apiKey` do Firebase pode continuar no cliente — chave web é identificador
 público por design, não credencial. A defesa real são estas regras.

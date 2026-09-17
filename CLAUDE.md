@@ -12,7 +12,7 @@ runtime**. Abre com dois cliques ou por HTTP.
 npm start          # http://localhost:8099
 npm run bundle     # DEPOIS de qualquer mudança em web/js/ — ver abaixo
 npm run check      # imports resolvem, nada morto, bundle em dia (0,1s)
-npm run verify     # a suíte inteira, 18 execuções, ~3min30
+npm run verify     # a suíte inteira, 20 execuções, ~3min30
 npm run verify:rapido   # só HTTP, ~110s — a volta do dia a dia
 ```
 
@@ -50,9 +50,10 @@ web/js/            os módulos ES — a fonte
   anim.js            o porte do flutter_animate sobre Web Animations API
   deck.js            o baralho: veículos, regras e perguntas
   giro.js            a física da roleta, a lingueta, o borrão, os estalos
-  nuvem.js           o baralho no Firestore
+  nuvem.js           o baralho no Firestore, sem login
   changelog.js       versão do jogo e as notas do sininho de novidades
   pages/ components/ admin/
+    admin/respostas.js  dados de partida, telefone com login, export CSV
 web/js/bundle.js   GERADO. Não editar.
 scripts/verify/    a suíte (puppeteer), um arquivo por afirmação
 firebase/          regras e índices do Firestore
@@ -120,7 +121,7 @@ continua local mesmo assim; `?semNuvem=1` desliga tudo.
 
 ## Antes de dizer que está pronto
 
-- `npm run verify` — **18 de 18**, nos dois transportes.
+- `npm run verify` — **20 de 20**, nos dois transportes.
 - **Olhe a tela.** Um probe que devolve números pode passar com a tela quebrada:
   o bug da resposta que sumia passou por um probe verde porque eu li o JSON e
   não abri a captura. Ponha um `page.screenshot` e leia a imagem.
@@ -137,8 +138,15 @@ todo visitante carrega** — a chave web do Firebase inclusive.
 - a escrita do baralho no Firestore é **aberta por decisão do projeto**, com a
   justificativa de que o endereço não será divulgado. O custo está escrito em
   `firebase/firestore.rules`: quem descobrir a URL reescreve o jogo;
-- **`contatos` (nome + telefone) continua fechado**, e não deve ser afrouxado de
-  carona. A política de privacidade que o próprio jogo exibe promete isso.
+- **`contatos` (nome + telefone) continua exigindo login de verdade** —
+  `request.auth != null` no Firestore, não a senha 2040. É o que a aba
+  Respostas do painel usa para mostrar telefone (`web/js/admin/respostas.js`),
+  e é a ÚNICA porta: a conta de quem entra só existe se alguém do time a criar
+  pelo Console do Firebase (ver `firebase/README.md`) — não há cadastro pela
+  tela. Qualquer mudança que dependa só da senha 2040 ou de login anônimo para
+  liberar esta coleção **não protege nada** e não deve entrar de carona numa
+  tarefa que não seja essa decisão, deliberadamente. A política de privacidade
+  que o próprio jogo exibe promete isso.
 
 ## Como escrever aqui
 

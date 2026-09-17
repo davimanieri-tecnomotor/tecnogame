@@ -114,6 +114,43 @@
   align-items: center;
 }
 
+/* Empurra "Voltar ao jogo" para a ponta direita quando a barra tem espaço —
+   ele é a única ação comum às duas abas, e faz sentido sempre no mesmo canto. */
+.barra-acoes-sair {
+  margin-left: auto;
+}
+
+/* ------------------------------------------------------------------ abas -- */
+
+.abas-painel {
+  display: flex;
+  flex: none;
+  gap: 4px;
+}
+
+.aba-painel {
+  padding: 8px 14px;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--fundo-3);
+  color: var(--texto-2);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+
+.aba-painel:hover { color: var(--texto); }
+
+.aba-painel.ativa {
+  background: var(--azul);
+  border-color: var(--azul-claro);
+  color: #fff;
+  font-weight: 600;
+}
+
+.aba-painel:focus-visible { outline: 3px solid var(--atencao); outline-offset: 2px; }
+
 .situacao,
 .contador {
   padding: 4px 10px;
@@ -198,6 +235,56 @@
 .botao-perigo:hover { background: #3a1c1c; }
 
 .botao-icone { font-size: 1rem; line-height: 1; }
+
+.botao:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.botao:disabled:hover { background: var(--fundo-3); }
+
+/* ------------------------------------------------------------- respostas -- */
+
+.corpo-respostas {
+  padding: 20px;
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+.tabela-rolo {
+  max-height: calc(100vh - 160px);
+  overflow: auto;
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  background: var(--fundo-2);
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.tabela th,
+.tabela td {
+  padding: 9px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--borda);
+}
+
+.tabela th {
+  position: sticky;
+  top: 0;
+  background: var(--fundo-3);
+  color: var(--texto-2);
+  font-weight: 600;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tabela tbody tr:hover { background: #ffffff0a; }
 
 /* ----------------------------------------------------------------- corpo -- */
 
