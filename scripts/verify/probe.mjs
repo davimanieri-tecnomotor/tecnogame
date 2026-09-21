@@ -13,7 +13,7 @@ const route = raw.startsWith('/') ? raw : `/${raw}`;
 const point = process.argv[3] ? process.argv[3].split(',').map(Number) : null;
 const depth = Number(process.env.DEPTH ?? 8);
 
-const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--window-size=1920,1080'] });
+const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--window-size=1920,1080'] });
 const page = await browser.newPage();
 await page.setViewport({ width: 1920, height: 1080 });
 await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: process.env.THEME ?? 'dark' }]);

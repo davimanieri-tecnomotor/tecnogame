@@ -16,7 +16,7 @@ const OUT = process.env.OUT ?? 'shots/playthrough';
 fs.mkdirSync(OUT, { recursive: true });
 
 const browser = await puppeteer.launch({
-  headless: 'new',
+  headless: true,
   args: ['--no-sandbox', '--window-size=1920,1080', '--autoplay-policy=no-user-gesture-required'],
 });
 const page = await browser.newPage();

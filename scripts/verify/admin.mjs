@@ -16,7 +16,7 @@ const SENHA = '2040';
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = await puppeteer.launch({
-  headless: 'new',
+  headless: true,
   args: ['--no-sandbox', '--window-size=1500,1000', '--autoplay-policy=no-user-gesture-required'],
 });
 const page = await browser.newPage();

@@ -398,30 +398,40 @@ responde a `Enter` e `Espaço`; o foco tem anel visível (`:focus-visible`); a
 roleta em SVG tem `role="img"` e `aria-label` com a contagem de veículos.
 Testado em `npm run verify:teclado`.
 
-## Backend: desligado por padrão
+## Backend: ligado em produção, desligado na máquina de trabalho
 
 O app Dart gravava cada partida no Firestore do projeto `projeto-assis-3qcf6v`
-e mandava uma mensagem de WhatsApp por uma instância de produção da z-api.
-As duas coisas estão em `js/backend.js` com a configuração original, mas
-**começam desligadas** em `js/config.js`, para que abrir este porte não escreva
-em dados de produção nem dispare mensagens:
+e mandava uma mensagem de WhatsApp por uma instância de produção da z-api. As
+duas coisas continuam em `js/backend.js`; o que mudou foi **quando** valem.
+
+Nenhuma delas é uma chave fixa: `js/config.js` decide pela **origem**, para que
+mexer no jogo nunca escreva em dado de feira. São duas, e a segunda é mais
+rígida que a primeira:
 
 ```js
-useFirestore: false,   // ranking compartilhado no Firestore
-useWhatsApp: false,    // mensagem "você finalizou o TECNOGAME"
-useAgentWebhook: false // webhook n8n (declarado no Dart, nunca chamado pela UI)
+useFirestore:   !origemDeDesenvolvimento()   // falar com o Firebase (baralho em `conteudo`)
+rankingNaNuvem: !maquinaDeTrabalho() && ...  // gravar PARTIDA em `usuarios`/`contatos`
+useWhatsApp:    false                        // a credencial não pode viajar no cliente
 ```
 
-Com `useFirestore: false` o ranking vive no `localStorage` deste navegador, com
+`file://` e `localhost` são, sem ambiguidade, alguém mexendo no jogo: ali as
+duas nascem desligadas. Um IP de rede local (o totem servido de outra máquina
+do estande) continua valendo como produção. `?comNuvem=1` liga a primeira, para
+trabalhar no baralho pelo `npm start`; **não** liga a segunda, de propósito — é
+o que impede a suíte, que joga quatro partidas por rodada, de semear o ranking
+da feira. `?semNuvem=1` desliga tudo em qualquer lugar. O porquê de cada uma
+está no cabeçalho de `js/config.js`, e o uso em
+[Onde o baralho mora](#onde-o-baralho-mora).
+
+Com a nuvem desligada o ranking vive no `localStorage` deste navegador, com
 exatamente a mesma consulta (`where venceu == true`, `orderBy tempo desc`,
-`limit n`) — as telas de ranking funcionam igual. Ligue `useFirestore` para ter
-o ranking compartilhado de volta.
+`limit n`) — as telas de ranking funcionam igual.
 
 Todo `localStorage` do projeto fica sob o prefixo `tecgame:`
 (`web/js/storage.js`), com as chaves antigas ainda lidas como retorno, e as
 partidas locais são podadas depois de um ano.
 
-### Se for ligar o Firestore
+### As regras do Firestore, e o que mudou do original
 
 `firebase/firestore.rules` e `firebase/firestore.indexes.json` estão em versão
 controlada, com o `firebase/README.md` de como fazer o deploy. Duas coisas que
@@ -434,9 +444,13 @@ controlada, com o `firebase/README.md` de como fazer o deploy. Duas coisas que
 - as regras validam o formato de cada gravação e **negam tudo** o que não seja
   as três coleções que o jogo usa.
 
-O token da z-api e a `apiKey` do Firebase estão em `js/config.js` como estavam
-no Dart. Chave de API de Firebase web não é segredo (a proteção são as regras),
-mas **o token da z-api é** — se este repositório virar público, gire o token.
+A `apiKey` do Firebase continua em `js/config.js`, e pode: chave web é
+identificador público por design, não credencial — quem defende os dados são as
+regras. O **token da z-api não está mais lá**: `zapApiUrl` e `zapClientToken`
+nascem vazios, e o envio se recusa a rodar sem eles. O token que vinha cravado
+ali já foi servido ao navegador de todo visitante e está no histórico do git —
+trate-o como exposto e **rotacione-o** no painel da z-api (é o pendente nº 1 de
+[`firebase/README.md`](firebase/README.md)).
 
 ## Coisas que já vinham quebradas no original
 

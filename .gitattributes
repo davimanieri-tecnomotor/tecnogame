@@ -13,6 +13,5 @@
 
 # Generated: keep it out of diffs and language stats.
 web/js/bundle.js linguist-generated=true -diff
-web/js/admin/bundle.js linguist-generated=true -diff
 web/css/fonts.css linguist-generated=true -diff
 package-lock.json linguist-generated=true -diff

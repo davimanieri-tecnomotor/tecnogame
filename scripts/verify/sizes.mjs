@@ -40,7 +40,7 @@ const TELAS = [
 const ROTAS = ['/cadastro', '/roleta', '/carro', '/scanner', '/telaAcao', '/ganhou', '/perdeu', '/instrucoes'];
 
 fs.mkdirSync(OUT, { recursive: true });
-const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
+const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
 const falhas = [];
 
 for (const tela of TELAS) {

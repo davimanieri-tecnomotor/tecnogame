@@ -11,7 +11,7 @@ const BASE = process.env.BASE ?? 'http://127.0.0.1:8099';
 const pageUrl = (route) => (BASE.endsWith('.html') ? `${BASE}#${route}` : `${BASE}/#${route}`);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
+const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
 const page = await browser.newPage();
 await page.setViewport({ width: 1920, height: 1080 });
 const falhas = [];

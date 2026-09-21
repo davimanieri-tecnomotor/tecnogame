@@ -14,7 +14,7 @@ const pageUrl = (route) => (BASE.endsWith('.html') ? `${BASE}#${route}` : `${BAS
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = await puppeteer.launch({
-  headless: 'new',
+  headless: true,
   args: ['--no-sandbox'],
   // Sozinho este teste roda em ~46s, mas ele joga partidas inteiras e a suite o
   // corre junto com outros cinco Chromes; numa maquina disputada ele ja passou

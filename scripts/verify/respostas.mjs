@@ -15,7 +15,7 @@ const urlJogo = (rota) => `${raiz}index.html#${rota}`;
 const SENHA = '2040';
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--window-size=1400,950'] });
+const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--window-size=1400,950'] });
 const page = await browser.newPage();
 await page.setViewport({ width: 1400, height: 950 });
 

@@ -71,8 +71,11 @@ function applyProps(node, props) {
       node.className = Array.isArray(value) ? value.filter(Boolean).join(' ') : value;
     } else if (key === 'text') {
       node.textContent = value;
-    } else if (key === 'html') {
-      node.innerHTML = value;
+      // Nao existe `html:` aqui, e e de proposito: o texto que estas telas
+      // desenham vem do baralho, e o baralho vem de uma colecao do Firestore
+      // com escrita aberta (ver firebase/firestore.rules). Um atalho para
+      // innerHTML transformaria isso em execucao de codigo de quem publicar.
+      // Tudo passa por textContent; marcacao de verdade se monta com `el()`.
     } else if (key.startsWith('on') && typeof value === 'function') {
       node.addEventListener(key.slice(2).toLowerCase(), value);
     } else if (key.startsWith('data') || key === 'aria-label' || key === 'role') {

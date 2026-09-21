@@ -21,7 +21,7 @@ const qsrc = fs.readFileSync(process.env.QSRC ?? path.join(HERE, '../../web/js/q
 const QUESTIONS = JSON.parse(qsrc.slice(qsrc.indexOf('{'), qsrc.lastIndexOf(';')));
 
 const browser = await puppeteer.launch({
-  headless: 'new',
+  headless: true,
   args: ['--no-sandbox', '--window-size=1920,1080', '--autoplay-policy=no-user-gesture-required'],
 });
 const page = await browser.newPage();
