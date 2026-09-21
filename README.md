@@ -18,6 +18,8 @@ web/                  o jogo portado (é isto que se publica)
   assets/               imagens, áudios, fontes e vídeos do original
 firebase/             regras e índices do Firestore
 scripts/              geradores e verificadores
+  unidade/              testes de lógica pura, sem navegador (`npm test`)
+  verify/               a suíte de navegador (puppeteer)
 shots/                saída dos testes (ignorada pelo git)
 CLAUDE.md             as regras e as armadilhas, para quem for mexer
 ```
@@ -476,13 +478,28 @@ trate-o como exposto e **rotacione-o** no painel da z-api (é o pendente nº 1 d
 ## Verificação
 
 ```bash
+npm test              # só a lógica pura, sem navegador — 0,3s
 npm run verify        # tudo: HTTP e file://, subindo o servidor sozinho
 npm run verify:rapido # só HTTP, 6 em paralelo — a volta rápida do dia a dia
 ```
 
-Isso roda a checagem estática, regera os bundles e passa os dez testes de
-navegador nos **dois transportes** — 20 execuções. Sobe o `http-server` se a
-porta 8099 estiver livre e reaproveita o que já estiver de pé.
+São dois níveis, e o de cima existe para não se pagar o de baixo a cada
+mudança. `npm test` roda os testes de **unidade** (`scripts/unidade/`) com o
+`node --test`: lógica que não precisa de tela — a matriz do `validarBaralho`, o
+corte de um ano da retenção, a junção de `usuarios` com `contatos`, o escape do
+CSV, as funções que vieram do Dart. Sem navegador, sem servidor, sem `bundle`.
+
+`npm run verify` roda a checagem estática, **os testes de unidade**, regera o
+bundle e passa os dez testes de navegador nos **dois transportes** — 20
+execuções. Sobe o `http-server` se a porta 8099 estiver livre e reaproveita o
+que já estiver de pé.
+
+O que vai para cada nível: se a afirmação só é verdade com o jogo desenhado na
+tela, ela é de navegador. Se é sobre o que uma função devolve, é de unidade — e
+aí vale a pena cobrir as bordas, porque custam microssegundos. O que já está
+afirmado num nível **não se repete no outro**: a conversão de baralho v1 para
+v2, por exemplo, mora no `verify:baralho`, com o jogo rodando, e não tem cópia
+em `scripts/unidade/`.
 
 As 20 execuções correm **em paralelo** (4 de cada vez por padrão). Cada teste
 sobe o próprio Chrome e só lê do servidor, então não disputam nada entre si; o
@@ -509,6 +526,7 @@ em outro terminal, ou de `BASE=` apontando para o `file://`):
 | Comando | O que afirma |
 | --- | --- |
 | `npm run check` | todo import resolve, é usado, e o bundle está atualizado |
+| `npm test` | lógica pura, sem navegador: validação do baralho, retenção, junção de respostas, CSV, funções do Dart |
 | `npm run verify:routes` | as 11 rotas: erro de console, imagem faltando, algo fora do palco |
 | `npm run verify:corte` | nada **recortado** dentro do palco (texto que não cabe no próprio container) |
 | `npm run verify:play` | uma partida completa, ponta a ponta |

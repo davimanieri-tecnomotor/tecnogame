@@ -12,6 +12,7 @@ Abre com dois cliques ou por HTTP.
 npm start          # http://localhost:8099
 npm run bundle     # DEPOIS de qualquer mudança em web/js/ — ver abaixo
 npm run check      # imports resolvem, nada morto, bundle em dia (0,1s)
+npm test           # lógica pura, sem navegador (0,3s) — a volta mais curta
 npm run verify     # a suíte inteira, 20 execuções, ~3min30
 npm run verify:rapido   # só HTTP, ~110s — a volta do dia a dia
 ```
@@ -61,6 +62,7 @@ web/js/            os módulos ES — a fonte
   pages/ components/ admin/
     admin/respostas.js  dados de partida, telefone com login, export CSV
 web/js/bundle.js   GERADO. Não editar.
+scripts/unidade/   testes de lógica pura (node --test), um arquivo por assunto
 scripts/verify/    a suíte (puppeteer), um arquivo por afirmação
 firebase/          regras e índices do Firestore
 ```

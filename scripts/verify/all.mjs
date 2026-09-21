@@ -134,9 +134,18 @@ const tempos = [];
 let servidor = null;
 const comecou = Date.now();
 
+// O preparo e o que nao vale a pena testar por cima de: import quebrado,
+// logica pura quebrada ou bundle velho invalidam a suite inteira. Os testes de
+// unidade entram aqui, e nao na fila, porque custam 0,3s e nao precisam de
+// navegador nem de servidor -- falha neles aparece antes de acender o primeiro
+// Chrome.
 console.log('--- preparo ---');
 for (const [rotulo, args] of [
   ['imports', ['scripts/check_imports.mjs']],
+  // `--test-reporter=dot`: a saida daqui e capturada e reimpressa, e o TAP
+  // cru sao 200 linhas antes de a suite comecar. `npm test` avulso continua
+  // no relatorio legivel padrao.
+  ['unidade', ['--test', '--test-reporter=dot', 'scripts/unidade/*.test.mjs']],
   ['bundle', ['scripts/bundle.mjs']],
 ]) {
   const { codigo, saida } = await rodar(process.execPath, args);

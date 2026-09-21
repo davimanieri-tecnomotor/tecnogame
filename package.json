@@ -8,6 +8,7 @@
     "start": "http-server web -p 8099 -c-1",
     "bundle": "node scripts/bundle.mjs",
     "check": "node scripts/check_imports.mjs",
+    "test": "node --test \"scripts/unidade/*.test.mjs\"",
     "gen": "python scripts/gen_data.py",
     "fonts": "python scripts/fetch_fonts.py",
     "verify": "node scripts/verify/all.mjs",

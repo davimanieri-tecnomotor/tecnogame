@@ -32,6 +32,12 @@ jobs:
       - name: Checagem estática
         run: npm run check
 
+      # Lógica pura, sem navegador: ~0,3s. Vem antes da suíte porque uma regra
+      # de validação ou de retenção quebrada não precisa de vinte Chromes para
+      # ser vista.
+      - name: Testes de unidade
+        run: npm test
+
       # Os dados gerados têm de bater com o Dart original: se o gerador produzir
       # algo diferente do que está commitado, alguém editou à mão.
       - name: Dados gerados estão em sincronia
