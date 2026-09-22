@@ -937,3 +937,9 @@
 .zona-de-risco .nota {
   margin: 0 0 10px;
 }
+
+/* As marcas de equipamento de uma pergunta que PULA a escolha: continuam
+   editáveis no dado, mas não valem em jogo, e a tela tem de dizer isso. */
+.marcar-grupo.sem-efeito {
+  opacity: 0.4;
+}

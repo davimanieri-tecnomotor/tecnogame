@@ -94,15 +94,25 @@ uma camada por fora do palco). O Dart escolhia página a página entre `fade` e
 rodapé e cresciam até encher o palco. Ao acrescentar uma tela, não há o que
 escolher — e é de propósito.
 
-**A escolha do equipamento pode ser pulada.** O botão *Pular escolha*, no canto
-de baixo da tela dos cinco scanners, segue com o equipamento padrão (o Rasther
-3S, em `EQUIPAMENTO_PADRAO`) e vai **direto** para a pergunta, sem o vídeo
-demonstrativo de 14s — que é a apresentação do equipamento escolhido, e quem
-não escolheu não tem o que lhe apresentar (ainda mais com o bucket dos vídeos
-fora do ar; ver *Coisas que já vinham quebradas*). A partida fica marcada como
-**sem escolha**: a coluna `Equipamento` da aba Respostas recebe `não escolhido`,
-e não o padrão — ela existe para o time saber o que a feira escolhe, e pressa
-não é preferência.
+**A pergunta pode dispensar a escolha do equipamento.** É uma marca do baralho,
+por pergunta (`pularEquipamento`, ligada na administração): há pergunta que não
+depende de scanner nenhum, e para essa a tela dos cinco é uma parada sem decisão
+— em feira cheia, é a fila parada. Quando ela está ligada o jogo vai do veículo
+**direto** para a pergunta, com a tela do equipamento padrão (o Rasther 3S, em
+`EQUIPAMENTO_PADRAO`) e sem o vídeo demonstrativo de 14s — que é a apresentação
+do equipamento *escolhido*, e ali não houve escolha (ainda mais com o bucket dos
+vídeos fora do ar; ver *Coisas que já vinham quebradas*). A partida fica marcada
+como **sem escolha**: a coluna `Equipamento` da aba Respostas recebe
+`não escolhido`, e não o padrão — ela existe para o time saber o que a feira
+escolhe, e uma etapa que não aconteceu não é preferência.
+
+**As imagens da roleta são pedidas no cadastro.** A roleta é a tela mais pesada
+do jogo — a arte pronta, ou uma foto por fatia quando o baralho não é o de
+fábrica — e ela mostrava as fatias se preenchendo já na tela. Como ninguém cai
+nela de surpresa (entre o CONFIRMAR e a roleta passam o vídeo de instruções e a
+vinheta, ~17s), `js/precarga.js` pede tudo assim que o cadastro abre. Medido num
+link de 4 Mbps: **4,7s → 9ms** com a arte pronta, **2,7s → 5ms** com dez fotos
+na roda desenhada.
 
 ## O baralho
 
@@ -177,7 +187,8 @@ O que dá para fazer:
   computador**, que fica guardada dentro do baralho (então o totem mostra a
   foto nova sem receber arquivo nenhum);
 - **regras**: qual alternativa é a correta e quais equipamentos resolvem a
-  rodada (os não marcados abrem *"equipamento inválido"*);
+  rodada (os não marcados abrem *"equipamento inválido"*) — ou **pular a escolha
+  do equipamento** nesta pergunta, e aí o jogo vai do veículo direto para ela;
 - **validação ao vivo** — cada problema aparece na lista e acende o campo
   correspondente; **salvar fica bloqueado** enquanto houver problema;
 - **resetar todos os dados**: volta ao baralho de fábrica e apaga deste

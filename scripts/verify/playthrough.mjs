@@ -105,6 +105,23 @@ await page.evaluate(
 );
 await wait(200);
 
+// A ROLETA E PEDIDA ANTES DA HORA. A tela mais pesada do jogo (a arte pronta da
+// roda, ou uma foto por fatia quando o baralho nao e o de fabrica) mostrava as
+// fatias se preenchendo com a roda ja na tela. Ninguem cai na roleta de
+// surpresa: daqui ate la passam o video de instrucoes e a vinheta. Este teste
+// afirma que o pedido sai AINDA NO CADASTRO — e o que a tela vai precisar ja
+// esta no cache quando ela abre. Ver web/js/precarga.js.
+// So por HTTP: `file://` nao publica Resource Timing — nao ha entrada nenhuma
+// para ler, e nao e que o pedido nao saiu. Do disco, alias, o problema nem
+// existe; ele e da feira com o jogo servido pela rede.
+if (!LOCAL_FILE) {
+  const adiantado = await page.evaluate(() =>
+    performance.getEntriesByType('resource').some((r) => /Roleta\.png$/.test(r.name) && r.responseEnd > 0)
+  );
+  log(`   arte da roleta pedida ainda no cadastro: ${adiantado}`);
+  if (!adiantado) throw new Error('a roleta so comeca a carregar quando a tela dela abre');
+}
+
 // validation: submit with a good name should advance
 await clickText('CONFIRMAR');
 // A TRANSICAO. Toda troca de tela esmaece — esta aqui era um `scale` que fazia
@@ -284,68 +301,6 @@ log('19. restart -> transition video');
 await waitForRoute('cadastro', 15000);
 log('20. back at cadastro');
 await shot('13-restart');
-
-/* --------------------------------- segunda volta: pulando a escolha ------ */
-// O atalho da tela de equipamentos: quem pula joga com o padrao, vai DIRETO
-// para a partida (sem os 14s de video demonstrativo) e fica marcado como quem
-// nao escolheu — a aba Respostas nao pode contar pressa como preferencia.
-log('21. segunda volta, pelo atalho');
-const inputs2 = await page.$$('#pages input.ff-input');
-await inputs2[0].click();
-await inputs2[0].type('Pulador');
-await inputs2[1].click();
-await inputs2[1].type('16988887777');
-await page.evaluate(() => document.querySelectorAll('#pages .ff-dropdown')[0].click());
-await wait(200);
-await page.evaluate(() => document.querySelectorAll('.ff-dropdown-item')[1].click());
-await wait(200);
-await clickText('CONFIRMAR');
-await waitForRoute('instrucoes');
-await clickText('Pular instruções');
-await waitForRoute('roleta', 15000);
-await clickText('GIRAR A ROLETA');
-await waitForRoute('scanner', 25000);
-await wait(2400);
-
-await clickText('Pular escolha');
-await waitForRoute('telaAcao', 15000);
-await wait(1500);
-await shot('14-pulou-escolha');
-const semEscolha = await page.evaluate(() => ({
-  // A pele do painel e a do equipamento padrao: a foto do cabecalho e a do 3S.
-  fotoDoCabecalho: [...document.querySelectorAll('#pages img')]
-    .map((i) => i.getAttribute('src'))
-    .find((src) => /Rasther_CANFD|Rasther_ST_\+|Rasther---box|TD_80__Final|TD_90_\(2\)/.test(src)),
-  alternativas: document.querySelectorAll('#pages .ff-stack').length,
-}));
-log(`22. pulou -> ${JSON.stringify(semEscolha)}`);
-if (!/Rasther_CANFD/.test(semEscolha.fotoDoCabecalho ?? '')) {
-  throw new Error(`sem escolha o painel deveria vestir o equipamento padrao; veio ${semEscolha.fotoDoCabecalho}`);
-}
-
-// Responde qualquer alternativa: o que se afirma aqui e o REGISTRO.
-await page.evaluate((finder) => {
-  // eslint-disable-next-line no-eval
-  eval(finder)[0].querySelector('.ff-inkwell').click();
-}, ANSWER_FINDER);
-await wait(1200);
-await page.evaluate(() => {
-  const nodes = [...document.querySelectorAll('#overlays .ff-text')];
-  nodes.find((n) => n.textContent.trim() === 'Confirmar').closest('.ff-inkwell').click();
-});
-await Promise.race([
-  waitForRoute('Ganhou', 15000).then(() => 'Ganhou'),
-  waitForRoute('Perdeu', 15000).then(() => 'Perdeu'),
-]);
-await wait(1200);
-const registro = await page.evaluate(
-  () => JSON.parse(localStorage.getItem('tecgame:usuarios') || '[]').find((u) => u.nome === 'Pulador') ?? null
-);
-log(`23. registro de quem pulou: ${JSON.stringify(registro)}`);
-if (!registro) throw new Error('a partida de quem pulou nao foi gravada');
-if (registro.equipamento !== 'não escolhido') {
-  throw new Error(`quem pulou nao escolheu equipamento, e o registro diz "${registro.equipamento}"`);
-}
 
 await browser.close();
 

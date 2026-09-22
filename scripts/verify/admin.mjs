@@ -305,6 +305,88 @@ await page.evaluate(() => {
 });
 await wait(400);
 
+/* --------------------------------- 3b. a pergunta que pula o equipamento -- */
+
+// A marca do baralho que faz o jogo ir do carro direto para a pergunta. Duas
+// coisas se afirmam aqui: que ela DESARMA a exigencia de um equipamento — quem
+// pula nunca ve a tela dos cinco —, e que ela chega ao baralho publicado. O
+// percurso no jogo e afirmado em verify/baralho.mjs.
+const caixasDeEquipamento = async () =>
+  page.evaluate(() => {
+    const grupo = document.querySelector('.marcar-grupo');
+    return {
+      desligadas: grupo.classList.contains('sem-efeito'),
+      bloqueadas: [...grupo.querySelectorAll('input')].every((i) => i.disabled),
+    };
+  });
+
+// Sem equipamento nenhum e sem pular: e o erro que segura a partida sem saida.
+await page.evaluate(() => {
+  for (const caixa of document.querySelectorAll('.marcar-grupo input')) {
+    if (caixa.checked) {
+      caixa.checked = false;
+      caixa.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+});
+await wait(400);
+const semEquipamento = await page.evaluate(
+  () => [...document.querySelectorAll('.situacao')].map((n) => n.textContent).find((t) => /problema/.test(t)) ?? null
+);
+if (!semEquipamento) falhas.push('pergunta sem equipamento nenhum deveria acusar problema');
+
+// Agora marcando o pulo: o problema some e as caixas de equipamento se apagam.
+const marcarPulo = (ligado) =>
+  page.evaluate((v) => {
+    const caixa = [...document.querySelectorAll('.marcar input')].find((i) =>
+      /Pular a escolha/.test(i.closest('.marcar')?.textContent ?? '')
+    );
+    if (!caixa) return false;
+    if (caixa.checked !== v) {
+      caixa.checked = v;
+      caixa.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    return true;
+  }, ligado);
+
+if (!(await marcarPulo(true))) falhas.push('o editor nao tem a caixa "Pular a escolha do equipamento"');
+await wait(400);
+const pulando = {
+  problema:
+    (await page.evaluate(
+      () => [...document.querySelectorAll('.situacao')].map((n) => n.textContent).find((t) => /problema/.test(t)) ?? null
+    )) ?? null,
+  ...(await caixasDeEquipamento()),
+};
+console.log('3b. pulando a escolha ->', JSON.stringify(pulando));
+if (pulando.problema) falhas.push(`marcar o pulo deveria desarmar a exigencia; ainda diz "${pulando.problema}"`);
+if (!pulando.desligadas) falhas.push('as caixas de equipamento deveriam aparecer sem efeito quando a pergunta pula');
+if (!pulando.bloqueadas) falhas.push('as caixas de equipamento deveriam ficar bloqueadas quando a pergunta pula');
+
+await clicar('Salvar');
+await wait(300);
+await confirmarModal();
+await wait(500);
+const publicadoComPulo = await page.evaluate(() => {
+  const d = JSON.parse(localStorage.getItem('tecgame:baralho') || 'null');
+  return d?.slots?.[0]?.perguntas?.[0]?.pularEquipamento ?? null;
+});
+console.log('   no baralho publicado ->', JSON.stringify(publicadoComPulo));
+if (publicadoComPulo !== true) falhas.push('a marca de pular a escolha nao foi para o baralho publicado');
+
+// Desfaz: o resto do teste conta com a rodada 1 pedindo equipamento.
+await marcarPulo(false);
+await wait(300);
+await page.evaluate(() => {
+  for (const caixa of document.querySelectorAll('.marcar-grupo input')) {
+    if (!caixa.checked) {
+      caixa.checked = true;
+      caixa.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+});
+await wait(400);
+
 /* ---------------------------------------------------- 4. adiciona rodada -- */
 
 await clicar('Veículo');

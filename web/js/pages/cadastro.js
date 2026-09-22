@@ -38,6 +38,7 @@ import { PoliticaPrivacidadeWidget } from '../components/politica_privacidade.js
 import { RankingWidget } from '../components/ranking.js';
 import { registrarToqueSecreto } from '../admin/porta.js';
 import { sincronizarBaralho } from '../nuvem.js';
+import { adiantarOPercurso } from '../precarga.js';
 import { goNamed } from '../router.js';
 import {
   AnimationInfo,
@@ -516,11 +517,19 @@ export function CadastroWidget() {
   // Um jogador novo comecando e o momento de pegar o que a area administrativa
   // publicou desde a ultima partida.
   FFAppState.recarregarBaralho();
+  // Com o baralho desta partida em mãos, pede já as imagens da roleta: daqui
+  // até ela o jogador atravessa o vídeo de instruções e a vinheta, e é tempo de
+  // sobra para nenhuma fatia nascer vazia (ver precarga.js).
+  adiantarOPercurso(FFAppState.baralho);
   // E puxa da nuvem em paralelo. Sem esperar: a tela não pode ficar refém da
   // internet da feira. Se vier conteúdo novo enquanto o jogador ainda está se
   // cadastrando, ele já vale para esta partida; senão, para a próxima.
   sincronizarBaralho().then((mudou) => {
-    if (mudou && root.isConnected) FFAppState.recarregarBaralho();
+    if (mudou && root.isConnected) {
+      FFAppState.recarregarBaralho();
+      // Baralho novo, fotos novas: quem chegou agora ainda não foi pedido.
+      adiantarOPercurso(FFAppState.baralho);
+    }
   });
   FFAppState.finalizou = false;
   playSound(model, 'soundPlayer1', 'assets/audios/adriantnt_u_click.mp3', 1.0);

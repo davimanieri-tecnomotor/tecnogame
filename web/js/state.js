@@ -224,6 +224,7 @@ function vistaPorIdioma(deck, lang, sorteio) {
       q.raster3S = Boolean(escolhida.scanners?.raster3S);
       q.rasher4 = Boolean(escolhida.scanners?.rasher4);
       q.xtool = Boolean(escolhida.scanners?.xtool);
+      q.pularEquipamento = escolhida.pularEquipamento === true;
       q.nome = slot.veiculo?.nome ?? '';
       return q;
     });

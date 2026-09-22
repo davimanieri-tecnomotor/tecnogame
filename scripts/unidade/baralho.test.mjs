@@ -15,9 +15,8 @@ import { instalarArmazenamento } from './_armazenamento_falso.mjs';
 
 instalarArmazenamento();
 
-const { BARALHO_ORIGINAL, IDIOMAS, validarBaralho, perguntaVazia, perguntasAtivas } = await import(
-  '../../web/js/deck.js'
-);
+const { BARALHO_ORIGINAL, IDIOMAS, validarBaralho, perguntaVazia, perguntasAtivas, publicarBaralho, carregarBaralho } =
+  await import('../../web/js/deck.js');
 
 /** Um baralho válido, novo a cada uso — os testes mexem nele. */
 const valido = () => structuredClone(BARALHO_ORIGINAL);
@@ -71,6 +70,37 @@ test('o que impede publicar', async (t) => {
     assert.deepEqual(validarBaralho(null), ['baralho sem a lista de slots']);
     assert.deepEqual(validarBaralho({}), ['baralho sem a lista de slots']);
   });
+});
+
+test('pergunta que pula a escolha dispensa a regra dos equipamentos', () => {
+  // Quem pula nunca vê a tela dos cinco, então exigir que um deles resolva a
+  // pergunta seria travar o operador por uma regra que não vai a lugar nenhum.
+  const d = valido();
+  d.slots[0].perguntas[0].pularEquipamento = true;
+  d.slots[0].perguntas[0].scanners = { raster3S: false, rasher4: false, xtool: false };
+  assert.deepEqual(validarBaralho(d), []);
+
+  // E sem a marca a regra continua valendo — é ela que segura a partida sem saída.
+  d.slots[0].perguntas[0].pularEquipamento = false;
+  assert.ok(casa(validarBaralho(d), /nenhum equipamento resolve/));
+});
+
+test('baralho publicado antes desta opção continua perguntando', () => {
+  // A normalização é o que faz baralho velho abrir. `pularEquipamento` não
+  // existia nele, e o jogo tem de seguir levando o jogador à escolha — o padrão
+  // silencioso aqui é o que decide o percurso de quem já publicou.
+  const antigo = structuredClone(BARALHO_ORIGINAL);
+  for (const slot of antigo.slots) for (const p of slot.perguntas) delete p.pularEquipamento;
+  publicarBaralho(antigo);
+
+  const lido = carregarBaralho();
+  assert.equal(lido.slots.every((s) => s.perguntas.every((p) => p.pularEquipamento === false)), true);
+
+  // E a marca sobrevive à ida e volta pelo armazenamento.
+  antigo.slots[3].perguntas[0].pularEquipamento = true;
+  publicarBaralho(antigo);
+  assert.equal(carregarBaralho().slots[3].perguntas[0].pularEquipamento, true);
+  assert.equal(carregarBaralho().slots[0].perguntas[0].pularEquipamento, false);
 });
 
 test('pergunta desligada é rascunho: fica vazia sem travar ninguém', () => {

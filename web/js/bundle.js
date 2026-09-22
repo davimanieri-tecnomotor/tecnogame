@@ -1740,6 +1740,7 @@
       id: novoIdDePergunta(),
       ativa: true,
       scanners: { raster3S: true, rasher4: true, xtool: true },
+      pularEquipamento: false,
       gabarito: '1',
       ...textos,
     };
@@ -1774,6 +1775,8 @@
         rasher4: Boolean(base.rasher4),
         xtool: Boolean(base.xtool),
       },
+      // O baralho de fábrica pergunta sempre: é o que o Dart fazia.
+      pularEquipamento: false,
       gabarito: String(base.gabarito),
     };
     for (const lang of IDIOMAS) {
@@ -1819,8 +1822,11 @@
         if (!['1', '2', '3', '4'].includes(String(pergunta.gabarito))) {
           erros.push(`${ondeP}: gabarito precisa ser 1, 2, 3 ou 4 (está "${pergunta.gabarito}")`);
         }
+        // Quem pula a escolha nunca vê a tela dos equipamentos, então as marcas
+        // não valem — e exigir uma delas travaria o operador por uma regra que
+        // não vai a lugar nenhum.
         const flags = SCANNERS.map((s) => Boolean(pergunta.scanners?.[s.chave]));
-        if (!flags.some(Boolean)) {
+        if (!pergunta.pularEquipamento && !flags.some(Boolean)) {
           erros.push(`${ondeP}: nenhum equipamento resolve esta pergunta — o jogador ficaria travado`);
         }
         for (const lang of IDIOMAS) {
@@ -1852,6 +1858,9 @@
       id: typeof bruta?.id === 'string' && bruta.id ? bruta.id : novoIdDePergunta(),
       ativa: bruta?.ativa !== false,
       scanners: { ...molde.scanners, ...(bruta?.scanners ?? {}) },
+      // `=== true` e nao `Boolean(...)`: baralho publicado antes desta opcao nao
+      // tem o campo, e o jogo tem de continuar perguntando nele.
+      pularEquipamento: bruta?.pularEquipamento === true,
       gabarito: String(bruta?.gabarito ?? '1'),
     };
     for (const lang of IDIOMAS) {
@@ -2627,6 +2636,7 @@
         q.raster3S = Boolean(escolhida.scanners?.raster3S);
         q.rasher4 = Boolean(escolhida.scanners?.rasher4);
         q.xtool = Boolean(escolhida.scanners?.xtool);
+        q.pularEquipamento = escolhida.pularEquipamento === true;
         q.nome = slot.veiculo?.nome ?? '';
         return q;
       });
@@ -3553,8 +3563,6 @@
       en: 'By confirming, you agree to the data access terms. Tap to read the privacy policy.',
       es: 'Al confirmar, acepta los términos de acceso a los datos. Toque para leer la política de privacidad.',
     },
-  
-    pularEscolha: { pt: 'Pular escolha', en: 'Skip choice', es: 'Saltar elección' },
   
     /* ------------------------------------------------------ ranking e resultado -- */
   
@@ -6085,6 +6093,42 @@
       },
     });
   
+    const grupoDeScanners = el(
+      'div',
+      { class: 'marcar-grupo' },
+      SCANNERS.map((s) =>
+        caixaDeMarcar({
+          rotulo: s.rotulo,
+          marcado: pergunta.scanners[s.chave],
+          onChange: (v) => {
+            pergunta.scanners[s.chave] = v;
+            mudou();
+          },
+        })
+      )
+    );
+  
+    /**
+     * Quem pula não vê a tela dos equipamentos, então as marcas acima não valem
+     * nada nesta pergunta — e uma caixa marcada que não faz nada é pior do que
+     * uma caixa desligada, porque continua parecendo uma regra.
+     */
+    const refletirPulo = () => {
+      const pulando = pergunta.pularEquipamento === true;
+      grupoDeScanners.classList.toggle('sem-efeito', pulando);
+      for (const caixa of grupoDeScanners.querySelectorAll('input')) caixa.disabled = pulando;
+    };
+  
+    const campoPular = caixaDeMarcar({
+      rotulo: 'Pular a escolha do equipamento nesta pergunta',
+      marcado: pergunta.pularEquipamento === true,
+      onChange: (v) => {
+        pergunta.pularEquipamento = v;
+        refletirPulo();
+        mudou();
+      },
+    });
+  
     const blocoRegras = el('section', { class: 'bloco' }, [
       el('h3', { text: 'Regras desta pergunta' }),
       campoGabarito,
@@ -6094,22 +6138,18 @@
           class: 'campo-dica',
           text: 'Os não marcados abrem "equipamento inválido" quando o jogador escolhe. Ao menos um precisa estar marcado. Vale só para esta pergunta — outra do mesmo veículo pode pedir equipamentos diferentes.',
         }),
-        el(
-          'div',
-          { class: 'marcar-grupo' },
-          SCANNERS.map((s) =>
-            caixaDeMarcar({
-              rotulo: s.rotulo,
-              marcado: pergunta.scanners[s.chave],
-              onChange: (v) => {
-                pergunta.scanners[s.chave] = v;
-                mudou();
-              },
-            })
-          )
-        ),
+        grupoDeScanners,
+      ]),
+      el('div', { class: 'campo' }, [
+        campoPular,
+        el('span', {
+          class: 'campo-dica',
+          text: 'Para pergunta que não depende de scanner: o jogo vai do veículo direto para ela, com a tela do Rasther 3S e sem o vídeo demonstrativo de 14s. Os equipamentos acima deixam de valer, e a aba Respostas grava a partida como "não escolhido".',
+        }),
       ]),
     ]);
+  
+    refletirPulo();
   
     /* --------------------------------------------------------------- textos -- */
   
@@ -6426,16 +6466,23 @@
   
   const { readRaw, writeRaw } = __require("storage.js");
   
-  const VERSAO_DO_JOGO = '2.4.0';
+  const VERSAO_DO_JOGO = '2.5.0';
   
   /** Mais recente primeiro — é a ordem em que o painel lista. */
   const NOTAS_DE_ATUALIZACAO = [
     {
+      versao: '2.5.0',
+      data: '2026-09-22',
+      itens: [
+        'Cada pergunta pode agora dispensar a escolha do equipamento: marque "Pular a escolha do equipamento nesta pergunta" nas Regras, e o jogo vai do veículo direto para ela, com a tela do Rasther 3S e sem o vídeo de 14 segundos. Serve para pergunta que não depende de scanner — e para a fila andar em feira cheia.',
+        'Nessas partidas a aba Respostas mostra "não escolhido" na coluna Equipamento: a coluna continua contando só escolha de verdade.',
+        'A roleta abre com os carros já na tela. As imagens dela passaram a ser baixadas enquanto o jogador se cadastra, em vez de na hora em que a roda aparece.',
+      ],
+    },
+    {
       versao: '2.4.0',
       data: '2026-09-22',
       itens: [
-        'Na escolha do equipamento existe agora o botão "Pular escolha": o jogo segue com o Rasther 3S e vai direto para a pergunta, sem o vídeo de 14 segundos. Serve para a fila andar em feira cheia.',
-        'Na aba Respostas, quem pulou aparece com "não escolhido" na coluna Equipamento — a coluna continua contando só escolha de verdade.',
         'A foto do veículo na tela da pergunta ficou bem maior: ela ocupa todo o espaço que o enunciado deixa livre.',
         'Todas as trocas de tela ficaram iguais: a tela que sai apaga e a seguinte acende. Antes quatro delas cresciam a partir do rodapé.',
       ],
@@ -8014,6 +8061,94 @@
   Object.defineProperty(__exports, "PortaDoAdmWidget", { get: () => PortaDoAdmWidget, enumerable: true });
   });
 
+  /* ===== precarga.js ===== */
+  __define("precarga.js", function (__exports, __require) {
+  // A carga adiantada das imagens pesadas do percurso.
+  //
+  // A roleta só mostra o que já baixou, e ela é a tela mais pesada do jogo: ou a
+  // arte pronta (`Roleta.png`, a maior imagem do projeto) ou, quando o baralho
+  // não é o de fábrica, UMA FOTO POR FATIA — e cada foto é pedida duas vezes, no
+  // `<image>` do SVG e num `Image()` só para medir a proporção da caixa (ver
+  // roda.js). Quem chegava na roleta via as fatias se preenchendo uma a uma, com
+  // a roda já na tela.
+  //
+  // Só que ninguém cai na roleta de surpresa: entre o CONFIRMAR do cadastro e ela
+  // há o vídeo de instruções (13s) e a vinheta (4s). Dezessete segundos de sobra
+  // para pedir as imagens antes — e é isso que este arquivo faz.
+  //
+  // Pedir é tudo o que é preciso: o navegador guarda no cache, e o `<image>` do
+  // SVG e o `Image()` da medição acham a foto pronta. Vale para foto de arquivo e
+  // para a que o operador enviou do computador (um `data:` dentro do baralho),
+  // porque nos dois casos o custo que sobra é a decodificação, e `decode()` a
+  // resolve fora do quadro.
+  
+  const { usaArteOriginal } = __require("deck.js");
+  
+  /** O que já foi pedido nesta sessão — pedir de novo seria só ruído. */
+  const jaPedidas = new Set();
+  
+  /**
+   * As imagens em voo ficam presas aqui até carregarem.
+   *
+   * Um `Image()` sem nenhuma referência viva pode ser coletado antes de terminar,
+   * e aí o pedido morre pela metade — que é justamente o caso aqui, porque
+   * ninguém guarda o objeto: o que se quer dele é o efeito colateral no cache.
+   */
+  const emVoo = new Set();
+  
+  /** Pede as imagens, sem bloquear nada e sem falar de erro: é adiantamento. */
+  function precarregar(urls) {
+    for (const url of urls) {
+      if (!url || jaPedidas.has(url)) continue;
+      jaPedidas.add(url);
+  
+      const img = new Image();
+      img.decoding = 'async';
+      emVoo.add(img);
+      const soltar = () => emVoo.delete(img);
+      img.addEventListener('load', () => {
+        // Decodificar agora tira do caminho o outro custo: uma foto de 4000px já
+        // baixada ainda trava o quadro em que aparece pela primeira vez.
+        img.decode?.().catch(() => {}).finally(soltar);
+      });
+      img.addEventListener('error', soltar);
+      img.src = url;
+    }
+  }
+  
+  /** As imagens que a tela da roleta vai precisar com o baralho em vigor. */
+  function imagensDaRoleta(baralho) {
+    const fixas = ['assets/images/Seta_.png', 'assets/images/Logo_Tecnomotor_sem_fundo.png'];
+    // Com os veículos originais a roda é o PNG pronto; fora disso ela é desenhada
+    // e são as fotos do baralho que aparecem nas fatias (ver deck.js e roda.js).
+    if (usaArteOriginal(baralho)) return [...fixas, 'assets/images/Roleta.png'];
+    return [...fixas, ...(baralho?.slots ?? []).map((s) => s.veiculo?.imagem)];
+  }
+  
+  /**
+   * Adianta a roleta e a tela do carro sorteado.
+   *
+   * Chamado da tela de cadastro, que é onde o jogador passa mais tempo parado e
+   * onde o baralho publicado acaba de ser relido. Em espera ociosa: a primeira
+   * tela ainda está se desenhando, e ela é que não pode esperar por foto de carro.
+   */
+  function adiantarOPercurso(baralho) {
+    const pedir = () => {
+      precarregar(imagensDaRoleta(baralho));
+      // A tela do carro sorteado mostra a foto do veículo em tamanho grande, e a
+      // da pergunta repete a mesma foto — as duas vêm de graça junto com a roda
+      // quando a roda é desenhada, mas não quando ela é o PNG pronto.
+      precarregar((baralho?.slots ?? []).map((s) => s.veiculo?.imagem));
+    };
+  
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(pedir, { timeout: 2000 });
+    else setTimeout(pedir, 800);
+  }
+  Object.defineProperty(__exports, "precarregar", { get: () => precarregar, enumerable: true });
+  Object.defineProperty(__exports, "imagensDaRoleta", { get: () => imagensDaRoleta, enumerable: true });
+  Object.defineProperty(__exports, "adiantarOPercurso", { get: () => adiantarOPercurso, enumerable: true });
+  });
+
   /* ===== pages/cadastro.js ===== */
   __define("pages/cadastro.js", function (__exports, __require) {
   // Port of lib/pages/escolha/cadastro/cadastro_widget.dart
@@ -8035,6 +8170,7 @@
   const { RankingWidget } = __require("components/ranking.js");
   const { registrarToqueSecreto } = __require("admin/porta.js");
   const { sincronizarBaralho } = __require("nuvem.js");
+  const { adiantarOPercurso } = __require("precarga.js");
   const { goNamed } = __require("router.js");
   const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
   const { FlutterFlowTimer, FlutterFlowTimerController, InstantTimer, StopWatchMode, StopWatchTimer } = __require("timer.js");
@@ -8496,11 +8632,19 @@
     // Um jogador novo comecando e o momento de pegar o que a area administrativa
     // publicou desde a ultima partida.
     FFAppState.recarregarBaralho();
+    // Com o baralho desta partida em mãos, pede já as imagens da roleta: daqui
+    // até ela o jogador atravessa o vídeo de instruções e a vinheta, e é tempo de
+    // sobra para nenhuma fatia nascer vazia (ver precarga.js).
+    adiantarOPercurso(FFAppState.baralho);
     // E puxa da nuvem em paralelo. Sem esperar: a tela não pode ficar refém da
     // internet da feira. Se vier conteúdo novo enquanto o jogador ainda está se
     // cadastrando, ele já vale para esta partida; senão, para a próxima.
     sincronizarBaralho().then((mudou) => {
-      if (mudou && root.isConnected) FFAppState.recarregarBaralho();
+      if (mudou && root.isConnected) {
+        FFAppState.recarregarBaralho();
+        // Baralho novo, fotos novas: quem chegou agora ainda não foi pedido.
+        adiantarOPercurso(FFAppState.baralho);
+      }
     });
     FFAppState.finalizou = false;
     playSound(model, 'soundPlayer1', 'assets/audios/adriantnt_u_click.mp3', 1.0);
@@ -9718,176 +9862,6 @@
   Object.defineProperty(__exports, "RoletaWidget", { get: () => RoletaWidget, enumerable: true });
   });
 
-  /* ===== components/carro_foto.js ===== */
-  __define("components/carro_foto.js", function (__exports, __require) {
-  // Port of lib/pages/components/carro_foto/carro_foto_widget.dart
-  //
-  // A foto do carro que a roleta sorteou. O Dart escrevia um `if` por indice,
-  // cada um com o seu tamanho de imagem; os tamanhos agora vivem no veiculo.
-  
-  const { ClipRRect, Column, Img, SingleChildScrollView } = __require("widgets.js");
-  const { FFAppState } = __require("state.js");
-  
-  
-  function CarroFotoWidget() {
-    // A foto e o tamanho vinham de uma tabela fixa por indice no Dart; agora
-    // saem do veiculo da rodada sorteada (ver deck.js), o que e o que permite a
-    // area administrativa trocar de carro.
-    const veiculo = FFAppState.slotAtual?.veiculo;
-    const photo = veiculo?.imagem
-      ? { src: veiculo.imagem, width: veiculo.largura, height: veiculo.altura, fit: veiculo.fit ?? 'cover' }
-      : null;
-  
-    return SingleChildScrollView({
-      child: Column({
-        mainAxisSize: 'max',
-        children: [
-          photo &&
-            ClipRRect({
-              borderRadius: 8.0,
-              child: Img(photo.src, { width: photo.width, height: photo.height, fit: photo.fit }),
-            }),
-        ],
-      }),
-    });
-  }
-  Object.defineProperty(__exports, "CarroFotoWidget", { get: () => CarroFotoWidget, enumerable: true });
-  });
-
-  /* ===== pages/carro_sleecionado.js ===== */
-  __define("pages/carro_sleecionado.js", function (__exports, __require) {
-  // Port of lib/pages/carro_sleecionado/carro_sleecionado_widget.dart
-  //
-  // Reveals the car the wheel landed on, then fades out and moves to the scanner
-  // picker after 6s.
-  //
-  // A ENTRADA. O Dart escalava de [-1, -1] até [1, 1]: escala negativa é
-  // ESPELHAMENTO, então o carro nascia invertido, encolhia até sumir num ponto e
-  // voltava desvirado — era isso o "o carro vem ao contrário". Trocamos por uma
-  // entrada que tem a ver com o que acabou de acontecer na tela anterior: a roda
-  // parou, e o prêmio chega.
-  //
-  //   - o carro entra pela direita com velocidade e freia, passando um pouco do
-  //     ponto e voltando (o mesmo excesso amortecido do recuo da roleta);
-  //   - a placa com o nome bate depois, como carimbo;
-  //   - pousado, o carro respira devagar, para os segundos que sobram até a
-  //     próxima tela não serem uma foto parada.
-  
-  const { Align, Column, Container, Padding, Txt, decorationImage, el, color, unfocus } = __require("widgets.js");
-  const { style } = __require("theme.js");
-  const { FFAppState } = __require("state.js");
-  const { CarroFotoWidget } = __require("components/carro_foto.js");
-  const { goNamed } = __require("router.js");
-  const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad, delayed } = __require("anim.js");
-  
-  
-  function CarroSleecionadoWidget() {
-    let left = false;
-  
-    const animationsMap = {
-      // A chegada: entra pela direita, freia passando do ponto e volta.
-      //
-      // O excesso é o que faz parecer massa em movimento e não uma imagem sendo
-      // posicionada — o mesmo motivo do recuo da roleta. São três trechos porque
-      // o motor de efeitos interpola por pedaço: corrida, passagem do ponto,
-      // acomodação.
-      carroOnPageLoadAnimation: new AnimationInfo({
-        trigger: AnimationTrigger.onPageLoad,
-        applyInitialState: true,
-        effectsBuilder: () => [
-          FadeEffect({ curve: Curves.easeOut, delay: 120.0, duration: 260.0, begin: 0.0, end: 1.0 }),
-          MoveEffect({ curve: Curves.easeOut, delay: 120.0, duration: 620.0, begin: [620.0, 0.0], end: [-26.0, 0.0] }),
-          MoveEffect({ curve: Curves.easeInOut, delay: 740.0, duration: 260.0, begin: [-26.0, 0.0], end: [9.0, 0.0] }),
-          MoveEffect({ curve: Curves.easeInOut, delay: 1000.0, duration: 220.0, begin: [9.0, 0.0], end: [0.0, 0.0] }),
-          // Um respiro de 1,02 enquanto o carro corre: dá peso à frenagem.
-          ScaleEffect({ curve: Curves.easeOut, delay: 120.0, duration: 620.0, begin: [1.05, 1.05], end: [1.02, 1.02] }),
-          ScaleEffect({ curve: Curves.easeInOut, delay: 740.0, duration: 480.0, begin: [1.02, 1.02], end: [1.0, 1.0] }),
-        ],
-      }),
-      // A placa do nome, batendo depois que o carro para.
-      nomeOnPageLoadAnimation: new AnimationInfo({
-        trigger: AnimationTrigger.onPageLoad,
-        applyInitialState: true,
-        effectsBuilder: () => [
-          FadeEffect({ curve: Curves.easeOut, delay: 900.0, duration: 180.0, begin: 0.0, end: 1.0 }),
-          ScaleEffect({ curve: Curves.easeOut, delay: 900.0, duration: 300.0, begin: [1.32, 1.32], end: [0.98, 0.98] }),
-          ScaleEffect({ curve: Curves.easeInOut, delay: 1200.0, duration: 180.0, begin: [0.98, 0.98], end: [1.0, 1.0] }),
-        ],
-      }),
-      columnOnActionTriggerAnimation: new AnimationInfo({
-        trigger: AnimationTrigger.onActionTrigger,
-        applyInitialState: true,
-        effectsBuilder: () => [
-          FadeEffect({ curve: Curves.easeOut, delay: 0.0, duration: 1220.0, begin: 1.0, end: 0.0 }),
-        ],
-      }),
-    };
-  
-    const foto = CarroFotoWidget();
-    animateOnPageLoad(foto, animationsMap.carroOnPageLoadAnimation);
-  
-    // O respiro parado fica NO INVÓLUCRO, e não na foto: a entrada escreve
-    // `transform` na foto pela Web Animations API, e uma animação CSS de
-    // transform no mesmo elemento seria simplesmente ignorada. Em pai e filho as
-    // duas se compõem.
-    const carro = el('div', { class: 'ff-carro-respira' }, foto);
-  
-    // O nome vinha de uma tabela fixa por indice no Dart (que, aliás, nao era o
-    // campo `nome` da questao — esse o jogo nunca exibia). Agora e o nome do
-    // veiculo da rodada.
-    const nome = Txt(FFAppState.slotAtual?.veiculo?.nome || 'SEM CARRO SELECIONADO', {
-      ...style('bodyMedium', {
-        fontFamily: 'Roboto',
-        fontWeight: 700,
-        color: '#FFFFFF',
-        fontSize: 70.0,
-        letterSpacing: 5.0,
-      }),
-    });
-    animateOnPageLoad(nome, animationsMap.nomeOnPageLoadAnimation);
-  
-    const content = Column({
-      mainAxisSize: 'max',
-      children: [carro, Padding({ padding: [0.0, 52.0, 0.0, 0.0], child: nome })],
-    });
-    animateOnActionTrigger(content, animationsMap.columnOnActionTriggerAnimation);
-  
-    const root = el(
-      'div',
-      { class: 'ff-scaffold', style: { background: color(0xFF1D1D2B) } },
-      Container({
-        width: Infinity,
-        height: Infinity,
-        image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),
-        child: Column({
-          mainAxisSize: 'min',
-          mainAxisAlignment: 'center',
-          height: Infinity,
-          children: [Align({ alignment: [0.0, 0.0], child: content })],
-        }),
-      })
-    );
-    root.addEventListener('click', unfocus);
-  
-    delayed(6000).then(async () => {
-      if (left || !root.isConnected) return;
-      // Sequencia de verdade: e a animacao de SAIDA da tela, antes de navegar.
-      // Quando o roteador esmaece a pagina, o conteudo daqui ja apagou sozinho —
-      // o que sobra para o jogador ver e a entrada da proxima.
-      await animationsMap.columnOnActionTriggerAnimation.controller.forward();
-      if (left || !root.isConnected) return;
-      goNamed('scanner');
-    });
-  
-    root.__dispose = () => {
-      left = true;
-    };
-  
-    return root;
-  }
-  Object.defineProperty(__exports, "CarroSleecionadoWidget", { get: () => CarroSleecionadoWidget, enumerable: true });
-  });
-
   /* ===== components/equipamento_invalido.js ===== */
   __define("components/equipamento_invalido.js", function (__exports, __require) {
   // Port of lib/pages/components/equipamento_invalido/equipamento_invalido_widget.dart
@@ -10090,6 +10064,194 @@
   Object.defineProperty(__exports, "FerramentaWidget", { get: () => FerramentaWidget, enumerable: true });
   });
 
+  /* ===== components/carro_foto.js ===== */
+  __define("components/carro_foto.js", function (__exports, __require) {
+  // Port of lib/pages/components/carro_foto/carro_foto_widget.dart
+  //
+  // A foto do carro que a roleta sorteou. O Dart escrevia um `if` por indice,
+  // cada um com o seu tamanho de imagem; os tamanhos agora vivem no veiculo.
+  
+  const { ClipRRect, Column, Img, SingleChildScrollView } = __require("widgets.js");
+  const { FFAppState } = __require("state.js");
+  
+  
+  function CarroFotoWidget() {
+    // A foto e o tamanho vinham de uma tabela fixa por indice no Dart; agora
+    // saem do veiculo da rodada sorteada (ver deck.js), o que e o que permite a
+    // area administrativa trocar de carro.
+    const veiculo = FFAppState.slotAtual?.veiculo;
+    const photo = veiculo?.imagem
+      ? { src: veiculo.imagem, width: veiculo.largura, height: veiculo.altura, fit: veiculo.fit ?? 'cover' }
+      : null;
+  
+    return SingleChildScrollView({
+      child: Column({
+        mainAxisSize: 'max',
+        children: [
+          photo &&
+            ClipRRect({
+              borderRadius: 8.0,
+              child: Img(photo.src, { width: photo.width, height: photo.height, fit: photo.fit }),
+            }),
+        ],
+      }),
+    });
+  }
+  Object.defineProperty(__exports, "CarroFotoWidget", { get: () => CarroFotoWidget, enumerable: true });
+  });
+
+  /* ===== pages/carro_sleecionado.js ===== */
+  __define("pages/carro_sleecionado.js", function (__exports, __require) {
+  // Port of lib/pages/carro_sleecionado/carro_sleecionado_widget.dart
+  //
+  // Reveals the car the wheel landed on, then fades out and moves to the scanner
+  // picker after 6s.
+  //
+  // A ENTRADA. O Dart escalava de [-1, -1] até [1, 1]: escala negativa é
+  // ESPELHAMENTO, então o carro nascia invertido, encolhia até sumir num ponto e
+  // voltava desvirado — era isso o "o carro vem ao contrário". Trocamos por uma
+  // entrada que tem a ver com o que acabou de acontecer na tela anterior: a roda
+  // parou, e o prêmio chega.
+  //
+  //   - o carro entra pela direita com velocidade e freia, passando um pouco do
+  //     ponto e voltando (o mesmo excesso amortecido do recuo da roleta);
+  //   - a placa com o nome bate depois, como carimbo;
+  //   - pousado, o carro respira devagar, para os segundos que sobram até a
+  //     próxima tela não serem uma foto parada.
+  
+  const { Align, Column, Container, Padding, Txt, decorationImage, el, color, unfocus } = __require("widgets.js");
+  const { style } = __require("theme.js");
+  const { FFAppState } = __require("state.js");
+  const { EQUIPAMENTO_PADRAO } = __require("components/ferramenta.js");
+  const { CarroFotoWidget } = __require("components/carro_foto.js");
+  const { goNamed } = __require("router.js");
+  const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad, delayed } = __require("anim.js");
+  
+  
+  function CarroSleecionadoWidget() {
+    let left = false;
+  
+    const animationsMap = {
+      // A chegada: entra pela direita, freia passando do ponto e volta.
+      //
+      // O excesso é o que faz parecer massa em movimento e não uma imagem sendo
+      // posicionada — o mesmo motivo do recuo da roleta. São três trechos porque
+      // o motor de efeitos interpola por pedaço: corrida, passagem do ponto,
+      // acomodação.
+      carroOnPageLoadAnimation: new AnimationInfo({
+        trigger: AnimationTrigger.onPageLoad,
+        applyInitialState: true,
+        effectsBuilder: () => [
+          FadeEffect({ curve: Curves.easeOut, delay: 120.0, duration: 260.0, begin: 0.0, end: 1.0 }),
+          MoveEffect({ curve: Curves.easeOut, delay: 120.0, duration: 620.0, begin: [620.0, 0.0], end: [-26.0, 0.0] }),
+          MoveEffect({ curve: Curves.easeInOut, delay: 740.0, duration: 260.0, begin: [-26.0, 0.0], end: [9.0, 0.0] }),
+          MoveEffect({ curve: Curves.easeInOut, delay: 1000.0, duration: 220.0, begin: [9.0, 0.0], end: [0.0, 0.0] }),
+          // Um respiro de 1,02 enquanto o carro corre: dá peso à frenagem.
+          ScaleEffect({ curve: Curves.easeOut, delay: 120.0, duration: 620.0, begin: [1.05, 1.05], end: [1.02, 1.02] }),
+          ScaleEffect({ curve: Curves.easeInOut, delay: 740.0, duration: 480.0, begin: [1.02, 1.02], end: [1.0, 1.0] }),
+        ],
+      }),
+      // A placa do nome, batendo depois que o carro para.
+      nomeOnPageLoadAnimation: new AnimationInfo({
+        trigger: AnimationTrigger.onPageLoad,
+        applyInitialState: true,
+        effectsBuilder: () => [
+          FadeEffect({ curve: Curves.easeOut, delay: 900.0, duration: 180.0, begin: 0.0, end: 1.0 }),
+          ScaleEffect({ curve: Curves.easeOut, delay: 900.0, duration: 300.0, begin: [1.32, 1.32], end: [0.98, 0.98] }),
+          ScaleEffect({ curve: Curves.easeInOut, delay: 1200.0, duration: 180.0, begin: [0.98, 0.98], end: [1.0, 1.0] }),
+        ],
+      }),
+      columnOnActionTriggerAnimation: new AnimationInfo({
+        trigger: AnimationTrigger.onActionTrigger,
+        applyInitialState: true,
+        effectsBuilder: () => [
+          FadeEffect({ curve: Curves.easeOut, delay: 0.0, duration: 1220.0, begin: 1.0, end: 0.0 }),
+        ],
+      }),
+    };
+  
+    const foto = CarroFotoWidget();
+    animateOnPageLoad(foto, animationsMap.carroOnPageLoadAnimation);
+  
+    // O respiro parado fica NO INVÓLUCRO, e não na foto: a entrada escreve
+    // `transform` na foto pela Web Animations API, e uma animação CSS de
+    // transform no mesmo elemento seria simplesmente ignorada. Em pai e filho as
+    // duas se compõem.
+    const carro = el('div', { class: 'ff-carro-respira' }, foto);
+  
+    // O nome vinha de uma tabela fixa por indice no Dart (que, aliás, nao era o
+    // campo `nome` da questao — esse o jogo nunca exibia). Agora e o nome do
+    // veiculo da rodada.
+    const nome = Txt(FFAppState.slotAtual?.veiculo?.nome || 'SEM CARRO SELECIONADO', {
+      ...style('bodyMedium', {
+        fontFamily: 'Roboto',
+        fontWeight: 700,
+        color: '#FFFFFF',
+        fontSize: 70.0,
+        letterSpacing: 5.0,
+      }),
+    });
+    animateOnPageLoad(nome, animationsMap.nomeOnPageLoadAnimation);
+  
+    const content = Column({
+      mainAxisSize: 'max',
+      children: [carro, Padding({ padding: [0.0, 52.0, 0.0, 0.0], child: nome })],
+    });
+    animateOnActionTrigger(content, animationsMap.columnOnActionTriggerAnimation);
+  
+    const root = el(
+      'div',
+      { class: 'ff-scaffold', style: { background: color(0xFF1D1D2B) } },
+      Container({
+        width: Infinity,
+        height: Infinity,
+        image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),
+        child: Column({
+          mainAxisSize: 'min',
+          mainAxisAlignment: 'center',
+          height: Infinity,
+          children: [Align({ alignment: [0.0, 0.0], child: content })],
+        }),
+      })
+    );
+    root.addEventListener('click', unfocus);
+  
+    delayed(6000).then(async () => {
+      if (left || !root.isConnected) return;
+      // Sequencia de verdade: e a animacao de SAIDA da tela, antes de navegar.
+      // Quando o roteador esmaece a pagina, o conteudo daqui ja apagou sozinho —
+      // o que sobra para o jogador ver e a entrada da proxima.
+      await animationsMap.columnOnActionTriggerAnimation.controller.forward();
+      if (left || !root.isConnected) return;
+  
+      // A PERGUNTA PODE DISPENSAR A ESCOLHA DO EQUIPAMENTO.
+      //
+      // É uma marca do baralho, por pergunta (`pularEquipamento`, ver deck.js):
+      // há pergunta que não depende de scanner nenhum, e para essa a tela dos
+      // cinco equipamentos é uma parada sem decisão — em feira cheia, é a fila
+      // parada. Quem pula joga com o equipamento padrão, que é o que dá ao painel
+      // da pergunta uma pele inteira em vez do cinza de reserva, e não vê o vídeo
+      // demonstrativo: ele é a apresentação do equipamento ESCOLHIDO, e aqui não
+      // houve escolha. O registro da partida diz isso com todas as letras (ver
+      // `equipamentoDaPartida`, em perguntas_erespostas.js).
+      if (FFAppState.questoesBrasil[FFAppState.indiceAtual]?.pularEquipamento) {
+        FFAppState.scannerEscolhido = EQUIPAMENTO_PADRAO;
+        FFAppState.equipamentoPulado = true;
+        goNamed('telaAcao');
+        return;
+      }
+      goNamed('scanner');
+    });
+  
+    root.__dispose = () => {
+      left = true;
+    };
+  
+    return root;
+  }
+  Object.defineProperty(__exports, "CarroSleecionadoWidget", { get: () => CarroSleecionadoWidget, enumerable: true });
+  });
+
   /* ===== pages/scanner.js ===== */
   __define("pages/scanner.js", function (__exports, __require) {
   // Port of lib/pages/escolha/scanner/scanner_widget.dart
@@ -10106,15 +10268,11 @@
   // e "qual destes?", as opcoes chegando em sequencia sao o convite a escolher;
   // chegando juntas, sao uma imagem que apareceu.
   
-  const { Align, Column, Container, InkWell, Padding, Row, Stack, StackAlign, Txt, boxShadow, color, decorationImage, el, linearGradient, unfocus } = __require("widgets.js");
+  const { Align, Column, Container, Padding, Row, Txt, color, decorationImage, el, unfocus } = __require("widgets.js");
   const { style } = __require("theme.js");
   const { L } = __require("i18n.js");
-  const { T } = __require("textos.js");
-  const { FFAppState } = __require("state.js");
-  const { playSound } = __require("audio.js");
-  const { goNamed } = __require("router.js");
-  const { EQUIPAMENTO_PADRAO, FerramentaWidget } = __require("components/ferramenta.js");
-  const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
+  const { FerramentaWidget } = __require("components/ferramenta.js");
+  const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnPageLoad } = __require("anim.js");
   
   /** O titulo chega primeiro, e sozinho: e ele que faz a pergunta. */
   const entradaDoTitulo = () =>
@@ -10153,35 +10311,7 @@
     });
   };
   
-  /**
-   * O atalho, que chega depois de todas as opcoes terem pousado.
-   *
-   * Sem laco de pulsacao, ao contrario do "Pular instrucoes": ali o botao e a
-   * unica coisa tocavel da tela, aqui ele disputa com cinco equipamentos, e um
-   * atalho piscando puxaria para si a atencao que a pergunta desta tela pede.
-   */
-  const entradaDoAtalho = () =>
-    new AnimationInfo({
-      trigger: AnimationTrigger.onPageLoad,
-      applyInitialState: true,
-      effectsBuilder: () => [
-        FadeEffect({ curve: Curves.easeOut, delay: 900.0, duration: 300.0, begin: 0.0, end: 1.0 }),
-        MoveEffect({ curve: Curves.easeOut, delay: 900.0, duration: 380.0, begin: [0.0, 28.0], end: [0.0, 0.0] }),
-      ],
-    });
-  
-  const apertoDoAtalho = () =>
-    new AnimationInfo({
-      trigger: AnimationTrigger.onActionTrigger,
-      applyInitialState: true,
-      effectsBuilder: () => [
-        ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 200.0, begin: [1.0, 1.0], end: [0.9, 0.9] }),
-        ScaleEffect({ curve: Curves.easeInOut, delay: 200.0, duration: 200.0, begin: [0.9, 0.9], end: [1.0, 1.0] }),
-      ],
-    });
-  
   function ScannerWidget() {
-    const model = {};
     /**
      * Cada equipamento entra dentro de um involucro, e nao no proprio no.
      *
@@ -10257,57 +10387,6 @@
       ],
     });
   
-    /* ------------------------------------------------------------- o atalho -- */
-  
-    const apertar = apertoDoAtalho();
-  
-    /**
-     * Pular a escolha.
-     *
-     * Numa feira a fila anda, e nem todo visitante quer decidir com qual dos
-     * cinco vai jogar — antes deste botao a unica saida era escolher alguma
-     * coisa. Quem pula segue com o equipamento padrao (ver `EQUIPAMENTO_PADRAO`),
-     * que e o que da ao painel da pergunta uma pele inteira em vez do cinza de
-     * reserva, e vai DIRETO para a partida: o video demonstrativo de 14s e a
-     * apresentacao do equipamento escolhido, e quem nao escolheu nao tem o que
-     * lhe apresentar.
-     *
-     * A partida fica marcada como sem escolha (`equipamentoPulado`), para a aba
-     * Respostas nao contar como interesse por um equipamento o que foi so pressa.
-     */
-    const pular = () => {
-      playSound(model, 'soundPlayer', 'assets/audios/undertale-select-sound.mp3', 0.6);
-      apertar.controller.forward();
-      FFAppState.scannerEscolhido = EQUIPAMENTO_PADRAO;
-      FFAppState.equipamentoPulado = true;
-      goNamed('telaAcao');
-    };
-  
-    const botaoPular = InkWell({
-      onTap: pular,
-      child: Container({
-        width: 450.0,
-        height: 100.0,
-        boxShadow: boxShadow({ blurRadius: 4.0, color: color(0x33000000), offset: [0.0, 2.0] }),
-        // O mesmo desenho do "Pular instrucoes": o jogador ja aprendeu, duas
-        // telas atras, que este retangulo azul no canto de baixo e a saida.
-        gradient: linearGradient({
-          colors: [color(0xFF0051FF), color(0xFF3471F4)],
-          stops: [0.0, 1.0],
-          begin: [1.0, 0.17],
-          end: [-1.0, -0.17],
-        }),
-        borderRadius: 8.0,
-        alignment: [0.0, 0.0],
-        child: Align({
-          alignment: [0.0, 0.0],
-          child: Txt(T('pularEscolha'), style('bodyMedium', { fontFamily: 'pirulen', fontSize: 28.0 })),
-        }),
-      }),
-    });
-    animateOnPageLoad(botaoPular, entradaDoAtalho());
-    animateOnActionTrigger(botaoPular, apertar);
-  
     const root = el(
       'div',
       { class: 'ff-scaffold', style: { background: color(0xFF1D1D2B) } },
@@ -10315,27 +10394,10 @@
         width: Infinity,
         height: Infinity,
         image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),
-        child: Stack({
-          width: Infinity,
-          height: Infinity,
-          children: [
-            // A caixa de 100% x 100% e o que segura o layout de pe dentro do
-            // Stack: um filho sem tamanho proprio seria posicionado no canto
-            // pelo alinhamento padrao, e a coluna centralizada desabaria.
-            Container({
-              width: Infinity,
-              height: Infinity,
-              child: Padding({
-                padding: [0.0, 36.0, 0.0, 0.0],
-                style: { flex: '1 1 auto', minHeight: 0 },
-                child: Column({ mainAxisSize: 'max', mainAxisAlignment: 'center', children: [content] }),
-              }),
-            }),
-            StackAlign({
-              alignment: [1.0, 1.0],
-              child: Padding({ padding: [0.0, 0.0, 32.0, 32.0], child: botaoPular }),
-            }),
-          ],
+        child: Padding({
+          padding: [0.0, 36.0, 0.0, 0.0],
+          style: { flex: '1 1 auto', minHeight: 0 },
+          child: Column({ mainAxisSize: 'max', mainAxisAlignment: 'center', children: [content] }),
         }),
       })
     );

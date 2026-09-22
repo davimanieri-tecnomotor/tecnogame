@@ -18,6 +18,7 @@
 import { Align, Column, Container, Padding, Txt, decorationImage, el, color, unfocus } from '../widgets.js';
 import { style } from '../theme.js';
 import { FFAppState } from '../state.js';
+import { EQUIPAMENTO_PADRAO } from '../components/ferramenta.js';
 import { CarroFotoWidget } from '../components/carro_foto.js';
 import { goNamed } from '../router.js';
 import {
@@ -128,6 +129,23 @@ export function CarroSleecionadoWidget() {
     // o que sobra para o jogador ver e a entrada da proxima.
     await animationsMap.columnOnActionTriggerAnimation.controller.forward();
     if (left || !root.isConnected) return;
+
+    // A PERGUNTA PODE DISPENSAR A ESCOLHA DO EQUIPAMENTO.
+    //
+    // É uma marca do baralho, por pergunta (`pularEquipamento`, ver deck.js):
+    // há pergunta que não depende de scanner nenhum, e para essa a tela dos
+    // cinco equipamentos é uma parada sem decisão — em feira cheia, é a fila
+    // parada. Quem pula joga com o equipamento padrão, que é o que dá ao painel
+    // da pergunta uma pele inteira em vez do cinza de reserva, e não vê o vídeo
+    // demonstrativo: ele é a apresentação do equipamento ESCOLHIDO, e aqui não
+    // houve escolha. O registro da partida diz isso com todas as letras (ver
+    // `equipamentoDaPartida`, em perguntas_erespostas.js).
+    if (FFAppState.questoesBrasil[FFAppState.indiceAtual]?.pularEquipamento) {
+      FFAppState.scannerEscolhido = EQUIPAMENTO_PADRAO;
+      FFAppState.equipamentoPulado = true;
+      goNamed('telaAcao');
+      return;
+    }
     goNamed('scanner');
   });
 

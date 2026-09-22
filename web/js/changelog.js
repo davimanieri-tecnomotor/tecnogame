@@ -10,16 +10,23 @@
 
 import { readRaw, writeRaw } from './storage.js';
 
-export const VERSAO_DO_JOGO = '2.4.0';
+export const VERSAO_DO_JOGO = '2.5.0';
 
 /** Mais recente primeiro — é a ordem em que o painel lista. */
 export const NOTAS_DE_ATUALIZACAO = [
   {
+    versao: '2.5.0',
+    data: '2026-09-22',
+    itens: [
+      'Cada pergunta pode agora dispensar a escolha do equipamento: marque "Pular a escolha do equipamento nesta pergunta" nas Regras, e o jogo vai do veículo direto para ela, com a tela do Rasther 3S e sem o vídeo de 14 segundos. Serve para pergunta que não depende de scanner — e para a fila andar em feira cheia.',
+      'Nessas partidas a aba Respostas mostra "não escolhido" na coluna Equipamento: a coluna continua contando só escolha de verdade.',
+      'A roleta abre com os carros já na tela. As imagens dela passaram a ser baixadas enquanto o jogador se cadastra, em vez de na hora em que a roda aparece.',
+    ],
+  },
+  {
     versao: '2.4.0',
     data: '2026-09-22',
     itens: [
-      'Na escolha do equipamento existe agora o botão "Pular escolha": o jogo segue com o Rasther 3S e vai direto para a pergunta, sem o vídeo de 14 segundos. Serve para a fila andar em feira cheia.',
-      'Na aba Respostas, quem pulou aparece com "não escolhido" na coluna Equipamento — a coluna continua contando só escolha de verdade.',
       'A foto do veículo na tela da pergunta ficou bem maior: ela ocupa todo o espaço que o enunciado deixa livre.',
       'Todas as trocas de tela ficaram iguais: a tela que sai apaga e a seguinte acende. Antes quatro delas cresciam a partir do rodapé.',
     ],

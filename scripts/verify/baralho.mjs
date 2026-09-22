@@ -6,7 +6,8 @@
 //  2. as dez voltas da roleta são os mesmos números do Dart;
 //  3. a arte original é usada enquanto os veículos são os originais;
 //  4. um baralho de tamanho diferente sorteia, gera a roda e joga até o fim;
-//  5. a fatia que para sob a seta é a mesma rodada que o jogo abre em seguida.
+//  5. a fatia que para sob a seta é a mesma rodada que o jogo abre em seguida;
+//  9. a pergunta marcada com `pularEquipamento` vai do carro direto para o jogo.
 import puppeteer from 'puppeteer';
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8099';
@@ -608,6 +609,93 @@ console.log(
 );
 nuvem.slice(0, 10).forEach((p) => console.log('   - ' + p));
 falhas.push(...nuvem);
+
+/* ---- 9: a pergunta que dispensa o equipamento pula a tela da escolha ------
+ * `pularEquipamento` e uma marca do baralho, por pergunta: ha pergunta que nao
+ * depende de scanner, e para essa a tela dos cinco e uma parada sem decisao.
+ * O que se afirma aqui e o percurso inteiro: do carro vai DIRETO para o jogo
+ * (sem passar pela escolha nem pelo video), o painel veste o equipamento
+ * padrao, e a partida fica gravada como sem escolha. */
+
+await page.evaluate(async () => {
+  const carregar = async (nome) =>
+    window.__tecgameRequire ? window.__tecgameRequire(nome) : await import(`./js/${nome}`);
+  const deck = await carregar('deck.js');
+  const slots = deck.SLOTS_ORIGINAIS.map((s) => {
+    const copia = JSON.parse(JSON.stringify(s));
+    const p = copia.perguntas[0];
+    p.pularEquipamento = true;
+    // E sem equipamento nenhum marcado, de proposito: quem pula nunca ve a tela
+    // dos cinco, entao as marcas nao valem — e a validacao tem de concordar.
+    p.scanners = { raster3S: false, rasher4: false, xtool: false };
+    return copia;
+  });
+  const deckPulando = { versao: 2, slots };
+  const erros = deck.validarBaralho(deckPulando);
+  if (erros.length) throw new Error('validacao reprovou baralho que pula: ' + erros.join('; '));
+  deck.publicarBaralho(deckPulando);
+});
+
+await page.goto(pageUrl('/cadastro'), { waitUntil: 'networkidle2' });
+await wait(1200);
+await page.goto(pageUrl('/roleta'), { waitUntil: 'networkidle2' });
+await wait(2200);
+await page.evaluate(() => {
+  const hit = [...document.querySelectorAll('#pages .ff-text')].find((n) => /GIRAR/i.test(n.textContent));
+  hit.closest('.ff-inkwell').click();
+});
+
+// Amostra o percurso ate chegar no jogo: a tela da escolha nao pode aparecer
+// nele em momento nenhum.
+const percurso = [];
+for (let i = 0; i < 120; i++) {
+  const r = await page.evaluate(() => document.querySelector('.ff-page')?.dataset.route);
+  if (r && percurso[percurso.length - 1] !== r) percurso.push(r);
+  if (r === 'telaAcao') break;
+  await wait(250);
+}
+console.log('9. percurso sem a escolha ->', percurso.join(' -> '));
+if (!percurso.includes('telaAcao')) falhas.push('a pergunta que pula nao chegou ao jogo');
+if (percurso.includes('scanner')) falhas.push('a pergunta que pula passou pela tela da escolha');
+if (percurso.includes('telaVideoScanner')) falhas.push('a pergunta que pula passou pelo video do equipamento');
+
+await wait(1500);
+const peleEregistro = await page.evaluate(async () => {
+  const carregar = async (nome) =>
+    window.__tecgameRequire ? window.__tecgameRequire(nome) : await import(`./js/${nome}`);
+  const st = await carregar('state.js');
+  return {
+    escolhido: st.FFAppState.scannerEscolhido,
+    marcado: st.FFAppState.equipamentoPulado,
+    // A foto do cabecalho do painel e a do equipamento padrao (o 3S).
+    foto: [...document.querySelectorAll('#pages img')].map((i) => i.getAttribute('src')).find((src) => /Rasther_CANFD/.test(src)),
+  };
+});
+console.log('   pele do painel ->', JSON.stringify(peleEregistro));
+if (!peleEregistro.foto) falhas.push('o painel nao vestiu o equipamento padrao');
+if (peleEregistro.marcado !== true) falhas.push('a partida nao ficou marcada como sem escolha');
+
+// Responde, para conferir o que vai para a aba Respostas.
+await page.evaluate(() => {
+  const fontePx = (n) => Math.round(parseFloat(getComputedStyle(n).fontSize));
+  const cards = [...document.querySelectorAll('#pages .ff-text')]
+    .filter((n) => /^[1-4]$/.test(n.textContent.trim()) && fontePx(n) === 55)
+    .map((n) => n.closest('.ff-stack'));
+  cards[0].querySelector('.ff-inkwell').click();
+});
+await wait(1200);
+await page.evaluate(() => {
+  const hit = [...document.querySelectorAll('#overlays .ff-text')].find((n) => n.textContent.trim() === 'Confirmar');
+  hit.closest('.ff-inkwell').click();
+});
+await wait(6000);
+const gravado = await page.evaluate(
+  () => JSON.parse(localStorage.getItem('tecgame:usuarios') || '[]').slice(-1)[0] ?? null
+);
+console.log('   registro ->', JSON.stringify(gravado));
+if (gravado?.equipamento !== 'não escolhido') {
+  falhas.push(`quem nao escolheu equipamento foi gravado como "${gravado?.equipamento}"`);
+}
 
 await browser.close();
 if (falhas.length) {

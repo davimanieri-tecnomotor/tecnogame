@@ -116,6 +116,7 @@ export function perguntaVazia() {
     id: novoIdDePergunta(),
     ativa: true,
     scanners: { raster3S: true, rasher4: true, xtool: true },
+    pularEquipamento: false,
     gabarito: '1',
     ...textos,
   };
@@ -150,6 +151,8 @@ export const SLOTS_ORIGINAIS = VEICULOS_ORIGINAIS.map((veiculo, i) => {
       rasher4: Boolean(base.rasher4),
       xtool: Boolean(base.xtool),
     },
+    // O baralho de fábrica pergunta sempre: é o que o Dart fazia.
+    pularEquipamento: false,
     gabarito: String(base.gabarito),
   };
   for (const lang of IDIOMAS) {
@@ -195,8 +198,11 @@ export function validarBaralho(deck) {
       if (!['1', '2', '3', '4'].includes(String(pergunta.gabarito))) {
         erros.push(`${ondeP}: gabarito precisa ser 1, 2, 3 ou 4 (está "${pergunta.gabarito}")`);
       }
+      // Quem pula a escolha nunca vê a tela dos equipamentos, então as marcas
+      // não valem — e exigir uma delas travaria o operador por uma regra que
+      // não vai a lugar nenhum.
       const flags = SCANNERS.map((s) => Boolean(pergunta.scanners?.[s.chave]));
-      if (!flags.some(Boolean)) {
+      if (!pergunta.pularEquipamento && !flags.some(Boolean)) {
         erros.push(`${ondeP}: nenhum equipamento resolve esta pergunta — o jogador ficaria travado`);
       }
       for (const lang of IDIOMAS) {
@@ -228,6 +234,9 @@ function normalizarPergunta(bruta, molde) {
     id: typeof bruta?.id === 'string' && bruta.id ? bruta.id : novoIdDePergunta(),
     ativa: bruta?.ativa !== false,
     scanners: { ...molde.scanners, ...(bruta?.scanners ?? {}) },
+    // `=== true` e nao `Boolean(...)`: baralho publicado antes desta opcao nao
+    // tem o campo, e o jogo tem de continuar perguntando nele.
+    pularEquipamento: bruta?.pularEquipamento === true,
     gabarito: String(bruta?.gabarito ?? '1'),
   };
   for (const lang of IDIOMAS) {

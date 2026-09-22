@@ -48,8 +48,6 @@ const TEXTOS = {
     es: 'Al confirmar, acepta los términos de acceso a los datos. Toque para leer la política de privacidad.',
   },
 
-  pularEscolha: { pt: 'Pular escolha', en: 'Skip choice', es: 'Saltar elección' },
-
   /* ------------------------------------------------------ ranking e resultado -- */
 
   rankingVazio: {

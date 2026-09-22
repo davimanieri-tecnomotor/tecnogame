@@ -220,6 +220,42 @@ export function editorDeSlot({ slot, pergunta, indice, posicao = 0, total = 1, o
     },
   });
 
+  const grupoDeScanners = el(
+    'div',
+    { class: 'marcar-grupo' },
+    SCANNERS.map((s) =>
+      caixaDeMarcar({
+        rotulo: s.rotulo,
+        marcado: pergunta.scanners[s.chave],
+        onChange: (v) => {
+          pergunta.scanners[s.chave] = v;
+          mudou();
+        },
+      })
+    )
+  );
+
+  /**
+   * Quem pula não vê a tela dos equipamentos, então as marcas acima não valem
+   * nada nesta pergunta — e uma caixa marcada que não faz nada é pior do que
+   * uma caixa desligada, porque continua parecendo uma regra.
+   */
+  const refletirPulo = () => {
+    const pulando = pergunta.pularEquipamento === true;
+    grupoDeScanners.classList.toggle('sem-efeito', pulando);
+    for (const caixa of grupoDeScanners.querySelectorAll('input')) caixa.disabled = pulando;
+  };
+
+  const campoPular = caixaDeMarcar({
+    rotulo: 'Pular a escolha do equipamento nesta pergunta',
+    marcado: pergunta.pularEquipamento === true,
+    onChange: (v) => {
+      pergunta.pularEquipamento = v;
+      refletirPulo();
+      mudou();
+    },
+  });
+
   const blocoRegras = el('section', { class: 'bloco' }, [
     el('h3', { text: 'Regras desta pergunta' }),
     campoGabarito,
@@ -229,22 +265,18 @@ export function editorDeSlot({ slot, pergunta, indice, posicao = 0, total = 1, o
         class: 'campo-dica',
         text: 'Os não marcados abrem "equipamento inválido" quando o jogador escolhe. Ao menos um precisa estar marcado. Vale só para esta pergunta — outra do mesmo veículo pode pedir equipamentos diferentes.',
       }),
-      el(
-        'div',
-        { class: 'marcar-grupo' },
-        SCANNERS.map((s) =>
-          caixaDeMarcar({
-            rotulo: s.rotulo,
-            marcado: pergunta.scanners[s.chave],
-            onChange: (v) => {
-              pergunta.scanners[s.chave] = v;
-              mudou();
-            },
-          })
-        )
-      ),
+      grupoDeScanners,
+    ]),
+    el('div', { class: 'campo' }, [
+      campoPular,
+      el('span', {
+        class: 'campo-dica',
+        text: 'Para pergunta que não depende de scanner: o jogo vai do veículo direto para ela, com a tela do Rasther 3S e sem o vídeo demonstrativo de 14s. Os equipamentos acima deixam de valer, e a aba Respostas grava a partida como "não escolhido".',
+      }),
     ]),
   ]);
+
+  refletirPulo();
 
   /* --------------------------------------------------------------- textos -- */
 
