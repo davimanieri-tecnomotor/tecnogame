@@ -6142,15 +6142,18 @@
   // internet cai no meio da feira — e é o único modo possível quando ele abre do
   // disco (ver firebase.js).
   //
-  // SEM LOGIN, POR DECISÃO DO PROJETO (11/09/2026). Antes salvar exigia uma conta
-  // do Firebase; agora a regra de `conteudo` aceita escrita de qualquer um, com a
-  // justificativa de que o endereço não será divulgado. O que isso custa está
-  // escrito em firebase/firestore.rules, e não é pouco: quem descobrir a URL
-  // reescreve o jogo. A senha 2040 do painel não muda nada disso — ela viaja no
-  // mesmo JavaScript que o jogador recebe.
+  // SALVAR EXIGE LOGIN (21/09/2026). A regra de `conteudo` pede
+  // `request.auth != null`, e é a porta do painel que resolve isso: ela entra com
+  // a conta do Firebase quando alcança a nuvem (ver web/js/admin/porta.js). Quem
+  // abriu o painel pela senha local — o que só acontece onde o Firebase é
+  // impossível — não chega aqui: `publicar()` no painel para antes e diz por quê.
   //
-  // O que continua fechado é `contatos`: nome e telefone de jogador não são
-  // conteúdo de jogo, e nenhum cliente os lê.
+  // Entre 11/09/2026 e 21/09/2026 esta escrita foi aberta, com a justificativa de
+  // que o endereço não seria divulgado; o custo daquilo está registrado em
+  // firebase/firestore.rules.
+  //
+  // `contatos` sempre foi fechada: nome e telefone de jogador não são conteúdo de
+  // jogo.
   
   const { firebase, podeUsarNuvem } = __require("firebase.js");
   const { publicarBaralho, carregarBaralho } = __require("deck.js");
@@ -6250,12 +6253,14 @@
       return { ok: true, kb: cabe.kb };
     } catch (erro) {
       // A mensagem crua do Firestore ("Missing or insufficient permissions") não
-      // diz ao operador o que fazer.
+      // diz ao operador o que fazer. Desde que a escrita passou a exigir conta, a
+      // causa comum é sessão sem login — vem primeiro; o deploy das regras é a
+      // segunda hipótese, e só acontece uma vez por projeto.
       const permissao = String(erro?.code ?? '').includes('permission');
       return {
         ok: false,
         motivo: permissao
-          ? 'as regras do Firestore recusaram a escrita — confira se o deploy das regras foi feito.'
+          ? 'o Firestore recusou a escrita: entre com a conta do Firebase (aba Respostas) — e, se já estiver conectado, confira se o deploy das regras foi feito.'
           : `o Firestore recusou: ${erro?.message ?? erro}`,
       };
     }
@@ -6308,10 +6313,18 @@
   
   const { readRaw, writeRaw } = __require("storage.js");
   
-  const VERSAO_DO_JOGO = '2.1.0';
+  const VERSAO_DO_JOGO = '2.2.0';
   
   /** Mais recente primeiro — é a ordem em que o painel lista. */
   const NOTAS_DE_ATUALIZACAO = [
+    {
+      versao: '2.2.0',
+      data: '2026-09-22',
+      itens: [
+        'Para abrir a administração agora se entra com a conta do Firebase, e não mais com a senha de quatro dígitos. É a mesma conta que já liberava o telefone dos jogadores na aba Respostas.',
+        'Com o jogo aberto do disco, ou sem internet, a senha antiga continua abrindo o painel — mas a barra avisa "sem login" e salvar para os outros totens fica bloqueado. O que você editar ali vale só naquele computador.',
+      ],
+    },
     {
       versao: '2.1.0',
       data: '2026-09-17',
@@ -6382,23 +6395,58 @@
   
   /* ---------------------------------------------------------------- login -- */
   
+  /**
+   * `codigo` vai junto do `motivo` porque quem chama precisa separar dois casos
+   * que para o operador parecem o mesmo: senha errada (tenta de novo) e login
+   * não habilitado no projeto (não existe conta que funcione — ver porta.js).
+   */
   async function entrar(email, senha) {
     const fb = await firebase();
-    if (!fb) return { ok: false, motivo: 'a nuvem está desligada ou o jogo foi aberto do disco.' };
+    if (!fb) return { ok: false, codigo: 'sem-nuvem', motivo: 'a nuvem está desligada ou o jogo foi aberto do disco.' };
     try {
       await fb.fa.signInWithEmailAndPassword(fb.auth, email, senha);
       return { ok: true };
     } catch (erro) {
       const codigo = String(erro?.code ?? '');
       if (codigo.includes('invalid-credential') || codigo.includes('wrong-password') || codigo.includes('user-not-found')) {
-        return { ok: false, motivo: 'e-mail ou senha não conferem.' };
+        return { ok: false, codigo, motivo: 'e-mail ou senha não conferem.' };
       }
       if (codigo.includes('operation-not-allowed')) {
-        return { ok: false, motivo: 'o login por e-mail/senha não está habilitado no projeto do Firebase.' };
+        return { ok: false, codigo, motivo: 'o login por e-mail/senha não está habilitado no projeto do Firebase.' };
       }
-      if (codigo.includes('network')) return { ok: false, motivo: 'sem conexão com o Firebase.' };
-      return { ok: false, motivo: erro?.message ?? String(erro) };
+      if (codigo.includes('network')) return { ok: false, codigo, motivo: 'sem conexão com o Firebase.' };
+      return { ok: false, codigo, motivo: erro?.message ?? String(erro) };
     }
+  }
+  
+  /**
+   * O operador já autenticado, esperando o SDK terminar de restaurar a sessão.
+   *
+   * `auth.currentUser` nasce nulo e só se preenche quando o Firebase termina de
+   * ler o armazenamento, de forma assíncrona. Ler direto daria "deslogado" em
+   * toda aba nova, e a porta pediria senha a quem já entrou.
+   *
+   * @returns {Promise<string|null>} o e-mail, ou null se não há sessão
+   */
+  function operadorRestaurado() {
+    return (async () => {
+      const fb = await firebase();
+      if (!fb) return null;
+      return new Promise((resolve) => {
+        let parar = null;
+        let pronto = false;
+        const terminar = (email) => {
+          if (pronto) return;
+          pronto = true;
+          // Pode disparar antes de `parar` existir (sessão já em memória); nesse
+          // caso quem cancela é a linha depois da inscrição.
+          parar?.();
+          resolve(email);
+        };
+        parar = fb.fa.onAuthStateChanged(fb.auth, (u) => terminar(u?.email ?? null));
+        if (pronto) parar();
+      });
+    })();
   }
   
   async function sair() {
@@ -6555,6 +6603,7 @@
     URL.revokeObjectURL(url);
   }
   Object.defineProperty(__exports, "entrar", { get: () => entrar, enumerable: true });
+  Object.defineProperty(__exports, "operadorRestaurado", { get: () => operadorRestaurado, enumerable: true });
   Object.defineProperty(__exports, "sair", { get: () => sair, enumerable: true });
   Object.defineProperty(__exports, "aoMudarOperador", { get: () => aoMudarOperador, enumerable: true });
   Object.defineProperty(__exports, "combinar", { get: () => combinar, enumerable: true });
@@ -6695,7 +6744,9 @@
       // diferença entre "foi para todo mundo" e "ficou nesta máquina" importa.
       !podeUsarNuvem()
         ? 'Atenção: esta cópia não fala com o Firebase, então o baralho vai valer só neste navegador. Para salvar na nuvem daqui, abra o jogo com ?comNuvem=1 no endereço.'
-        : 'Vai para o Firebase: todo totem com internet pega na próxima partida.',
+        : !estado.operador
+          ? 'Atenção: você entrou sem login, então o baralho vai valer só neste navegador. Entre com a conta do Firebase, na aba Respostas, para publicar para os outros totens.'
+          : 'Vai para o Firebase: todo totem com internet pega na próxima partida.',
       'A próxima partida aqui já usa este conteúdo.',
     ].filter(Boolean);
   
@@ -6723,6 +6774,17 @@
     if (!podeUsarNuvem()) {
       aviso(
         'Esta cópia não fala com o Firebase — abra com ?comNuvem=1 no endereço para salvar na nuvem daqui.',
+        'erro'
+      );
+      return;
+    }
+    // Sem conta autenticada não adianta tentar: a regra de `conteudo` exige
+    // `request.auth != null` (firebase/firestore.rules), e o Firestore devolveria
+    // um "insufficient permissions" que não diz ao operador o que fazer. Melhor
+    // dizer aqui, com o caminho do conserto.
+    if (!estado.operador) {
+      aviso(
+        'Sem login, o baralho ficou só neste navegador. Entre com a conta do Firebase, na aba Respostas, para publicar para os outros totens.',
         'erro'
       );
       return;
@@ -7054,6 +7116,17 @@
   
     return [
       el('div', { class: 'barra-info' }, [
+        // Primeiro de todos porque muda o que o botão Salvar faz: sem login, ele
+        // grava só aqui. Ver `publicar()` e o cabeçalho de porta.js.
+        !estado.operador
+          ? el('span', {
+              class: 'situacao situacao-atencao',
+              text: 'sem login — só este navegador',
+              title: podeUsarNuvem()
+                ? 'Entre com a conta do Firebase, na aba Respostas, para publicar o baralho para os outros totens.'
+                : 'Este navegador não alcança o Firebase (jogo aberto do disco, localhost, ou sem rede). O que for salvo vale só aqui.',
+            })
+          : null,
         el('span', {
           class: `situacao situacao-${situacao.tipo}`,
           text: situacao.texto,
@@ -7458,8 +7531,11 @@
     aoMudarOperador((email) => {
       estado.operador = email;
       if (!app) return;
+      // Redesenha SEMPRE: o selo "sem login" vive na barra da aba Veículos, e
+      // antes só a de Respostas reagia — entrar pela porta deixava o selo velho
+      // na tela até trocar de aba.
       if (estado.respostas.carregado) atualizarRespostas();
-      else if (estado.aba === 'respostas') atualizarChrome();
+      else atualizarChrome();
     }).then((cancelar) => {
       pararDeOuvirLogin = cancelar;
     });
@@ -7483,28 +7559,46 @@
 
   /* ===== admin/porta.js ===== */
   __define("admin/porta.js", function (__exports, __require) {
-  // A porta da administração: o gesto que a chama, a senha que a abre, e a
-  // camada que ela levanta por cima do jogo.
+  // A porta da administração: o gesto que a chama, o LOGIN que a abre, e a camada
+  // que ela levanta por cima do jogo.
   //
-  // ATÉ ONDE ISTO PROTEGE — leia antes de confiar. O jogo e o admin agora moram
-  // no mesmo index.html, para o GitHub Pages servir um endereço só. Isso quer
-  // dizer que o código da administração viaja para todo navegador que abre o
-  // jogo, a senha abaixo inclusive: quem apertar F12 a lê em dez segundos. É
-  // tranca de gaveta — impede o curioso e o toque errado do visitante numa feira,
-  // e não impede mais que isso. Proteção de verdade mora no servidor, e este jogo
-  // não tem servidor: o baralho vive no armazenamento do próprio navegador.
+  // DUAS ENTRADAS, E A DIFERENÇA IMPORTA:
+  //
+  //   login    a conta do Firebase — a mesma que a aba Respostas usa para ler
+  //            telefone. É autenticação de verdade: a conta vive no projeto de
+  //            vocês, não no JavaScript que o jogador recebe, e é ela que o
+  //            Firestore exige para gravar o baralho (firebase/firestore.rules).
+  //   senha    a `SENHA` abaixo, que só vale ONDE O LOGIN É IMPOSSÍVEL.
+  //
+  // POR QUE A SENHA AINDA EXISTE. O SDK do Firebase é módulo ES vindo da CDN, e
+  // `file://` recusa módulo ES — o totem aberto do disco nunca alcança o
+  // Firebase. Some com isso em localhost (a nuvem nasce desligada) e na feira com
+  // a internet fora. Exigir login nesses casos trancaria o painel exatamente
+  // quando o operador mais precisa dele: para arrumar o baralho com a rede caída.
+  //
+  // O QUE A SENHA NÃO É. Ela viaja no mesmo JavaScript que o jogador recebe —
+  // quem apertar F12 a lê em dez segundos. É tranca de gaveta: impede o curioso e
+  // o toque errado numa feira, e nada além. Por isso, quem entra por ela entra em
+  // MODO LOCAL: o painel abre marcado e salvar na nuvem fica bloqueado (ver
+  // `painel.js`). O que se edita ali vale só naquele navegador.
   //
   // Enquanto era `admin.html`, a proteção era outra e era real: bastava não
   // copiar aquele arquivo para o totem. Trocamos isso por um endereço único, de
-  // propósito e com o custo sabido.
+  // propósito e com o custo sabido — e o login é o que devolve a proteção onde
+  // ela pode existir.
   //
   // O caminho: cinco toques no selo do cadastro (ou `#/adm` na barra do
-  // navegador) -> a caixa de senha -> a camada do admin. Sair volta ao cadastro.
+  // navegador) -> login (ou a senha, sem nuvem) -> a camada do admin. Sair volta
+  // ao cadastro.
   
   const { el } = __require("widgets.js");
   const { go } = __require("router.js");
+  const { firebase, podeUsarNuvem } = __require("firebase.js");
   const { montarAdmin, desmontarAdmin } = __require("admin/painel.js");
+  const { pedirCredenciais } = __require("admin/ui.js");
+  const { entrar, operadorRestaurado } = __require("admin/respostas.js");
   
+  /** A senha do modo local. Só é pedida onde o Firebase não é alcançável. */
   const SENHA = '2040';
   
   /** Quantos toques no selo chamam a porta, e em quanto tempo. */
@@ -7513,24 +7607,32 @@
   
   /**
    * Uma vez aberta, a porta fica destrancada até a aba fechar. Sem isso o
-   * operador redigita 2040 a cada ida e volta entre o admin e o jogo, e os
-   * testes teriam de reencenar a senha em toda navegação.
+   * operador refaz a entrada a cada ida e volta entre o admin e o jogo, e os
+   * testes teriam de reencená-la em toda navegação.
+   *
+   * Guarda POR ONDE se entrou (`login` ou `local`) e não só que se entrou. O
+   * painel, porém, não lê isto para decidir o que liberar: ele olha o estado real
+   * da autenticação (`aoMudarOperador`), que é o que o Firestore vai cobrar. Ler
+   * daqui deixaria o painel confiar num valor que o próprio navegador escreveu.
    */
   const CHAVE_LIBERADA = 'tecgame:adm-liberado';
   
+  /** @returns {'login'|'local'|null} */
   const liberado = () => {
     try {
-      return sessionStorage.getItem(CHAVE_LIBERADA) === '1';
+      const v = sessionStorage.getItem(CHAVE_LIBERADA);
+      // '1' é o formato antigo, de quando só havia a senha.
+      return v === '1' ? 'local' : v === 'login' || v === 'local' ? v : null;
     } catch (_) {
-      return false;
+      return null;
     }
   };
   
-  const liberar = () => {
+  const liberar = (via) => {
     try {
-      sessionStorage.setItem(CHAVE_LIBERADA, '1');
+      sessionStorage.setItem(CHAVE_LIBERADA, via);
     } catch (_) {
-      /* navegador sem armazenamento: a senha volta a ser pedida, e tudo bem */
+      /* navegador sem armazenamento: a entrada volta a ser pedida, e tudo bem */
     }
   };
   
@@ -7568,8 +7670,20 @@
   
   /* ------------------------------------------------------ a caixa de senha -- */
   
-  /** Resolve com true quando a senha confere, false quando o operador desiste. */
-  function pedirSenha() {
+  /**
+   * A caixa da senha local. Resolve com true quando confere, false quando o
+   * operador desiste.
+   *
+   * @param {string} [texto] o que explicar acima do campo. O padrão serve ao caso
+   *   comum (sem nuvem); quem passa outro é o caminho em que o login existiria
+   *   mas não pode funcionar — ver `pedirLogin`.
+   */
+  function pedirSenha({
+    // "Sem conexão" estaria errado em localhost, onde a nuvem nasce desligada por
+    // decisão e não por falta de rede. O que o operador precisa saber é a
+    // consequência, que é a mesma nos três casos.
+    texto = 'Este navegador não alcança o Firebase. Esta senha abre o painel só aqui — nada sobe para os outros totens.',
+  } = {}) {
     return new Promise((resolve) => {
       const campo = el('input', {
         class: 'porta-campo',
@@ -7605,7 +7719,7 @@
   
       const caixa = el('div', { class: 'porta-caixa', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Administração' }, [
         el('h2', { class: 'porta-titulo', text: 'Administração' }),
-        el('p', { class: 'porta-texto', text: 'Digite a senha para abrir o painel de rodadas.' }),
+        el('p', { class: 'porta-texto', text: texto }),
         campo,
         erro,
         el('div', { class: 'porta-acoes' }, [
@@ -7625,14 +7739,66 @@
     });
   }
   
+  /* ---------------------------------------------------------------- login -- */
+  
   /**
-   * Destranca a porta, pedindo a senha se ainda não foi pedida nesta aba.
-   * Resolve com `true` quando pode entrar.
+   * O Firebase está de fato ao alcance agora?
+   *
+   * Não basta `podeUsarNuvem()`, que só olha a configuração e o protocolo: na
+   * feira com a internet fora o import do SDK falha e `firebase()` devolve null.
+   * Os dois casos têm de cair no mesmo lugar — senão o painel fica inacessível
+   * justamente quando o operador precisa arrumar o baralho sem rede.
+   */
+  const nuvemAlcancavel = async () => podeUsarNuvem() && (await firebase()) !== null;
+  
+  /**
+   * Entrar com a conta do Firebase — a mesma da aba Respostas.
+   *
+   * Repete enquanto a senha não confere, para o operador não ter de refazer os
+   * cinco toques a cada erro de digitação.
+   *
+   * @returns {Promise<'login'|'local'|null>} por onde entrou, ou null se desistiu
+   */
+  async function pedirLogin() {
+    // Sessão que o SDK restaurou: já entrou nesta máquina, não pergunta de novo.
+    if (await operadorRestaurado()) return 'login';
+  
+    let texto = 'A conta do Firebase do projeto. Ela é criada pelo Console — não há cadastro por aqui.';
+    for (;;) {
+      const dados = await pedirCredenciais({ titulo: 'Entrar na administração', texto });
+      if (!dados) return null;
+  
+      const r = await entrar(dados.email, dados.senha);
+      if (r.ok) return 'login';
+  
+      // "Login não habilitado no projeto" não é erro de quem digitou: não existe
+      // conta que possa funcionar, e insistir trancaria todo mundo do lado de
+      // fora de um painel que ninguém consegue abrir. Só NESTE caso a senha local
+      // volta a valer; senha errada continua sendo senha errada.
+      if (String(r.codigo ?? '').includes('operation-not-allowed')) {
+        const ok = await pedirSenha({
+          texto:
+            'O login por e-mail/senha não está habilitado no projeto do Firebase. ' +
+            'Enquanto isso, esta senha abre o painel só para este navegador.',
+        });
+        return ok ? 'local' : null;
+      }
+  
+      texto = `Não entrou: ${r.motivo}`;
+    }
+  }
+  
+  /**
+   * Destranca a porta. Login de verdade onde o Firebase alcança; a senha local
+   * onde ele não alcança. Resolve com `true` quando pode entrar.
    */
   async function pedirEntrada() {
     if (liberado()) return true;
-    if (!(await pedirSenha())) return false;
-    liberar();
+  
+    const via = (await nuvemAlcancavel()) ? await pedirLogin() : (await pedirSenha()) ? 'local' : null;
+    if (!via) return false;
+  
+    liberar(via);
     return true;
   }
   

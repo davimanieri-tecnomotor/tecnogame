@@ -134,8 +134,16 @@ mas **fora** do palco de 1920x1080 — numa camada por cima dele —, porque nã
 uma tela do jogo: é uma ferramenta de notebook, com layout fluido e rolagem.
 
 **Como entrar:** cinco toques no selo do cadastro, dentro de 3 segundos, ou
-`#/adm` na barra do navegador. Os dois caminhos pedem a senha **2040**. Uma vez
+`#/adm` na barra do navegador. Os dois caminhos levam ao **login** — a conta do
+Firebase do projeto, a mesma que libera o telefone na aba Respostas. Uma vez
 aberta, a porta fica destrancada até a aba fechar.
+
+Onde o Firebase **não é alcançável** — jogo aberto do disco, `localhost`, ou
+feira com a internet fora — não há login possível, e aí a senha **2040** abre o
+painel em **modo local**: a barra mostra `sem login — só este navegador` e
+salvar para os outros totens fica bloqueado. É o que impede o painel de ficar
+inacessível justamente quando o operador precisa arrumar o baralho sem rede.
+Ver *Até onde cada entrada protege*, mais abaixo nesta seção.
 
 O que dá para fazer:
 
@@ -213,19 +221,25 @@ fica com a última cópia que baixou.
 > mexer no conteúdo, não para semear `usuarios` e `contatos` com partidas de
 > teste. E `?semNuvem=1` desliga tudo em qualquer lugar.
 
-> **Salvar não pede login.** A escrita do baralho no Firestore é aberta, por
-> decisão do projeto: o endereço do jogo não será divulgado. O custo está
-> registrado em [`firebase/firestore.rules`](firebase/firestore.rules) e não é
-> pequeno — **quem descobrir a URL reescreve o jogo**. As regras ainda validam o
-> formato, então a coleção não vira depósito de dados quaisquer.
+> **Salvar na nuvem exige login.** A regra de `conteudo` pede
+> `request.auth != null` ([`firebase/firestore.rules`](firebase/firestore.rules)),
+> e quem resolve isso é a porta do painel: ela entra com a conta do Firebase
+> sempre que alcança a nuvem. Sem conta, `publicar()` para antes de tentar e diz
+> o porquê — em vez de deixar o Firestore devolver um "insufficient permissions"
+> que não ensina nada.
 >
-> O que **não** foi afrouxado junto: `contatos`, com nome e telefone dos
-> jogadores, continua `allow read: if request.auth != null` — só quem tem uma
-> conta de verdade do Firebase lê, pela aba **Respostas** do painel (ver
-> abaixo). Essa conta não nasce sozinha: alguém do time cria pelo Console.
+> Entre 11/09/2026 e 21/09/2026 essa escrita foi **aberta**, com a justificativa
+> de que o endereço não seria divulgado. Fica registrado o que aquilo custava,
+> para a troca não voltar sem querer: **quem descobrisse a URL reescrevia o
+> jogo**, e endereço de GitHub Pages é indexável.
 >
-> O que ainda só existe pelo console do Firebase — criar o Firestore e a conta
-> de quem vai ver telefone — está em [`firebase/README.md`](firebase/README.md).
+> `contatos`, com nome e telefone dos jogadores, sempre foi a mais fechada —
+> `allow read: if request.auth != null`, lida só pela aba **Respostas**. A conta
+> não nasce sozinha: alguém do time a cria pelo Console, e é isso que faz
+> `request.auth != null` significar alguma coisa.
+>
+> O que só existe pelo console do Firebase — criar o Firestore e a conta de quem
+> vai operar — está em [`firebase/README.md`](firebase/README.md).
 
 E há um teto: **o Firestore recusa documento acima de 1 MB**. O baralho de
 fábrica inteiro dá 38 KB, então texto não chega perto; quem estoura é foto
@@ -248,17 +262,21 @@ só alguns megabytes, a barra do admin acende `KB — perto do limite` a partir 
 — são problemas com soluções opostas. Para muitas fotos, o caminho barato
 continua sendo copiá-las para `web/assets/images/` e referenciar pelo caminho.
 
-> **Até onde a senha protege.** Até a v1 a administração era um `admin.html`
-> separado, e a proteção era real: bastava não copiar aquele arquivo para o
-> totem. Um endereço único no GitHub Pages custou isso. Agora o código do admin
-> viaja para todo navegador que abre o jogo, a senha `2040` inclusive — quem
-> apertar F12 a lê em dez segundos.
+> **Até onde cada entrada protege.** Até a v1 a administração era um
+> `admin.html` separado, e a proteção era real: bastava não copiar aquele
+> arquivo para o totem. Um endereço único no GitHub Pages custou isso — o código
+> do admin passou a viajar para todo navegador que abre o jogo.
 >
-> É **tranca de gaveta**: impede o curioso e o toque errado do visitante numa
-> feira, e nada além disso. Proteção de verdade mora no servidor, e este jogo
-> não tem servidor — o baralho vive no armazenamento do próprio navegador. Se
-> um dia o conteúdo passar a valer alguma coisa, o lugar de resolver isso é o
-> Firestore, com regra de escrita e login de verdade.
+> O **login** devolve a proteção onde ela pode existir: a conta vive no projeto
+> de vocês, não no JavaScript que o jogador recebe, e é o Firestore que a cobra.
+> Quem não tem conta não grava baralho nem lê telefone, por mais que abra o
+> console do navegador.
+>
+> A senha **2040** continua sendo **tranca de gaveta**: viaja no mesmo
+> JavaScript do jogador, e quem apertar F12 a lê em dez segundos. Ela impede o
+> curioso e o toque errado numa feira, e nada além. Por isso só existe onde o
+> login é impossível, e por isso quem entra por ela entra em modo local — o que
+> se edita ali vale só naquele navegador, e nunca sobe para os outros totens.
 
 ### Respostas
 

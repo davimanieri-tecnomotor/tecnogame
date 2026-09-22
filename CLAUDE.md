@@ -141,20 +141,24 @@ continua local mesmo assim; `?semNuvem=1` desliga tudo.
 O jogo é servido publicamente (GitHub Pages), então **tudo que a página carrega,
 todo visitante carrega** — a chave web do Firebase inclusive.
 
-- a senha **2040** do painel é tranca de gaveta: esconde a tela de quem toca por
-  acidente numa feira, e nada mais. Viaja no mesmo JavaScript do jogador;
-- a escrita do baralho no Firestore é **aberta por decisão do projeto**, com a
-  justificativa de que o endereço não será divulgado. O custo está escrito em
-  `firebase/firestore.rules`: quem descobrir a URL reescreve o jogo;
-- **`contatos` (nome + telefone) continua exigindo login de verdade** —
-  `request.auth != null` no Firestore, não a senha 2040. É o que a aba
-  Respostas do painel usa para mostrar telefone (`web/js/admin/respostas.js`),
-  e é a ÚNICA porta: a conta de quem entra só existe se alguém do time a criar
-  pelo Console do Firebase (ver `firebase/README.md`) — não há cadastro pela
-  tela. Qualquer mudança que dependa só da senha 2040 ou de login anônimo para
-  liberar esta coleção **não protege nada** e não deve entrar de carona numa
-  tarefa que não seja essa decisão, deliberadamente. A política de privacidade
-  que o próprio jogo exibe promete isso.
+- **a porta do painel pede login de verdade** — a conta do Firebase, a mesma
+  que já liberava telefone. É ela que o Firestore cobra para gravar o baralho
+  (`conteudo`, `request.auth != null`) e para ler `contatos`;
+- a senha **2040** sobrou só para onde o login é impossível: `file://`,
+  localhost e feira com a internet fora — o SDK é módulo ES vindo da CDN.
+  Continua sendo tranca de gaveta, porque viaja no mesmo JavaScript do jogador;
+  por isso quem entra por ela entra em **modo local**, com o painel marcado na
+  barra e salvar na nuvem bloqueado. Ver `web/js/admin/porta.js`;
+- o painel decide o que liberar pelo estado **real** da autenticação
+  (`aoMudarOperador`), nunca pela chave de sessão que a porta grava — essa quem
+  escreve é o próprio navegador, e confiar nela seria teatro;
+- **`contatos` (nome + telefone) é a coleção mais fechada**, e sempre foi: a
+  conta de quem entra só existe se alguém do time a criar pelo Console do
+  Firebase (ver `firebase/README.md`) — não há cadastro pela tela, de propósito.
+  Qualquer mudança que dependa da senha 2040 ou de login anônimo para liberar
+  esta coleção **não protege nada** e não deve entrar de carona numa tarefa que
+  não seja essa decisão, deliberadamente. A política de privacidade que o
+  próprio jogo exibe promete isso.
 
 ## Como escrever aqui
 

@@ -51,22 +51,28 @@ service cloud.firestore {
     // ------------------------------------------------------------- conteúdo
     // Baralho de perguntas e veículos salvo pela área administrativa.
     //
-    // ESCRITA ABERTA, POR DECISÃO DO PROJETO (11/09/2026). O desenho anterior
-    // exigia `request.auth != null`, e o operador entrava uma vez por máquina.
-    // Foi trocado por escrita livre com a justificativa de que o endereço não
-    // será divulgado.
+    // ESCRITA AUTENTICADA. A leitura continua pública porque o jogo lê o
+    // baralho no próprio cliente, sem servidor; a escrita exige conta de
+    // verdade do Firebase — a mesma que a porta do painel passou a pedir
+    // (web/js/admin/porta.js) e que `contatos` sempre exigiu.
     //
-    // O que isso custa, para ficar escrito: QUEM DESCOBRIR O ENDEREÇO REESCREVE
-    // O JOGO. Não há segredo possível no cliente — a chave web vai no bundle —,
-    // então a única proteção passa a ser ninguém saber a URL, e URL de GitHub
-    // Pages é indexável. Se um dia o conteúdo valer alguma coisa, o conserto é
-    // voltar a exigir `request.auth != null` aqui e o botão Entrar no painel.
+    // Houve um período (11/09/2026 a 21/09/2026) em que esta escrita foi
+    // ABERTA, com a justificativa de que o endereço do jogo não seria
+    // divulgado. O custo fica escrito para a troca não se repetir sem querer:
+    // QUEM DESCOBRISSE O ENDEREÇO REESCREVIA O JOGO. Não há segredo possível no
+    // cliente — a chave web vai no bundle —, então a única proteção era ninguém
+    // saber a URL, e URL de GitHub Pages é indexável.
     //
-    // O que ainda é defendido: o formato. Sem isto a coleção vira depósito de
-    // dados arbitrários de quem passar.
+    // A conta não nasce sozinha: alguém do time a cria pelo Console (ver
+    // firebase/README.md). É isso que faz `request.auth != null` significar
+    // alguma coisa aqui — se qualquer um pudesse se cadastrar pela tela do
+    // jogo, esta regra não protegeria nada.
+    //
+    // O formato continua defendido: sem `isBaralhoValido`, uma conta perdida
+    // transformaria a coleção em depósito de dados quaisquer.
     match /conteudo/{document} {
       allow read: if true;
-      allow write: if isBaralhoValido(request.resource.data);
+      allow write: if request.auth != null && isBaralhoValido(request.resource.data);
       allow delete: if false;
     }
 

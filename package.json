@@ -1,6 +1,6 @@
 {
   "name": "tecgame-web",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": true,
   "description": "TecGame - porte HTML/CSS/JS do projeto FlutterFlow tec_game",
   "type": "module",

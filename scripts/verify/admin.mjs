@@ -80,10 +80,18 @@ const abrirAdmin = async () => {
 
 /* ------------------------------------------------------------- 0. a porta -- */
 
-// O admin viaja no mesmo JavaScript que o jogador recebe, entao a senha nao
-// protege de ninguem que abra o console -- e esta escrito assim em porta.js. O
-// que este trecho afirma e o que a porta REALMENTE promete: o jogador que so
-// toca na tela nao cai la dentro por acidente.
+// ATENCAO ao que este trecho cobre. Desde a v2.2 a porta pede LOGIN (a conta do
+// Firebase) sempre que alcanca a nuvem; a senha so vale onde o Firebase e
+// impossivel -- e e exatamente onde a suite roda, em localhost e em file://.
+// Entao o que se exercita aqui e o caminho do MODO LOCAL, de proposito: o
+// caminho do login nao passa por aqui porque a suite e hermetica ao Firebase (se
+// nao fosse, cada rodada escreveria no projeto de verdade).
+//
+// O admin viaja no mesmo JavaScript que o jogador recebe, entao a senha local
+// nao protege de ninguem que abra o console -- e esta escrito assim em porta.js.
+// O que este trecho afirma e o que ela REALMENTE promete: o jogador que so toca
+// na tela nao cai la dentro por acidente, e o painel que abre por ela se declara
+// sem login.
 
 await page.goto(urlJogo('/cadastro'), { waitUntil: 'networkidle2' });
 await page.evaluate(() => {
@@ -220,6 +228,12 @@ if (inicial.primeiroNome !== 'FIAT TORO - 10GF') falhas.push(`primeiro veiculo: 
 if (inicial.abas.length !== 3) falhas.push('faltam abas de idioma');
 if (inicial.campos !== 12) falhas.push(`${inicial.campos} campos de texto, esperava 12`);
 if (!inicial.situacao.some((s) => /pronto para salvar/.test(s))) falhas.push('o baralho de fabrica deveria estar valido');
+// A suite roda em localhost e em file://, onde o Firebase nunca e alcancavel:
+// a porta cai na senha local e o painel tem de abrir MARCADO. Sem este selo o
+// operador nao teria como saber que o Salvar dali nao alcanca os outros totens.
+if (!inicial.situacao.some((s) => /sem login/.test(s))) {
+  falhas.push('entrou pela senha local e o painel nao se marcou como sem login');
+}
 
 /* ------------------------------------------- 2. troca de idioma nas abas -- */
 

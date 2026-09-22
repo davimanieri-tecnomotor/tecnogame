@@ -10,10 +10,18 @@
 
 import { readRaw, writeRaw } from './storage.js';
 
-export const VERSAO_DO_JOGO = '2.1.0';
+export const VERSAO_DO_JOGO = '2.2.0';
 
 /** Mais recente primeiro — é a ordem em que o painel lista. */
 export const NOTAS_DE_ATUALIZACAO = [
+  {
+    versao: '2.2.0',
+    data: '2026-09-22',
+    itens: [
+      'Para abrir a administração agora se entra com a conta do Firebase, e não mais com a senha de quatro dígitos. É a mesma conta que já liberava o telefone dos jogadores na aba Respostas.',
+      'Com o jogo aberto do disco, ou sem internet, a senha antiga continua abrindo o painel — mas a barra avisa "sem login" e salvar para os outros totens fica bloqueado. O que você editar ali vale só naquele computador.',
+    ],
+  },
   {
     versao: '2.1.0',
     data: '2026-09-17',

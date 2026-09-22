@@ -31,23 +31,58 @@ import { getRecords } from '../storage.js';
 
 /* ---------------------------------------------------------------- login -- */
 
+/**
+ * `codigo` vai junto do `motivo` porque quem chama precisa separar dois casos
+ * que para o operador parecem o mesmo: senha errada (tenta de novo) e login
+ * não habilitado no projeto (não existe conta que funcione — ver porta.js).
+ */
 export async function entrar(email, senha) {
   const fb = await firebase();
-  if (!fb) return { ok: false, motivo: 'a nuvem está desligada ou o jogo foi aberto do disco.' };
+  if (!fb) return { ok: false, codigo: 'sem-nuvem', motivo: 'a nuvem está desligada ou o jogo foi aberto do disco.' };
   try {
     await fb.fa.signInWithEmailAndPassword(fb.auth, email, senha);
     return { ok: true };
   } catch (erro) {
     const codigo = String(erro?.code ?? '');
     if (codigo.includes('invalid-credential') || codigo.includes('wrong-password') || codigo.includes('user-not-found')) {
-      return { ok: false, motivo: 'e-mail ou senha não conferem.' };
+      return { ok: false, codigo, motivo: 'e-mail ou senha não conferem.' };
     }
     if (codigo.includes('operation-not-allowed')) {
-      return { ok: false, motivo: 'o login por e-mail/senha não está habilitado no projeto do Firebase.' };
+      return { ok: false, codigo, motivo: 'o login por e-mail/senha não está habilitado no projeto do Firebase.' };
     }
-    if (codigo.includes('network')) return { ok: false, motivo: 'sem conexão com o Firebase.' };
-    return { ok: false, motivo: erro?.message ?? String(erro) };
+    if (codigo.includes('network')) return { ok: false, codigo, motivo: 'sem conexão com o Firebase.' };
+    return { ok: false, codigo, motivo: erro?.message ?? String(erro) };
   }
+}
+
+/**
+ * O operador já autenticado, esperando o SDK terminar de restaurar a sessão.
+ *
+ * `auth.currentUser` nasce nulo e só se preenche quando o Firebase termina de
+ * ler o armazenamento, de forma assíncrona. Ler direto daria "deslogado" em
+ * toda aba nova, e a porta pediria senha a quem já entrou.
+ *
+ * @returns {Promise<string|null>} o e-mail, ou null se não há sessão
+ */
+export function operadorRestaurado() {
+  return (async () => {
+    const fb = await firebase();
+    if (!fb) return null;
+    return new Promise((resolve) => {
+      let parar = null;
+      let pronto = false;
+      const terminar = (email) => {
+        if (pronto) return;
+        pronto = true;
+        // Pode disparar antes de `parar` existir (sessão já em memória); nesse
+        // caso quem cancela é a linha depois da inscrição.
+        parar?.();
+        resolve(email);
+      };
+      parar = fb.fa.onAuthStateChanged(fb.auth, (u) => terminar(u?.email ?? null));
+      if (pronto) parar();
+    });
+  })();
 }
 
 export async function sair() {

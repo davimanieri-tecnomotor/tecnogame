@@ -16,10 +16,11 @@ firebase deploy --only firestore:rules,firestore:indexes
 banco de dados). Pode escolher *produção*: as regras deste repositório
 substituem as do assistente no `deploy` acima.
 
-**Login por e-mail/senha, para a aba Respostas do painel ver telefone.** A
-escrita do baralho continua sem exigir login (ver abaixo) — isto é só para
-quem administra enxergar o telefone de quem jogou. Dois passos, os dois pelo
-Console, nenhum pela tela do jogo:
+**Login por e-mail/senha. Sem isto ninguém abre o painel pela rede, nem salva
+baralho.** Desde 21/09/2026 a conta é cobrada em três lugares: a porta da
+administração (`web/js/admin/porta.js`), a escrita do baralho em `conteudo` e a
+leitura de telefone em `contatos`. Dois passos, os dois pelo Console, nenhum
+pela tela do jogo:
 
 1. Authentication → Sign-in method → habilitar "E-mail/senha".
 2. Authentication → Users → Add user, com o e-mail e a senha de quem for
@@ -27,35 +28,39 @@ Console, nenhum pela tela do jogo:
    qualquer um pudesse criar a própria conta, `request.auth != null` não
    protegeria nada — é a regra que `contatos` usa (ver abaixo).
 
-Sem esses dois passos o painel funciona normalmente; só a coluna de telefone
-na aba Respostas fica de fora.
+Sem esses dois passos, quem abrir o jogo pela rede não entra no painel: a porta
+pede login e não existe conta que funcione. Há saída de emergência, e está no
+código — se o Firebase responde que o login por e-mail/senha não está
+habilitado, a porta aceita a senha local e abre o painel em **modo local** (ver
+`pedirLogin` em `web/js/admin/porta.js`). É rede de segurança, não plano: em
+modo local nada sobe para os outros totens.
 
-## A escrita do baralho é aberta, por decisão do projeto
+## A escrita do baralho exige login
 
-`conteudo/baralho` aceita escrita de qualquer um, com a justificativa de que o
-endereço do jogo não será divulgado. Fica registrado o que isso custa:
+`conteudo/baralho` pede `request.auth != null`. Quem resolve isso é a própria
+porta do painel, que entra com a conta do Firebase sempre que alcança a nuvem —
+o operador não faz nada além de entrar uma vez por aba.
 
-- **quem descobrir a URL reescreve o jogo.** Não há segredo possível no cliente
-  — a chave web vai no bundle —, então a única proteção passa a ser ninguém
+Entre 11/09/2026 e 21/09/2026 essa escrita foi **aberta**, com a justificativa
+de que o endereço do jogo não seria divulgado. Fica registrado o que aquilo
+custava, para a troca não voltar sem querer:
+
+- **quem descobrisse a URL reescrevia o jogo.** Não há segredo possível no
+  cliente — a chave web vai no bundle —, então a única proteção era ninguém
   saber o endereço, e endereço de GitHub Pages é indexável;
-- a senha `2040` do painel não muda nada disso: ela é a tranca de gaveta que
-  esconde a tela (`web/js/admin/porta.js`) e viaja no mesmo JavaScript que o
-  jogador recebe.
+- a senha `2040` não mudava nada disso: ela viaja no mesmo JavaScript que o
+  jogador recebe. Hoje só existe onde o Firebase é inalcançável, e quem entra
+  por ela não publica na nuvem (`web/js/admin/porta.js`).
 
-O que as regras ainda defendem: o **formato**. Sem `isBaralhoValido`, a coleção
-viraria depósito de dados arbitrários de quem passasse.
+O que as regras defendem além da conta: o **formato**. Sem `isBaralhoValido`,
+uma conta perdida transformaria a coleção em depósito de dados quaisquer.
 
-E o que **não** foi afrouxado junto: `contatos`, que guarda nome e telefone de
-jogador de verdade. A regra continua `allow read: if request.auth != null` —
-só quem tem uma conta de verdade do Firebase lê, e essa conta só existe se
-alguém do time a criar pelo Console (ver "Antes do primeiro uso", acima). É o
-que a aba Respostas do painel (`web/js/admin/respostas.js`) usa para mostrar
-telefone; sem entrar, a aba mostra os dados da partida sem ele. A política de
-privacidade que o próprio jogo exibe promete que isso não fica público.
-
-O conserto, se um dia o conteúdo do baralho passar a valer alguma coisa: voltar
-`allow write: if request.auth != null` em `conteudo` — o login de e-mail/senha
-já está de volta (ver acima), é só reaproveitar.
+`contatos`, que guarda nome e telefone de jogador de verdade, sempre foi a mais
+fechada: `allow read: if request.auth != null`, e a conta só existe se alguém do
+time a criar pelo Console (ver "Antes do primeiro uso", acima). É o que a aba
+Respostas do painel (`web/js/admin/respostas.js`) usa para mostrar telefone; sem
+entrar, a aba mostra os dados da partida sem ele. A política de privacidade que
+o próprio jogo exibe promete que isso não fica público.
 
 > **O totem precisa abrir por HTTP.** O SDK do Firebase é módulo ES vindo da
 > CDN, e `file://` recusa módulo ES — o mesmo motivo de existir o `bundle.js`.
@@ -111,11 +116,11 @@ telefone (o disparo de WhatsApp) passa a ler de lá autenticado, no servidor.
 3. **Retenção de 1 ano.** A política promete exclusão automática após um ano e
    nada no projeto implementa isso. Uma TTL policy no Firestore sobre o campo
    `data` cobre, sem código.
-4. **Auth para o admin — de volta, mas só para ler `contatos`.** A escrita do
-   baralho continua aberta (ver acima); o que passou a exigir login de
-   e-mail/senha foi ler telefone na aba Respostas do painel. Sem os dois
-   passos do Console em "Antes do primeiro uso", o painel funciona igual — só
-   a coluna de telefone some.
+4. **Fazer o deploy das regras com a escrita fechada.** `conteudo` passou a
+   exigir `request.auth != null` **neste repositório**; em produção a regra só
+   muda depois de `firebase deploy --only firestore:rules`. Até esse deploy, a
+   escrita continua aberta no projeto de vocês mesmo com o código novo no ar —
+   é o único passo desta mudança que não sai daqui.
 
 A `apiKey` do Firebase pode continuar no cliente — chave web é identificador
 público por design, não credencial. A defesa real são estas regras.

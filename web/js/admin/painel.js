@@ -138,7 +138,9 @@ async function publicar() {
     // diferença entre "foi para todo mundo" e "ficou nesta máquina" importa.
     !podeUsarNuvem()
       ? 'Atenção: esta cópia não fala com o Firebase, então o baralho vai valer só neste navegador. Para salvar na nuvem daqui, abra o jogo com ?comNuvem=1 no endereço.'
-      : 'Vai para o Firebase: todo totem com internet pega na próxima partida.',
+      : !estado.operador
+        ? 'Atenção: você entrou sem login, então o baralho vai valer só neste navegador. Entre com a conta do Firebase, na aba Respostas, para publicar para os outros totens.'
+        : 'Vai para o Firebase: todo totem com internet pega na próxima partida.',
     'A próxima partida aqui já usa este conteúdo.',
   ].filter(Boolean);
 
@@ -166,6 +168,17 @@ async function publicar() {
   if (!podeUsarNuvem()) {
     aviso(
       'Esta cópia não fala com o Firebase — abra com ?comNuvem=1 no endereço para salvar na nuvem daqui.',
+      'erro'
+    );
+    return;
+  }
+  // Sem conta autenticada não adianta tentar: a regra de `conteudo` exige
+  // `request.auth != null` (firebase/firestore.rules), e o Firestore devolveria
+  // um "insufficient permissions" que não diz ao operador o que fazer. Melhor
+  // dizer aqui, com o caminho do conserto.
+  if (!estado.operador) {
+    aviso(
+      'Sem login, o baralho ficou só neste navegador. Entre com a conta do Firebase, na aba Respostas, para publicar para os outros totens.',
       'erro'
     );
     return;
@@ -497,6 +510,17 @@ function infoEAcoesDeVeiculos() {
 
   return [
     el('div', { class: 'barra-info' }, [
+      // Primeiro de todos porque muda o que o botão Salvar faz: sem login, ele
+      // grava só aqui. Ver `publicar()` e o cabeçalho de porta.js.
+      !estado.operador
+        ? el('span', {
+            class: 'situacao situacao-atencao',
+            text: 'sem login — só este navegador',
+            title: podeUsarNuvem()
+              ? 'Entre com a conta do Firebase, na aba Respostas, para publicar o baralho para os outros totens.'
+              : 'Este navegador não alcança o Firebase (jogo aberto do disco, localhost, ou sem rede). O que for salvo vale só aqui.',
+          })
+        : null,
       el('span', {
         class: `situacao situacao-${situacao.tipo}`,
         text: situacao.texto,
@@ -901,8 +925,11 @@ export function montarAdmin(raiz, { aoSair = null } = {}) {
   aoMudarOperador((email) => {
     estado.operador = email;
     if (!app) return;
+    // Redesenha SEMPRE: o selo "sem login" vive na barra da aba Veículos, e
+    // antes só a de Respostas reagia — entrar pela porta deixava o selo velho
+    // na tela até trocar de aba.
     if (estado.respostas.carregado) atualizarRespostas();
-    else if (estado.aba === 'respostas') atualizarChrome();
+    else atualizarChrome();
   }).then((cancelar) => {
     pararDeOuvirLogin = cancelar;
   });

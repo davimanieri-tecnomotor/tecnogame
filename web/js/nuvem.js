@@ -24,15 +24,18 @@
 // internet cai no meio da feira — e é o único modo possível quando ele abre do
 // disco (ver firebase.js).
 //
-// SEM LOGIN, POR DECISÃO DO PROJETO (11/09/2026). Antes salvar exigia uma conta
-// do Firebase; agora a regra de `conteudo` aceita escrita de qualquer um, com a
-// justificativa de que o endereço não será divulgado. O que isso custa está
-// escrito em firebase/firestore.rules, e não é pouco: quem descobrir a URL
-// reescreve o jogo. A senha 2040 do painel não muda nada disso — ela viaja no
-// mesmo JavaScript que o jogador recebe.
+// SALVAR EXIGE LOGIN (21/09/2026). A regra de `conteudo` pede
+// `request.auth != null`, e é a porta do painel que resolve isso: ela entra com
+// a conta do Firebase quando alcança a nuvem (ver web/js/admin/porta.js). Quem
+// abriu o painel pela senha local — o que só acontece onde o Firebase é
+// impossível — não chega aqui: `publicar()` no painel para antes e diz por quê.
 //
-// O que continua fechado é `contatos`: nome e telefone de jogador não são
-// conteúdo de jogo, e nenhum cliente os lê.
+// Entre 11/09/2026 e 21/09/2026 esta escrita foi aberta, com a justificativa de
+// que o endereço não seria divulgado; o custo daquilo está registrado em
+// firebase/firestore.rules.
+//
+// `contatos` sempre foi fechada: nome e telefone de jogador não são conteúdo de
+// jogo.
 
 import { firebase, podeUsarNuvem } from './firebase.js';
 import { publicarBaralho, carregarBaralho } from './deck.js';
@@ -132,12 +135,14 @@ export async function publicarNaNuvem(deck) {
     return { ok: true, kb: cabe.kb };
   } catch (erro) {
     // A mensagem crua do Firestore ("Missing or insufficient permissions") não
-    // diz ao operador o que fazer.
+    // diz ao operador o que fazer. Desde que a escrita passou a exigir conta, a
+    // causa comum é sessão sem login — vem primeiro; o deploy das regras é a
+    // segunda hipótese, e só acontece uma vez por projeto.
     const permissao = String(erro?.code ?? '').includes('permission');
     return {
       ok: false,
       motivo: permissao
-        ? 'as regras do Firestore recusaram a escrita — confira se o deploy das regras foi feito.'
+        ? 'o Firestore recusou a escrita: entre com a conta do Firebase (aba Respostas) — e, se já estiver conectado, confira se o deploy das regras foi feito.'
         : `o Firestore recusou: ${erro?.message ?? erro}`,
     };
   }
