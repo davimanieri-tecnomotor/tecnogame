@@ -439,9 +439,10 @@ O resto do que mudou em relação a simplesmente sobrar preto em volta:
 - em **retrato com toque** (celular na vertical) aparece um aviso para virar o
   aparelho, porque um jogo de 16:9 em 9:16 fica com 20% da altura útil;
 - `prefers-reduced-motion` desliga os laços infinitos (o fundo que pulsa, a seta
-  do aviso de virar o aparelho) e a rotação de 5s da roleta — o resultado do
-  sorteio é o mesmo, a roda só não gira. As animações curtas de um disparo
-  ficam, porque comunicam estado: o botão afundando ao toque, a tela entrando;
+  do aviso de virar o aparelho) e o giro de 7s da roleta — o resultado do
+  sorteio é o mesmo, a roda só não gira, e por isso também não estala. As
+  animações curtas de um disparo ficam, porque comunicam estado: o botão
+  afundando ao toque, a tela entrando;
 - as cinco famílias de fonte são **auto-hospedadas** em
   `web/assets/fonts/`, com o `css/fonts.css` gerado por `npm run fonts`, então
   o totem não depende de internet para o texto sair certo.
@@ -538,10 +539,11 @@ São dois níveis, e o de cima existe para não se pagar o de baixo a cada
 mudança. `npm test` roda os testes de **unidade** (`scripts/unidade/`) com o
 `node --test`: lógica que não precisa de tela — a matriz do `validarBaralho`, o
 corte de um ano da retenção, a junção de `usuarios` com `contatos`, o escape do
-CSV, as funções que vieram do Dart. Sem navegador, sem servidor, sem `bundle`.
+CSV, quantos estalos a roleta dá e quando, as funções que vieram do Dart. Sem
+navegador, sem servidor, sem `bundle`.
 
 `npm run verify` roda a checagem estática, **os testes de unidade**, regera o
-bundle e passa os dez testes de navegador nos **dois transportes** — 20
+bundle e passa os onze testes de navegador nos **dois transportes** — 22
 execuções. Sobe o `http-server` se a porta 8099 estiver livre e reaproveita o
 que já estiver de pé.
 
@@ -552,7 +554,7 @@ afirmado num nível **não se repete no outro**: a conversão de baralho v1 para
 v2, por exemplo, mora no `verify:baralho`, com o jogo rodando, e não tem cópia
 em `scripts/unidade/`.
 
-As 20 execuções correm **em paralelo** (4 de cada vez por padrão). Cada teste
+As 22 execuções correm **em paralelo** (4 de cada vez por padrão). Cada teste
 sobe o próprio Chrome e só lê do servidor, então não disputam nada entre si; o
 que os prendia era o laço sequencial do `all.mjs`. A saída de cada um sai
 inteira quando ele termina, e no fim vem o tempo de cada execução — é assim que
@@ -577,7 +579,7 @@ em outro terminal, ou de `BASE=` apontando para o `file://`):
 | Comando | O que afirma |
 | --- | --- |
 | `npm run check` | todo import resolve, é usado, e o bundle está atualizado |
-| `npm test` | lógica pura, sem navegador: validação do baralho, retenção, junção de respostas, CSV, funções do Dart |
+| `npm test` | lógica pura, sem navegador: validação do baralho, retenção, junção de respostas, CSV, estalos da roleta, funções do Dart |
 | `npm run verify:routes` | as 11 rotas: erro de console, imagem faltando, algo fora do palco |
 | `npm run verify:corte` | nada **recortado** dentro do palco (texto que não cabe no próprio container) |
 | `npm run verify:play` | uma partida completa, ponta a ponta |
@@ -585,6 +587,7 @@ em outro terminal, ou de `BASE=` apontando para o `file://`):
 | `npm run verify:idioma` | trocar de idioma não apaga o formulário |
 | `npm run verify:teclado` | os alvos são alcançáveis e acionáveis por teclado |
 | `npm run verify:baralho` | o embutido reproduz `questions.js`; baralho de outro tamanho joga |
+| `npm run verify:estalo` | a roleta estala uma vez por divisa, no instante e no ritmo em que a tela mostra a roda |
 | `npm run verify:admin` | ver, editar, adicionar, validar, publicar, enviar imagem, remover e restaurar |
 | `npm run verify:respostas` | aba Respostas: dados locais com telefone, baixa CSV de verdade, sem nuvem não mostra Entrar |
 | `npm run verify:sizes` | escala do palco em 1366x768, 1280x1024, 3840x2160 e retrato |

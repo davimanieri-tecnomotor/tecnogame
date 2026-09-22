@@ -17,9 +17,9 @@
 //   - o eixo não é perfeito, então o disco bambeia um par de pixels;
 //   - a luz fica PARADA enquanto o disco passa por baixo. É o que mais separa
 //     um objeto de uma imagem girando: brilho que gira junto vira adesivo;
-//   - e ela ESTALA: a gravação que toca junto é esticada, com `playbackRate`,
-//     para durar o giro inteiro (ver TAXA_DA_GRAVACAO) em vez de acabar em
-//     4,87s de um giro de 7,11s e deixar a roda girando muda no fim.
+//   - e ela ESTALA: um estalo por divisa que cruza a seta, no instante em que
+//     cruza (ver `estalosDoGiro`). O ritmo é o da roda por construção —
+//     acelera e freia com ela, e acaba quando a última divisa passa.
 //
 // O sorteio não muda em nada. As voltas que este módulo acrescenta são
 // INTEIRAS, então a fatia que sobra debaixo da seta continua sendo a mesma que
@@ -87,15 +87,6 @@ const PASSOS_RECUO = 26;
 /** Quanto tempo o giro inteiro leva, do toque à roda parada. */
 export const DURACAO_DO_GIRO = T_ARRANQUE + T_FREIO + T_RECUO;
 
-/**
- * A gravação `roleta-normal-1` tem 4,87s de áudio (medido decodificando o
- * arquivo — 233760 amostras a 48kHz). Tocada normal ela acaba bem antes da
- * roda parar; esta taxa a estica em `playbackRate` para os dois terminarem
- * juntos, sem tocar no arquivo nem na física do giro.
- */
-const DURACAO_DA_GRAVACAO = 4.87;
-export const TAXA_DA_GRAVACAO = DURACAO_DA_GRAVACAO / (DURACAO_DO_GIRO / 1000);
-
 const entre = (v, min, max) => Math.max(min, Math.min(max, v));
 /** Módulo que devolve sempre positivo — `%` do JS guarda o sinal. */
 const sobra = (v, m) => ((v % m) + m) % m;
@@ -123,12 +114,14 @@ function anguloCru(t) {
 }
 
 /**
- * A lista de efeitos do giro, para o `effectsBuilder` da tela.
+ * A trajetória do giro: a curva amostrada em trechos lineares, cada um com o
+ * instante (ms) e o ângulo (voltas) das duas pontas.
  *
- * @param {number} voltas quantas voltas o sorteio pediu (`FFAppState.escolha`)
- * @param {number} fatias quantas rodadas o baralho tem
+ * É a fonte única do movimento. O motor de animação desenha estes trechos
+ * (`efeitosDoGiro`) e os estalos saem deles (`estalosDoGiro`): som calculado
+ * por uma conta paralela seria outra roda, girando noutro compasso.
  */
-export function efeitosDoGiro(voltas, fatias) {
+function trajetoria(voltas, fatias) {
   const alvo = (voltas ?? 1) + VOLTAS_EXTRAS;
   const recuo = recuoDaSeta(fatias);
   const fimDoFreio = T_ARRANQUE + T_FREIO;
@@ -136,16 +129,16 @@ export function efeitosDoGiro(voltas, fatias) {
   // dele. `anguloCru` está em unidades cruas, então a escala traz para voltas.
   const escala = (alvo + recuo) / anguloCru(fimDoFreio);
 
-  const efeitos = [];
+  const trechos = [];
   let anterior = 0;
-  const trecho = (t0, t1, de, ate) => {
-    efeitos.push(RotateEffect({ curve: Curves.linear, delay: t0, duration: t1 - t0, begin: de, end: ate }));
+  const trecho = (t0, t1, ate) => {
+    trechos.push({ t0, t1, de: anterior, ate });
     anterior = ate;
   };
 
   for (let i = 1; i <= PASSOS_GIRO; i++) {
     const t = (i / PASSOS_GIRO) * fimDoFreio;
-    trecho(((i - 1) / PASSOS_GIRO) * fimDoFreio, t, anterior, anguloCru(t) * escala);
+    trecho(((i - 1) / PASSOS_GIRO) * fimDoFreio, t, anguloCru(t) * escala);
   }
 
   // O recuo: uma oscilação amortecida que sai do ponto passado, cruza o alvo,
@@ -156,11 +149,87 @@ export function efeitosDoGiro(voltas, fatias) {
     const u = i / PASSOS_RECUO;
     const t = fimDoFreio + u * T_RECUO;
     const a = alvo + recuo * (1 - u) * Math.exp(-2.5 * u) * Math.cos(2 * Math.PI * u);
-    trecho(fimDoFreio + ((i - 1) / PASSOS_RECUO) * T_RECUO, t, anterior, a);
+    trecho(fimDoFreio + ((i - 1) / PASSOS_RECUO) * T_RECUO, t, a);
   }
 
-  return efeitos;
+  return trechos;
 }
+
+/**
+ * A lista de efeitos do giro, para o `effectsBuilder` da tela.
+ *
+ * @param {number} voltas quantas voltas o sorteio pediu (`FFAppState.escolha`)
+ * @param {number} fatias quantas rodadas o baralho tem
+ */
+export function efeitosDoGiro(voltas, fatias) {
+  return trajetoria(voltas, fatias).map(({ t0, t1, de, ate }) =>
+    RotateEffect({ curve: Curves.linear, delay: t0, duration: t1 - t0, begin: de, end: ate })
+  );
+}
+
+/* ---------------------------------------------------------- o estalo ----- */
+
+/**
+ * O ESTALO DE CADA DIVISA.
+ *
+ * As duas tentativas anteriores erravam o compasso pelo mesmo motivo: o som não
+ * sabia onde a roda estava.
+ *
+ * Uma disparava um estalo sintetizado no quadro em que a divisa aparecia
+ * passada. Quadro chega a cada 16ms, e a 20 estalos/s isso é um terço do
+ * intervalo entre eles: o ritmo saía manco. A outra, que ficou até a 2.5.0,
+ * tocava a gravação `roleta-normal-1` esticada com `playbackRate` para durar o
+ * giro. Só que a gravação tem ritmo próprio — 82 estalos, de 33 por segundo
+ * caindo a 7, cortada com a roda dela ainda girando —, e esta roda passa de 40
+ * a 49 divisas numa curva que nada tem a ver com aquela. Esticar trocava um
+ * ritmo errado por outro, e a faixa seguia estalando dois segundos depois de a
+ * última divisa passar.
+ *
+ * Agora o instante sai da MESMA trajetória que o motor de animação desenha, e é
+ * marcado com antecedência no relógio do áudio, que toca no milissegundo. O som
+ * é um estalo recortado daquela gravação (estalo.js): o mesmo pino, batendo
+ * onde a roda está.
+ */
+
+/**
+ * Os instantes, em ms desde o começo da animação, em que uma divisa cruza a
+ * seta — um por pino que passa pela lingueta.
+ *
+ * A divisa fica a meia fatia do ângulo de repouso, porque a roda para com a
+ * seta no MEIO da fatia (é a mesma meia fatia do `u` da lingueta). Cada trecho
+ * da trajetória é linear, então o instante de cada divisa dentro dele sai de
+ * uma regra de três exata. Conta só a primeira passagem: no recuo a roda volta
+ * um pouco, e um vaivém em cima de uma divisa não é mais um pino.
+ *
+ * @param {number} voltas quantas voltas o sorteio pediu (`FFAppState.escolha`)
+ * @param {number} fatias quantas rodadas o baralho tem
+ * @returns {number[]} em ordem crescente
+ */
+export function estalosDoGiro(voltas, fatias) {
+  const n = Math.max(fatias || 1, 1);
+  const instantes = [];
+  let passadas = 0;
+  for (const { t0, t1, de, ate } of trajetoria(voltas, fatias)) {
+    if (ate <= de) continue;
+    for (let j = passadas + 1; (j - 0.5) / n <= ate; j++) {
+      instantes.push(t0 + (((j - 0.5) / n - de) / (ate - de)) * (t1 - t0));
+      passadas = j;
+    }
+  }
+  return instantes;
+}
+
+/**
+ * Com quanto de antecedência (ms) cada estalo é marcado no relógio do áudio.
+ *
+ * Cedo, porque estalo marcado toca no milissegundo certo mesmo que a thread
+ * principal soluce: o disco gira no compositor e não para quando ela trava, e
+ * o estalo agendado também não. Mas não cedo demais, porque cada estalo leva a
+ * ponte entre os relógios medida até ali (ver `criarEstalos`), e ela fica mais
+ * justa a cada quadro. Com 150ms o primeiro estalo, a uns 230ms do começo, é
+ * marcado com meia dúzia de quadros de medida.
+ */
+const ANTECEDENCIA_DO_ESTALO = 150;
 
 /* -------------------------------------------------------- a lingueta ----- */
 
@@ -216,8 +285,10 @@ function anguloNaTela(no) {
  * @param {HTMLElement} pecas.seta  a lingueta
  * @param {HTMLElement} pecas.faisca a luz que responde ao giro
  * @param {number}      pecas.fatias quantas rodadas o baralho tem
+ * @param {object}      [pecas.estalos] quem toca o estalo de cada divisa
+ *   (`criarEstalos`, em audio.js); sem ele a roda gira muda
  */
-export function criarVida({ disco, eixo, pista, arte, seta, faisca, fatias }) {
+export function criarVida({ disco, eixo, pista, arte, seta, faisca, fatias, estalos }) {
   const passoDaFatia = 360 / Math.max(fatias || 1, 1);
   const ecos = [];
 
@@ -234,6 +305,12 @@ export function criarVida({ disco, eixo, pista, arte, seta, faisca, fatias }) {
   /** Estado da mola da seta: desvio em graus e a velocidade dele. */
   let setaAngulo = 0;
   let setaVelocidade = 0;
+
+  /** Os instantes dos estalos deste giro, e quantos já foram marcados. */
+  let agenda = [];
+  let marcados = 0;
+  /** A animação do giro: é o relógio dela que a tela mostra. */
+  let animacao = null;
 
   function criarEcos() {
     if (ecos.length || !arte) return;
@@ -310,6 +387,21 @@ export function criarVida({ disco, eixo, pista, arte, seta, faisca, fatias }) {
     moverSeta(dt, limite);
     seta.style.transform = `rotate(${setaAngulo.toFixed(2)}deg)`;
 
+    // --- o estalo --------------------------------------------------------
+    // Não dispara no quadro que mostra a divisa passada: é marcado antes, no
+    // relógio do áudio (ver ANTECEDENCIA_DO_ESTALO). E o tempo da trajetória
+    // conta da partida da ANIMAÇÃO, que começa um quadro ou dois depois do
+    // toque — contar do toque adiantaria todos os estalos nessa medida.
+    if (estalos && marcados < agenda.length) {
+      estalos.acertar();
+      const partida = animacao ? animacao.startTime : inicio;
+      const ate = agora + ANTECEDENCIA_DO_ESTALO;
+      while (partida != null && marcados < agenda.length && partida + agenda[marcados] <= ate) {
+        estalos.estalar(partida + agenda[marcados]);
+        marcados += 1;
+      }
+    }
+
     // --- o borrão --------------------------------------------------------
     const corrida = entre((Math.abs(velocidade) - BORRAO_DE) / (BORRAO_ATE - BORRAO_DE), 0, 1);
     if (ecos.length) {
@@ -383,8 +475,13 @@ export function criarVida({ disco, eixo, pista, arte, seta, faisca, fatias }) {
   }
 
   return {
-    /** Começa a acompanhar o giro. Chamar junto do `forward()` da animação. */
-    girar() {
+    /**
+     * Começa a acompanhar o giro. Chamar logo depois do `forward()` da
+     * animação: é a animação que ele cria que os estalos seguem.
+     *
+     * @param {number} voltas as mesmas que o `efeitosDoGiro` dessa animação recebeu
+     */
+    girar(voltas) {
       if (menosMovimento()) return;
       criarEcos();
       pousou = false;
@@ -393,6 +490,12 @@ export function criarVida({ disco, eixo, pista, arte, seta, faisca, fatias }) {
       lido = anguloNaTela(disco);
       inicio = performance.now();
       ultimo = inicio;
+      // A que o `forward()` acabou de criar é a mais nova do disco.
+      const animacoes = disco.getAnimations?.() ?? [];
+      animacao = animacoes[animacoes.length - 1] ?? null;
+      agenda = estalosDoGiro(voltas, fatias);
+      marcados = 0;
+      estalos?.preparar();
       faisca?.classList.remove('roleta-faisca--parou');
       cancelAnimationFrame(quadro);
       quadro = requestAnimationFrame(passo);
@@ -401,6 +504,9 @@ export function criarVida({ disco, eixo, pista, arte, seta, faisca, fatias }) {
     parar() {
       cancelAnimationFrame(quadro);
       quadro = 0;
+      // O que já estava marcado no relógio do áudio tocaria com a tela fora.
+      estalos?.calar();
+      agenda = [];
       tirarEcos();
       desmontar();
     },

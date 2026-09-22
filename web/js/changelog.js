@@ -10,10 +10,17 @@
 
 import { readRaw, writeRaw } from './storage.js';
 
-export const VERSAO_DO_JOGO = '2.5.0';
+export const VERSAO_DO_JOGO = '2.5.1';
 
 /** Mais recente primeiro — é a ordem em que o painel lista. */
 export const NOTAS_DE_ATUALIZACAO = [
+  {
+    versao: '2.5.1',
+    data: '2026-09-22',
+    itens: [
+      'O som da roleta agora bate com a roda: um estalo a cada fatia que passa pela seta, na hora em que ela passa, acelerando e freando junto com o giro. Antes tocava uma gravação com ritmo próprio, que não acompanhava a roda e seguia estalando depois de a última fatia passar.',
+    ],
+  },
   {
     versao: '2.5.0',
     data: '2026-09-22',

@@ -14,7 +14,7 @@ npm start          # http://localhost:8099
 npm run bundle     # DEPOIS de qualquer mudança em web/js/ — ver abaixo
 npm run check      # imports resolvem, nada morto, bundle em dia (0,1s)
 npm test           # lógica pura, sem navegador (0,3s) — a volta mais curta
-npm run verify     # a suíte inteira, 20 execuções, ~3min30
+npm run verify     # a suíte inteira, 22 execuções, ~3min50
 npm run verify:rapido   # só HTTP, ~110s — a volta do dia a dia
 ```
 
@@ -132,9 +132,17 @@ suíte joga quatro partidas por rodada e encheu o ranking de produção com dado
 teste. Para trabalhar na nuvem daqui, abra com **`?comNuvem=1`**. O ranking
 continua local mesmo assim; `?semNuvem=1` desliga tudo.
 
+**Som que acompanha movimento sai da trajetória, no relógio do áudio.** A roleta
+já errou o compasso dos dois jeitos: tocando uma gravação de ritmo próprio (que
+nenhum `playbackRate` faz bater com a roda) e disparando o estalo no quadro que
+mostra a divisa passada (arredonda para a grade de 16ms, e o ritmo manca). O que
+funciona é o de `estalosDoGiro`: o instante vem dos mesmos trechos que a animação
+desenha e é marcado com antecedência no `AudioContext`. E por `file://` a Web
+Audio não busca arquivo — som gravado entra embutido em texto, como `estalo.js`.
+
 ## Antes de dizer que está pronto
 
-- `npm run verify` — **20 de 20**, nos dois transportes.
+- `npm run verify` — **22 de 22**, nos dois transportes.
 - **Olhe a tela.** Um probe que devolve números pode passar com a tela quebrada:
   o bug da resposta que sumia passou por um probe verde porque eu li o JSON e
   não abri a captura. Ponha um `page.screenshot` e leia a imagem.

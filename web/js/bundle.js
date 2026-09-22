@@ -3583,6 +3583,146 @@
   Object.defineProperty(__exports, "T", { get: () => T, enumerable: true });
   });
 
+  /* ===== estalo.js ===== */
+  __define("estalo.js", function (__exports, __require) {
+  // O estalo da roleta: a lingueta batendo num pino, gravado.
+  //
+  // É um recorte da gravação `assets/audios/roleta-normal-1_2GXmNRPk.mp3`, que
+  // tocava inteira a cada giro: o estalo que vai de 4,7015s a 4,7900s dela
+  // (88,5ms), escolhido entre os últimos porque lá a gravação já anda devagar e
+  // ele soa inteiro, sem o seguinte por cima. Decodificado pelo `decodeAudioData`
+  // do Chrome a 48kHz — a faixa é mono, gravada em dois canais iguais —, com
+  // rampa de 1ms na entrada e 15ms na saída para o próprio corte não estalar. A
+  // amplitude é a da gravação (pico 0,512), então o volume que a tocava continua
+  // valendo para ele.
+  //
+  // Mora aqui, em texto, e não num arquivo de áudio, porque o totem abre o jogo
+  // do disco: por `file://` a Web Audio não consegue buscar arquivo nenhum, e é
+  // ela que marca cada estalo no instante exato da divisa (ver `criarEstalos`, em
+  // audio.js). PCM de 16 bits com sinal, little-endian, em base64.
+  
+  const ESTALO = {
+    taxa: 48000,
+    pcm: [
+      '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',
+      'Vv7g/s/9ivzE/Fz+S/+K/lD9s/zT/GX9lv2k/T7+KP4+/ksBiwNsAmQJCB5xLi0ukSm5KWcotSRhI8giXCGMIL0fJR+BGxwMPvZ4',
+      '7PvvCPL67yPwNvIY9CP1OfTJ86T18PXS87byM/JZ8ajxRvLc8gr1nvar9QP1IPVB9L/zovOu8kHzjPUG9or1cvbR9rn13PTT9B72',
+      'Kfi9+Nv4Yvo2+8f6k/ut/Nf76fl3+Mr4gPp4+sH4hvic+J73PfiN+bT4WPir+ZP5Cvkt+jX7TPyV/qX/Hf87/6P/RgC9AdUBgAC9',
+      'ALIBVgHrANoAcAApAJ3/LP94AN4BbgGhAMn/w/6a/04BTgH7AIQBHwKWAtYCVQhTGZgpGil2ImokKiaOIT4fPh87HaMcrRzkGiQY',
+      'mgyJ94zt1fNt9ljyxfME93r2Pfcx+CL2mfWq9tf1ffXj9ev0YfUM99f1MfR99U73Tfin+Ir3OPcf+af5Mvjw9z/4xfdh+AP6V/pU',
+      '+Vv4S/id+Vj7wvte+y38xf3s/eL8Sfxz+yP63Pmr+dj4OvrC/Pn7NfpR+1H87fuJ/F389fo//L3+5v4Z/+D/Af9Z/7gBcgHJ//UA',
+      'EwIbAUsBNwLGAeMB3AKzAicCkwEVALP/QAGMAfv/I/+d/+cAgAIBA2UClQHUAPgBpQRqBHUF0BEpIhsmeCHTIEghEB5CHPgckRx5',
+      'GwUaaxg1F6wPF//L80/2bvpO+Gr2T/fJ95b3I/dS9zr5Ivr7+DX5Lfo9+bj4T/mW+Cb4OflA+b34LPml+N/3U/nF+lf6Gvp6+oj6',
+      'HPs2/Pz8t/03/gn+zP3T/fH99P1M/Zn83/zi/P37xPv++4z7h/tC/Jv8wvyX/LX73vtY/df9q/1f/hL/cf/6/5//6P7F/0MB6gFe',
+      'AlICOAFvAKoAbgGaAi0DhwIqAlYCpgGxAFUA/P9TAOUBuQIlAgsCdQLsARABPQHyAckCoQT+BYYETAWyDz0dFyGrHeUchh3xG0Ub',
+      'SBsUGQMXehYgFhMWaxGYA233ofdO+zn5K/fl+D/6qfpp+xP76PlJ+Rr5dfn2+f75efrq+vH5aflH+mL6afqg+237//my+uT7SvvQ',
+      '+/H9Hf4m/Rb+eP8G/6n94Pwz/UT+vf5z/tD+d/+9/qD9//2U/sL95/zh/Jf8i/zB/ZX+/v2H/Yv9Yv30/Sn/Lv9o/sH+DwAuAcIB',
+      'qwGCAfUB9gEDAdkAjwE5AbAApgEjAtwAfQDhAXoCtAFBAecBHwOKA74CWQKsAnwCkAJdA1ID8wJwA+8DwgSLBWsFeQqAF4ofkBsH',
+      'GIoaiBqAF24W1RVnFY0VgROXEQwQfwYq+fz2CPye+1L5QvoI+hz5TPqP+ub58vqH++76jvtK/KT77/qJ+ob6O/s6+1P6Wfoo+4b7',
+      'T/u0+sv6F/yy/AX82ftl/AP9x/0U/gj+mf74/rL+w/56/mz9Nf2F/Sj9F/1d/Q396fzI/Pf7Bvz//MD8E/yN/EL9Bf4o/7b/BQCd',
+      'AGEAFgBPAVYC1QFVAWkBUgH6AG4AOgCnAHQAvf9dANIBRAKmAZkAHADkAFkBtgAJAT8CMQJsAUABYwGtAY4BBQHpAU8DsANKCFIT',
+      'jBoZGJ0UdRXJFRAULROgEjARoA+mDr4OVA2HBf/62vda+1v8rPpI+2z80PvZ+3z81vur+/b8V/2P/Fj8Tfyj+/D6hPp8+iX7DPyV',
+      '/Kv8Uvzx+//7Mvxn/Lz8uvyE/Nj8GP23/J38qfw7/JH85P03/sP9Ov6n/tn94PxT/On79vs7/Gj8Lf0W/vP9p/3q/VT9Bvz9+/r8',
+      'bv24/aT+iv/Q/9j/8f/Q/z7/mP6C/h7/g//L/v79m/5O/07+Rv3V/W/+V/6X/tz+q/6l/uz+xf8uAXQBygBHAboB3wABAQoCxQE5',
+      'AX8B9gP9C+0URRUXEZkR/hIJET4QlhBTD/kOAg9cDUkMVgiq/a72DfoE/aH6MvrC+yL7v/rB++H7wvsi/CH8Afyp+zX7wfv5+7P6',
+      'Ovra+nP64flY+s36FPtD+xT7tPvV/Gr8ZPt2+6X7pfv1+9L7wPut/En9RP3l/Xv+D/5g/eb80Pzx/C/8Dvv4+vH6dfrz+qP7/PpO',
+      '+pX6APuY+4X8av19/jf/8/7z/sT/HQALADMAwP+b/sT9LP2C/FD8sfz2/Nz8/fx1/Uz9vPwN/W79Cv3W/dz/UACk//r/kADkAGAB',
+      'AQGOAEoBHAGvAXoI9BDFEUAOMg5WDzQOLw0DDXsMGgyTC/oK2QpNB6T+ufj7+aP7Mfrt+S77FPuu+gH73/rv+s37Dvy6++D7BfzG',
+      '+2774/qO+uD6MvtH+0r73fqC+uT6BPu4+kb79vt4++L67fq/+pL6G/vT+zr8YvyE/AL9jf1l/fH8z/y6/LL81fyT/O/7hftg+4X7',
+      '/Ps9/Df8JfzB+6X7vPz+/Xz+Jv/q/7D/HP/v/qD+Zv6R/i7+Lv1//P/7ofvR+6r7uPpq+hD7ZPt0+937IfwX/Fr8Jf1W/mr/qf9H',
+      '/yT/c//R/xQAgQATAQ8BoAEXBgwN4w+jDQcMfQwFDM4KWQogCs0JKglDCDcI3AaUALP5C/mF+z77JfoI+/D70Pvd+1L8xfzJ/Eb8',
+      'IfyZ/MP8lfx2/Fb8bfyZ/Fj8Kfxe/Hn8m/yS/AD8KPwy/TX9tfxC/YD96fwG/Sj9gPyQ/Dv9Nf0z/Y39sP0H/jP+ev0X/VP95/yC',
+      '/Pn8LP0I/VD9ff1P/QX9ZPz9+1/87/yp/X7+Zv79/YH+3P51/nr+sP5B/qf9AP1A/B78VPwX/Lv7p/vb+zP8KvwT/I780/zr/B/+',
+      'Y/9e/3j/IQBKAHAAiQAYAIEAWAFxAV0EzQq0DYALmwq6C0ILagqYCmgKJQoBClEJQglsCDUDI/1P/Bv+zP0F/Tr91fxl/PH8Lv0L',
+      '/Yz9zv1p/aT9SP4p/rr9q/3B/fj9Qv4x/vP9w/08/Zz8ivy6/LT8nPxt/D/8jvwb/T39Nf1v/b79G/6Y/t3+x/63/vP+Tv9a//j+',
+      'jP5E/tv9X/0e/Rr9PP1i/VH9If0K/f78Cf1q/Q3+p/4V/1//l/+q/5H/pP/Y/4z/3f51/jv+3v2A/RL9oPya/OT8HP1h/bD9/P2j',
+      '/m//yP8YAMEAJwEYAR0BZgGzAbABewGZAasBcQEYA6YHUws6CxcKdQrjCmcK/AnPCXoJEQmdCGII0ge/BI//sfyN/Vn+e/0n/bD9',
+      'vv3Y/aH+QP9Y/zn/AP8T/3f/c/8X/wr/G/8I/wv/2P5A/uf98P3Z/cX9Af4f/uT9yf3p/e79/P1Q/nz+R/5E/pL+sv6T/l/+R/7P',
+      '/qX/ov8b/xH/+P5p/k/+uf4C/1b/pP9+/0D/JP/b/qr+6P5o/wcAagBUAFoAlwB0AEEAZAAwAH7/+P6t/m/+PP7d/YP9pP38/Sb+',
+      'Qf5t/rP+Iv+4/30AEgERAQQBUgGCAawB9QHeAdMBHQLtAcgClAbiCVUJBAigCCMJtAhRCNMHlgfXB1oHwAbRBqgE3P9N/Sr+iv68',
+      '/b39MP5s/vn+Z/9S/4r/4/+V/2D/9/9VAOb/kv+6/93/9P8gAP3/fv8c//3+9f7d/qj+n/7o/vj+oP59/o/+Rf77/VD+2/4Z/0f/',
+      'jf+p/7f/JwDSAAsBlwD5/8P/7P/d/2v/I/8Z/7r+TP5q/n3+K/5U/hH/h//G/zcAtQAoAWgBOwEUARUBnADN/03/6/5n/vb9kf1L',
+      '/Vj9ef2l/Qf+UP5+/gr/xf9SAKgAogCoAEQBtQF4AV0BdwFwAakBrAGcAaoDLAdMCG0H0we4CFQI0werBysH+AYQB8gGqQa+BWIC',
+      'OP8m/8T/6f5x/vP+G/85/5z/nf/I/10AQwDD//b/QAAPAAEADQD1/xYALQDZ/5n/cP/0/rb+Hf9f/xb/uf6E/l/+SP5O/oX+5/5P',
+      '/6X/6P8zAH0AjQCdAAABNQHiAIoAMwCd/1z/bv8W/7v+wf5k/tD94f0X/hb+jP5O/8n/RgDRACEBUAFOAfoAjgAHAG//G/++/jD+',
+      'Bf4Q/r39if2//ez9Of7B/iL/lv84AIEApAAKAT8BLwFUAZMBkwFXASsBUQFRAU0B/AL7BR8HTwZEBtwGtwaBBoAGSAY9BvcFMAUc',
+      'BaAEoQGq/rL+cv/b/n7+7f5M/9X/ewC+AAQBQwHtAJYA0wAYARcB7QB+APX/sv+q/5v/Wv/1/rT+nf6a/tX+D//H/lX+TP5v/oD+',
+      'pf7G/tr+Dv80/x3/Gv9Q/5H/8v96ANMAuwBIAMv/pP+4/6//uf8CAAgAqP93/3v/U/9N/6P/+/9JAJ4AtQDCAA8BFgGgAEMAEACq',
+      '/yn/nv4g/v398f2l/Y/9x/21/YT9qv3p/Rr+df7v/lz/ov/W/0MAqQCmALYAFQE5AUQBawF9AZQCIwWgBtwFNwWPBYsFVAVmBSgF',
+      'xgRzBLYDNAP0Aj4Byv40/sr+gv44/tP+Sf9g/77/KwBeAHYAbwBxAKUAxwDHAMYAfgAKAPH/HAA0AGcAqgCVAF0AewC7AKAAMgDS',
+      '/6P/fv9G//7+wv61/sn+z/7j/ir/WP9o/93/iwC7AIEASAD9/7v/sf+V/2P/XP8u/63+WP42/gn+Lv7A/kT/rv8yAKMA6wAPAfIA',
+      'rABnAP7/Yf+l/u/9h/1a/fL8dPxa/G78WvxN/Hr85/yA/fH9O/7F/mz/yP/w/xQAHAADAO//DwA+AF4AKwH6AkYEKgQBBHYErASx',
+      'BPQECwXyBN8EewQTBMUDagJcAJj/2P+Y/0j/h/+r/6v/4P/4/wQASABuAHIAqADSANYA7wDrAKQAZgBEACAA+P+7/3v/cf+L/5f/',
+      'ef8W/6T+ef5z/mz+k/7F/rb+l/6o/tz+Jf9t/6L/4P8eACcA//+5/1P/7f65/sL+6f7w/sv+pP5u/gz+xP3D/d79E/57/vr+Yv+c',
+      '/57/ff9S/yD//P7j/qD+MP7U/Z79Wv0D/dH8zfzM/Nf8D/1d/bz9P/63/v7+Pv+I/8f/9f/4/+n/DwA1ACAAFwAhAFkAZAHFAiYD',
+      '8gJCA6ADsQPnA/YDngNXA/UCYwIhAmwBqP+W/gP/Q//8/kj/wf/H//H/RwBgAIcA0ADrAAwBRwE1AeQAowBoAC8ACADO/4r/av9I',
+      '/wb/5v72/uj+q/5j/gv+tP2Y/aD9hv1q/YL9qv3L/f/9RP6a/g7/ff/C/+L/3f/C/7z/x//R/+7/AADW/5j/Xf8H/8P+xv7M/sD+',
+      '7P5A/3L/kP+Y/1//HP8O//H+n/5O/gT+pv1d/Tr9IP0N/f/85/zo/AX9GP1C/aD9/P1U/sH+Cv8i/0n/dv+S/9P/KgBmAJQAmACQ',
+      'ACoBRAK8AngCbAKwArUCjwKBAlUC9wG6AY8B4wDC/w3/FP8z/yb/Ov9s/4//sP/O/9//AAAqAFAAhAC1AMcA1QDhANEAuQCuAKcA',
+      'qACjAHwAQwAYAP//6v++/2f/Bv+0/mz+Of4W/uv9zf3e/Q/+Pf5r/qz+BP9n/9D/LABGABoA8P/n/+H/3f/Z/77/k/9W//r+sP6V',
+      '/oT+kP7k/k3/pP/9/zMAJAAKAP//2v+c/1z/FP/A/mT+Av6x/X79Yf1S/Uf9Qf1X/ZX95/01/n7+xv4N/0T/bf+P/6b/uv/a/wIA',
+      'HwAaAAgARQDjAE0BRAFGAYQBtAHWAfkB+QHfAcEBiwFLAQQBiAAOAPf/FAATAAsADwAUACgARQBUAGQAewCTAMAA+QAXARUBBgHj',
+      'ALgAngCKAG8ASgAZAOT/vP+b/27/Nv8B/9j+xf7I/sf+wf7S/vb+FP87/3n/rf/P//b/EgAbACcAKAAHAOf/2P/E/7T/rv+Q/1//',
+      'Ov8U/+z+5P73/g3/Lv9h/5H/rf+0/6r/m/+S/4n/dv9a/zX/Bf/V/rr+sf6y/r/+y/7Q/tv+8v4P/z7/eP+n/9X//v8HAAEABQD8',
+      '/+r/9P8EAAgADwAPAB4AawC+AMoAxwDyABQBGwEoAScBCwHtAMoAowCGAFgADwDn//v/IwBCAFoAcACGAJQAowDCAOEA7gD5AAcB',
+      '/gDeALYAiQBhAEkAMwAYAPz/3P+5/6T/nf+U/4j/d/9j/1X/Tv9J/0f/RP9C/0z/ZP+A/57/w//l/wIAIQA2ADgAMwAvACcAJwAw',
+      'ADAAIwASAPn/2f++/67/q/+1/8T/1f/r//v//v/6/+7/3//V/8z/u/+p/5f/fP9j/1j/Uv9K/0X/RP9I/1f/cP+L/6H/tf/K/+H/',
+      '9v8IABMAHgAqADIAOABAAEcAUABmAHYAbABeAGEAaABrAHUAfABzAGMAUAA8ACwAHAAMAAkAFAAgACsAOgBBAD8APgBBAEcAUQBf',
+      'AG4AeAB7AHUAZwBQAD4AOAA2ADEAKwAjABkAEgAPAAgA///2/+v/3//U/8v/wf+6/7j/uv+//8T/yv/R/97/7f/8/wgAEQAWABcA',
+      'EwAOAA0ADgANAAUA+v/t/9//2P/X/9z/5P/w//7/CgAUABkAGQAaABwAGQARAAgA+v/o/9r/zv/E/8D/wP+//7//wf/F/87/2P/h',
+      '/+r/9f/+/wMACAAKAAcACAAJAAoADAAPABAAFAAZABkAGgAfACUAKQAuADEALwAsACkAJAAeABsAGQAXABYAFQAUABMAEQAPAA4A',
+      'DgAOAA8AEQAUABkAHAAbABkAFQARAA4ACwAJAAcABQABAP7//P/6//f/9f/z//P/9f/3//j/+v/6//v//v8AAAIABAAFAAYABgAG',
+      'AAYABQADAAEAAQAAAAAA//////7//f/8//v/+//8//3//v8AAAIAAgACAAEAAQABAAEAAQABAAAA/v/9//z//P/9//3//f/9//3/',
+      '/v/+/////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQABAAEAAQABAAEAAQABAAEAAQABAAAAAAAAAAAAAAAAAAAAAAAA',
+      'AAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    ].join(''),
+  };
+  Object.defineProperty(__exports, "ESTALO", { get: () => ESTALO, enumerable: true });
+  });
+
   /* ===== audio.js ===== */
   __define("audio.js", function (__exports, __require) {
   // Stand-in for just_audio's AudioPlayer, with the same call shape the Dart uses:
@@ -3594,6 +3734,8 @@
   //
   // Browsers refuse to start audio before the first user gesture, so plays that
   // happen on page load are queued and released by the first interaction.
+  
+  const { ESTALO } = __require("estalo.js");
   
   const pending = new Set();
   let unlocked = false;
@@ -3708,8 +3850,143 @@
     osc.stop(agora + duracao + 0.02);
   }
   
+  /* ------------------------------------------------- o estalo da roleta ----- */
+  
+  /**
+   * O volume em que a gravação inteira tocava no giro. O recorte guarda a
+   * amplitude original dela (ver estalo.js), então o estalo sai tão alto quanto
+   * saía lá.
+   */
+  const VOLUME_DO_ESTALO = 0.45;
+  
+  /**
+   * Estalos apinhados perdem volume, como na gravação de onde este veio.
+   *
+   * Medido nela: o estalo sai cheio até 18 por segundo, cai à metade (0,48) a 25
+   * e a um quarto (0,26) a 33 — `(18 / ritmo) ^ 2,2` passa pelos três. Com dez
+   * fatias a roda pica em 17 a 21 estalos/s, e quase não se nota; num baralho de
+   * 30 fatias ela passa de 55/s, e sem isto o pico seria um zumbido por cima de
+   * tudo.
+   */
+  const RITMO_CHEIO = 18;
+  const QUEDA_COM_O_RITMO = 2.2;
+  
+  /**
+   * Em quanto tempo (constante de tempo, s) o estalo anterior some quando o
+   * seguinte chega: é a lingueta batendo no pino seguinte e abafando a própria
+   * vibração. Na gravação cada estalo termina onde o seguinte começa; somados, a
+   * 20/s o rabo de um cairia em cima do golpe do outro e o ritmo embolaria.
+   */
+  const ABAFO = 0.003;
+  
+  let bufferDoEstalo = null;
+  
+  /** O recorte de estalo.js, decodificado uma vez só. */
+  function estaloEm(ctx) {
+    if (bufferDoEstalo) return bufferDoEstalo;
+    const bytes = atob(ESTALO.pcm);
+    const n = bytes.length >> 1;
+    const buffer = ctx.createBuffer(1, n, ESTALO.taxa);
+    const canal = buffer.getChannelData(0);
+    for (let i = 0; i < n; i++) {
+      const v = bytes.charCodeAt(2 * i) | (bytes.charCodeAt(2 * i + 1) << 8);
+      // `<< 16 >> 16` estende o sinal dos 16 bits.
+      canal[i] = ((v << 16) >> 16) / 32768;
+    }
+    bufferDoEstalo = buffer;
+    return buffer;
+  }
+  
+  /**
+   * Quem toca os estalos da roleta, um por divisa que cruza a seta. QUANDO é com
+   * giro.js (`estalosDoGiro`); aqui é COMO: o relógio, o volume e o abafo.
+   *
+   * O instante chega no relógio da tela — o de `performance.now()`, que é o da
+   * linha do tempo das animações — e é marcado no do áudio, que toca no
+   * milissegundo. A ponte entre os dois é medida, e não suposta: `currentTime`
+   * anda aos saltos, subindo de uma vez a cada bloco que a placa de som pede
+   * (10,67ms, medido no Chrome do Windows) e parado entre um e outro, então uma
+   * leitura sozinha erra por até um bloco. A maior leitura é a mais fresca, e é
+   * ela que vale: por isso `acertar()` a cada quadro, e uma ponte só por giro —
+   * uma que mudasse a cada estalo sacudiria o ritmo.
+   *
+   * O contexto nasce com a tela da roleta, e não no primeiro estalo: o relógio de
+   * um contexto recém-criado fica parado enquanto a placa acorda, e estalo
+   * marcado nesse relógio sai atrasado exatamente essa espera.
+   */
+  function criarEstalos() {
+    contextoDeAudio();
+    /** O volume do giro inteiro: desligá-lo cala o que já está marcado. */
+    let saida = null;
+    /** Quanto o relógio do áudio está à frente do da tela, em segundos. */
+    let ponte = null;
+    /** O último estalo marcado, para o volume pelo ritmo e para o abafo. */
+    let anterior = null;
+  
+    const medir = (ctx) => {
+      // Relógio parado não serve: é contexto acordando ou suspenso, e a ponte
+      // medida nele empurraria todos os estalos para depois.
+      if (ctx.state !== 'running' || ctx.currentTime <= 0) return;
+      const leitura = ctx.currentTime - performance.now() / 1000;
+      if (ponte == null || leitura > ponte) ponte = leitura;
+    };
+  
+    return {
+      /** Um giro começa. Chamar no toque: é ele que libera o áudio. */
+      preparar() {
+        const ctx = contextoDeAudio();
+        if (!ctx) return;
+        if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+        saida?.disconnect();
+        saida = ctx.createGain();
+        saida.connect(ctx.destination);
+        ponte = null;
+        anterior = null;
+        medir(ctx);
+      },
+  
+      /** Mede a ponte entre os relógios. Chamar a cada quadro do giro. */
+      acertar() {
+        if (contexto) medir(contexto);
+      },
+  
+      /** Um estalo em `instante`, em ms no relógio de `performance.now()`. */
+      estalar(instante) {
+        const ctx = contextoDeAudio();
+        if (!ctx || !saida) return;
+        medir(ctx);
+        const alvo =
+          ponte == null ? ctx.currentTime + (instante - performance.now()) / 1000 : instante / 1000 + ponte;
+        // Atrasado — a thread principal travou mais que a antecedência: toca já.
+        const quando = Math.max(alvo, ctx.currentTime);
+  
+        const ritmo = anterior ? 1000 / (instante - anterior.instante) : 0;
+        const volume = VOLUME_DO_ESTALO * Math.min(1, (RITMO_CHEIO / ritmo) ** QUEDA_COM_O_RITMO);
+  
+        const fonte = ctx.createBufferSource();
+        fonte.buffer = estaloEm(ctx);
+        const ganho = ctx.createGain();
+        ganho.gain.setValueAtTime(volume, quando);
+        fonte.connect(ganho).connect(saida);
+        fonte.start(quando);
+  
+        if (anterior && quando < anterior.quando + fonte.buffer.duration) {
+          anterior.ganho.gain.setTargetAtTime(0, quando, ABAFO);
+        }
+        anterior = { instante, quando, ganho };
+      },
+  
+      /** A tela saiu no meio do giro. */
+      calar() {
+        saida?.disconnect();
+        saida = null;
+        anterior = null;
+      },
+    };
+  }
+  
   /** The one-liner the Dart repeats everywhere, as a single call. */
-  function playSound(holder, key, asset, volume = 1.0, taxa = 1.0) {
+  function playSound(holder, key, asset, volume = 1.0) {
     let player = holder[key];
     if (!player) {
       player = new AudioPlayer();
@@ -3717,18 +3994,12 @@
     }
     if (player.playing) player.stop();
     player.setVolume(volume);
-    player.setAsset(asset).then(() => {
-      // DEPOIS do setAsset, não antes: trocar `.src` reseta playbackRate para 1
-      // (é o load algorithm do elemento, não bug daqui). `taxa` != 1 estica ou
-      // encolhe a gravação sem trocar o arquivo — é o que a roleta usa para uma
-      // faixa curta cobrir um giro mais longo (ver giro.js).
-      player.el.playbackRate = taxa;
-      player.play();
-    });
+    player.setAsset(asset).then(() => player.play());
     return player;
   }
   Object.defineProperty(__exports, "AudioPlayer", { get: () => AudioPlayer, enumerable: true });
   Object.defineProperty(__exports, "tique", { get: () => tique, enumerable: true });
+  Object.defineProperty(__exports, "criarEstalos", { get: () => criarEstalos, enumerable: true });
   Object.defineProperty(__exports, "playSound", { get: () => playSound, enumerable: true });
   });
 
@@ -6466,10 +6737,17 @@
   
   const { readRaw, writeRaw } = __require("storage.js");
   
-  const VERSAO_DO_JOGO = '2.5.0';
+  const VERSAO_DO_JOGO = '2.5.1';
   
   /** Mais recente primeiro — é a ordem em que o painel lista. */
   const NOTAS_DE_ATUALIZACAO = [
+    {
+      versao: '2.5.1',
+      data: '2026-09-22',
+      itens: [
+        'O som da roleta agora bate com a roda: um estalo a cada fatia que passa pela seta, na hora em que ela passa, acelerando e freando junto com o giro. Antes tocava uma gravação com ritmo próprio, que não acompanhava a roda e seguia estalando depois de a última fatia passar.',
+      ],
+    },
     {
       versao: '2.5.0',
       data: '2026-09-22',
@@ -9182,9 +9460,9 @@
   //   - o eixo não é perfeito, então o disco bambeia um par de pixels;
   //   - a luz fica PARADA enquanto o disco passa por baixo. É o que mais separa
   //     um objeto de uma imagem girando: brilho que gira junto vira adesivo;
-  //   - e ela ESTALA: a gravação que toca junto é esticada, com `playbackRate`,
-  //     para durar o giro inteiro (ver TAXA_DA_GRAVACAO) em vez de acabar em
-  //     4,87s de um giro de 7,11s e deixar a roda girando muda no fim.
+  //   - e ela ESTALA: um estalo por divisa que cruza a seta, no instante em que
+  //     cruza (ver `estalosDoGiro`). O ritmo é o da roda por construção —
+  //     acelera e freia com ela, e acaba quando a última divisa passa.
   //
   // O sorteio não muda em nada. As voltas que este módulo acrescenta são
   // INTEIRAS, então a fatia que sobra debaixo da seta continua sendo a mesma que
@@ -9252,15 +9530,6 @@
   /** Quanto tempo o giro inteiro leva, do toque à roda parada. */
   const DURACAO_DO_GIRO = T_ARRANQUE + T_FREIO + T_RECUO;
   
-  /**
-   * A gravação `roleta-normal-1` tem 4,87s de áudio (medido decodificando o
-   * arquivo — 233760 amostras a 48kHz). Tocada normal ela acaba bem antes da
-   * roda parar; esta taxa a estica em `playbackRate` para os dois terminarem
-   * juntos, sem tocar no arquivo nem na física do giro.
-   */
-  const DURACAO_DA_GRAVACAO = 4.87;
-  const TAXA_DA_GRAVACAO = DURACAO_DA_GRAVACAO / (DURACAO_DO_GIRO / 1000);
-  
   const entre = (v, min, max) => Math.max(min, Math.min(max, v));
   /** Módulo que devolve sempre positivo — `%` do JS guarda o sinal. */
   const sobra = (v, m) => ((v % m) + m) % m;
@@ -9288,12 +9557,14 @@
   }
   
   /**
-   * A lista de efeitos do giro, para o `effectsBuilder` da tela.
+   * A trajetória do giro: a curva amostrada em trechos lineares, cada um com o
+   * instante (ms) e o ângulo (voltas) das duas pontas.
    *
-   * @param {number} voltas quantas voltas o sorteio pediu (`FFAppState.escolha`)
-   * @param {number} fatias quantas rodadas o baralho tem
+   * É a fonte única do movimento. O motor de animação desenha estes trechos
+   * (`efeitosDoGiro`) e os estalos saem deles (`estalosDoGiro`): som calculado
+   * por uma conta paralela seria outra roda, girando noutro compasso.
    */
-  function efeitosDoGiro(voltas, fatias) {
+  function trajetoria(voltas, fatias) {
     const alvo = (voltas ?? 1) + VOLTAS_EXTRAS;
     const recuo = recuoDaSeta(fatias);
     const fimDoFreio = T_ARRANQUE + T_FREIO;
@@ -9301,16 +9572,16 @@
     // dele. `anguloCru` está em unidades cruas, então a escala traz para voltas.
     const escala = (alvo + recuo) / anguloCru(fimDoFreio);
   
-    const efeitos = [];
+    const trechos = [];
     let anterior = 0;
-    const trecho = (t0, t1, de, ate) => {
-      efeitos.push(RotateEffect({ curve: Curves.linear, delay: t0, duration: t1 - t0, begin: de, end: ate }));
+    const trecho = (t0, t1, ate) => {
+      trechos.push({ t0, t1, de: anterior, ate });
       anterior = ate;
     };
   
     for (let i = 1; i <= PASSOS_GIRO; i++) {
       const t = (i / PASSOS_GIRO) * fimDoFreio;
-      trecho(((i - 1) / PASSOS_GIRO) * fimDoFreio, t, anterior, anguloCru(t) * escala);
+      trecho(((i - 1) / PASSOS_GIRO) * fimDoFreio, t, anguloCru(t) * escala);
     }
   
     // O recuo: uma oscilação amortecida que sai do ponto passado, cruza o alvo,
@@ -9321,11 +9592,87 @@
       const u = i / PASSOS_RECUO;
       const t = fimDoFreio + u * T_RECUO;
       const a = alvo + recuo * (1 - u) * Math.exp(-2.5 * u) * Math.cos(2 * Math.PI * u);
-      trecho(fimDoFreio + ((i - 1) / PASSOS_RECUO) * T_RECUO, t, anterior, a);
+      trecho(fimDoFreio + ((i - 1) / PASSOS_RECUO) * T_RECUO, t, a);
     }
   
-    return efeitos;
+    return trechos;
   }
+  
+  /**
+   * A lista de efeitos do giro, para o `effectsBuilder` da tela.
+   *
+   * @param {number} voltas quantas voltas o sorteio pediu (`FFAppState.escolha`)
+   * @param {number} fatias quantas rodadas o baralho tem
+   */
+  function efeitosDoGiro(voltas, fatias) {
+    return trajetoria(voltas, fatias).map(({ t0, t1, de, ate }) =>
+      RotateEffect({ curve: Curves.linear, delay: t0, duration: t1 - t0, begin: de, end: ate })
+    );
+  }
+  
+  /* ---------------------------------------------------------- o estalo ----- */
+  
+  /**
+   * O ESTALO DE CADA DIVISA.
+   *
+   * As duas tentativas anteriores erravam o compasso pelo mesmo motivo: o som não
+   * sabia onde a roda estava.
+   *
+   * Uma disparava um estalo sintetizado no quadro em que a divisa aparecia
+   * passada. Quadro chega a cada 16ms, e a 20 estalos/s isso é um terço do
+   * intervalo entre eles: o ritmo saía manco. A outra, que ficou até a 2.5.0,
+   * tocava a gravação `roleta-normal-1` esticada com `playbackRate` para durar o
+   * giro. Só que a gravação tem ritmo próprio — 82 estalos, de 33 por segundo
+   * caindo a 7, cortada com a roda dela ainda girando —, e esta roda passa de 40
+   * a 49 divisas numa curva que nada tem a ver com aquela. Esticar trocava um
+   * ritmo errado por outro, e a faixa seguia estalando dois segundos depois de a
+   * última divisa passar.
+   *
+   * Agora o instante sai da MESMA trajetória que o motor de animação desenha, e é
+   * marcado com antecedência no relógio do áudio, que toca no milissegundo. O som
+   * é um estalo recortado daquela gravação (estalo.js): o mesmo pino, batendo
+   * onde a roda está.
+   */
+  
+  /**
+   * Os instantes, em ms desde o começo da animação, em que uma divisa cruza a
+   * seta — um por pino que passa pela lingueta.
+   *
+   * A divisa fica a meia fatia do ângulo de repouso, porque a roda para com a
+   * seta no MEIO da fatia (é a mesma meia fatia do `u` da lingueta). Cada trecho
+   * da trajetória é linear, então o instante de cada divisa dentro dele sai de
+   * uma regra de três exata. Conta só a primeira passagem: no recuo a roda volta
+   * um pouco, e um vaivém em cima de uma divisa não é mais um pino.
+   *
+   * @param {number} voltas quantas voltas o sorteio pediu (`FFAppState.escolha`)
+   * @param {number} fatias quantas rodadas o baralho tem
+   * @returns {number[]} em ordem crescente
+   */
+  function estalosDoGiro(voltas, fatias) {
+    const n = Math.max(fatias || 1, 1);
+    const instantes = [];
+    let passadas = 0;
+    for (const { t0, t1, de, ate } of trajetoria(voltas, fatias)) {
+      if (ate <= de) continue;
+      for (let j = passadas + 1; (j - 0.5) / n <= ate; j++) {
+        instantes.push(t0 + (((j - 0.5) / n - de) / (ate - de)) * (t1 - t0));
+        passadas = j;
+      }
+    }
+    return instantes;
+  }
+  
+  /**
+   * Com quanto de antecedência (ms) cada estalo é marcado no relógio do áudio.
+   *
+   * Cedo, porque estalo marcado toca no milissegundo certo mesmo que a thread
+   * principal soluce: o disco gira no compositor e não para quando ela trava, e
+   * o estalo agendado também não. Mas não cedo demais, porque cada estalo leva a
+   * ponte entre os relógios medida até ali (ver `criarEstalos`), e ela fica mais
+   * justa a cada quadro. Com 150ms o primeiro estalo, a uns 230ms do começo, é
+   * marcado com meia dúzia de quadros de medida.
+   */
+  const ANTECEDENCIA_DO_ESTALO = 150;
   
   /* -------------------------------------------------------- a lingueta ----- */
   
@@ -9381,8 +9728,10 @@
    * @param {HTMLElement} pecas.seta  a lingueta
    * @param {HTMLElement} pecas.faisca a luz que responde ao giro
    * @param {number}      pecas.fatias quantas rodadas o baralho tem
+   * @param {object}      [pecas.estalos] quem toca o estalo de cada divisa
+   *   (`criarEstalos`, em audio.js); sem ele a roda gira muda
    */
-  function criarVida({ disco, eixo, pista, arte, seta, faisca, fatias }) {
+  function criarVida({ disco, eixo, pista, arte, seta, faisca, fatias, estalos }) {
     const passoDaFatia = 360 / Math.max(fatias || 1, 1);
     const ecos = [];
   
@@ -9399,6 +9748,12 @@
     /** Estado da mola da seta: desvio em graus e a velocidade dele. */
     let setaAngulo = 0;
     let setaVelocidade = 0;
+  
+    /** Os instantes dos estalos deste giro, e quantos já foram marcados. */
+    let agenda = [];
+    let marcados = 0;
+    /** A animação do giro: é o relógio dela que a tela mostra. */
+    let animacao = null;
   
     function criarEcos() {
       if (ecos.length || !arte) return;
@@ -9475,6 +9830,21 @@
       moverSeta(dt, limite);
       seta.style.transform = `rotate(${setaAngulo.toFixed(2)}deg)`;
   
+      // --- o estalo --------------------------------------------------------
+      // Não dispara no quadro que mostra a divisa passada: é marcado antes, no
+      // relógio do áudio (ver ANTECEDENCIA_DO_ESTALO). E o tempo da trajetória
+      // conta da partida da ANIMAÇÃO, que começa um quadro ou dois depois do
+      // toque — contar do toque adiantaria todos os estalos nessa medida.
+      if (estalos && marcados < agenda.length) {
+        estalos.acertar();
+        const partida = animacao ? animacao.startTime : inicio;
+        const ate = agora + ANTECEDENCIA_DO_ESTALO;
+        while (partida != null && marcados < agenda.length && partida + agenda[marcados] <= ate) {
+          estalos.estalar(partida + agenda[marcados]);
+          marcados += 1;
+        }
+      }
+  
       // --- o borrão --------------------------------------------------------
       const corrida = entre((Math.abs(velocidade) - BORRAO_DE) / (BORRAO_ATE - BORRAO_DE), 0, 1);
       if (ecos.length) {
@@ -9548,8 +9918,13 @@
     }
   
     return {
-      /** Começa a acompanhar o giro. Chamar junto do `forward()` da animação. */
-      girar() {
+      /**
+       * Começa a acompanhar o giro. Chamar logo depois do `forward()` da
+       * animação: é a animação que ele cria que os estalos seguem.
+       *
+       * @param {number} voltas as mesmas que o `efeitosDoGiro` dessa animação recebeu
+       */
+      girar(voltas) {
         if (menosMovimento()) return;
         criarEcos();
         pousou = false;
@@ -9558,6 +9933,12 @@
         lido = anguloNaTela(disco);
         inicio = performance.now();
         ultimo = inicio;
+        // A que o `forward()` acabou de criar é a mais nova do disco.
+        const animacoes = disco.getAnimations?.() ?? [];
+        animacao = animacoes[animacoes.length - 1] ?? null;
+        agenda = estalosDoGiro(voltas, fatias);
+        marcados = 0;
+        estalos?.preparar();
         faisca?.classList.remove('roleta-faisca--parou');
         cancelAnimationFrame(quadro);
         quadro = requestAnimationFrame(passo);
@@ -9566,14 +9947,17 @@
       parar() {
         cancelAnimationFrame(quadro);
         quadro = 0;
+        // O que já estava marcado no relógio do áudio tocaria com a tela fora.
+        estalos?.calar();
+        agenda = [];
         tirarEcos();
         desmontar();
       },
     };
   }
   Object.defineProperty(__exports, "DURACAO_DO_GIRO", { get: () => DURACAO_DO_GIRO, enumerable: true });
-  Object.defineProperty(__exports, "TAXA_DA_GRAVACAO", { get: () => TAXA_DA_GRAVACAO, enumerable: true });
   Object.defineProperty(__exports, "efeitosDoGiro", { get: () => efeitosDoGiro, enumerable: true });
+  Object.defineProperty(__exports, "estalosDoGiro", { get: () => estalosDoGiro, enumerable: true });
   Object.defineProperty(__exports, "criarVida", { get: () => criarVida, enumerable: true });
   });
 
@@ -9586,8 +9970,9 @@
   // moves on to the selected car.
   //
   // O sorteio e a navegacao sao os do Dart. O que a roda FAZ enquanto gira nao e:
-  // a fisica do giro, a seta batendo nas divisas, o borrao e a luz que nao gira
-  // junto moram em giro.js, e esta tela so monta as pecas e as entrega a ele.
+  // a fisica do giro, a seta batendo nas divisas, o estalo de cada uma, o borrao
+  // e a luz que nao gira junto moram em giro.js, e esta tela so monta as pecas e
+  // as entrega a ele.
   
   const { Align, ClipRRect, Column, Container, Img, InkWell, Padding, Stack, StackAlign, Txt, color, decorationImage, el, linearGradient, px, unfocus } = __require("widgets.js");
   const { style } = __require("theme.js");
@@ -9596,8 +9981,8 @@
   const { numeroAleatorio } = __require("functions.js");
   const { usaArteOriginal } = __require("deck.js");
   const { rodaGerada } = __require("roda.js");
-  const { criarVida, efeitosDoGiro, TAXA_DA_GRAVACAO } = __require("giro.js");
-  const { playSound } = __require("audio.js");
+  const { criarVida, efeitosDoGiro } = __require("giro.js");
+  const { criarEstalos } = __require("audio.js");
   const { goNamed } = __require("router.js");
   const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad, delayed, menosMovimento } = __require("anim.js");
   
@@ -9735,17 +10120,12 @@
   
         model.apertaButton = false;
         FFAppState.escolha = numeroAleatorio([...FFAppState.listaEscolhas], FFAppState.totalSlots);
-        // TAXA_DA_GRAVACAO estica o playbackRate para a faixa (4,87s) cobrir o
-        // giro inteiro (7,11s) em vez de acabar com a roda ainda girando (ver
-        // giro.js). 0,45 e nao 0,6 porque esticada ela fica mais tempo no ar, e
-        // no volume antigo enchia demais uma cena que já tem o disco a girar.
-        playSound(model, 'soundPlayer', 'assets/audios/roleta-normal-1_2GXmNRPk.mp3', 0.45, TAXA_DA_GRAVACAO);
         // Este `await` E sequencia: e o giro inteiro, e o jogo so segue depois.
-        // O `girar()` vem logo atras porque ele LE o angulo que a animacao ja
-        // escreveu na tela — e assim a seta bate na divisa que esta mostrando,
-        // e nao na que um relogio paralelo teria calculado.
+        // O `girar()` vem logo atras porque ele LE a animacao que o `forward()`
+        // acabou de criar: a seta bate na divisa que a tela esta mostrando, e o
+        // estalo segue o relogio dessa mesma animacao, e nao o do toque.
         const giro = animationsMap.containerOnActionTriggerAnimation1.controller.forward();
-        vida.girar();
+        vida.girar(FFAppState.escolha);
         await giro;
         await delayed(1000);
         if (left || !root.isConnected) return;
@@ -9788,7 +10168,18 @@
       child: Img('assets/images/Seta_.png', { width: 101.4, height: 85.0, fit: 'cover' }),
     });
   
-    const vida = criarVida({ disco: wheel, eixo, pista, arte, seta, faisca, fatias: FFAppState.totalSlots });
+    const vida = criarVida({
+      disco: wheel,
+      eixo,
+      pista,
+      arte,
+      seta,
+      faisca,
+      fatias: FFAppState.totalSlots,
+      // Nasce com a tela, e nao no toque: o relogio do audio tem de ja estar
+      // andando quando a roda girar (ver audio.js).
+      estalos: criarEstalos(),
+    });
   
     const content = Column({
       mainAxisSize: 'max',
@@ -9854,7 +10245,6 @@
     root.__dispose = () => {
       left = true;
       vida.parar();
-      model.soundPlayer?.stop();
     };
   
     return root;

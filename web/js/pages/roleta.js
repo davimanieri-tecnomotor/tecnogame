@@ -5,8 +5,9 @@
 // moves on to the selected car.
 //
 // O sorteio e a navegacao sao os do Dart. O que a roda FAZ enquanto gira nao e:
-// a fisica do giro, a seta batendo nas divisas, o borrao e a luz que nao gira
-// junto moram em giro.js, e esta tela so monta as pecas e as entrega a ele.
+// a fisica do giro, a seta batendo nas divisas, o estalo de cada uma, o borrao
+// e a luz que nao gira junto moram em giro.js, e esta tela so monta as pecas e
+// as entrega a ele.
 
 import {
   Align,
@@ -32,8 +33,8 @@ import { FFAppState } from '../state.js';
 import { numeroAleatorio } from '../functions.js';
 import { usaArteOriginal } from '../deck.js';
 import { rodaGerada } from '../roda.js';
-import { criarVida, efeitosDoGiro, TAXA_DA_GRAVACAO } from '../giro.js';
-import { playSound } from '../audio.js';
+import { criarVida, efeitosDoGiro } from '../giro.js';
+import { criarEstalos } from '../audio.js';
 import { goNamed } from '../router.js';
 import {
   AnimationInfo,
@@ -181,17 +182,12 @@ export function RoletaWidget() {
 
       model.apertaButton = false;
       FFAppState.escolha = numeroAleatorio([...FFAppState.listaEscolhas], FFAppState.totalSlots);
-      // TAXA_DA_GRAVACAO estica o playbackRate para a faixa (4,87s) cobrir o
-      // giro inteiro (7,11s) em vez de acabar com a roda ainda girando (ver
-      // giro.js). 0,45 e nao 0,6 porque esticada ela fica mais tempo no ar, e
-      // no volume antigo enchia demais uma cena que já tem o disco a girar.
-      playSound(model, 'soundPlayer', 'assets/audios/roleta-normal-1_2GXmNRPk.mp3', 0.45, TAXA_DA_GRAVACAO);
       // Este `await` E sequencia: e o giro inteiro, e o jogo so segue depois.
-      // O `girar()` vem logo atras porque ele LE o angulo que a animacao ja
-      // escreveu na tela — e assim a seta bate na divisa que esta mostrando,
-      // e nao na que um relogio paralelo teria calculado.
+      // O `girar()` vem logo atras porque ele LE a animacao que o `forward()`
+      // acabou de criar: a seta bate na divisa que a tela esta mostrando, e o
+      // estalo segue o relogio dessa mesma animacao, e nao o do toque.
       const giro = animationsMap.containerOnActionTriggerAnimation1.controller.forward();
-      vida.girar();
+      vida.girar(FFAppState.escolha);
       await giro;
       await delayed(1000);
       if (left || !root.isConnected) return;
@@ -234,7 +230,18 @@ export function RoletaWidget() {
     child: Img('assets/images/Seta_.png', { width: 101.4, height: 85.0, fit: 'cover' }),
   });
 
-  const vida = criarVida({ disco: wheel, eixo, pista, arte, seta, faisca, fatias: FFAppState.totalSlots });
+  const vida = criarVida({
+    disco: wheel,
+    eixo,
+    pista,
+    arte,
+    seta,
+    faisca,
+    fatias: FFAppState.totalSlots,
+    // Nasce com a tela, e nao no toque: o relogio do audio tem de ja estar
+    // andando quando a roda girar (ver audio.js).
+    estalos: criarEstalos(),
+  });
 
   const content = Column({
     mainAxisSize: 'max',
@@ -300,7 +307,6 @@ export function RoletaWidget() {
   root.__dispose = () => {
     left = true;
     vida.parar();
-    model.soundPlayer?.stop();
   };
 
   return root;
