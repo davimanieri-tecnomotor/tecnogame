@@ -38,7 +38,7 @@ import { PoliticaPrivacidadeWidget } from '../components/politica_privacidade.js
 import { RankingWidget } from '../components/ranking.js';
 import { registrarToqueSecreto } from '../admin/porta.js';
 import { sincronizarBaralho } from '../nuvem.js';
-import { goNamed, TransitionInfo, PageTransitionType, Alignment } from '../router.js';
+import { goNamed } from '../router.js';
 import {
   AnimationInfo,
   AnimationTrigger,
@@ -304,15 +304,7 @@ export function CadastroWidget() {
           // próximo jogador encontra a tela em branco.
           resetFormState();
 
-          goNamed('instrucoes', {
-            extra: {
-              __transition_info__: new TransitionInfo({
-                hasTransition: true,
-                transitionType: PageTransitionType.scale,
-                alignment: Alignment.bottomCenter,
-              }),
-            },
-          });
+          goNamed('instrucoes');
         },
       child: Container({
         width: SW * 0.25,

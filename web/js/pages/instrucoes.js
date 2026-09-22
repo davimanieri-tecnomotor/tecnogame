@@ -25,7 +25,7 @@ import {
 import { TH, style } from '../theme.js';
 import { L } from '../i18n.js';
 import { playSound } from '../audio.js';
-import { goNamed, serializeParam, TransitionInfo, PageTransitionType } from '../router.js';
+import { goNamed, serializeParam } from '../router.js';
 import {
   AnimationInfo,
   AnimationTrigger,
@@ -36,17 +36,7 @@ import {
   delayed,
 } from '../anim.js';
 
-const NEXT = () =>
-  goNamed('telaVideoTransisao', {
-    queryParameters: { tipo: serializeParam(1) },
-    extra: {
-      __transition_info__: new TransitionInfo({
-        hasTransition: true,
-        transitionType: PageTransitionType.fade,
-        duration: 300,
-      }),
-    },
-  });
+const NEXT = () => goNamed('telaVideoTransisao', { queryParameters: { tipo: serializeParam(1) } });
 
 export function InstrucoesWidget() {
   const model = {};

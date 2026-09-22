@@ -21,7 +21,7 @@ import { FFAppState } from '../state.js';
 import { playSound } from '../audio.js';
 import { showDialog } from '../dialog.js';
 import { EquipamentoInvalidoWidget } from './equipamento_invalido.js';
-import { goNamed, TransitionInfo, PageTransitionType, Alignment } from '../router.js';
+import { goNamed } from '../router.js';
 import {
   AnimationInfo,
   AnimationTrigger,
@@ -29,6 +29,17 @@ import {
   ScaleEffect,
   animateOnActionTrigger,
 } from '../anim.js';
+
+/**
+ * Com que equipamento o jogo segue quando o jogador PULA a escolha (ver
+ * `pages/scanner.js`). O painel da pergunta troca de pele conforme este valor,
+ * e não existe pele "nenhuma": sem um nome conhecido o painel cai no cinza de
+ * reserva e fica sem a foto do cabeçalho, que é a cara de tela quebrada.
+ */
+export const EQUIPAMENTO_PADRAO = 'Rasther 3';
+
+/** O que vai para o registro da partida quando ninguém escolheu nada. */
+export const EQUIPAMENTO_PULADO = 'não escolhido';
 
 const TOOLS = {
   '3s': { image: 'assets/images/Rasther_3s_Claro.png', flag: 'raster3S', escolhido: 'Rasther 3', sound: 'soundPlayer1' },
@@ -68,17 +79,14 @@ export function FerramentaWidget({ ferramenta, util } = {}) {
     playSound(model, tool.sound, 'assets/audios/undertale-select-sound.mp3', 0.6);
     animationsMap.stackOnActionTriggerAnimation.controller.forward();
     if (enabled) {
-      goNamed('telaVideoScanner', {
-        extra: {
-          __transition_info__: new TransitionInfo({
-            hasTransition: true,
-            transitionType: PageTransitionType.scale,
-            alignment: Alignment.bottomCenter,
-          }),
-        },
-      });
+      // O equipamento é escolhido ANTES de navegar. O Dart gravava depois da
+      // chamada e só funcionava por acidente: quem monta a próxima tela lê este
+      // valor, e bastava a navegação deixar de ceder o passo para a tela do
+      // vídeo abrir com o scanner da partida anterior.
       FFAppState.scannerEscolhido = tool.escolhido;
-      } else {
+      FFAppState.equipamentoPulado = false;
+      goNamed('telaVideoScanner');
+    } else {
       await showDialog({ builder: () => EquipamentoInvalidoWidget() });
     }
   };

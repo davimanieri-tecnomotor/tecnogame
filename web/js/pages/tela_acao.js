@@ -59,13 +59,29 @@ export function TelaAcaoWidget() {
     ? Column({
         mainAxisSize: 'min',
         crossAxisAlignment: 'center',
-        // O bloco do enunciado acima pede 100% da altura e encolhe para caber;
-        // sem travar este, quem encolhia era a foto do carro.
-        style: { flexShrink: 0 },
+        /**
+         * O carro fica com TODO o espaço que o enunciado não usou, em vez de um
+         * tamanho fixo: numa moldura que muda de altura ocupada a cada pergunta
+         * do baralho, número cravado ou sobra buraco ou empurra o texto para
+         * fora. Com pergunta curta o carro vem grande; com pergunta longa ele
+         * cede — nessa ordem, que é a da importância.
+         */
+        style: { flex: '1 1 auto', minHeight: 0, width: '100%' },
         children: [
-          // Caixa fixa e `contain`: as fotos do baralho vêm em tamanhos
-          // quaisquer, inclusive as que o operador envia do computador.
-          Img(veiculo.imagem, { width: 480.0, height: 250.0, fit: 'contain' }),
+          // A foto é POSICIONADA dentro da sobra, e não medida em 100% dela:
+          // altura em porcentagem dentro de um item flexível não resolve — o
+          // navegador cai no tamanho natural do arquivo, e o caminhão saía por
+          // baixo da moldura. Contra uma caixa posicionada a conta fecha.
+          el(
+            'div',
+            { style: { flex: '1 1 auto', minHeight: 0, width: '100%', position: 'relative' } },
+            // `contain` porque as fotos do baralho vêm em tamanhos e proporções
+            // quaisquer, inclusive as que o operador envia do computador.
+            Img(veiculo.imagem, {
+              fit: 'contain',
+              style: { position: 'absolute', inset: 0, width: '100%', height: '100%' },
+            })
+          ),
           Padding({
             padding: [0.0, 14.0, 0.0, 0.0],
             child: Txt(
@@ -74,7 +90,7 @@ export function TelaAcaoWidget() {
                 fontFamily: 'Roboto',
                 fontWeight: 700,
                 color: '#FFFFFF',
-                fontSize: 30.0,
+                fontSize: 32.0,
                 letterSpacing: 3.0,
                 textAlign: 'center',
               })
@@ -127,8 +143,14 @@ export function TelaAcaoWidget() {
                               mainAxisAlignment: 'spaceEvenly',
                               children: [
                                 Column({
-                                  mainAxisSize: 'max',
+                                  // `min`, e nao `max`: enquanto este bloco
+                                  // pedia a moldura inteira, o que sobrava para
+                                  // o carro era o que a divisao de encolhimento
+                                  // deixasse — uma foto pequena no meio de um
+                                  // vazio grande.
+                                  mainAxisSize: 'min',
                                   crossAxisAlignment: 'center',
+                                  style: { flexShrink: 0 },
                                   children: [
                                     Align({
                                       alignment: [0.0, 0.0],

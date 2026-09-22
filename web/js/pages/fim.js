@@ -45,7 +45,7 @@ import { CadastroStruct, FFAppState } from '../state.js';
 import { formatarTempoDeResposta, posicaoNoRanking, transformaNumero } from '../functions.js';
 import { playSound } from '../audio.js';
 import { enviarMensagemZap, queryUsuariosVencedores } from '../backend.js';
-import { goNamed, serializeParam, TransitionInfo, PageTransitionType } from '../router.js';
+import { goNamed, serializeParam } from '../router.js';
 import {
   AnimationInfo,
   AnimationTrigger,
@@ -109,21 +109,13 @@ export function FimWidget(spec) {
     });
 
     FFAppState.scannerEscolhido = '';
+    FFAppState.equipamentoPulado = false;
     FFAppState.tempoAcabando = false;
     FFAppState.cadastro = new CadastroStruct();
     FFAppState.ajuda = 0;
     FFAppState.resultado = null;
 
-    goNamed('telaVideoTransisao', {
-      queryParameters: { tipo: serializeParam(0) },
-      extra: {
-        __transition_info__: new TransitionInfo({
-          hasTransition: true,
-          transitionType: PageTransitionType.fade,
-          duration: 300,
-        }),
-      },
-    });
+    goNamed('telaVideoTransisao', { queryParameters: { tipo: serializeParam(0) } });
   };
 
   const build = (winners) => {

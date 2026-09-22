@@ -1,8 +1,9 @@
 # TecGame — o que é preciso saber antes de mexer
 
 Jogo de quiz de totem da Tecnomotor, para feira. O jogador se cadastra, gira uma
-roleta, recebe um veículo com defeito, escolhe um scanner e tem 60 segundos para
-apontar a alternativa certa. Inspirado no Jogo do Milhão.
+roleta, recebe um veículo com defeito, escolhe um scanner — ou pula a escolha e
+segue com o padrão — e tem 60 segundos para apontar a alternativa certa.
+Inspirado no Jogo do Milhão.
 
 O código é um **porte** de um projeto FlutterFlow (`tec_game`) para HTML, CSS e
 JavaScript puros: **sem framework, sem build, sem dependência de runtime**.

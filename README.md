@@ -81,7 +81,28 @@ host estático:
 | `/telaAcao` | `#/telaAcao` | pergunta e respostas |
 | `/ganhou` | `#/ganhou` | vitória |
 | `/perdeu` | `#/perdeu` | derrota |
-| — | `#/adm` | administração (não vem do Dart; pede senha) |
+| — | `#/adm` | administração (não vem do Dart; pede login) |
+
+### Uma transição só, e um atalho no meio do caminho
+
+**Toda troca de tela esmaece**: a que sai apaga, a que entra acende, 300 ms
+cada. Quem decide é `js/router.js`, e só ele — `goNamed` é a troca de tela e
+sempre esmaece; `go` continua instantâneo, porque quem o chama não está
+viajando (a troca de idioma reconstrói a MESMA tela, e a porta do admin levanta
+uma camada por fora do palco). O Dart escolhia página a página entre `fade` e
+`scale`, e as telas misturavam as duas: quatro delas nasciam de um ponto do
+rodapé e cresciam até encher o palco. Ao acrescentar uma tela, não há o que
+escolher — e é de propósito.
+
+**A escolha do equipamento pode ser pulada.** O botão *Pular escolha*, no canto
+de baixo da tela dos cinco scanners, segue com o equipamento padrão (o Rasther
+3S, em `EQUIPAMENTO_PADRAO`) e vai **direto** para a pergunta, sem o vídeo
+demonstrativo de 14s — que é a apresentação do equipamento escolhido, e quem
+não escolheu não tem o que lhe apresentar (ainda mais com o bucket dos vídeos
+fora do ar; ver *Coisas que já vinham quebradas*). A partida fica marcada como
+**sem escolha**: a coluna `Equipamento` da aba Respostas recebe `não escolhido`,
+e não o padrão — ela existe para o time saber o que a feira escolhe, e pressa
+não é preferência.
 
 ## O baralho
 

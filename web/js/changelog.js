@@ -10,10 +10,20 @@
 
 import { readRaw, writeRaw } from './storage.js';
 
-export const VERSAO_DO_JOGO = '2.3.0';
+export const VERSAO_DO_JOGO = '2.4.0';
 
 /** Mais recente primeiro — é a ordem em que o painel lista. */
 export const NOTAS_DE_ATUALIZACAO = [
+  {
+    versao: '2.4.0',
+    data: '2026-09-22',
+    itens: [
+      'Na escolha do equipamento existe agora o botão "Pular escolha": o jogo segue com o Rasther 3S e vai direto para a pergunta, sem o vídeo de 14 segundos. Serve para a fila andar em feira cheia.',
+      'Na aba Respostas, quem pulou aparece com "não escolhido" na coluna Equipamento — a coluna continua contando só escolha de verdade.',
+      'A foto do veículo na tela da pergunta ficou bem maior: ela ocupa todo o espaço que o enunciado deixa livre.',
+      'Todas as trocas de tela ficaram iguais: a tela que sai apaga e a seguinte acende. Antes quatro delas cresciam a partir do rodapé.',
+    ],
+  },
   {
     versao: '2.3.0',
     data: '2026-09-22',

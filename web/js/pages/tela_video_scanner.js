@@ -8,7 +8,7 @@ import { TH, style } from '../theme.js';
 import { L } from '../i18n.js';
 import { FFAppState } from '../state.js';
 import { CONFIG } from '../config.js';
-import { goNamed, TransitionInfo, PageTransitionType, Alignment } from '../router.js';
+import { goNamed } from '../router.js';
 import {
   AnimationInfo,
   AnimationTrigger,
@@ -97,15 +97,7 @@ export function TelaVideoScannerWidget() {
 
   delayed(14000).then(() => {
     if (left || !root.isConnected) return;
-    goNamed('telaAcao', {
-      extra: {
-        __transition_info__: new TransitionInfo({
-          hasTransition: true,
-          transitionType: PageTransitionType.scale,
-          alignment: Alignment.bottomCenter,
-        }),
-      },
-    });
+    goNamed('telaAcao');
   });
 
   root.__dispose = () => {

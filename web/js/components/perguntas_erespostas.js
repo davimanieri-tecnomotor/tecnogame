@@ -34,7 +34,8 @@ import { playSound, tique } from '../audio.js';
 import { showDialog } from '../dialog.js';
 import { ConfirmacaoWidget } from './confirmacao.js';
 import { PopUpWidget } from './pop_up.js';
-import { goNamed, TransitionInfo, PageTransitionType } from '../router.js';
+import { EQUIPAMENTO_PULADO } from './ferramenta.js';
+import { goNamed } from '../router.js';
 import { addUsuario, createUsuariosRecordData } from '../backend.js';
 import {
   AnimationInfo,
@@ -189,6 +190,16 @@ const HINTS = [
     sound: 'soundPlayer10',
   },
 ];
+
+/**
+ * O equipamento que vai para o registro da partida.
+ *
+ * Quem pulou a escolha joga com o padrao na tela (ver `pages/scanner.js`), mas
+ * nao escolheu nada — e esta coluna existe para o time saber o que a feira
+ * escolhe. Gravar o padrao como escolha inventaria interesse que nao houve.
+ */
+const equipamentoDaPartida = () =>
+  FFAppState.equipamentoPulado ? EQUIPAMENTO_PULADO : FFAppState.scannerEscolhido;
 
 const tapFeedback = () =>
   new AnimationInfo({
@@ -363,7 +374,7 @@ export function PerguntasErespostasWidget({ aoEntrarNaRetaFinal = null } = {}) {
             atuacao: FFAppState.cadastro.atuacao,
             venceu: acertou,
             tempo: model.timerMilliseconds,
-            equipamento: FFAppState.scannerEscolhido,
+            equipamento: equipamentoDaPartida(),
             invalido: FFAppState.cadastro.invalido,
           });
 
@@ -386,14 +397,7 @@ export function PerguntasErespostasWidget({ aoEntrarNaRetaFinal = null } = {}) {
           // ninguém chega a ver o que era certo.
           await revelar({ slotEscolhido: slot, slotCerto });
 
-          goNamed(acertou ? 'Ganhou' : 'Perdeu', {
-            extra: {
-              __transition_info__: new TransitionInfo({
-                hasTransition: true,
-                transitionType: PageTransitionType.fade,
-              }),
-            },
-          });
+          goNamed(acertou ? 'Ganhou' : 'Perdeu');
           await addUsuario(record, { serverTimestamp: true });
 
           model.apoio = false;
@@ -914,22 +918,14 @@ export function PerguntasErespostasWidget({ aoEntrarNaRetaFinal = null } = {}) {
       model.timerController.onResetTimer();
       model.soundPlayer1?.stop();
       model.instantTimer?.cancel();
-      goNamed('Perdeu', {
-        extra: {
-          __transition_info__: new TransitionInfo({
-            hasTransition: true,
-            transitionType: PageTransitionType.scale,
-            alignment: [0, 1],
-          }),
-        },
-      });
+      goNamed('Perdeu');
       await addUsuario(
         createUsuariosRecordData({
           nome: FFAppState.cadastro.nome,
           telefone: FFAppState.cadastro.telefone,
           atuacao: FFAppState.cadastro.atuacao,
           venceu: false,
-          equipamento: FFAppState.scannerEscolhido,
+          equipamento: equipamentoDaPartida(),
         })
       );
     },

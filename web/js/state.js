@@ -66,6 +66,18 @@ class FFAppStateClass {
     this.sorteio = [];
 
     this.scannerEscolhido = '';
+
+    /**
+     * O jogador pulou a escolha do equipamento (ver `pages/scanner.js`).
+     *
+     * A tela da pergunta precisa de UM equipamento para se desenhar, então o
+     * atalho já deixa `scannerEscolhido` no padrão. Mas o registro da partida
+     * não pode dizer que alguém escolheu o que não escolheu: `equipamento` é a
+     * coluna que o time lê na aba Respostas justamente para saber qual
+     * equipamento desperta interesse em quem joga.
+     */
+    this.equipamentoPulado = false;
+
     this.tempoAcabando = false;
     this.escolha = 1.5;
 

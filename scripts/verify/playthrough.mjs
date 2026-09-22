@@ -107,6 +107,26 @@ await wait(200);
 
 // validation: submit with a good name should advance
 await clickText('CONFIRMAR');
+// A TRANSICAO. Toda troca de tela esmaece — esta aqui era um `scale` que fazia
+// a tela nascer de um ponto do rodape. Como `render` dispara a saida na mesma
+// batida do clique, a animacao da pagina que sai ja esta correndo agora, e da
+// para ler de que ela e feita: se aparecer `transform`, alguem devolveu uma
+// segunda gramatica de transicao ao jogo (ver web/js/router.js).
+const saindo = await page.evaluate(() => {
+  const pagina = document.querySelector('#pages .ff-page');
+  const props = new Set();
+  for (const anim of pagina?.getAnimations() ?? []) {
+    for (const quadro of anim.effect.getKeyframes()) {
+      for (const chave of Object.keys(quadro)) {
+        if (!['offset', 'computedOffset', 'easing', 'composite'].includes(chave)) props.add(chave);
+      }
+    }
+  }
+  return [...props];
+});
+log(`   transicao de saida anima: ${JSON.stringify(saindo)}`);
+if (!saindo.includes('opacity')) throw new Error(`a tela que sai deveria esmaecer; anima ${saindo}`);
+if (saindo.some((p) => p !== 'opacity')) throw new Error(`a transicao voltou a mexer em ${saindo}`);
 await waitForRoute('instrucoes');
 log('4. instrucoes reached (validation passed, cadastro stored)');
 const cadastro = await page.evaluate(() => {
@@ -264,6 +284,68 @@ log('19. restart -> transition video');
 await waitForRoute('cadastro', 15000);
 log('20. back at cadastro');
 await shot('13-restart');
+
+/* --------------------------------- segunda volta: pulando a escolha ------ */
+// O atalho da tela de equipamentos: quem pula joga com o padrao, vai DIRETO
+// para a partida (sem os 14s de video demonstrativo) e fica marcado como quem
+// nao escolheu — a aba Respostas nao pode contar pressa como preferencia.
+log('21. segunda volta, pelo atalho');
+const inputs2 = await page.$$('#pages input.ff-input');
+await inputs2[0].click();
+await inputs2[0].type('Pulador');
+await inputs2[1].click();
+await inputs2[1].type('16988887777');
+await page.evaluate(() => document.querySelectorAll('#pages .ff-dropdown')[0].click());
+await wait(200);
+await page.evaluate(() => document.querySelectorAll('.ff-dropdown-item')[1].click());
+await wait(200);
+await clickText('CONFIRMAR');
+await waitForRoute('instrucoes');
+await clickText('Pular instruções');
+await waitForRoute('roleta', 15000);
+await clickText('GIRAR A ROLETA');
+await waitForRoute('scanner', 25000);
+await wait(2400);
+
+await clickText('Pular escolha');
+await waitForRoute('telaAcao', 15000);
+await wait(1500);
+await shot('14-pulou-escolha');
+const semEscolha = await page.evaluate(() => ({
+  // A pele do painel e a do equipamento padrao: a foto do cabecalho e a do 3S.
+  fotoDoCabecalho: [...document.querySelectorAll('#pages img')]
+    .map((i) => i.getAttribute('src'))
+    .find((src) => /Rasther_CANFD|Rasther_ST_\+|Rasther---box|TD_80__Final|TD_90_\(2\)/.test(src)),
+  alternativas: document.querySelectorAll('#pages .ff-stack').length,
+}));
+log(`22. pulou -> ${JSON.stringify(semEscolha)}`);
+if (!/Rasther_CANFD/.test(semEscolha.fotoDoCabecalho ?? '')) {
+  throw new Error(`sem escolha o painel deveria vestir o equipamento padrao; veio ${semEscolha.fotoDoCabecalho}`);
+}
+
+// Responde qualquer alternativa: o que se afirma aqui e o REGISTRO.
+await page.evaluate((finder) => {
+  // eslint-disable-next-line no-eval
+  eval(finder)[0].querySelector('.ff-inkwell').click();
+}, ANSWER_FINDER);
+await wait(1200);
+await page.evaluate(() => {
+  const nodes = [...document.querySelectorAll('#overlays .ff-text')];
+  nodes.find((n) => n.textContent.trim() === 'Confirmar').closest('.ff-inkwell').click();
+});
+await Promise.race([
+  waitForRoute('Ganhou', 15000).then(() => 'Ganhou'),
+  waitForRoute('Perdeu', 15000).then(() => 'Perdeu'),
+]);
+await wait(1200);
+const registro = await page.evaluate(
+  () => JSON.parse(localStorage.getItem('tecgame:usuarios') || '[]').find((u) => u.nome === 'Pulador') ?? null
+);
+log(`23. registro de quem pulou: ${JSON.stringify(registro)}`);
+if (!registro) throw new Error('a partida de quem pulou nao foi gravada');
+if (registro.equipamento !== 'não escolhido') {
+  throw new Error(`quem pulou nao escolheu equipamento, e o registro diz "${registro.equipamento}"`);
+}
 
 await browser.close();
 

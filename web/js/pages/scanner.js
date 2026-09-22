@@ -12,10 +12,30 @@
 // e "qual destes?", as opcoes chegando em sequencia sao o convite a escolher;
 // chegando juntas, sao uma imagem que apareceu.
 
-import { Align, Column, Container, Padding, Row, Txt, color, decorationImage, el, unfocus } from '../widgets.js';
+import {
+  Align,
+  Column,
+  Container,
+  InkWell,
+  Padding,
+  Row,
+  Stack,
+  StackAlign,
+  Txt,
+  boxShadow,
+  color,
+  decorationImage,
+  el,
+  linearGradient,
+  unfocus,
+} from '../widgets.js';
 import { style } from '../theme.js';
 import { L } from '../i18n.js';
-import { FerramentaWidget } from '../components/ferramenta.js';
+import { T } from '../textos.js';
+import { FFAppState } from '../state.js';
+import { playSound } from '../audio.js';
+import { goNamed } from '../router.js';
+import { EQUIPAMENTO_PADRAO, FerramentaWidget } from '../components/ferramenta.js';
 import {
   AnimationInfo,
   AnimationTrigger,
@@ -23,6 +43,7 @@ import {
   FadeEffect,
   MoveEffect,
   ScaleEffect,
+  animateOnActionTrigger,
   animateOnPageLoad,
 } from '../anim.js';
 
@@ -63,7 +84,35 @@ const entradaDaFerramenta = (ordem) => {
   });
 };
 
+/**
+ * O atalho, que chega depois de todas as opcoes terem pousado.
+ *
+ * Sem laco de pulsacao, ao contrario do "Pular instrucoes": ali o botao e a
+ * unica coisa tocavel da tela, aqui ele disputa com cinco equipamentos, e um
+ * atalho piscando puxaria para si a atencao que a pergunta desta tela pede.
+ */
+const entradaDoAtalho = () =>
+  new AnimationInfo({
+    trigger: AnimationTrigger.onPageLoad,
+    applyInitialState: true,
+    effectsBuilder: () => [
+      FadeEffect({ curve: Curves.easeOut, delay: 900.0, duration: 300.0, begin: 0.0, end: 1.0 }),
+      MoveEffect({ curve: Curves.easeOut, delay: 900.0, duration: 380.0, begin: [0.0, 28.0], end: [0.0, 0.0] }),
+    ],
+  });
+
+const apertoDoAtalho = () =>
+  new AnimationInfo({
+    trigger: AnimationTrigger.onActionTrigger,
+    applyInitialState: true,
+    effectsBuilder: () => [
+      ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 200.0, begin: [1.0, 1.0], end: [0.9, 0.9] }),
+      ScaleEffect({ curve: Curves.easeInOut, delay: 200.0, duration: 200.0, begin: [0.9, 0.9], end: [1.0, 1.0] }),
+    ],
+  });
+
 export function ScannerWidget() {
+  const model = {};
   /**
    * Cada equipamento entra dentro de um involucro, e nao no proprio no.
    *
@@ -139,6 +188,57 @@ export function ScannerWidget() {
     ],
   });
 
+  /* ------------------------------------------------------------- o atalho -- */
+
+  const apertar = apertoDoAtalho();
+
+  /**
+   * Pular a escolha.
+   *
+   * Numa feira a fila anda, e nem todo visitante quer decidir com qual dos
+   * cinco vai jogar — antes deste botao a unica saida era escolher alguma
+   * coisa. Quem pula segue com o equipamento padrao (ver `EQUIPAMENTO_PADRAO`),
+   * que e o que da ao painel da pergunta uma pele inteira em vez do cinza de
+   * reserva, e vai DIRETO para a partida: o video demonstrativo de 14s e a
+   * apresentacao do equipamento escolhido, e quem nao escolheu nao tem o que
+   * lhe apresentar.
+   *
+   * A partida fica marcada como sem escolha (`equipamentoPulado`), para a aba
+   * Respostas nao contar como interesse por um equipamento o que foi so pressa.
+   */
+  const pular = () => {
+    playSound(model, 'soundPlayer', 'assets/audios/undertale-select-sound.mp3', 0.6);
+    apertar.controller.forward();
+    FFAppState.scannerEscolhido = EQUIPAMENTO_PADRAO;
+    FFAppState.equipamentoPulado = true;
+    goNamed('telaAcao');
+  };
+
+  const botaoPular = InkWell({
+    onTap: pular,
+    child: Container({
+      width: 450.0,
+      height: 100.0,
+      boxShadow: boxShadow({ blurRadius: 4.0, color: color(0x33000000), offset: [0.0, 2.0] }),
+      // O mesmo desenho do "Pular instrucoes": o jogador ja aprendeu, duas
+      // telas atras, que este retangulo azul no canto de baixo e a saida.
+      gradient: linearGradient({
+        colors: [color(0xFF0051FF), color(0xFF3471F4)],
+        stops: [0.0, 1.0],
+        begin: [1.0, 0.17],
+        end: [-1.0, -0.17],
+      }),
+      borderRadius: 8.0,
+      alignment: [0.0, 0.0],
+      child: Align({
+        alignment: [0.0, 0.0],
+        child: Txt(T('pularEscolha'), style('bodyMedium', { fontFamily: 'pirulen', fontSize: 28.0 })),
+      }),
+    }),
+  });
+  animateOnPageLoad(botaoPular, entradaDoAtalho());
+  animateOnActionTrigger(botaoPular, apertar);
+
   const root = el(
     'div',
     { class: 'ff-scaffold', style: { background: color(0xFF1D1D2B) } },
@@ -146,10 +246,27 @@ export function ScannerWidget() {
       width: Infinity,
       height: Infinity,
       image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),
-      child: Padding({
-        padding: [0.0, 36.0, 0.0, 0.0],
-        style: { flex: '1 1 auto', minHeight: 0 },
-        child: Column({ mainAxisSize: 'max', mainAxisAlignment: 'center', children: [content] }),
+      child: Stack({
+        width: Infinity,
+        height: Infinity,
+        children: [
+          // A caixa de 100% x 100% e o que segura o layout de pe dentro do
+          // Stack: um filho sem tamanho proprio seria posicionado no canto
+          // pelo alinhamento padrao, e a coluna centralizada desabaria.
+          Container({
+            width: Infinity,
+            height: Infinity,
+            child: Padding({
+              padding: [0.0, 36.0, 0.0, 0.0],
+              style: { flex: '1 1 auto', minHeight: 0 },
+              child: Column({ mainAxisSize: 'max', mainAxisAlignment: 'center', children: [content] }),
+            }),
+          }),
+          StackAlign({
+            alignment: [1.0, 1.0],
+            child: Padding({ padding: [0.0, 0.0, 32.0, 32.0], child: botaoPular }),
+          }),
+        ],
       }),
     })
   );

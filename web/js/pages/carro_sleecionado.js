@@ -19,7 +19,7 @@ import { Align, Column, Container, Padding, Txt, decorationImage, el, color, unf
 import { style } from '../theme.js';
 import { FFAppState } from '../state.js';
 import { CarroFotoWidget } from '../components/carro_foto.js';
-import { goNamed, TransitionInfo, PageTransitionType } from '../router.js';
+import { goNamed } from '../router.js';
 import {
   AnimationInfo,
   AnimationTrigger,
@@ -124,19 +124,11 @@ export function CarroSleecionadoWidget() {
   delayed(6000).then(async () => {
     if (left || !root.isConnected) return;
     // Sequencia de verdade: e a animacao de SAIDA da tela, antes de navegar.
+    // Quando o roteador esmaece a pagina, o conteudo daqui ja apagou sozinho —
+    // o que sobra para o jogador ver e a entrada da proxima.
     await animationsMap.columnOnActionTriggerAnimation.controller.forward();
     if (left || !root.isConnected) return;
-    goNamed('scanner', {
-      extra: {
-        __transition_info__: new TransitionInfo({
-          hasTransition: true,
-          transitionType: PageTransitionType.fade,
-          // Curto porque o conteúdo desta tela já se apagou sozinho antes de
-          // navegar (a animação de saída acima): o que falta é só a entrada.
-          duration: 280,
-        }),
-      },
-    });
+    goNamed('scanner');
   });
 
   root.__dispose = () => {

@@ -1,5 +1,5 @@
-// Port of lib/flutter_flow/nav/nav.dart - the go_router setup plus the
-// page_transition animations it hands to CustomTransitionPage.
+// Port of lib/flutter_flow/nav/nav.dart - the go_router setup. As transições
+// que o Dart escolhia página a página viraram uma só, aqui dentro.
 //
 // Routes keep the paths from the Dart, moved behind the hash so the app runs
 // from any static host (and from file://) without server rewrites:
@@ -7,28 +7,6 @@
 
 import { popAllDialogs } from './dialog.js';
 import { unfocus } from './widgets.js';
-
-export const PageTransitionType = { fade: 'fade', scale: 'scale' };
-
-export const Alignment = {
-  bottomCenter: [0, 1],
-  center: [0, 0],
-  topCenter: [0, -1],
-};
-
-/** TransitionInfo from nav.dart. */
-export class TransitionInfo {
-  constructor({ hasTransition, transitionType = PageTransitionType.fade, duration = 300, alignment = null } = {}) {
-    this.hasTransition = hasTransition;
-    this.transitionType = transitionType;
-    this.duration = duration;
-    this.alignment = alignment;
-  }
-
-  static appDefault() {
-    return new TransitionInfo({ hasTransition: false });
-  }
-}
 
 const routes = new Map();
 /** name -> path, so goNamed can resolve like go_router does. */
@@ -57,50 +35,44 @@ function parseQuery(path) {
 
 export const serializeParam = (value) => (value == null ? null : String(value));
 
-/* --------------------------------------------------------- transitions ---- */
+/* --------------------------------------------------------- a transição ---- */
 
-function transitionIn(node, info) {
-  if (!info || !info.hasTransition || info.duration === 0) return Promise.resolve();
-  const duration = info.duration;
-  if (info.transitionType === PageTransitionType.scale) {
-    const [ax, ay] = info.alignment ?? Alignment.center;
-    node.style.transformOrigin = `${((ax + 1) / 2) * 100}% ${((ay + 1) / 2) * 100}%`;
-    return node
-      .animate([{ transform: 'scale(0)' }, { transform: 'scale(1)' }], {
-        duration,
-        easing: 'linear',
-        fill: 'both',
-      })
-      .finished.catch(() => {});
-  }
-  return node
-    .animate([{ opacity: 0 }, { opacity: 1 }], { duration, easing: 'linear', fill: 'both' })
-    .finished.catch(() => {});
-}
+/**
+ * TODA troca de tela é a mesma coisa: a que sai apaga, a que entra acende.
+ *
+ * O porte trouxe do Dart duas gramáticas — `fade` e `scale` — e as telas as
+ * misturavam. A escolha do equipamento, os dois vídeos e a tela da pergunta
+ * NASCIAM DE UM PONTO no rodapé e cresciam até encher o palco, enquanto as
+ * outras esmaeciam. Num totem em que o jogador atravessa sete telas em dois
+ * minutos, mudar de gramática a cada passo se lê como defeito, e não como
+ * variedade — e a escala ainda espremia a arte no caminho.
+ *
+ * Quem decide agora é este arquivo, e só ele. `goNamed` é como o jogo troca de
+ * tela: esmaece sempre. `go` continua instantâneo, porque quem o chama não está
+ * viajando — é a troca de idioma, que reconstrói a MESMA tela, e a porta da
+ * administração, que levanta uma camada por fora do palco.
+ *
+ * Os dois trechos são sequenciais de propósito (`render` espera o primeiro):
+ * a tela que sai some inteira antes de a outra aparecer, e o que se vê no meio
+ * é o fundo do palco. Cruzar as duas deixaria dois desenhos sobrepostos.
+ */
+const ESMAECER_MS = 300;
 
-function transitionOut(node, info) {
-  if (!info || !info.hasTransition || info.duration === 0) return Promise.resolve();
-  const duration = info.duration;
-  if (info.transitionType === PageTransitionType.scale) {
-    return node
-      .animate([{ transform: 'scale(1)' }, { transform: 'scale(0)' }], { duration, easing: 'linear', fill: 'both' })
-      .finished.catch(() => {});
-  }
-  return node
-    .animate([{ opacity: 1 }, { opacity: 0 }], { duration, easing: 'linear', fill: 'both' })
+const esmaecer = (node, de, para) =>
+  node
+    .animate([{ opacity: de }, { opacity: para }], { duration: ESMAECER_MS, easing: 'linear', fill: 'both' })
     .finished.catch(() => {});
-}
 
 /* -------------------------------------------------------------- navigate -- */
 
-async function render(path, { info }) {
+async function render(path, { comFade }) {
   if (navigating) {
     // Um toque durante a transicao de ENTRADA da tela anterior era engolido em
     // silencio: este `return` descartava a navegacao e o jogador ficava olhando
     // um botao que nao fez nada. Enquanto toda acao esperava 400ms de animacao
     // de aperto, a janela era pequena e o defeito passava; sem essa espera ele
     // aparece. Agora o pedido espera a vez em vez de morrer.
-    pendente = { path, info };
+    pendente = { path, comFade };
     return;
   }
   navigating = true;
@@ -117,7 +89,7 @@ async function render(path, { info }) {
     if (previous) {
       // dispose() on the outgoing page's state.
       previous.dispose?.();
-      await transitionOut(previous.node, info);
+      if (comFade) await esmaecer(previous.node, 1, 0);
     }
 
     const node = document.createElement('div');
@@ -136,26 +108,30 @@ async function render(path, { info }) {
       history.replaceState({ path }, '', `#${path}`);
     }
 
-    await transitionIn(node, info);
+    if (comFade) await esmaecer(node, 0, 1);
   } finally {
     navigating = false;
     // So o ultimo pedido interessa: quem apertou duas telas atras nao quer
     // atravessar as duas.
     const proximo = pendente;
     pendente = null;
-    if (proximo) await render(proximo.path, { info: proximo.info });
+    if (proximo) await render(proximo.path, { comFade: proximo.comFade });
   }
 }
 
-/** `context.goNamed(name, queryParameters: ..., extra: {__transition_info__})` */
-export function goNamed(name, { queryParameters = null, extra = null } = {}) {
+/**
+ * `context.goNamed(name, queryParameters: ...)` — a troca de tela do jogo, e a
+ * única porta que esmaece. O `extra: {__transition_info__}` que o Dart passava
+ * aqui sumiu junto com a escolha de transição (ver acima).
+ */
+export function goNamed(name, { queryParameters = null } = {}) {
   const path = buildPath(name, queryParameters);
-  return render(path, { info: extra?.__transition_info__ });
+  return render(path, { comFade: true });
 }
 
-/** `context.go(path)` */
+/** `context.go(path)` — ir sem viagem: reconstruir a tela atual, abrir o admin. */
 export function go(path) {
-  return render(path, { info: null });
+  return render(path, { comFade: false });
 }
 
 function buildPath(name, queryParameters) {
@@ -169,11 +145,11 @@ function buildPath(name, queryParameters) {
 /** initialLocation: '/' */
 export function startRouter() {
   const initial = location.hash.slice(1) || '/';
-  render(initial, { info: null });
+  render(initial, { comFade: false });
 
   window.addEventListener('hashchange', () => {
     const path = location.hash.slice(1) || '/';
     if (current && current.path === path) return;
-    render(path, { info: null });
+    render(path, { comFade: false });
   });
 }

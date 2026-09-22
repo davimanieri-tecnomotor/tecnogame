@@ -7,7 +7,7 @@
 import { Container, VideoPlayer, decorationImage, el } from '../widgets.js';
 import { TH } from '../theme.js';
 import { playSound } from '../audio.js';
-import { goNamed, TransitionInfo, PageTransitionType, Alignment } from '../router.js';
+import { goNamed } from '../router.js';
 import { delayed } from '../anim.js';
 
 export function TelaVideoTransisaoWidget({ params } = {}) {
@@ -32,16 +32,7 @@ export function TelaVideoTransisaoWidget({ params } = {}) {
     })
   );
 
-  const next = (name) =>
-    goNamed(name, {
-      extra: {
-        __transition_info__: new TransitionInfo({
-          hasTransition: true,
-          transitionType: PageTransitionType.scale,
-          alignment: Alignment.bottomCenter,
-        }),
-      },
-    });
+  const next = (name) => goNamed(name);
 
   playSound(model, 'soundPlayer', 'assets/audios/jaspion-theme_Ho7gr9uE.mp3', 0.5);
 

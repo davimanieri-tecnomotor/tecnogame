@@ -2469,6 +2469,18 @@
       this.sorteio = [];
   
       this.scannerEscolhido = '';
+  
+      /**
+       * O jogador pulou a escolha do equipamento (ver `pages/scanner.js`).
+       *
+       * A tela da pergunta precisa de UM equipamento para se desenhar, então o
+       * atalho já deixa `scannerEscolhido` no padrão. Mas o registro da partida
+       * não pode dizer que alguém escolheu o que não escolheu: `equipamento` é a
+       * coluna que o time lê na aba Respostas justamente para saber qual
+       * equipamento desperta interesse em quem joga.
+       */
+      this.equipamentoPulado = false;
+  
       this.tempoAcabando = false;
       this.escolha = 1.5;
   
@@ -2723,8 +2735,8 @@
 
   /* ===== router.js ===== */
   __define("router.js", function (__exports, __require) {
-  // Port of lib/flutter_flow/nav/nav.dart - the go_router setup plus the
-  // page_transition animations it hands to CustomTransitionPage.
+  // Port of lib/flutter_flow/nav/nav.dart - the go_router setup. As transições
+  // que o Dart escolhia página a página viraram uma só, aqui dentro.
   //
   // Routes keep the paths from the Dart, moved behind the hash so the app runs
   // from any static host (and from file://) without server rewrites:
@@ -2732,28 +2744,6 @@
   
   const { popAllDialogs } = __require("dialog.js");
   const { unfocus } = __require("widgets.js");
-  
-  const PageTransitionType = { fade: 'fade', scale: 'scale' };
-  
-  const Alignment = {
-    bottomCenter: [0, 1],
-    center: [0, 0],
-    topCenter: [0, -1],
-  };
-  
-  /** TransitionInfo from nav.dart. */
-  class TransitionInfo {
-    constructor({ hasTransition, transitionType = PageTransitionType.fade, duration = 300, alignment = null } = {}) {
-      this.hasTransition = hasTransition;
-      this.transitionType = transitionType;
-      this.duration = duration;
-      this.alignment = alignment;
-    }
-  
-    static appDefault() {
-      return new TransitionInfo({ hasTransition: false });
-    }
-  }
   
   const routes = new Map();
   /** name -> path, so goNamed can resolve like go_router does. */
@@ -2782,50 +2772,44 @@
   
   const serializeParam = (value) => (value == null ? null : String(value));
   
-  /* --------------------------------------------------------- transitions ---- */
+  /* --------------------------------------------------------- a transição ---- */
   
-  function transitionIn(node, info) {
-    if (!info || !info.hasTransition || info.duration === 0) return Promise.resolve();
-    const duration = info.duration;
-    if (info.transitionType === PageTransitionType.scale) {
-      const [ax, ay] = info.alignment ?? Alignment.center;
-      node.style.transformOrigin = `${((ax + 1) / 2) * 100}% ${((ay + 1) / 2) * 100}%`;
-      return node
-        .animate([{ transform: 'scale(0)' }, { transform: 'scale(1)' }], {
-          duration,
-          easing: 'linear',
-          fill: 'both',
-        })
-        .finished.catch(() => {});
-    }
-    return node
-      .animate([{ opacity: 0 }, { opacity: 1 }], { duration, easing: 'linear', fill: 'both' })
-      .finished.catch(() => {});
-  }
+  /**
+   * TODA troca de tela é a mesma coisa: a que sai apaga, a que entra acende.
+   *
+   * O porte trouxe do Dart duas gramáticas — `fade` e `scale` — e as telas as
+   * misturavam. A escolha do equipamento, os dois vídeos e a tela da pergunta
+   * NASCIAM DE UM PONTO no rodapé e cresciam até encher o palco, enquanto as
+   * outras esmaeciam. Num totem em que o jogador atravessa sete telas em dois
+   * minutos, mudar de gramática a cada passo se lê como defeito, e não como
+   * variedade — e a escala ainda espremia a arte no caminho.
+   *
+   * Quem decide agora é este arquivo, e só ele. `goNamed` é como o jogo troca de
+   * tela: esmaece sempre. `go` continua instantâneo, porque quem o chama não está
+   * viajando — é a troca de idioma, que reconstrói a MESMA tela, e a porta da
+   * administração, que levanta uma camada por fora do palco.
+   *
+   * Os dois trechos são sequenciais de propósito (`render` espera o primeiro):
+   * a tela que sai some inteira antes de a outra aparecer, e o que se vê no meio
+   * é o fundo do palco. Cruzar as duas deixaria dois desenhos sobrepostos.
+   */
+  const ESMAECER_MS = 300;
   
-  function transitionOut(node, info) {
-    if (!info || !info.hasTransition || info.duration === 0) return Promise.resolve();
-    const duration = info.duration;
-    if (info.transitionType === PageTransitionType.scale) {
-      return node
-        .animate([{ transform: 'scale(1)' }, { transform: 'scale(0)' }], { duration, easing: 'linear', fill: 'both' })
-        .finished.catch(() => {});
-    }
-    return node
-      .animate([{ opacity: 1 }, { opacity: 0 }], { duration, easing: 'linear', fill: 'both' })
+  const esmaecer = (node, de, para) =>
+    node
+      .animate([{ opacity: de }, { opacity: para }], { duration: ESMAECER_MS, easing: 'linear', fill: 'both' })
       .finished.catch(() => {});
-  }
   
   /* -------------------------------------------------------------- navigate -- */
   
-  async function render(path, { info }) {
+  async function render(path, { comFade }) {
     if (navigating) {
       // Um toque durante a transicao de ENTRADA da tela anterior era engolido em
       // silencio: este `return` descartava a navegacao e o jogador ficava olhando
       // um botao que nao fez nada. Enquanto toda acao esperava 400ms de animacao
       // de aperto, a janela era pequena e o defeito passava; sem essa espera ele
       // aparece. Agora o pedido espera a vez em vez de morrer.
-      pendente = { path, info };
+      pendente = { path, comFade };
       return;
     }
     navigating = true;
@@ -2842,7 +2826,7 @@
       if (previous) {
         // dispose() on the outgoing page's state.
         previous.dispose?.();
-        await transitionOut(previous.node, info);
+        if (comFade) await esmaecer(previous.node, 1, 0);
       }
   
       const node = document.createElement('div');
@@ -2861,26 +2845,30 @@
         history.replaceState({ path }, '', `#${path}`);
       }
   
-      await transitionIn(node, info);
+      if (comFade) await esmaecer(node, 0, 1);
     } finally {
       navigating = false;
       // So o ultimo pedido interessa: quem apertou duas telas atras nao quer
       // atravessar as duas.
       const proximo = pendente;
       pendente = null;
-      if (proximo) await render(proximo.path, { info: proximo.info });
+      if (proximo) await render(proximo.path, { comFade: proximo.comFade });
     }
   }
   
-  /** `context.goNamed(name, queryParameters: ..., extra: {__transition_info__})` */
-  function goNamed(name, { queryParameters = null, extra = null } = {}) {
+  /**
+   * `context.goNamed(name, queryParameters: ...)` — a troca de tela do jogo, e a
+   * única porta que esmaece. O `extra: {__transition_info__}` que o Dart passava
+   * aqui sumiu junto com a escolha de transição (ver acima).
+   */
+  function goNamed(name, { queryParameters = null } = {}) {
     const path = buildPath(name, queryParameters);
-    return render(path, { info: extra?.__transition_info__ });
+    return render(path, { comFade: true });
   }
   
-  /** `context.go(path)` */
+  /** `context.go(path)` — ir sem viagem: reconstruir a tela atual, abrir o admin. */
   function go(path) {
-    return render(path, { info: null });
+    return render(path, { comFade: false });
   }
   
   function buildPath(name, queryParameters) {
@@ -2894,17 +2882,14 @@
   /** initialLocation: '/' */
   function startRouter() {
     const initial = location.hash.slice(1) || '/';
-    render(initial, { info: null });
+    render(initial, { comFade: false });
   
     window.addEventListener('hashchange', () => {
       const path = location.hash.slice(1) || '/';
       if (current && current.path === path) return;
-      render(path, { info: null });
+      render(path, { comFade: false });
     });
   }
-  Object.defineProperty(__exports, "PageTransitionType", { get: () => PageTransitionType, enumerable: true });
-  Object.defineProperty(__exports, "Alignment", { get: () => Alignment, enumerable: true });
-  Object.defineProperty(__exports, "TransitionInfo", { get: () => TransitionInfo, enumerable: true });
   Object.defineProperty(__exports, "defineRoute", { get: () => defineRoute, enumerable: true });
   Object.defineProperty(__exports, "serializeParam", { get: () => serializeParam, enumerable: true });
   Object.defineProperty(__exports, "goNamed", { get: () => goNamed, enumerable: true });
@@ -3568,6 +3553,8 @@
       en: 'By confirming, you agree to the data access terms. Tap to read the privacy policy.',
       es: 'Al confirmar, acepta los términos de acceso a los datos. Toque para leer la política de privacidad.',
     },
+  
+    pularEscolha: { pt: 'Pular escolha', en: 'Skip choice', es: 'Saltar elección' },
   
     /* ------------------------------------------------------ ranking e resultado -- */
   
@@ -6439,10 +6426,20 @@
   
   const { readRaw, writeRaw } = __require("storage.js");
   
-  const VERSAO_DO_JOGO = '2.3.0';
+  const VERSAO_DO_JOGO = '2.4.0';
   
   /** Mais recente primeiro — é a ordem em que o painel lista. */
   const NOTAS_DE_ATUALIZACAO = [
+    {
+      versao: '2.4.0',
+      data: '2026-09-22',
+      itens: [
+        'Na escolha do equipamento existe agora o botão "Pular escolha": o jogo segue com o Rasther 3S e vai direto para a pergunta, sem o vídeo de 14 segundos. Serve para a fila andar em feira cheia.',
+        'Na aba Respostas, quem pulou aparece com "não escolhido" na coluna Equipamento — a coluna continua contando só escolha de verdade.',
+        'A foto do veículo na tela da pergunta ficou bem maior: ela ocupa todo o espaço que o enunciado deixa livre.',
+        'Todas as trocas de tela ficaram iguais: a tela que sai apaga e a seguinte acende. Antes quatro delas cresciam a partir do rodapé.',
+      ],
+    },
     {
       versao: '2.3.0',
       data: '2026-09-22',
@@ -8038,7 +8035,7 @@
   const { RankingWidget } = __require("components/ranking.js");
   const { registrarToqueSecreto } = __require("admin/porta.js");
   const { sincronizarBaralho } = __require("nuvem.js");
-  const { goNamed, TransitionInfo, PageTransitionType, Alignment } = __require("router.js");
+  const { goNamed } = __require("router.js");
   const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
   const { FlutterFlowTimer, FlutterFlowTimerController, InstantTimer, StopWatchMode, StopWatchTimer } = __require("timer.js");
   const { FlutterFlowDropDown, FlutterFlowLanguageSelector, FormFieldController, FormState, MaskTextInputFormatter, TextEditingController, TextFormField } = __require("forms.js");
@@ -8287,15 +8284,7 @@
             // próximo jogador encontra a tela em branco.
             resetFormState();
   
-            goNamed('instrucoes', {
-              extra: {
-                __transition_info__: new TransitionInfo({
-                  hasTransition: true,
-                  transitionType: PageTransitionType.scale,
-                  alignment: Alignment.bottomCenter,
-                }),
-              },
-            });
+            goNamed('instrucoes');
           },
         child: Container({
           width: SW * 0.25,
@@ -8560,20 +8549,10 @@
   const { TH, style } = __require("theme.js");
   const { L } = __require("i18n.js");
   const { playSound } = __require("audio.js");
-  const { goNamed, serializeParam, TransitionInfo, PageTransitionType } = __require("router.js");
+  const { goNamed, serializeParam } = __require("router.js");
   const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnActionTrigger, animateOnPageLoad, delayed } = __require("anim.js");
   
-  const NEXT = () =>
-    goNamed('telaVideoTransisao', {
-      queryParameters: { tipo: serializeParam(1) },
-      extra: {
-        __transition_info__: new TransitionInfo({
-          hasTransition: true,
-          transitionType: PageTransitionType.fade,
-          duration: 300,
-        }),
-      },
-    });
+  const NEXT = () => goNamed('telaVideoTransisao', { queryParameters: { tipo: serializeParam(1) } });
   
   function InstrucoesWidget() {
     const model = {};
@@ -8682,7 +8661,7 @@
   const { Container, VideoPlayer, decorationImage, el } = __require("widgets.js");
   const { TH } = __require("theme.js");
   const { playSound } = __require("audio.js");
-  const { goNamed, TransitionInfo, PageTransitionType, Alignment } = __require("router.js");
+  const { goNamed } = __require("router.js");
   const { delayed } = __require("anim.js");
   
   function TelaVideoTransisaoWidget({ params } = {}) {
@@ -8707,16 +8686,7 @@
       })
     );
   
-    const next = (name) =>
-      goNamed(name, {
-        extra: {
-          __transition_info__: new TransitionInfo({
-            hasTransition: true,
-            transitionType: PageTransitionType.scale,
-            alignment: Alignment.bottomCenter,
-          }),
-        },
-      });
+    const next = (name) => goNamed(name);
   
     playSound(model, 'soundPlayer', 'assets/audios/jaspion-theme_Ho7gr9uE.mp3', 0.5);
   
@@ -9484,7 +9454,7 @@
   const { rodaGerada } = __require("roda.js");
   const { criarVida, efeitosDoGiro, TAXA_DA_GRAVACAO } = __require("giro.js");
   const { playSound } = __require("audio.js");
-  const { goNamed, TransitionInfo, PageTransitionType } = __require("router.js");
+  const { goNamed } = __require("router.js");
   const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad, delayed, menosMovimento } = __require("anim.js");
   
   function RoletaWidget() {
@@ -9644,19 +9614,7 @@
         FFAppState.addToListaEscolhas(FFAppState.escolha);
   
         model.apertaButton = true;
-        goNamed('carroSleecionado', {
-          extra: {
-            __transition_info__: new TransitionInfo({
-              hasTransition: true,
-              transitionType: PageTransitionType.fade,
-              // Era 0, que o roteador trata como SEM transição: a roda parava e a
-              // tela trocava de estalo, no momento mais dramático do jogo. Este é
-              // o mais longo dos quatro de propósito — é o único em que a troca
-              // vale como pausa.
-              duration: 420,
-            }),
-          },
-        });
+        goNamed('carroSleecionado');
       },
       child: Container({
         width: 428.0,
@@ -9819,7 +9777,7 @@
   const { style } = __require("theme.js");
   const { FFAppState } = __require("state.js");
   const { CarroFotoWidget } = __require("components/carro_foto.js");
-  const { goNamed, TransitionInfo, PageTransitionType } = __require("router.js");
+  const { goNamed } = __require("router.js");
   const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad, delayed } = __require("anim.js");
   
   
@@ -9914,19 +9872,11 @@
     delayed(6000).then(async () => {
       if (left || !root.isConnected) return;
       // Sequencia de verdade: e a animacao de SAIDA da tela, antes de navegar.
+      // Quando o roteador esmaece a pagina, o conteudo daqui ja apagou sozinho —
+      // o que sobra para o jogador ver e a entrada da proxima.
       await animationsMap.columnOnActionTriggerAnimation.controller.forward();
       if (left || !root.isConnected) return;
-      goNamed('scanner', {
-        extra: {
-          __transition_info__: new TransitionInfo({
-            hasTransition: true,
-            transitionType: PageTransitionType.fade,
-            // Curto porque o conteúdo desta tela já se apagou sozinho antes de
-            // navegar (a animação de saída acima): o que falta é só a entrada.
-            duration: 280,
-          }),
-        },
-      });
+      goNamed('scanner');
     });
   
     root.__dispose = () => {
@@ -10040,8 +9990,19 @@
   const { playSound } = __require("audio.js");
   const { showDialog } = __require("dialog.js");
   const { EquipamentoInvalidoWidget } = __require("components/equipamento_invalido.js");
-  const { goNamed, TransitionInfo, PageTransitionType, Alignment } = __require("router.js");
+  const { goNamed } = __require("router.js");
   const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnActionTrigger } = __require("anim.js");
+  
+  /**
+   * Com que equipamento o jogo segue quando o jogador PULA a escolha (ver
+   * `pages/scanner.js`). O painel da pergunta troca de pele conforme este valor,
+   * e não existe pele "nenhuma": sem um nome conhecido o painel cai no cinza de
+   * reserva e fica sem a foto do cabeçalho, que é a cara de tela quebrada.
+   */
+  const EQUIPAMENTO_PADRAO = 'Rasther 3';
+  
+  /** O que vai para o registro da partida quando ninguém escolheu nada. */
+  const EQUIPAMENTO_PULADO = 'não escolhido';
   
   const TOOLS = {
     '3s': { image: 'assets/images/Rasther_3s_Claro.png', flag: 'raster3S', escolhido: 'Rasther 3', sound: 'soundPlayer1' },
@@ -10081,17 +10042,14 @@
       playSound(model, tool.sound, 'assets/audios/undertale-select-sound.mp3', 0.6);
       animationsMap.stackOnActionTriggerAnimation.controller.forward();
       if (enabled) {
-        goNamed('telaVideoScanner', {
-          extra: {
-            __transition_info__: new TransitionInfo({
-              hasTransition: true,
-              transitionType: PageTransitionType.scale,
-              alignment: Alignment.bottomCenter,
-            }),
-          },
-        });
+        // O equipamento é escolhido ANTES de navegar. O Dart gravava depois da
+        // chamada e só funcionava por acidente: quem monta a próxima tela lê este
+        // valor, e bastava a navegação deixar de ceder o passo para a tela do
+        // vídeo abrir com o scanner da partida anterior.
         FFAppState.scannerEscolhido = tool.escolhido;
-        } else {
+        FFAppState.equipamentoPulado = false;
+        goNamed('telaVideoScanner');
+      } else {
         await showDialog({ builder: () => EquipamentoInvalidoWidget() });
       }
     };
@@ -10127,6 +10085,8 @@
   
     return animateOnActionTrigger(root, animationsMap.stackOnActionTriggerAnimation);
   }
+  Object.defineProperty(__exports, "EQUIPAMENTO_PADRAO", { get: () => EQUIPAMENTO_PADRAO, enumerable: true });
+  Object.defineProperty(__exports, "EQUIPAMENTO_PULADO", { get: () => EQUIPAMENTO_PULADO, enumerable: true });
   Object.defineProperty(__exports, "FerramentaWidget", { get: () => FerramentaWidget, enumerable: true });
   });
 
@@ -10146,11 +10106,15 @@
   // e "qual destes?", as opcoes chegando em sequencia sao o convite a escolher;
   // chegando juntas, sao uma imagem que apareceu.
   
-  const { Align, Column, Container, Padding, Row, Txt, color, decorationImage, el, unfocus } = __require("widgets.js");
+  const { Align, Column, Container, InkWell, Padding, Row, Stack, StackAlign, Txt, boxShadow, color, decorationImage, el, linearGradient, unfocus } = __require("widgets.js");
   const { style } = __require("theme.js");
   const { L } = __require("i18n.js");
-  const { FerramentaWidget } = __require("components/ferramenta.js");
-  const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnPageLoad } = __require("anim.js");
+  const { T } = __require("textos.js");
+  const { FFAppState } = __require("state.js");
+  const { playSound } = __require("audio.js");
+  const { goNamed } = __require("router.js");
+  const { EQUIPAMENTO_PADRAO, FerramentaWidget } = __require("components/ferramenta.js");
+  const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
   
   /** O titulo chega primeiro, e sozinho: e ele que faz a pergunta. */
   const entradaDoTitulo = () =>
@@ -10189,7 +10153,35 @@
     });
   };
   
+  /**
+   * O atalho, que chega depois de todas as opcoes terem pousado.
+   *
+   * Sem laco de pulsacao, ao contrario do "Pular instrucoes": ali o botao e a
+   * unica coisa tocavel da tela, aqui ele disputa com cinco equipamentos, e um
+   * atalho piscando puxaria para si a atencao que a pergunta desta tela pede.
+   */
+  const entradaDoAtalho = () =>
+    new AnimationInfo({
+      trigger: AnimationTrigger.onPageLoad,
+      applyInitialState: true,
+      effectsBuilder: () => [
+        FadeEffect({ curve: Curves.easeOut, delay: 900.0, duration: 300.0, begin: 0.0, end: 1.0 }),
+        MoveEffect({ curve: Curves.easeOut, delay: 900.0, duration: 380.0, begin: [0.0, 28.0], end: [0.0, 0.0] }),
+      ],
+    });
+  
+  const apertoDoAtalho = () =>
+    new AnimationInfo({
+      trigger: AnimationTrigger.onActionTrigger,
+      applyInitialState: true,
+      effectsBuilder: () => [
+        ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 200.0, begin: [1.0, 1.0], end: [0.9, 0.9] }),
+        ScaleEffect({ curve: Curves.easeInOut, delay: 200.0, duration: 200.0, begin: [0.9, 0.9], end: [1.0, 1.0] }),
+      ],
+    });
+  
   function ScannerWidget() {
+    const model = {};
     /**
      * Cada equipamento entra dentro de um involucro, e nao no proprio no.
      *
@@ -10265,6 +10257,57 @@
       ],
     });
   
+    /* ------------------------------------------------------------- o atalho -- */
+  
+    const apertar = apertoDoAtalho();
+  
+    /**
+     * Pular a escolha.
+     *
+     * Numa feira a fila anda, e nem todo visitante quer decidir com qual dos
+     * cinco vai jogar — antes deste botao a unica saida era escolher alguma
+     * coisa. Quem pula segue com o equipamento padrao (ver `EQUIPAMENTO_PADRAO`),
+     * que e o que da ao painel da pergunta uma pele inteira em vez do cinza de
+     * reserva, e vai DIRETO para a partida: o video demonstrativo de 14s e a
+     * apresentacao do equipamento escolhido, e quem nao escolheu nao tem o que
+     * lhe apresentar.
+     *
+     * A partida fica marcada como sem escolha (`equipamentoPulado`), para a aba
+     * Respostas nao contar como interesse por um equipamento o que foi so pressa.
+     */
+    const pular = () => {
+      playSound(model, 'soundPlayer', 'assets/audios/undertale-select-sound.mp3', 0.6);
+      apertar.controller.forward();
+      FFAppState.scannerEscolhido = EQUIPAMENTO_PADRAO;
+      FFAppState.equipamentoPulado = true;
+      goNamed('telaAcao');
+    };
+  
+    const botaoPular = InkWell({
+      onTap: pular,
+      child: Container({
+        width: 450.0,
+        height: 100.0,
+        boxShadow: boxShadow({ blurRadius: 4.0, color: color(0x33000000), offset: [0.0, 2.0] }),
+        // O mesmo desenho do "Pular instrucoes": o jogador ja aprendeu, duas
+        // telas atras, que este retangulo azul no canto de baixo e a saida.
+        gradient: linearGradient({
+          colors: [color(0xFF0051FF), color(0xFF3471F4)],
+          stops: [0.0, 1.0],
+          begin: [1.0, 0.17],
+          end: [-1.0, -0.17],
+        }),
+        borderRadius: 8.0,
+        alignment: [0.0, 0.0],
+        child: Align({
+          alignment: [0.0, 0.0],
+          child: Txt(T('pularEscolha'), style('bodyMedium', { fontFamily: 'pirulen', fontSize: 28.0 })),
+        }),
+      }),
+    });
+    animateOnPageLoad(botaoPular, entradaDoAtalho());
+    animateOnActionTrigger(botaoPular, apertar);
+  
     const root = el(
       'div',
       { class: 'ff-scaffold', style: { background: color(0xFF1D1D2B) } },
@@ -10272,10 +10315,27 @@
         width: Infinity,
         height: Infinity,
         image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),
-        child: Padding({
-          padding: [0.0, 36.0, 0.0, 0.0],
-          style: { flex: '1 1 auto', minHeight: 0 },
-          child: Column({ mainAxisSize: 'max', mainAxisAlignment: 'center', children: [content] }),
+        child: Stack({
+          width: Infinity,
+          height: Infinity,
+          children: [
+            // A caixa de 100% x 100% e o que segura o layout de pe dentro do
+            // Stack: um filho sem tamanho proprio seria posicionado no canto
+            // pelo alinhamento padrao, e a coluna centralizada desabaria.
+            Container({
+              width: Infinity,
+              height: Infinity,
+              child: Padding({
+                padding: [0.0, 36.0, 0.0, 0.0],
+                style: { flex: '1 1 auto', minHeight: 0 },
+                child: Column({ mainAxisSize: 'max', mainAxisAlignment: 'center', children: [content] }),
+              }),
+            }),
+            StackAlign({
+              alignment: [1.0, 1.0],
+              child: Padding({ padding: [0.0, 0.0, 32.0, 32.0], child: botaoPular }),
+            }),
+          ],
         }),
       })
     );
@@ -10297,7 +10357,7 @@
   const { L } = __require("i18n.js");
   const { FFAppState } = __require("state.js");
   const { CONFIG } = __require("config.js");
-  const { goNamed, TransitionInfo, PageTransitionType, Alignment } = __require("router.js");
+  const { goNamed } = __require("router.js");
   const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnPageLoad, delayed } = __require("anim.js");
   
   const BASE = 'https://firebasestorage.googleapis.com/v0/b/projeto-assis-3qcf6v.appspot.com/o/videoScanners';
@@ -10379,15 +10439,7 @@
   
     delayed(14000).then(() => {
       if (left || !root.isConnected) return;
-      goNamed('telaAcao', {
-        extra: {
-          __transition_info__: new TransitionInfo({
-            hasTransition: true,
-            transitionType: PageTransitionType.scale,
-            alignment: Alignment.bottomCenter,
-          }),
-        },
-      });
+      goNamed('telaAcao');
     });
   
     root.__dispose = () => {
@@ -10787,7 +10839,8 @@
   const { showDialog } = __require("dialog.js");
   const { ConfirmacaoWidget } = __require("components/confirmacao.js");
   const { PopUpWidget } = __require("components/pop_up.js");
-  const { goNamed, TransitionInfo, PageTransitionType } = __require("router.js");
+  const { EQUIPAMENTO_PULADO } = __require("components/ferramenta.js");
+  const { goNamed } = __require("router.js");
   const { addUsuario, createUsuariosRecordData } = __require("backend.js");
   const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad, delayed, menosMovimento } = __require("anim.js");
   const { FlutterFlowTimer, FlutterFlowTimerController, InstantTimer, StopWatchMode, StopWatchTimer } = __require("timer.js");
@@ -10931,6 +10984,16 @@
       sound: 'soundPlayer10',
     },
   ];
+  
+  /**
+   * O equipamento que vai para o registro da partida.
+   *
+   * Quem pulou a escolha joga com o padrao na tela (ver `pages/scanner.js`), mas
+   * nao escolheu nada — e esta coluna existe para o time saber o que a feira
+   * escolhe. Gravar o padrao como escolha inventaria interesse que nao houve.
+   */
+  const equipamentoDaPartida = () =>
+    FFAppState.equipamentoPulado ? EQUIPAMENTO_PULADO : FFAppState.scannerEscolhido;
   
   const tapFeedback = () =>
     new AnimationInfo({
@@ -11105,7 +11168,7 @@
               atuacao: FFAppState.cadastro.atuacao,
               venceu: acertou,
               tempo: model.timerMilliseconds,
-              equipamento: FFAppState.scannerEscolhido,
+              equipamento: equipamentoDaPartida(),
               invalido: FFAppState.cadastro.invalido,
             });
   
@@ -11128,14 +11191,7 @@
             // ninguém chega a ver o que era certo.
             await revelar({ slotEscolhido: slot, slotCerto });
   
-            goNamed(acertou ? 'Ganhou' : 'Perdeu', {
-              extra: {
-                __transition_info__: new TransitionInfo({
-                  hasTransition: true,
-                  transitionType: PageTransitionType.fade,
-                }),
-              },
-            });
+            goNamed(acertou ? 'Ganhou' : 'Perdeu');
             await addUsuario(record, { serverTimestamp: true });
   
             model.apoio = false;
@@ -11656,22 +11712,14 @@
         model.timerController.onResetTimer();
         model.soundPlayer1?.stop();
         model.instantTimer?.cancel();
-        goNamed('Perdeu', {
-          extra: {
-            __transition_info__: new TransitionInfo({
-              hasTransition: true,
-              transitionType: PageTransitionType.scale,
-              alignment: [0, 1],
-            }),
-          },
-        });
+        goNamed('Perdeu');
         await addUsuario(
           createUsuariosRecordData({
             nome: FFAppState.cadastro.nome,
             telefone: FFAppState.cadastro.telefone,
             atuacao: FFAppState.cadastro.atuacao,
             venceu: false,
-            equipamento: FFAppState.scannerEscolhido,
+            equipamento: equipamentoDaPartida(),
           })
         );
       },
@@ -11734,13 +11782,29 @@
       ? Column({
           mainAxisSize: 'min',
           crossAxisAlignment: 'center',
-          // O bloco do enunciado acima pede 100% da altura e encolhe para caber;
-          // sem travar este, quem encolhia era a foto do carro.
-          style: { flexShrink: 0 },
+          /**
+           * O carro fica com TODO o espaço que o enunciado não usou, em vez de um
+           * tamanho fixo: numa moldura que muda de altura ocupada a cada pergunta
+           * do baralho, número cravado ou sobra buraco ou empurra o texto para
+           * fora. Com pergunta curta o carro vem grande; com pergunta longa ele
+           * cede — nessa ordem, que é a da importância.
+           */
+          style: { flex: '1 1 auto', minHeight: 0, width: '100%' },
           children: [
-            // Caixa fixa e `contain`: as fotos do baralho vêm em tamanhos
-            // quaisquer, inclusive as que o operador envia do computador.
-            Img(veiculo.imagem, { width: 480.0, height: 250.0, fit: 'contain' }),
+            // A foto é POSICIONADA dentro da sobra, e não medida em 100% dela:
+            // altura em porcentagem dentro de um item flexível não resolve — o
+            // navegador cai no tamanho natural do arquivo, e o caminhão saía por
+            // baixo da moldura. Contra uma caixa posicionada a conta fecha.
+            el(
+              'div',
+              { style: { flex: '1 1 auto', minHeight: 0, width: '100%', position: 'relative' } },
+              // `contain` porque as fotos do baralho vêm em tamanhos e proporções
+              // quaisquer, inclusive as que o operador envia do computador.
+              Img(veiculo.imagem, {
+                fit: 'contain',
+                style: { position: 'absolute', inset: 0, width: '100%', height: '100%' },
+              })
+            ),
             Padding({
               padding: [0.0, 14.0, 0.0, 0.0],
               child: Txt(
@@ -11749,7 +11813,7 @@
                   fontFamily: 'Roboto',
                   fontWeight: 700,
                   color: '#FFFFFF',
-                  fontSize: 30.0,
+                  fontSize: 32.0,
                   letterSpacing: 3.0,
                   textAlign: 'center',
                 })
@@ -11802,8 +11866,14 @@
                                 mainAxisAlignment: 'spaceEvenly',
                                 children: [
                                   Column({
-                                    mainAxisSize: 'max',
+                                    // `min`, e nao `max`: enquanto este bloco
+                                    // pedia a moldura inteira, o que sobrava para
+                                    // o carro era o que a divisao de encolhimento
+                                    // deixasse — uma foto pequena no meio de um
+                                    // vazio grande.
+                                    mainAxisSize: 'min',
                                     crossAxisAlignment: 'center',
+                                    style: { flexShrink: 0 },
                                     children: [
                                       Align({
                                         alignment: [0.0, 0.0],
@@ -11916,7 +11986,7 @@
   const { formatarTempoDeResposta, posicaoNoRanking, transformaNumero } = __require("functions.js");
   const { playSound } = __require("audio.js");
   const { enviarMensagemZap, queryUsuariosVencedores } = __require("backend.js");
-  const { goNamed, serializeParam, TransitionInfo, PageTransitionType } = __require("router.js");
+  const { goNamed, serializeParam } = __require("router.js");
   const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
   const { FFButtonWidget } = __require("forms.js");
   
@@ -11971,21 +12041,13 @@
       });
   
       FFAppState.scannerEscolhido = '';
+      FFAppState.equipamentoPulado = false;
       FFAppState.tempoAcabando = false;
       FFAppState.cadastro = new CadastroStruct();
       FFAppState.ajuda = 0;
       FFAppState.resultado = null;
   
-      goNamed('telaVideoTransisao', {
-        queryParameters: { tipo: serializeParam(0) },
-        extra: {
-          __transition_info__: new TransitionInfo({
-            hasTransition: true,
-            transitionType: PageTransitionType.fade,
-            duration: 300,
-          }),
-        },
-      });
+      goNamed('telaVideoTransisao', { queryParameters: { tipo: serializeParam(0) } });
     };
   
     const build = (winners) => {

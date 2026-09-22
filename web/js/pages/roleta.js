@@ -34,7 +34,7 @@ import { usaArteOriginal } from '../deck.js';
 import { rodaGerada } from '../roda.js';
 import { criarVida, efeitosDoGiro, TAXA_DA_GRAVACAO } from '../giro.js';
 import { playSound } from '../audio.js';
-import { goNamed, TransitionInfo, PageTransitionType } from '../router.js';
+import { goNamed } from '../router.js';
 import {
   AnimationInfo,
   AnimationTrigger,
@@ -204,19 +204,7 @@ export function RoletaWidget() {
       FFAppState.addToListaEscolhas(FFAppState.escolha);
 
       model.apertaButton = true;
-      goNamed('carroSleecionado', {
-        extra: {
-          __transition_info__: new TransitionInfo({
-            hasTransition: true,
-            transitionType: PageTransitionType.fade,
-            // Era 0, que o roteador trata como SEM transição: a roda parava e a
-            // tela trocava de estalo, no momento mais dramático do jogo. Este é
-            // o mais longo dos quatro de propósito — é o único em que a troca
-            // vale como pausa.
-            duration: 420,
-          }),
-        },
-      });
+      goNamed('carroSleecionado');
     },
     child: Container({
       width: 428.0,
