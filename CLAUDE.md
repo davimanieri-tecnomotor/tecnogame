@@ -14,7 +14,7 @@ npm start          # http://localhost:8099
 npm run bundle     # DEPOIS de qualquer mudança em web/js/ — ver abaixo
 npm run check      # imports resolvem, nada morto, bundle em dia (0,1s)
 npm test           # lógica pura, sem navegador (0,3s) — a volta mais curta
-npm run verify     # a suíte inteira, 22 execuções, ~3min50
+npm run verify     # a suíte inteira, 24 execuções, ~3min50
 npm run verify:rapido   # só HTTP, ~110s — a volta do dia a dia
 ```
 
@@ -140,9 +140,16 @@ funciona é o de `estalosDoGiro`: o instante vem dos mesmos trechos que a anima�
 desenha e é marcado com antecedência no `AudioContext`. E por `file://` a Web
 Audio não busca arquivo — som gravado entra embutido em texto, como `estalo.js`.
 
+**Column `max` dentro de Column encolhe no Flutter, e aqui enche.** A Column de
+fora dá altura ILIMITADA ao filho não flexível, e sem teto o `max` do Dart vira o
+tamanho dos filhos. O CSS não tem altura ilimitada: `.ff-main-max` é `height:
+100%`, e a coluna que a de fora devia centralizar gruda no topo — foi o que tirou
+do meio a roleta e o carro sorteado (`verify:centro`). Onde o Flutter encolheria,
+escreva `min`; o `SingleChildScrollView` já faz isso sozinho.
+
 ## Antes de dizer que está pronto
 
-- `npm run verify` — **22 de 22**, nos dois transportes.
+- `npm run verify` — **24 de 24**, nos dois transportes.
 - **Olhe a tela.** Um probe que devolve números pode passar com a tela quebrada:
   o bug da resposta que sumia passou por um probe verde porque eu li o JSON e
   não abri a captura. Ponha um `page.screenshot` e leia a imagem.

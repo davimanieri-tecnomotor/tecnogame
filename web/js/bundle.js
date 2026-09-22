@@ -6746,6 +6746,7 @@
       data: '2026-09-22',
       itens: [
         'O som da roleta agora bate com a roda: um estalo a cada fatia que passa pela seta, na hora em que ela passa, acelerando e freando junto com o giro. Antes tocava uma gravação com ritmo próprio, que não acompanhava a roda e seguia estalando depois de a última fatia passar.',
+        'A roleta e a tela do veículo sorteado voltaram para o meio da tela. As duas estavam coladas no alto, com a sobra toda embaixo.',
       ],
     },
     {
@@ -10182,7 +10183,13 @@
     });
   
     const content = Column({
-      mainAxisSize: 'max',
+      // `min`, e nao o `max` do Dart. La esta coluna mora dentro de outra Column,
+      // que da altura ILIMITADA a filho nao flexivel, e uma Column `max` sem teto
+      // encolhe ate os filhos — e isso que deixa a coluna de fora centraliza-la.
+      // No CSS nao ha altura ilimitada: `max` virava 100% da tela, e a roda
+      // colava no topo, com 0px em cima e 108px embaixo. `min` e o tamanho que o
+      // Flutter chegava a dar de fato, e a roda volta aos 54px de cada lado.
+      mainAxisSize: 'min',
       crossAxisAlignment: 'center',
       children: [
         Padding({
@@ -10584,7 +10591,11 @@
     animateOnPageLoad(nome, animationsMap.nomeOnPageLoadAnimation);
   
     const content = Column({
-      mainAxisSize: 'max',
+      // `min`, e nao o `max` do Dart: dentro da Column de fora o Flutter dava a
+      // esta altura ilimitada, e ela encolhia ate a foto e o nome, que entao iam
+      // para o meio da tela. Aqui `max` virava 100% e colava o carro no topo (ver
+      // a mesma nota em roleta.js).
+      mainAxisSize: 'min',
       children: [carro, Padding({ padding: [0.0, 52.0, 0.0, 0.0], child: nome })],
     });
     animateOnActionTrigger(content, animationsMap.columnOnActionTriggerAnimation);

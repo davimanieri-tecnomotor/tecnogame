@@ -100,7 +100,11 @@ export function CarroSleecionadoWidget() {
   animateOnPageLoad(nome, animationsMap.nomeOnPageLoadAnimation);
 
   const content = Column({
-    mainAxisSize: 'max',
+    // `min`, e nao o `max` do Dart: dentro da Column de fora o Flutter dava a
+    // esta altura ilimitada, e ela encolhia ate a foto e o nome, que entao iam
+    // para o meio da tela. Aqui `max` virava 100% e colava o carro no topo (ver
+    // a mesma nota em roleta.js).
+    mainAxisSize: 'min',
     children: [carro, Padding({ padding: [0.0, 52.0, 0.0, 0.0], child: nome })],
   });
   animateOnActionTrigger(content, animationsMap.columnOnActionTriggerAnimation);

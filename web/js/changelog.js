@@ -19,6 +19,7 @@ export const NOTAS_DE_ATUALIZACAO = [
     data: '2026-09-22',
     itens: [
       'O som da roleta agora bate com a roda: um estalo a cada fatia que passa pela seta, na hora em que ela passa, acelerando e freando junto com o giro. Antes tocava uma gravação com ritmo próprio, que não acompanhava a roda e seguia estalando depois de a última fatia passar.',
+      'A roleta e a tela do veículo sorteado voltaram para o meio da tela. As duas estavam coladas no alto, com a sobra toda embaixo.',
     ],
   },
   {

@@ -244,7 +244,13 @@ export function RoletaWidget() {
   });
 
   const content = Column({
-    mainAxisSize: 'max',
+    // `min`, e nao o `max` do Dart. La esta coluna mora dentro de outra Column,
+    // que da altura ILIMITADA a filho nao flexivel, e uma Column `max` sem teto
+    // encolhe ate os filhos — e isso que deixa a coluna de fora centraliza-la.
+    // No CSS nao ha altura ilimitada: `max` virava 100% da tela, e a roda
+    // colava no topo, com 0px em cima e 108px embaixo. `min` e o tamanho que o
+    // Flutter chegava a dar de fato, e a roda volta aos 54px de cada lado.
+    mainAxisSize: 'min',
     crossAxisAlignment: 'center',
     children: [
       Padding({

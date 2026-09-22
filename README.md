@@ -543,7 +543,7 @@ CSV, quantos estalos a roleta dá e quando, as funções que vieram do Dart. Sem
 navegador, sem servidor, sem `bundle`.
 
 `npm run verify` roda a checagem estática, **os testes de unidade**, regera o
-bundle e passa os onze testes de navegador nos **dois transportes** — 22
+bundle e passa os doze testes de navegador nos **dois transportes** — 24
 execuções. Sobe o `http-server` se a porta 8099 estiver livre e reaproveita o
 que já estiver de pé.
 
@@ -554,7 +554,7 @@ afirmado num nível **não se repete no outro**: a conversão de baralho v1 para
 v2, por exemplo, mora no `verify:baralho`, com o jogo rodando, e não tem cópia
 em `scripts/unidade/`.
 
-As 22 execuções correm **em paralelo** (4 de cada vez por padrão). Cada teste
+As 24 execuções correm **em paralelo** (4 de cada vez por padrão). Cada teste
 sobe o próprio Chrome e só lê do servidor, então não disputam nada entre si; o
 que os prendia era o laço sequencial do `all.mjs`. A saída de cada um sai
 inteira quando ele termina, e no fim vem o tempo de cada execução — é assim que
@@ -588,6 +588,7 @@ em outro terminal, ou de `BASE=` apontando para o `file://`):
 | `npm run verify:teclado` | os alvos são alcançáveis e acionáveis por teclado |
 | `npm run verify:baralho` | o embutido reproduz `questions.js`; baralho de outro tamanho joga |
 | `npm run verify:estalo` | a roleta estala uma vez por divisa, no instante e no ritmo em que a tela mostra a roda |
+| `npm run verify:centro` | a roleta e o carro sorteado ficam no meio do palco, como no Dart |
 | `npm run verify:admin` | ver, editar, adicionar, validar, publicar, enviar imagem, remover e restaurar |
 | `npm run verify:respostas` | aba Respostas: dados locais com telefone, baixa CSV de verdade, sem nuvem não mostra Entrar |
 | `npm run verify:sizes` | escala do palco em 1366x768, 1280x1024, 3840x2160 e retrato |
