@@ -124,11 +124,26 @@ if (!LOCAL_FILE) {
 
 // validation: submit with a good name should advance
 await clickText('CONFIRMAR');
-// A TRANSICAO. Toda troca de tela esmaece — esta aqui era um `scale` que fazia
-// a tela nascer de um ponto do rodape. Como `render` dispara a saida na mesma
-// batida do clique, a animacao da pagina que sai ja esta correndo agora, e da
-// para ler de que ela e feita: se aparecer `transform`, alguem devolveu uma
-// segunda gramatica de transicao ao jogo (ver web/js/router.js).
+await waitForRoute('instrucoes');
+log('4. instrucoes reached (validation passed, cadastro stored)');
+const cadastro = await page.evaluate(() => {
+  // eslint-disable-next-line no-undef
+  return window.__ff_state ? null : null;
+});
+void cadastro;
+await shot('03-instrucoes');
+
+// ---- skip instructions --------------------------------------------------
+// A TRANSICAO. Toda troca de tela esmaece — e quem decide e o router, nao a
+// tela (ver web/js/router.js). Como `render` dispara a saida na mesma batida do
+// clique, a animacao da pagina que sai ja esta correndo agora, e da para ler de
+// que ela e feita: se aparecer `transform`, alguem devolveu ao jogo uma segunda
+// gramatica de transicao.
+//
+// A afirmacao mudou de lugar: no CONFIRMAR do cadastro a tela tem uma saida
+// PROPRIA antes de navegar (transicoes.js), entao ali a animacao do momento do
+// clique e das pecas, e nao da pagina. Aqui a navegacao e limpa.
+await clickText('Pular instruções');
 const saindo = await page.evaluate(() => {
   const pagina = document.querySelector('#pages .ff-page');
   const props = new Set();
@@ -144,17 +159,6 @@ const saindo = await page.evaluate(() => {
 log(`   transicao de saida anima: ${JSON.stringify(saindo)}`);
 if (!saindo.includes('opacity')) throw new Error(`a tela que sai deveria esmaecer; anima ${saindo}`);
 if (saindo.some((p) => p !== 'opacity')) throw new Error(`a transicao voltou a mexer em ${saindo}`);
-await waitForRoute('instrucoes');
-log('4. instrucoes reached (validation passed, cadastro stored)');
-const cadastro = await page.evaluate(() => {
-  // eslint-disable-next-line no-undef
-  return window.__ff_state ? null : null;
-});
-void cadastro;
-await shot('03-instrucoes');
-
-// ---- skip instructions --------------------------------------------------
-await clickText('Pular instruções');
 await waitForRoute('telaVideoTransisao');
 log('5. transition video');
 await shot('04-transisao');

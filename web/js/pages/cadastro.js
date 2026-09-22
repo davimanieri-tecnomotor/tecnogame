@@ -39,6 +39,7 @@ import { RankingWidget } from '../components/ranking.js';
 import { registrarToqueSecreto } from '../admin/porta.js';
 import { sincronizarBaralho } from '../nuvem.js';
 import { adiantarOPercurso } from '../precarga.js';
+import { desmontarOCadastro } from '../transicoes.js';
 import { goNamed } from '../router.js';
 import {
   AnimationInfo,
@@ -305,6 +306,14 @@ export function CadastroWidget() {
           // próximo jogador encontra a tela em branco.
           resetFormState();
 
+          // A ficha preenchida é lida e desmontada antes de o vídeo entrar —
+          // ver transicoes.js. De baixo para cima, que é o caminho da linha.
+          await desmontarOCadastro({
+            raiz: root,
+            pecas: [privacyText, blocoConfirmar, grupoOficina, grupoWhats, grupoNome, seletorDeIdioma],
+            selo,
+          });
+
           goNamed('instrucoes');
         },
       child: Container({
@@ -387,55 +396,84 @@ export function CadastroWidget() {
   // field. Flutter's TextField and dropdown take all the width their parent
   // offers, which makes those Columns as wide as the 1101.8px container; CSS
   // would otherwise shrink-wrap them to the label, hence `width: Infinity`.
-  const groups = [
-    Padding({
-      padding: [0.0, 16.0, 0.0, 0.0],
-      style: { alignSelf: 'stretch' },
-      child: animateOnPageLoad(
-        Column({
-          mainAxisSize: 'min',
-          crossAxisAlignment: 'start',
-          width: Infinity,
-          children: [
-            fieldLabel(T('rotuloNome')),
-            Container({ width: SW * 1.0, child: nomeField }),
-          ],
-        }),
-        animationsMap.columnOnPageLoadAnimation1
-      ),
-    }),
-    Padding({
-      padding: [0.0, 16.0, 0.0, 0.0],
-      style: { alignSelf: 'stretch' },
-      child: animateOnPageLoad(
-        Column({
-          mainAxisSize: 'min',
-          crossAxisAlignment: 'start',
-          width: Infinity,
-          children: [fieldLabel(T('rotuloWhatsapp')), whatsField],
-        }),
-        animationsMap.columnOnPageLoadAnimation2
-      ),
-    }),
-    Padding({
-      padding: [0.0, 16.0, 0.0, 32.0],
-      style: { alignSelf: 'stretch' },
-      child: animateOnPageLoad(
-        Column({
-          mainAxisSize: 'min',
-          crossAxisAlignment: 'start',
-          width: Infinity,
-          children: [fieldLabel(T('rotuloOficina')), oficinaDropdown],
-        }),
-        animationsMap.columnOnPageLoadAnimation3
-      ),
-    }),
-    animateOnPageLoad(
-      Column({ mainAxisSize: 'max', children: [confirmar] }),
-      animationsMap.columnOnPageLoadAnimation4
+  const grupoNome = Padding({
+    padding: [0.0, 16.0, 0.0, 0.0],
+    style: { alignSelf: 'stretch' },
+    child: animateOnPageLoad(
+      Column({
+        mainAxisSize: 'min',
+        crossAxisAlignment: 'start',
+        width: Infinity,
+        children: [
+          fieldLabel(T('rotuloNome')),
+          Container({ width: SW * 1.0, child: nomeField }),
+        ],
+      }),
+      animationsMap.columnOnPageLoadAnimation1
     ),
-    privacyText,
-  ];
+  });
+
+  const grupoWhats = Padding({
+    padding: [0.0, 16.0, 0.0, 0.0],
+    style: { alignSelf: 'stretch' },
+    child: animateOnPageLoad(
+      Column({
+        mainAxisSize: 'min',
+        crossAxisAlignment: 'start',
+        width: Infinity,
+        children: [fieldLabel(T('rotuloWhatsapp')), whatsField],
+      }),
+      animationsMap.columnOnPageLoadAnimation2
+    ),
+  });
+
+  const grupoOficina = Padding({
+    padding: [0.0, 16.0, 0.0, 32.0],
+    style: { alignSelf: 'stretch' },
+    child: animateOnPageLoad(
+      Column({
+        mainAxisSize: 'min',
+        crossAxisAlignment: 'start',
+        width: Infinity,
+        children: [fieldLabel(T('rotuloOficina')), oficinaDropdown],
+      }),
+      animationsMap.columnOnPageLoadAnimation3
+    ),
+  });
+
+  const blocoConfirmar = animateOnPageLoad(
+    Column({ mainAxisSize: 'max', children: [confirmar] }),
+    animationsMap.columnOnPageLoadAnimation4
+  );
+
+  const groups = [grupoNome, grupoWhats, grupoOficina, blocoConfirmar, privacyText];
+
+  // O selo é também a porta da administração: cinco toques nele, dentro de 3s,
+  // pedem a senha. Não tem marca nenhuma de propósito — é para o operador, não
+  // para o jogador.
+  const selo = registrarToqueSecreto(
+    animateOnPageLoad(
+      ClipRRect({
+        borderRadius: 8.0,
+        child: Img('assets/images/Selo_2.png', { width: SW * 0.23, height: SH * 0.25, fit: 'cover' }),
+      }),
+      animationsMap.imageOnPageLoadAnimation
+    )
+  );
+
+  const seletorDeIdioma = FlutterFlowLanguageSelector({
+    width: 358.57,
+    height: 61.2,
+    backgroundColor: color(0xFF0053B6),
+    borderColor: 'transparent',
+    dropdownColor: color(0xFF171212),
+    dropdownIconColor: TH.secondaryText,
+    borderRadius: 23.0,
+    textStyle: style('bodyMedium', { fontSize: 23.0 }),
+    currentLanguage: FFLocalizations.languageCode,
+    languages: LANGUAGES,
+    onChanged: (lang) => setAppLanguage(lang),
+  });
 
   const body = Stack({
     children: [
@@ -462,18 +500,7 @@ export function CadastroWidget() {
               mainAxisSize: 'max',
               mainAxisAlignment: 'center',
               children: [
-                // O selo é também a porta da administração: cinco toques nele,
-                // dentro de 3s, pedem a senha. Não tem marca nenhuma de
-                // propósito — é para o operador, não para o jogador.
-                registrarToqueSecreto(
-                  animateOnPageLoad(
-                    ClipRRect({
-                      borderRadius: 8.0,
-                      child: Img('assets/images/Selo_2.png', { width: SW * 0.23, height: SH * 0.25, fit: 'cover' }),
-                    }),
-                    animationsMap.imageOnPageLoadAnimation
-                  )
-                ),
+                selo,
                 Container({
                   width: SW * 0.574,
                   child: Column({
@@ -492,19 +519,7 @@ export function CadastroWidget() {
         alignment: [1.0, -1.0],
         child: Padding({
           padding: [0.0, 32.0, 32.0, 0.0],
-          child: FlutterFlowLanguageSelector({
-            width: 358.57,
-            height: 61.2,
-            backgroundColor: color(0xFF0053B6),
-            borderColor: 'transparent',
-            dropdownColor: color(0xFF171212),
-            dropdownIconColor: TH.secondaryText,
-            borderRadius: 23.0,
-            textStyle: style('bodyMedium', { fontSize: 23.0 }),
-            currentLanguage: FFLocalizations.languageCode,
-            languages: LANGUAGES,
-            onChanged: (lang) => setAppLanguage(lang),
-          }),
+          child: seletorDeIdioma,
         }),
       }),
     ],

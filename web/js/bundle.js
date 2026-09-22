@@ -8428,6 +8428,167 @@
   Object.defineProperty(__exports, "adiantarOPercurso", { get: () => adiantarOPercurso, enumerable: true });
   });
 
+  /* ===== transicoes.js ===== */
+  __define("transicoes.js", function (__exports, __require) {
+  // EXPERIMENTO — a saída do cadastro, para o vídeo de instruções.
+  //
+  // A troca de tela do jogo é uma só e mora no router: a que sai apaga, a que
+  // entra acende. Isto aqui não a substitui — acontece ANTES dela, e é da tela do
+  // cadastro, não do roteador. O CONFIRMAR é o único momento do jogo em que o
+  // jogador acabou de FAZER alguma coisa (preencher uma ficha) e a tela seguinte
+  // é um vídeo: é o lugar onde uma passagem com personalidade cabe.
+  //
+  // A IDEIA: A FICHA É LIDA E DESMONTADA.
+  // Uma linha de leitura sobe pela tela, como a de um scanner passando sobre o
+  // formulário. Cada bloco que ela alcança é arrancado para um lado — alternando,
+  // com um giro curto e acelerando para fora, como papel puxado —, de baixo para
+  // cima, na ordem em que a linha chega neles. O selo é o último e não sai de
+  // lado: vem para a frente e estoura em luz, que é a deixa do vídeo.
+  //
+  // O som acompanha sem asset novo: cada peça que sai emite um tique meio tom
+  // acima do anterior (o mesmo sintetizador do relógio da pergunta), então a
+  // leitura também se ouve subindo.
+  //
+  // Com `prefers-reduced-motion` nada disso roda: a tela sai pela transição
+  // comum do roteador.
+  
+  const { el } = __require("widgets.js");
+  const { menosMovimento } = __require("anim.js");
+  const { tique } = __require("audio.js");
+  
+  /** Quanto cada peça leva para sair, e o intervalo entre uma e a seguinte. */
+  const SAIDA_MS = 340;
+  const PASSO_MS = 55;
+  /** A linha de leitura atravessa o palco inteiro um pouco antes das peças. */
+  const LEITURA_MS = 460;
+  
+  const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+  
+  /** A banda de luz que sobe pelo palco. */
+  function linhaDeLeitura(raiz) {
+    const linha = el('div', {
+      style: {
+        position: 'absolute',
+        left: '0',
+        right: '0',
+        top: '0',
+        height: '220px',
+        pointerEvents: 'none',
+        // `screen` para a banda ACENDER o que está embaixo em vez de cobrir.
+        mixBlendMode: 'screen',
+        background:
+          'linear-gradient(to bottom,' +
+          'rgba(0,170,255,0) 0%,' +
+          'rgba(0,170,255,0.08) 40%,' +
+          'rgba(130,230,255,0.75) 49%,' +
+          'rgba(255,255,255,0.95) 50%,' +
+          'rgba(130,230,255,0.75) 51%,' +
+          'rgba(0,170,255,0.08) 60%,' +
+          'rgba(0,170,255,0) 100%)',
+        willChange: 'transform',
+      },
+    });
+    raiz.appendChild(linha);
+    linha.animate(
+      [{ transform: 'translateY(1180px)' }, { transform: 'translateY(-260px)' }],
+      { duration: LEITURA_MS, easing: 'cubic-bezier(.2,.6,.2,1)', fill: 'both' }
+    );
+    return linha;
+  }
+  
+  /** O estouro de luz no fim, que é onde o vídeo entra. */
+  function estouro(raiz) {
+    const luz = el('div', {
+      style: {
+        position: 'absolute',
+        inset: '0',
+        pointerEvents: 'none',
+        background: 'radial-gradient(circle at 50% 42%, #eaf7ff 0%, #9fdcff 45%, rgba(0,60,120,0) 72%)',
+        opacity: '0',
+        mixBlendMode: 'screen',
+      },
+    });
+    raiz.appendChild(luz);
+    return luz.animate(
+      [
+        { opacity: 0, transform: 'scale(0.6)', offset: 0, easing: 'cubic-bezier(.2,.8,.3,1)' },
+        { opacity: 0.95, transform: 'scale(1.05)', offset: 0.45, easing: 'ease-out' },
+        { opacity: 0, transform: 'scale(1.2)', offset: 1 },
+      ],
+      { duration: 420, fill: 'both' }
+    ).finished;
+  }
+  
+  /**
+   * Arranca uma peça para fora.
+   *
+   * `lado` é -1 (esquerda) ou 1 (direita), e a alternância é o que faz a coisa
+   * parecer DESMONTADA e não empurrada. A saída acelera (a curva sai devagar e
+   * termina rápido): puxão, não deslize.
+   */
+  function arrancar(no, { atraso, lado, giro }) {
+    return no.animate(
+      [
+        { transform: 'translate(0px, 0px) rotate(0deg) scale(1)', opacity: 1 },
+        {
+          transform: `translate(${lado * 1500}px, -60px) rotate(${giro}deg) scale(0.9)`,
+          opacity: 0,
+        },
+      ],
+      { duration: SAIDA_MS, delay: atraso, easing: 'cubic-bezier(.45,0,.9,.35)', fill: 'both' }
+    ).finished;
+  }
+  
+  /** O selo não sai de lado: vem para a frente e some na luz. */
+  function aproximar(no, { atraso }) {
+    return no.animate(
+      [
+        { transform: 'scale(1)', opacity: 1, filter: 'brightness(1)' },
+        { transform: 'scale(1.45)', opacity: 0, filter: 'brightness(2.2)' },
+      ],
+      { duration: SAIDA_MS + 80, delay: atraso, easing: 'cubic-bezier(.5,0,.85,.4)', fill: 'both' }
+    ).finished;
+  }
+  
+  /**
+   * Desmonta a tela do cadastro e resolve quando não há mais o que ver.
+   *
+   * @param {HTMLElement} raiz o `.ff-scaffold` da página — é onde a linha de
+   *   leitura e o estouro entram, porque ele é o palco inteiro.
+   * @param {Array<HTMLElement|null>} pecas os blocos, DE BAIXO PARA CIMA: é a
+   *   ordem em que a linha de leitura chega neles.
+   * @param {HTMLElement|null} selo o logo, que sai por último e por outro caminho.
+   */
+  async function desmontarOCadastro({ raiz, pecas, selo }) {
+    if (menosMovimento() || !raiz) return;
+  
+    // A tela sai de campo no primeiro quadro: peça a caminho da borda continua
+    // clicável enquanto não desaparece de verdade (`opacity: 0` não tira o toque),
+    // e um segundo dedo no CONFIRMAR mandaria o jogo navegar duas vezes.
+    raiz.style.pointerEvents = 'none';
+  
+    linhaDeLeitura(raiz);
+  
+    const vivas = pecas.filter(Boolean);
+    const saidas = vivas.map((no, i) => {
+      const atraso = i * PASSO_MS;
+      // O tique sobe meio tom por peça: a leitura também se ouve subindo.
+      setTimeout(() => tique({ frequencia: 520 + i * 90, duracao: 0.06, volume: 0.12 }), atraso);
+      return arrancar(no, { atraso, lado: i % 2 === 0 ? 1 : -1, giro: (i % 2 === 0 ? 1 : -1) * (4 + i) });
+    });
+  
+    const atrasoDoSelo = vivas.length * PASSO_MS;
+    if (selo) {
+      setTimeout(() => tique({ frequencia: 520 + vivas.length * 90, duracao: 0.12, volume: 0.14 }), atrasoDoSelo);
+      saidas.push(aproximar(selo, { atraso: atrasoDoSelo }));
+    }
+  
+    await espera(atrasoDoSelo + 120);
+    await Promise.all([estouro(raiz), ...saidas]).catch(() => {});
+  }
+  Object.defineProperty(__exports, "desmontarOCadastro", { get: () => desmontarOCadastro, enumerable: true });
+  });
+
   /* ===== pages/cadastro.js ===== */
   __define("pages/cadastro.js", function (__exports, __require) {
   // Port of lib/pages/escolha/cadastro/cadastro_widget.dart
@@ -8450,6 +8611,7 @@
   const { registrarToqueSecreto } = __require("admin/porta.js");
   const { sincronizarBaralho } = __require("nuvem.js");
   const { adiantarOPercurso } = __require("precarga.js");
+  const { desmontarOCadastro } = __require("transicoes.js");
   const { goNamed } = __require("router.js");
   const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
   const { FlutterFlowTimer, FlutterFlowTimerController, InstantTimer, StopWatchMode, StopWatchTimer } = __require("timer.js");
@@ -8699,6 +8861,14 @@
             // próximo jogador encontra a tela em branco.
             resetFormState();
   
+            // A ficha preenchida é lida e desmontada antes de o vídeo entrar —
+            // ver transicoes.js. De baixo para cima, que é o caminho da linha.
+            await desmontarOCadastro({
+              raiz: root,
+              pecas: [privacyText, blocoConfirmar, grupoOficina, grupoWhats, grupoNome, seletorDeIdioma],
+              selo,
+            });
+  
             goNamed('instrucoes');
           },
         child: Container({
@@ -8781,55 +8951,84 @@
     // field. Flutter's TextField and dropdown take all the width their parent
     // offers, which makes those Columns as wide as the 1101.8px container; CSS
     // would otherwise shrink-wrap them to the label, hence `width: Infinity`.
-    const groups = [
-      Padding({
-        padding: [0.0, 16.0, 0.0, 0.0],
-        style: { alignSelf: 'stretch' },
-        child: animateOnPageLoad(
-          Column({
-            mainAxisSize: 'min',
-            crossAxisAlignment: 'start',
-            width: Infinity,
-            children: [
-              fieldLabel(T('rotuloNome')),
-              Container({ width: SW * 1.0, child: nomeField }),
-            ],
-          }),
-          animationsMap.columnOnPageLoadAnimation1
-        ),
-      }),
-      Padding({
-        padding: [0.0, 16.0, 0.0, 0.0],
-        style: { alignSelf: 'stretch' },
-        child: animateOnPageLoad(
-          Column({
-            mainAxisSize: 'min',
-            crossAxisAlignment: 'start',
-            width: Infinity,
-            children: [fieldLabel(T('rotuloWhatsapp')), whatsField],
-          }),
-          animationsMap.columnOnPageLoadAnimation2
-        ),
-      }),
-      Padding({
-        padding: [0.0, 16.0, 0.0, 32.0],
-        style: { alignSelf: 'stretch' },
-        child: animateOnPageLoad(
-          Column({
-            mainAxisSize: 'min',
-            crossAxisAlignment: 'start',
-            width: Infinity,
-            children: [fieldLabel(T('rotuloOficina')), oficinaDropdown],
-          }),
-          animationsMap.columnOnPageLoadAnimation3
-        ),
-      }),
-      animateOnPageLoad(
-        Column({ mainAxisSize: 'max', children: [confirmar] }),
-        animationsMap.columnOnPageLoadAnimation4
+    const grupoNome = Padding({
+      padding: [0.0, 16.0, 0.0, 0.0],
+      style: { alignSelf: 'stretch' },
+      child: animateOnPageLoad(
+        Column({
+          mainAxisSize: 'min',
+          crossAxisAlignment: 'start',
+          width: Infinity,
+          children: [
+            fieldLabel(T('rotuloNome')),
+            Container({ width: SW * 1.0, child: nomeField }),
+          ],
+        }),
+        animationsMap.columnOnPageLoadAnimation1
       ),
-      privacyText,
-    ];
+    });
+  
+    const grupoWhats = Padding({
+      padding: [0.0, 16.0, 0.0, 0.0],
+      style: { alignSelf: 'stretch' },
+      child: animateOnPageLoad(
+        Column({
+          mainAxisSize: 'min',
+          crossAxisAlignment: 'start',
+          width: Infinity,
+          children: [fieldLabel(T('rotuloWhatsapp')), whatsField],
+        }),
+        animationsMap.columnOnPageLoadAnimation2
+      ),
+    });
+  
+    const grupoOficina = Padding({
+      padding: [0.0, 16.0, 0.0, 32.0],
+      style: { alignSelf: 'stretch' },
+      child: animateOnPageLoad(
+        Column({
+          mainAxisSize: 'min',
+          crossAxisAlignment: 'start',
+          width: Infinity,
+          children: [fieldLabel(T('rotuloOficina')), oficinaDropdown],
+        }),
+        animationsMap.columnOnPageLoadAnimation3
+      ),
+    });
+  
+    const blocoConfirmar = animateOnPageLoad(
+      Column({ mainAxisSize: 'max', children: [confirmar] }),
+      animationsMap.columnOnPageLoadAnimation4
+    );
+  
+    const groups = [grupoNome, grupoWhats, grupoOficina, blocoConfirmar, privacyText];
+  
+    // O selo é também a porta da administração: cinco toques nele, dentro de 3s,
+    // pedem a senha. Não tem marca nenhuma de propósito — é para o operador, não
+    // para o jogador.
+    const selo = registrarToqueSecreto(
+      animateOnPageLoad(
+        ClipRRect({
+          borderRadius: 8.0,
+          child: Img('assets/images/Selo_2.png', { width: SW * 0.23, height: SH * 0.25, fit: 'cover' }),
+        }),
+        animationsMap.imageOnPageLoadAnimation
+      )
+    );
+  
+    const seletorDeIdioma = FlutterFlowLanguageSelector({
+      width: 358.57,
+      height: 61.2,
+      backgroundColor: color(0xFF0053B6),
+      borderColor: 'transparent',
+      dropdownColor: color(0xFF171212),
+      dropdownIconColor: TH.secondaryText,
+      borderRadius: 23.0,
+      textStyle: style('bodyMedium', { fontSize: 23.0 }),
+      currentLanguage: FFLocalizations.languageCode,
+      languages: LANGUAGES,
+      onChanged: (lang) => setAppLanguage(lang),
+    });
   
     const body = Stack({
       children: [
@@ -8856,18 +9055,7 @@
                 mainAxisSize: 'max',
                 mainAxisAlignment: 'center',
                 children: [
-                  // O selo é também a porta da administração: cinco toques nele,
-                  // dentro de 3s, pedem a senha. Não tem marca nenhuma de
-                  // propósito — é para o operador, não para o jogador.
-                  registrarToqueSecreto(
-                    animateOnPageLoad(
-                      ClipRRect({
-                        borderRadius: 8.0,
-                        child: Img('assets/images/Selo_2.png', { width: SW * 0.23, height: SH * 0.25, fit: 'cover' }),
-                      }),
-                      animationsMap.imageOnPageLoadAnimation
-                    )
-                  ),
+                  selo,
                   Container({
                     width: SW * 0.574,
                     child: Column({
@@ -8886,19 +9074,7 @@
           alignment: [1.0, -1.0],
           child: Padding({
             padding: [0.0, 32.0, 32.0, 0.0],
-            child: FlutterFlowLanguageSelector({
-              width: 358.57,
-              height: 61.2,
-              backgroundColor: color(0xFF0053B6),
-              borderColor: 'transparent',
-              dropdownColor: color(0xFF171212),
-              dropdownIconColor: TH.secondaryText,
-              borderRadius: 23.0,
-              textStyle: style('bodyMedium', { fontSize: 23.0 }),
-              currentLanguage: FFLocalizations.languageCode,
-              languages: LANGUAGES,
-              onChanged: (lang) => setAppLanguage(lang),
-            }),
+            child: seletorDeIdioma,
           }),
         }),
       ],
