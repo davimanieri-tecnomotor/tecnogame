@@ -539,8 +539,10 @@ function infoEAcoesDeVeiculos() {
           })
         : null,
     ]),
+    // "Resetar todos os dados" saiu daqui: ficava encostado em "Salvar", que é
+    // o botão mais clicado do painel, e apaga o baralho e o ranking deste
+    // navegador. Agora mora no pé da lista de veículos, longe da mão que salva.
     el('div', { class: 'barra-acoes' }, [
-      botao('Resetar todos os dados', { onClick: resetarTudo, tipo: 'perigo' }),
       estado.sujo ? botao('Descartar', { onClick: descartar }) : null,
       botao('Salvar', { onClick: publicar, tipo: 'primario' }),
     ]),
@@ -741,6 +743,15 @@ function lista() {
       text: 'A ordem dos veículos é a ordem das fatias da roleta. Cada veículo pode ter várias perguntas: quando a roleta para nele, o jogo sorteia uma das ligadas.',
     }),
     el('ul', { class: 'itens' }, itens),
+    // O fim da lista é o lugar de quem só se procura de propósito.
+    el('div', { class: 'zona-de-risco' }, [
+      el('h3', { text: 'Antes da feira' }),
+      el('p', {
+        class: 'nota',
+        text: 'Volta ao baralho de fábrica e apaga o ranking e os telefones gravados neste navegador.',
+      }),
+      botao('Resetar todos os dados', { onClick: resetarTudo, tipo: 'perigo' }),
+    ]),
   ]);
 }
 

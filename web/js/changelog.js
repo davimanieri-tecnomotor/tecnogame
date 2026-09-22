@@ -10,10 +10,22 @@
 
 import { readRaw, writeRaw } from './storage.js';
 
-export const VERSAO_DO_JOGO = '2.2.0';
+export const VERSAO_DO_JOGO = '2.3.0';
 
 /** Mais recente primeiro — é a ordem em que o painel lista. */
 export const NOTAS_DE_ATUALIZACAO = [
+  {
+    versao: '2.3.0',
+    data: '2026-09-22',
+    itens: [
+      'A tela da pergunta agora mostra o veículo sorteado, com a foto e o nome, embaixo do enunciado — o jogador não precisa mais lembrar qual carro a roleta deu.',
+      'O ranking diz o tempo em segundos ("6,4 s", e não "00:00:06 S") e marca a linha de quem acabou de jogar, mesmo que ela não esteja entre as três primeiras.',
+      'Sem nenhum vencedor ainda, o quadro dos campeões diz isso em vez de ficar vazio.',
+      'Frases corrigidas na tela do jogador: os rótulos do cadastro perderam o "( Teclado )" e o "( Tela )", o aviso de privacidade virou um link visível, e a caixa de confirmar a resposta deixou de chamar a partida de "game".',
+      'No painel, o sino de novidades abre no começo da lista — antes nascia rolado e escondia o título e a versão mais nova.',
+      'Ainda no painel, "Resetar todos os dados" saiu de perto do "Salvar": agora fica no pé da lista de veículos, em "Antes da feira".',
+    ],
+  },
   {
     versao: '2.2.0',
     data: '2026-09-22',

@@ -45,6 +45,45 @@ export function TelaAcaoWidget() {
   // que esquenta quando o relógio entra na reta final.
   let molduraDoDefeito = null;
 
+  /**
+   * O veículo da rodada, dentro da moldura do defeito.
+   *
+   * O jogador via o carro por seis segundos, três telas antes, e chegava aqui
+   * sem ele — e metade das perguntas do baralho dependem de QUAL veículo é
+   * (caminhão, trator e carro de passeio não se diagnosticam igual). A metade
+   * de baixo da moldura estava vazia desde o porte: é onde ele cabe sem tirar
+   * espaço do enunciado.
+   */
+  const veiculo = FFAppState.slotAtual?.veiculo;
+  const cartaoDoVeiculo = veiculo?.imagem
+    ? Column({
+        mainAxisSize: 'min',
+        crossAxisAlignment: 'center',
+        // O bloco do enunciado acima pede 100% da altura e encolhe para caber;
+        // sem travar este, quem encolhia era a foto do carro.
+        style: { flexShrink: 0 },
+        children: [
+          // Caixa fixa e `contain`: as fotos do baralho vêm em tamanhos
+          // quaisquer, inclusive as que o operador envia do computador.
+          Img(veiculo.imagem, { width: 480.0, height: 250.0, fit: 'contain' }),
+          Padding({
+            padding: [0.0, 14.0, 0.0, 0.0],
+            child: Txt(
+              veiculo.nome ?? '',
+              style('bodyMedium', {
+                fontFamily: 'Roboto',
+                fontWeight: 700,
+                color: '#FFFFFF',
+                fontSize: 30.0,
+                letterSpacing: 3.0,
+                textAlign: 'center',
+              })
+            ),
+          }),
+        ],
+      })
+    : null;
+
   const panel = PerguntasErespostasWidget({
     aoEntrarNaRetaFinal: () => molduraDoDefeito?.classList.add('ff-moldura--reta-final'),
   });
@@ -135,6 +174,7 @@ export function TelaAcaoWidget() {
                                     }),
                                   ],
                                 }),
+                                cartaoDoVeiculo,
                               ],
                             }),
                           }),

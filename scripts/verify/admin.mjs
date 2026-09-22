@@ -188,6 +188,27 @@ if (!aoAbrir.modalAberto) falhas.push('as notas de atualizacao nao abriram sozin
 if (!aoAbrir.comPonto) falhas.push('o sininho deveria mostrar o ponto de novidade antes de fechar as notas');
 if (!/v\d+\.\d+\.\d+/.test(aoAbrir.versaoNaBarra)) falhas.push(`a barra nao mostrou a versao: "${aoAbrir.versaoNaBarra}"`);
 
+// E o modal precisa abrir NO COMECO DELE. Com notas suficientes para a caixa
+// rolar, o `focus()` do botao "Entendi" rolava o conteudo ate o pe: o operador
+// abria o sino e via os itens da versao nova sem titulo e sem cabecalho, sem
+// saber de que versao eram. Ver `mostrarNotas` em admin/ui.js.
+const noTopo = await page.evaluate(() => {
+  const caixa = document.querySelector('.modal-notas');
+  if (!caixa) return null;
+  const topo = caixa.getBoundingClientRect().top;
+  const visivel = (n) => !!n && n.getBoundingClientRect().top >= topo - 1;
+  return {
+    rolagem: caixa.scrollTop,
+    tituloVisivel: visivel(caixa.querySelector('h2')),
+    versaoVisivel: visivel(caixa.querySelector('.notas-versao h3')),
+    primeiraVersao: caixa.querySelector('.notas-versao h3')?.textContent ?? null,
+  };
+});
+console.log('   abre no topo ->', JSON.stringify(noTopo));
+if (noTopo?.rolagem !== 0) falhas.push(`o modal de notas abriu rolado (scrollTop ${noTopo?.rolagem})`);
+if (!noTopo?.tituloVisivel) falhas.push('o titulo do modal de notas nasceu fora da area visivel');
+if (!noTopo?.versaoVisivel) falhas.push('o cabecalho da versao mais nova nasceu fora da area visivel');
+
 // Fechar marca como vista: nao deve reaparecer sozinho de novo.
 await page.evaluate(() => document.querySelector('.modal-notas .modal-acoes button').click());
 await wait(300);

@@ -173,7 +173,10 @@ export function ConfirmacaoWidget({ numero = null, texto = null } = {}) {
                       Padding({
                         padding: [0.0, 12.0, 0.0, 0.0],
                         child: Txt(
-                          L('8lqt2gtq') /* Você deseja confirmar sua resposta? ... */,
+                          // Não é `L('8lqt2gtq')`: aquela frase vem com erro de
+                          // concordância do Dart e chama a partida de "game".
+                          // Ver o cabeçalho de textos.js.
+                          T('confirmarResposta'),
                           style('bodyMedium', { fontFamily: 'Open Sans', fontWeight: 200, fontSize: 18.0 })
                         ),
                       }),

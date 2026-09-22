@@ -75,6 +75,19 @@ async function clickText(text, scope = '#pages, #overlays') {
   if (!ok) throw new Error(`no clickable "${text}"`);
 }
 
+/** Clica a linha de consentimento do cadastro, seja qual for a frase dela. */
+async function clickAviso() {
+  const ok = await page.evaluate(() => {
+    const alvo = [...document.querySelectorAll('#pages .ff-inkwell .ff-text')].find(
+      (n) => getComputedStyle(n).textDecorationLine === 'underline'
+    );
+    if (!alvo) return false;
+    alvo.closest('.ff-inkwell').click();
+    return true;
+  });
+  if (!ok) throw new Error('nao achei a linha sublinhada do aviso de privacidade no cadastro');
+}
+
 const dialogText = () => page.evaluate(() => document.querySelector('#overlays .ff-dialog')?.textContent ?? null);
 const dialogOpen = () => page.evaluate(() => Boolean(document.querySelector('#overlays .ff-barrier')));
 
@@ -85,7 +98,11 @@ await waitForRoute('_initialize');
 
 /* ---------------------------------------------------------------- dialog 1 */
 log('--- privacy policy dialog');
-await clickText('Ao clicar em continuar você concorda com os termos de acesso de dados, inseridos neste aplicativo');
+// A linha de consentimento e a UNICA porta para a politica, entao o teste bate
+// nela pelo que ela e — o texto sublinhado embaixo do CONFIRMAR — e nao pela
+// frase inteira: a frase ja mudou uma vez (ver textos.js) e derrubou este
+// teste sem que nada do jogo tivesse quebrado.
+await clickAviso();
 await wait(500);
 await shot('01-privacy');
 const privacy = await dialogText();
@@ -144,7 +161,10 @@ const labels = await page.evaluate(() =>
   [...document.querySelectorAll('#pages .ff-text')].map((n) => n.textContent.trim()).filter(Boolean).slice(0, 6)
 );
 log(`  labels: ${JSON.stringify(labels)}`);
-if (!labels.some((l) => l.includes('First Name'))) throw new Error('did not switch to English');
+// "Workshop type" e nao "First name": o rotulo do nome e a unica palavra que
+// existe igual nos tres idiomas em alguma variacao, e o teste tem de separar
+// ingles de espanhol.
+if (!labels.some((l) => l.includes('Workshop type'))) throw new Error('did not switch to English');
 
 log('--- language switch to Español');
 await page.evaluate(() => document.querySelectorAll('#pages .ff-dropdown')[1].click());

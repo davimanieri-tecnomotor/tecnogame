@@ -25,7 +25,7 @@ import { TH, style } from '../theme.js';
 import { L } from '../i18n.js';
 import { pop } from '../dialog.js';
 import { queryUsuariosVencedores } from '../backend.js';
-import { formatMillisecondsToTime } from '../functions.js';
+import { formatarTempoDeResposta } from '../functions.js';
 import { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnPageLoad, delayed } from '../anim.js';
 import { InstantTimer } from '../timer.js';
 import { ScrollController } from '../forms.js';
@@ -70,7 +70,7 @@ export function RankingWidget({ acao } = {}) {
             Txt(L('ucnq60p8') /* - */, style('bodyMedium', { fontFamily: 'pirulen', fontSize: 32.0 })),
             Expanded({ child: Txt(item.nome, style('bodyMedium', { fontFamily: 'pirulen', fontSize: 32.0 })) }),
             Txt(
-              valueOrDefault(formatMillisecondsToTime(item.tempo), '000000'),
+              valueOrDefault(formatarTempoDeResposta(item.tempo), '—'),
               style('bodyMedium', { fontFamily: 'pirulen', fontSize: 32.0 })
             ),
           ],

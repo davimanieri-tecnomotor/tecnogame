@@ -224,7 +224,13 @@ export function mostrarNotas({ titulo, notas, fecharTexto = 'Entendi' }) {
     const fundo = el('div', { class: 'modal-fundo', onClick: (e) => e.target === fundo && fechar() }, caixa);
     document.body.appendChild(fundo);
     document.addEventListener('keydown', onTecla);
-    botaoOk.focus();
+    // `focus()` sem mais nada ROLA o contêiner até o elemento focado. Com notas
+    // suficientes para a caixa rolar, o "Entendi" lá embaixo levava junto o
+    // título e o cabeçalho da versão mais nova — o operador abria o sino e via
+    // os itens soltos, sem saber de que versão eram. Foco sem rolagem, e a
+    // caixa começa onde ela deve: no topo.
+    botaoOk.focus({ preventScroll: true });
+    caixa.scrollTop = 0;
   });
 }
 

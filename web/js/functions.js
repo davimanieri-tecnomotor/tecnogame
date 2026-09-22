@@ -60,6 +60,10 @@ export function transformaAleatorio(numeroSorteado, total = 10) {
 /**
  * formatMillisecondsToTime(double temp)
  * Turns a remaining-time value into `HH:MM:SS S`, counting down from 60000ms.
+ *
+ * NENHUMA TELA USA MAIS ESTA FUNÇÃO: os dois rankings passaram a
+ * `formatarTempoDeResposta`, abaixo. Ela fica porque é o porte fiel do Dart, e
+ * o teste dela guarda a conta — mas não é por onde se mostra tempo ao jogador.
  */
 export function formatMillisecondsToTime(temp) {
   if (temp == null) return null;
@@ -73,6 +77,49 @@ export function formatMillisecondsToTime(temp) {
   seconds %= 60;
 
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} S`;
+}
+
+/**
+ * O tempo de uma partida como o jogador o lê: `12,4 s`.
+ *
+ * O formato do Dart (`formatMillisecondsToTime`, acima) trazia hora e minuto
+ * que nunca saem de zero num jogo de um minuto — `00:00:08 S` gastava três
+ * campos para dizer "oito segundos", e o ranking inteiro parecia relógio de
+ * parede. O décimo fica porque é ele que separa duas partidas rápidas.
+ *
+ * @param {number|null} tempoRestante o que sobrou no relógio de 60s, em ms —
+ *   é assim que a partida é gravada; o que se mostra é o gasto.
+ * @param {string} [separador] a vírgula decimal do idioma.
+ */
+export function formatarTempoDeResposta(tempoRestante, separador = ',') {
+  if (tempoRestante == null) return null;
+  const gasto = Math.min(60000, Math.max(0, 60000 - Math.trunc(tempoRestante)));
+  // Em décimos inteiros, e não em fração: `8.4` não existe em binário, e a
+  // diferença aparece na hora de partir o número em duas metades.
+  const decimos = Math.round(gasto / 100);
+  return `${Math.floor(decimos / 10)}${separador}${decimos % 10} s`;
+}
+
+/**
+ * Em que lugar o jogador ficou, na lista de vencedores que a tela de fim leu.
+ *
+ * A partida é GRAVADA depois da navegação (ver perguntas_erespostas.js), então
+ * a linha do próprio jogador pode ainda não estar na lista quando a tela
+ * pergunta. Quando está, vale a posição dela; quando não está, conta-se quantos
+ * foram mais rápidos — o que dá a mesma resposta.
+ *
+ * @param {Array<{nome?: string, tempo?: number}>} vencedores em ordem, o mais
+ *   rápido primeiro.
+ * @param {{nome?: string, tempo?: number}} jogador `tempo` é o que sobrou no
+ *   relógio: quanto MAIOR, mais rápido foi.
+ * @returns {number|null} a posição a partir de 1, ou null sem tempo para
+ *   comparar (quem perdeu não entra no ranking).
+ */
+export function posicaoNoRanking(vencedores, { nome, tempo } = {}) {
+  if (!Array.isArray(vencedores) || tempo == null) return null;
+  const minha = vencedores.findIndex((v) => v && v.nome === nome && v.tempo === tempo);
+  if (minha >= 0) return minha + 1;
+  return vencedores.filter((v) => (v?.tempo ?? -Infinity) > tempo).length + 1;
 }
 
 const OFFENSIVE_SET = new Set(OFFENSIVE_WORDS);

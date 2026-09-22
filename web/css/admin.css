@@ -916,3 +916,24 @@
   font-size: 0.82rem;
   color: var(--texto-2);
 }
+
+/* A zona de risco no pé da lista de veículos. "Resetar todos os dados" morava
+   na barra, encostado em "Salvar" — vizinhança errada para um botão que apaga
+   o baralho e o ranking do navegador. Aqui ele fica atrás de uma rolagem e de
+   um título, que é o caminho de quem procura por ele de propósito. */
+.zona-de-risco {
+  margin-top: 22px;
+  padding-top: 14px;
+  border-top: 1px solid var(--borda);
+}
+
+.zona-de-risco h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--texto-2);
+}
+
+.zona-de-risco .nota {
+  margin: 0 0 10px;
+}

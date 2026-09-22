@@ -767,6 +767,11 @@ body {
   align-content: safe center;
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* Sem isto a dica saia em serif: nem o `body`, nem `.ff-text`, nem esta
+     regra declaravam familia, e o navegador caia no padrao dele (Times). No
+     meio de um jogo inteiro em Paralucent, o unico texto com serifa era
+     justamente o que o jogador para para ler. */
+  font-family: 'Paralucent', 'Inter', sans-serif;
   font-size: max(32px, var(--piso-fonte, 0px));
   line-height: 1.35;
   color: #0a2540;

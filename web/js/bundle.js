@@ -2292,6 +2292,10 @@
   /**
    * formatMillisecondsToTime(double temp)
    * Turns a remaining-time value into `HH:MM:SS S`, counting down from 60000ms.
+   *
+   * NENHUMA TELA USA MAIS ESTA FUNÇÃO: os dois rankings passaram a
+   * `formatarTempoDeResposta`, abaixo. Ela fica porque é o porte fiel do Dart, e
+   * o teste dela guarda a conta — mas não é por onde se mostra tempo ao jogador.
    */
   function formatMillisecondsToTime(temp) {
     if (temp == null) return null;
@@ -2305,6 +2309,49 @@
     seconds %= 60;
   
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} S`;
+  }
+  
+  /**
+   * O tempo de uma partida como o jogador o lê: `12,4 s`.
+   *
+   * O formato do Dart (`formatMillisecondsToTime`, acima) trazia hora e minuto
+   * que nunca saem de zero num jogo de um minuto — `00:00:08 S` gastava três
+   * campos para dizer "oito segundos", e o ranking inteiro parecia relógio de
+   * parede. O décimo fica porque é ele que separa duas partidas rápidas.
+   *
+   * @param {number|null} tempoRestante o que sobrou no relógio de 60s, em ms —
+   *   é assim que a partida é gravada; o que se mostra é o gasto.
+   * @param {string} [separador] a vírgula decimal do idioma.
+   */
+  function formatarTempoDeResposta(tempoRestante, separador = ',') {
+    if (tempoRestante == null) return null;
+    const gasto = Math.min(60000, Math.max(0, 60000 - Math.trunc(tempoRestante)));
+    // Em décimos inteiros, e não em fração: `8.4` não existe em binário, e a
+    // diferença aparece na hora de partir o número em duas metades.
+    const decimos = Math.round(gasto / 100);
+    return `${Math.floor(decimos / 10)}${separador}${decimos % 10} s`;
+  }
+  
+  /**
+   * Em que lugar o jogador ficou, na lista de vencedores que a tela de fim leu.
+   *
+   * A partida é GRAVADA depois da navegação (ver perguntas_erespostas.js), então
+   * a linha do próprio jogador pode ainda não estar na lista quando a tela
+   * pergunta. Quando está, vale a posição dela; quando não está, conta-se quantos
+   * foram mais rápidos — o que dá a mesma resposta.
+   *
+   * @param {Array<{nome?: string, tempo?: number}>} vencedores em ordem, o mais
+   *   rápido primeiro.
+   * @param {{nome?: string, tempo?: number}} jogador `tempo` é o que sobrou no
+   *   relógio: quanto MAIOR, mais rápido foi.
+   * @returns {number|null} a posição a partir de 1, ou null sem tempo para
+   *   comparar (quem perdeu não entra no ranking).
+   */
+  function posicaoNoRanking(vencedores, { nome, tempo } = {}) {
+    if (!Array.isArray(vencedores) || tempo == null) return null;
+    const minha = vencedores.findIndex((v) => v && v.nome === nome && v.tempo === tempo);
+    if (minha >= 0) return minha + 1;
+    return vencedores.filter((v) => (v?.tempo ?? -Infinity) > tempo).length + 1;
   }
   
   const OFFENSIVE_SET = new Set(OFFENSIVE_WORDS);
@@ -2345,6 +2392,8 @@
   Object.defineProperty(__exports, "voltaDoIndice", { get: () => voltaDoIndice, enumerable: true });
   Object.defineProperty(__exports, "transformaAleatorio", { get: () => transformaAleatorio, enumerable: true });
   Object.defineProperty(__exports, "formatMillisecondsToTime", { get: () => formatMillisecondsToTime, enumerable: true });
+  Object.defineProperty(__exports, "formatarTempoDeResposta", { get: () => formatarTempoDeResposta, enumerable: true });
+  Object.defineProperty(__exports, "posicaoNoRanking", { get: () => posicaoNoRanking, enumerable: true });
   Object.defineProperty(__exports, "nomeOfensivo", { get: () => nomeOfensivo, enumerable: true });
   Object.defineProperty(__exports, "embaralhaQuestoes", { get: () => embaralhaQuestoes, enumerable: true });
   Object.defineProperty(__exports, "transformaNumero", { get: () => transformaNumero, enumerable: true });
@@ -3466,6 +3515,77 @@
   Object.defineProperty(__exports, "TH", { get: () => TH, enumerable: true });
   Object.defineProperty(__exports, "textStyle", { get: () => textStyle, enumerable: true });
   Object.defineProperty(__exports, "style", { get: () => style, enumerable: true });
+  });
+
+  /* ===== textos.js ===== */
+  __define("textos.js", function (__exports, __require) {
+  // Os textos que não vieram do FlutterFlow.
+  //
+  // As traduções do Dart vivem em `translations.js`, que é GERADO por
+  // `scripts/gen_data.py` a partir do projeto original — a CI roda o gerador e
+  // falha se o arquivo tiver sido editado à mão. Então tudo que este porte
+  // acrescenta de texto novo mora aqui, na mesma forma (pt/en/es) e lido pelo
+  // mesmo `FFLocalizations`, para a troca de idioma continuar valendo para o
+  // jogo inteiro.
+  //
+  // Se um dia isto crescer, o lugar certo é o baralho (área administrativa), não
+  // este arquivo — aqui ficam só as palavras de interface.
+  //
+  // E TAMBÉM AS CORREÇÕES. Uma frase errada do FlutterFlow não tem como ser
+  // consertada onde ela mora: `translations.js` é gerado, a CI compara com o
+  // gerador, e a fonte (`tec_game.zip`) saiu do repositório — regerar está
+  // bloqueado. Então a frase certa passa a morar aqui e o ponto de uso troca
+  // `L('chave')` por `T('nome')`. As três primeiras correções assim:
+  //
+  //   8lqt2gtq  "Você deseja confirma sua resposta? Isso irá finalizar o game."
+  //             — erro de concordância, e "game" em inglês no meio do português.
+  //   05h1096o  "Primeiro Nome ( Teclado )"      ] o "( Teclado )" e o "( Tela )"
+  //   6vx2q4r4  "Whatsapp ( teclado )"           ] eram anotação do projeto Dart
+  //   sfh76esp  "Tipo da oficina ( Tela )"       ] sobre COMO preencher o campo;
+  //             vazaram para o rótulo que o jogador lê.
+  //   hjove9jy  "Ao clicar em continuar…" — o botão se chama CONFIRMAR desde
+  //             sempre; o aviso mandava procurar um "continuar" que não existe.
+  
+  const { FFLocalizations } = __require("i18n.js");
+  
+  const TEXTOS = {
+    alternativa: { pt: 'Alternativa', en: 'Answer', es: 'Alternativa' },
+    respostaCerta: { pt: 'A resposta certa', en: 'The right answer', es: 'La respuesta correcta' },
+    voceRespondeu: { pt: 'Você respondeu', en: 'You answered', es: 'Respondiste' },
+  
+    /* ------------------------------------------- correções de translations.js -- */
+  
+    rotuloNome: { pt: 'Primeiro nome', en: 'First name', es: 'Nombre' },
+    rotuloWhatsapp: { pt: 'WhatsApp', en: 'WhatsApp', es: 'WhatsApp' },
+    rotuloOficina: { pt: 'Tipo da oficina', en: 'Workshop type', es: 'Tipo de taller' },
+    confirmarResposta: {
+      pt: 'Quer confirmar esta resposta? A partida termina aqui.',
+      en: 'Confirm this answer? The game ends here.',
+      es: '¿Confirmar esta respuesta? La partida termina aquí.',
+    },
+    avisoPrivacidade: {
+      pt: 'Ao confirmar, você concorda com os termos de acesso aos dados. Toque para ler a política de privacidade.',
+      en: 'By confirming, you agree to the data access terms. Tap to read the privacy policy.',
+      es: 'Al confirmar, acepta los términos de acceso a los datos. Toque para leer la política de privacidad.',
+    },
+  
+    /* ------------------------------------------------------ ranking e resultado -- */
+  
+    rankingVazio: {
+      pt: 'Ninguém venceu ainda. Seja o primeiro.',
+      en: 'No winners yet. Be the first.',
+      es: 'Aún no hay ganadores. Sé el primero.',
+    },
+    voce: { pt: 'VOCÊ', en: 'YOU', es: 'TÚ' },
+  };
+  
+  /** `T('alternativa')` — o mesmo formato de `L()`, para as strings daqui. */
+  function T(chave) {
+    const linha = TEXTOS[chave];
+    if (!linha) return '';
+    return FFLocalizations.getVariableText({ ptText: linha.pt, enText: linha.en, esText: linha.es });
+  }
+  Object.defineProperty(__exports, "T", { get: () => T, enumerable: true });
   });
 
   /* ===== audio.js ===== */
@@ -5251,7 +5371,7 @@
   const { L } = __require("i18n.js");
   const { pop } = __require("dialog.js");
   const { queryUsuariosVencedores } = __require("backend.js");
-  const { formatMillisecondsToTime } = __require("functions.js");
+  const { formatarTempoDeResposta } = __require("functions.js");
   const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnPageLoad, delayed } = __require("anim.js");
   const { InstantTimer } = __require("timer.js");
   const { ScrollController } = __require("forms.js");
@@ -5296,7 +5416,7 @@
               Txt(L('ucnq60p8') /* - */, style('bodyMedium', { fontFamily: 'pirulen', fontSize: 32.0 })),
               Expanded({ child: Txt(item.nome, style('bodyMedium', { fontFamily: 'pirulen', fontSize: 32.0 })) }),
               Txt(
-                valueOrDefault(formatMillisecondsToTime(item.tempo), '000000'),
+                valueOrDefault(formatarTempoDeResposta(item.tempo), '—'),
                 style('bodyMedium', { fontFamily: 'pirulen', fontSize: 32.0 })
               ),
             ],
@@ -5627,7 +5747,13 @@
       const fundo = el('div', { class: 'modal-fundo', onClick: (e) => e.target === fundo && fechar() }, caixa);
       document.body.appendChild(fundo);
       document.addEventListener('keydown', onTecla);
-      botaoOk.focus();
+      // `focus()` sem mais nada ROLA o contêiner até o elemento focado. Com notas
+      // suficientes para a caixa rolar, o "Entendi" lá embaixo levava junto o
+      // título e o cabeçalho da versão mais nova — o operador abria o sino e via
+      // os itens soltos, sem saber de que versão eram. Foco sem rolagem, e a
+      // caixa começa onde ela deve: no topo.
+      botaoOk.focus({ preventScroll: true });
+      caixa.scrollTop = 0;
     });
   }
   
@@ -6313,10 +6439,22 @@
   
   const { readRaw, writeRaw } = __require("storage.js");
   
-  const VERSAO_DO_JOGO = '2.2.0';
+  const VERSAO_DO_JOGO = '2.3.0';
   
   /** Mais recente primeiro — é a ordem em que o painel lista. */
   const NOTAS_DE_ATUALIZACAO = [
+    {
+      versao: '2.3.0',
+      data: '2026-09-22',
+      itens: [
+        'A tela da pergunta agora mostra o veículo sorteado, com a foto e o nome, embaixo do enunciado — o jogador não precisa mais lembrar qual carro a roleta deu.',
+        'O ranking diz o tempo em segundos ("6,4 s", e não "00:00:06 S") e marca a linha de quem acabou de jogar, mesmo que ela não esteja entre as três primeiras.',
+        'Sem nenhum vencedor ainda, o quadro dos campeões diz isso em vez de ficar vazio.',
+        'Frases corrigidas na tela do jogador: os rótulos do cadastro perderam o "( Teclado )" e o "( Tela )", o aviso de privacidade virou um link visível, e a caixa de confirmar a resposta deixou de chamar a partida de "game".',
+        'No painel, o sino de novidades abre no começo da lista — antes nascia rolado e escondia o título e a versão mais nova.',
+        'Ainda no painel, "Resetar todos os dados" saiu de perto do "Salvar": agora fica no pé da lista de veículos, em "Antes da feira".',
+      ],
+    },
     {
       versao: '2.2.0',
       data: '2026-09-22',
@@ -7145,8 +7283,10 @@
             })
           : null,
       ]),
+      // "Resetar todos os dados" saiu daqui: ficava encostado em "Salvar", que é
+      // o botão mais clicado do painel, e apaga o baralho e o ranking deste
+      // navegador. Agora mora no pé da lista de veículos, longe da mão que salva.
       el('div', { class: 'barra-acoes' }, [
-        botao('Resetar todos os dados', { onClick: resetarTudo, tipo: 'perigo' }),
         estado.sujo ? botao('Descartar', { onClick: descartar }) : null,
         botao('Salvar', { onClick: publicar, tipo: 'primario' }),
       ]),
@@ -7347,6 +7487,15 @@
         text: 'A ordem dos veículos é a ordem das fatias da roleta. Cada veículo pode ter várias perguntas: quando a roleta para nele, o jogo sorteia uma das ligadas.',
       }),
       el('ul', { class: 'itens' }, itens),
+      // O fim da lista é o lugar de quem só se procura de propósito.
+      el('div', { class: 'zona-de-risco' }, [
+        el('h3', { text: 'Antes da feira' }),
+        el('p', {
+          class: 'nota',
+          text: 'Volta ao baralho de fábrica e apaga o ranking e os telefones gravados neste navegador.',
+        }),
+        botao('Resetar todos os dados', { onClick: resetarTudo, tipo: 'perigo' }),
+      ]),
     ]);
   }
   
@@ -7879,6 +8028,7 @@
   const { Align, ClipRRect, Column, Container, Icon, Img, InkWell, Opacity, Padding, Stack, StackAlign, Txt, TransformSkew, color, decorationImage, divide, el, unfocus, SW, SH } = __require("widgets.js");
   const { TH, style } = __require("theme.js");
   const { L, FFLocalizations, LANGUAGES, setAppLanguage } = __require("i18n.js");
+  const { T } = __require("textos.js");
   const { CadastroStruct, FFAppState } = __require("state.js");
   const { embaralhaQuestoes, nomeOfensivo } = __require("functions.js");
   const { playSound } = __require("audio.js");
@@ -8009,11 +8159,14 @@
   
     /* --------------------------------------------------------------- fields -- */
   
-    const fieldLabel = (key) =>
+    // Recebe o TEXTO, e nao a chave: os rotulos deste formulario deixaram de sair
+    // de `translations.js`, que os trazia com a anotacao "( Teclado )"/"( Tela )"
+    // do projeto Dart colada no fim. Ver o cabecalho de textos.js.
+    const fieldLabel = (texto) =>
       Padding({
         padding: [0.0, 0.0, 0.0, 16.0],
         child: Txt(
-          L(key),
+          texto,
           style('bodyMedium', {
             fontFamily: 'pirulen',
             color: '#FFFFFF',
@@ -8177,6 +8330,11 @@
   
     /* -------------------------------------------------------------- privacy -- */
   
+    // Esta linha é a ÚNICA porta para a política de privacidade, e não parecia
+    // uma: itálico cinza, sem sublinhado, do tamanho de um rodapé. Numa tela que
+    // pede nome e telefone, o caminho para ler o que se está aceitando tem de se
+    // anunciar — daí o sublinhado e o texto claro. E a frase dizia "ao clicar em
+    // continuar" para um botão que se chama CONFIRMAR (ver textos.js).
     const privacyText = InkWell({
       onTap: async () => {
         await showDialog({
@@ -8185,8 +8343,8 @@
         });
       },
       child: Txt(
-        L('hjove9jy') /* Ao clicar em continuar você concorda... */,
-        style('bodyMedium', { fontStyle: 'italic', color: TH.secondaryText })
+        T('avisoPrivacidade'),
+        style('bodyMedium', { color: '#CFE3FF', fontSize: 17.0, decoration: 'underline' })
       ),
     });
     animateOnPageLoad(privacyText, animationsMap.textOnPageLoadAnimation);
@@ -8229,7 +8387,7 @@
             crossAxisAlignment: 'start',
             width: Infinity,
             children: [
-              fieldLabel('05h1096o' /* Primeiro Nome ( Teclado ) */),
+              fieldLabel(T('rotuloNome')),
               Container({ width: SW * 1.0, child: nomeField }),
             ],
           }),
@@ -8244,7 +8402,7 @@
             mainAxisSize: 'min',
             crossAxisAlignment: 'start',
             width: Infinity,
-            children: [fieldLabel('6vx2q4r4' /* Whatsapp ( teclado ) */), whatsField],
+            children: [fieldLabel(T('rotuloWhatsapp')), whatsField],
           }),
           animationsMap.columnOnPageLoadAnimation2
         ),
@@ -8257,7 +8415,7 @@
             mainAxisSize: 'min',
             crossAxisAlignment: 'start',
             width: Infinity,
-            children: [fieldLabel('sfh76esp' /* Tipo da oficina ( Tela ) */), oficinaDropdown],
+            children: [fieldLabel(T('rotuloOficina')), oficinaDropdown],
           }),
           animationsMap.columnOnPageLoadAnimation3
         ),
@@ -10241,37 +10399,6 @@
   Object.defineProperty(__exports, "TelaVideoScannerWidget", { get: () => TelaVideoScannerWidget, enumerable: true });
   });
 
-  /* ===== textos.js ===== */
-  __define("textos.js", function (__exports, __require) {
-  // Os textos que não vieram do FlutterFlow.
-  //
-  // As traduções do Dart vivem em `translations.js`, que é GERADO por
-  // `scripts/gen_data.py` a partir do projeto original — a CI roda o gerador e
-  // falha se o arquivo tiver sido editado à mão. Então tudo que este porte
-  // acrescenta de texto novo mora aqui, na mesma forma (pt/en/es) e lido pelo
-  // mesmo `FFLocalizations`, para a troca de idioma continuar valendo para o
-  // jogo inteiro.
-  //
-  // Se um dia isto crescer, o lugar certo é o baralho (área administrativa), não
-  // este arquivo — aqui ficam só as palavras de interface.
-  
-  const { FFLocalizations } = __require("i18n.js");
-  
-  const TEXTOS = {
-    alternativa: { pt: 'Alternativa', en: 'Answer', es: 'Alternativa' },
-    respostaCerta: { pt: 'A resposta certa', en: 'The right answer', es: 'La respuesta correcta' },
-    voceRespondeu: { pt: 'Você respondeu', en: 'You answered', es: 'Respondiste' },
-  };
-  
-  /** `T('alternativa')` — o mesmo formato de `L()`, para as strings daqui. */
-  function T(chave) {
-    const linha = TEXTOS[chave];
-    if (!linha) return '';
-    return FFLocalizations.getVariableText({ ptText: linha.pt, enText: linha.en, esText: linha.es });
-  }
-  Object.defineProperty(__exports, "T", { get: () => T, enumerable: true });
-  });
-
   /* ===== components/confirmacao.js ===== */
   __define("components/confirmacao.js", function (__exports, __require) {
   // Port of lib/pages/components/confirmacao/confirmacao_widget.dart
@@ -10429,7 +10556,10 @@
                         Padding({
                           padding: [0.0, 12.0, 0.0, 0.0],
                           child: Txt(
-                            L('8lqt2gtq') /* Você deseja confirmar sua resposta? ... */,
+                            // Não é `L('8lqt2gtq')`: aquela frase vem com erro de
+                            // concordância do Dart e chama a partida de "game".
+                            // Ver o cabeçalho de textos.js.
+                            T('confirmarResposta'),
                             style('bodyMedium', { fontFamily: 'Open Sans', fontWeight: 200, fontSize: 18.0 })
                           ),
                         }),
@@ -10983,6 +11113,10 @@
             const slotCerto = FFAppState.ordemNumeros.findIndex((n) => String(n) === String(gabarito));
             FFAppState.resultado = {
               acertou,
+              // O que sobrou no relógio, que é como a partida é gravada. A tela
+              // de fim precisa dele para dizer em que lugar o jogador ficou sem
+              // depender da gravação — que sai depois da navegação.
+              tempo: model.timerMilliseconds,
               numeroCerto: slotCerto >= 0 ? slotCerto + 1 : null,
               textoCerto: slotCerto >= 0 ? respostaText(slotCerto, FFAppState.ordemNumeros[slotCerto]) : null,
               numeroEscolhido: slot + 1,
@@ -11586,6 +11720,45 @@
     // que esquenta quando o relógio entra na reta final.
     let molduraDoDefeito = null;
   
+    /**
+     * O veículo da rodada, dentro da moldura do defeito.
+     *
+     * O jogador via o carro por seis segundos, três telas antes, e chegava aqui
+     * sem ele — e metade das perguntas do baralho dependem de QUAL veículo é
+     * (caminhão, trator e carro de passeio não se diagnosticam igual). A metade
+     * de baixo da moldura estava vazia desde o porte: é onde ele cabe sem tirar
+     * espaço do enunciado.
+     */
+    const veiculo = FFAppState.slotAtual?.veiculo;
+    const cartaoDoVeiculo = veiculo?.imagem
+      ? Column({
+          mainAxisSize: 'min',
+          crossAxisAlignment: 'center',
+          // O bloco do enunciado acima pede 100% da altura e encolhe para caber;
+          // sem travar este, quem encolhia era a foto do carro.
+          style: { flexShrink: 0 },
+          children: [
+            // Caixa fixa e `contain`: as fotos do baralho vêm em tamanhos
+            // quaisquer, inclusive as que o operador envia do computador.
+            Img(veiculo.imagem, { width: 480.0, height: 250.0, fit: 'contain' }),
+            Padding({
+              padding: [0.0, 14.0, 0.0, 0.0],
+              child: Txt(
+                veiculo.nome ?? '',
+                style('bodyMedium', {
+                  fontFamily: 'Roboto',
+                  fontWeight: 700,
+                  color: '#FFFFFF',
+                  fontSize: 30.0,
+                  letterSpacing: 3.0,
+                  textAlign: 'center',
+                })
+              ),
+            }),
+          ],
+        })
+      : null;
+  
     const panel = PerguntasErespostasWidget({
       aoEntrarNaRetaFinal: () => molduraDoDefeito?.classList.add('ff-moldura--reta-final'),
     });
@@ -11676,6 +11849,7 @@
                                       }),
                                     ],
                                   }),
+                                  cartaoDoVeiculo,
                                 ],
                               }),
                             }),
@@ -11739,7 +11913,7 @@
   const { L } = __require("i18n.js");
   const { T } = __require("textos.js");
   const { CadastroStruct, FFAppState } = __require("state.js");
-  const { formatMillisecondsToTime, transformaNumero } = __require("functions.js");
+  const { formatarTempoDeResposta, posicaoNoRanking, transformaNumero } = __require("functions.js");
   const { playSound } = __require("audio.js");
   const { enviarMensagemZap, queryUsuariosVencedores } = __require("backend.js");
   const { goNamed, serializeParam, TransitionInfo, PageTransitionType } = __require("router.js");
@@ -11817,28 +11991,77 @@
     const build = (winners) => {
       const listaVencedores = winners.slice(0, 3);
   
-      const rows = listaVencedores.map((item, index) =>
-        Row({
+      // Onde o jogador entrou nesta lista. Só quem venceu tem posição — o ranking
+      // é de vencedores. Ver `posicaoNoRanking`: a gravação da partida sai depois
+      // da navegação, então a conta não espera por ela.
+      const minhaPosicao = FFAppState.resultado?.acertou
+        ? posicaoNoRanking(winners, { nome: FFAppState.cadastro.nome, tempo: FFAppState.resultado.tempo })
+        : null;
+  
+      /** A cor do jogador no ranking: o amarelo do logo, e só na linha dele. */
+      const AMARELO = '#FFD84D';
+  
+      const linhaDoRanking = ({ posicao, nome, tempo, souEu }) => {
+        const cor = souEu ? AMARELO : '#FFFFFF';
+        const fonte = (extra = {}) =>
+          style('bodyMedium', { fontFamily: 'pirulen', fontSize: 32.0, fontWeight: 400, color: cor, ...extra });
+        return Row({
           mainAxisSize: 'max',
           mainAxisAlignment: spec.rowAlignment,
           children: divide(
             [
-              Txt(`${index + 1} - `, style('bodyMedium', { fontFamily: 'pirulen', fontSize: 32.0, fontWeight: 400 })),
+              Txt(`${posicao} - `, fonte()),
               Expanded({
                 child: Txt(
-                  maybeHandleOverflow(item.nome, { maxChars: 13, replacement: '…' }),
-                  style('bodyMedium', { fontFamily: 'pirulen', fontSize: 32.0, fontWeight: 400 })
+                  // O nome fica mesmo na linha do jogador: o ranking de um totem
+                  // de feira é lido em voz alta por quem está em volta. A marca é
+                  // o "VOCÊ" ao lado, porque só a cor não serve a quem não a
+                  // distingue.
+                  souEu
+                    ? `${maybeHandleOverflow(nome, { maxChars: 10, replacement: '…' })} · ${T('voce')}`
+                    : maybeHandleOverflow(nome, { maxChars: 13, replacement: '…' }),
+                  fonte()
                 ),
               }),
-              Txt(
-                valueOrDefault(formatMillisecondsToTime(item.tempo), '000000'),
-                style('bodyMedium', { fontFamily: 'pirulen', fontSize: 32.0, fontWeight: 400 })
-              ),
+              Txt(valueOrDefault(formatarTempoDeResposta(tempo), '—'), fonte()),
             ],
             spec.rowGap
           ),
+        });
+      };
+  
+      const rows = listaVencedores.map((item, index) =>
+        linhaDoRanking({
+          posicao: index + 1,
+          nome: item.nome,
+          tempo: item.tempo,
+          souEu: minhaPosicao === index + 1,
         })
       );
+  
+      // Fora dos três primeiros o jogador sumia do próprio ranking: via nomes
+      // desconhecidos e ia embora sem saber onde tinha ficado.
+      if (minhaPosicao && minhaPosicao > listaVencedores.length) {
+        rows.push(
+          linhaDoRanking({
+            posicao: minhaPosicao,
+            nome: FFAppState.cadastro.nome,
+            tempo: FFAppState.resultado.tempo,
+            souEu: true,
+          })
+        );
+      }
+  
+      // Sem vencedor nenhum o título ficava sozinho sobre um retângulo vazio, que
+      // se lê como tela quebrada e não como ranking novo.
+      if (!rows.length) {
+        rows.push(
+          Txt(
+            T('rankingVazio'),
+            style('bodyMedium', { fontFamily: 'Open Sans', fontSize: 22.0, color: '#B9C6DA', textAlign: 'center' })
+          )
+        );
+      }
   
       const button = FFButtonWidget({
         onPressed: restart,
@@ -11971,7 +12194,10 @@
       const ranking = animateOnPageLoad(
         Container({
           width: spec.rankingWidth,
-          height: 224.0,
+          // 224 e a altura do titulo mais tres linhas. A quarta linha — a do
+          // jogador que ficou fora do podio — precisa de espaco proprio, senao
+          // nasce cortada pela borda do quadro.
+          height: rows.length > 3 ? 288.0 : 224.0,
           child: Column({
             mainAxisSize: 'max',
             crossAxisAlignment: spec.rankingCrossAxis,

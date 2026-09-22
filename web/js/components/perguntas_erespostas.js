@@ -371,6 +371,10 @@ export function PerguntasErespostasWidget({ aoEntrarNaRetaFinal = null } = {}) {
           const slotCerto = FFAppState.ordemNumeros.findIndex((n) => String(n) === String(gabarito));
           FFAppState.resultado = {
             acertou,
+            // O que sobrou no relógio, que é como a partida é gravada. A tela
+            // de fim precisa dele para dizer em que lugar o jogador ficou sem
+            // depender da gravação — que sai depois da navegação.
+            tempo: model.timerMilliseconds,
             numeroCerto: slotCerto >= 0 ? slotCerto + 1 : null,
             textoCerto: slotCerto >= 0 ? respostaText(slotCerto, FFAppState.ordemNumeros[slotCerto]) : null,
             numeroEscolhido: slot + 1,

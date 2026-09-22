@@ -42,7 +42,7 @@ import { TH, style } from '../theme.js';
 import { L } from '../i18n.js';
 import { T } from '../textos.js';
 import { CadastroStruct, FFAppState } from '../state.js';
-import { formatMillisecondsToTime, transformaNumero } from '../functions.js';
+import { formatarTempoDeResposta, posicaoNoRanking, transformaNumero } from '../functions.js';
 import { playSound } from '../audio.js';
 import { enviarMensagemZap, queryUsuariosVencedores } from '../backend.js';
 import { goNamed, serializeParam, TransitionInfo, PageTransitionType } from '../router.js';
@@ -129,28 +129,77 @@ export function FimWidget(spec) {
   const build = (winners) => {
     const listaVencedores = winners.slice(0, 3);
 
-    const rows = listaVencedores.map((item, index) =>
-      Row({
+    // Onde o jogador entrou nesta lista. Só quem venceu tem posição — o ranking
+    // é de vencedores. Ver `posicaoNoRanking`: a gravação da partida sai depois
+    // da navegação, então a conta não espera por ela.
+    const minhaPosicao = FFAppState.resultado?.acertou
+      ? posicaoNoRanking(winners, { nome: FFAppState.cadastro.nome, tempo: FFAppState.resultado.tempo })
+      : null;
+
+    /** A cor do jogador no ranking: o amarelo do logo, e só na linha dele. */
+    const AMARELO = '#FFD84D';
+
+    const linhaDoRanking = ({ posicao, nome, tempo, souEu }) => {
+      const cor = souEu ? AMARELO : '#FFFFFF';
+      const fonte = (extra = {}) =>
+        style('bodyMedium', { fontFamily: 'pirulen', fontSize: 32.0, fontWeight: 400, color: cor, ...extra });
+      return Row({
         mainAxisSize: 'max',
         mainAxisAlignment: spec.rowAlignment,
         children: divide(
           [
-            Txt(`${index + 1} - `, style('bodyMedium', { fontFamily: 'pirulen', fontSize: 32.0, fontWeight: 400 })),
+            Txt(`${posicao} - `, fonte()),
             Expanded({
               child: Txt(
-                maybeHandleOverflow(item.nome, { maxChars: 13, replacement: '…' }),
-                style('bodyMedium', { fontFamily: 'pirulen', fontSize: 32.0, fontWeight: 400 })
+                // O nome fica mesmo na linha do jogador: o ranking de um totem
+                // de feira é lido em voz alta por quem está em volta. A marca é
+                // o "VOCÊ" ao lado, porque só a cor não serve a quem não a
+                // distingue.
+                souEu
+                  ? `${maybeHandleOverflow(nome, { maxChars: 10, replacement: '…' })} · ${T('voce')}`
+                  : maybeHandleOverflow(nome, { maxChars: 13, replacement: '…' }),
+                fonte()
               ),
             }),
-            Txt(
-              valueOrDefault(formatMillisecondsToTime(item.tempo), '000000'),
-              style('bodyMedium', { fontFamily: 'pirulen', fontSize: 32.0, fontWeight: 400 })
-            ),
+            Txt(valueOrDefault(formatarTempoDeResposta(tempo), '—'), fonte()),
           ],
           spec.rowGap
         ),
+      });
+    };
+
+    const rows = listaVencedores.map((item, index) =>
+      linhaDoRanking({
+        posicao: index + 1,
+        nome: item.nome,
+        tempo: item.tempo,
+        souEu: minhaPosicao === index + 1,
       })
     );
+
+    // Fora dos três primeiros o jogador sumia do próprio ranking: via nomes
+    // desconhecidos e ia embora sem saber onde tinha ficado.
+    if (minhaPosicao && minhaPosicao > listaVencedores.length) {
+      rows.push(
+        linhaDoRanking({
+          posicao: minhaPosicao,
+          nome: FFAppState.cadastro.nome,
+          tempo: FFAppState.resultado.tempo,
+          souEu: true,
+        })
+      );
+    }
+
+    // Sem vencedor nenhum o título ficava sozinho sobre um retângulo vazio, que
+    // se lê como tela quebrada e não como ranking novo.
+    if (!rows.length) {
+      rows.push(
+        Txt(
+          T('rankingVazio'),
+          style('bodyMedium', { fontFamily: 'Open Sans', fontSize: 22.0, color: '#B9C6DA', textAlign: 'center' })
+        )
+      );
+    }
 
     const button = FFButtonWidget({
       onPressed: restart,
@@ -283,7 +332,10 @@ export function FimWidget(spec) {
     const ranking = animateOnPageLoad(
       Container({
         width: spec.rankingWidth,
-        height: 224.0,
+        // 224 e a altura do titulo mais tres linhas. A quarta linha — a do
+        // jogador que ficou fora do podio — precisa de espaco proprio, senao
+        // nasce cortada pela borda do quadro.
+        height: rows.length > 3 ? 288.0 : 224.0,
         child: Column({
           mainAxisSize: 'max',
           crossAxisAlignment: spec.rankingCrossAxis,

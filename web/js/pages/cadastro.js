@@ -28,6 +28,7 @@ import {
 } from '../widgets.js';
 import { TH, style } from '../theme.js';
 import { L, FFLocalizations, LANGUAGES, setAppLanguage } from '../i18n.js';
+import { T } from '../textos.js';
 import { CadastroStruct, FFAppState } from '../state.js';
 import { embaralhaQuestoes, nomeOfensivo } from '../functions.js';
 import { playSound } from '../audio.js';
@@ -175,11 +176,14 @@ export function CadastroWidget() {
 
   /* --------------------------------------------------------------- fields -- */
 
-  const fieldLabel = (key) =>
+  // Recebe o TEXTO, e nao a chave: os rotulos deste formulario deixaram de sair
+  // de `translations.js`, que os trazia com a anotacao "( Teclado )"/"( Tela )"
+  // do projeto Dart colada no fim. Ver o cabecalho de textos.js.
+  const fieldLabel = (texto) =>
     Padding({
       padding: [0.0, 0.0, 0.0, 16.0],
       child: Txt(
-        L(key),
+        texto,
         style('bodyMedium', {
           fontFamily: 'pirulen',
           color: '#FFFFFF',
@@ -343,6 +347,11 @@ export function CadastroWidget() {
 
   /* -------------------------------------------------------------- privacy -- */
 
+  // Esta linha é a ÚNICA porta para a política de privacidade, e não parecia
+  // uma: itálico cinza, sem sublinhado, do tamanho de um rodapé. Numa tela que
+  // pede nome e telefone, o caminho para ler o que se está aceitando tem de se
+  // anunciar — daí o sublinhado e o texto claro. E a frase dizia "ao clicar em
+  // continuar" para um botão que se chama CONFIRMAR (ver textos.js).
   const privacyText = InkWell({
     onTap: async () => {
       await showDialog({
@@ -351,8 +360,8 @@ export function CadastroWidget() {
       });
     },
     child: Txt(
-      L('hjove9jy') /* Ao clicar em continuar você concorda... */,
-      style('bodyMedium', { fontStyle: 'italic', color: TH.secondaryText })
+      T('avisoPrivacidade'),
+      style('bodyMedium', { color: '#CFE3FF', fontSize: 17.0, decoration: 'underline' })
     ),
   });
   animateOnPageLoad(privacyText, animationsMap.textOnPageLoadAnimation);
@@ -395,7 +404,7 @@ export function CadastroWidget() {
           crossAxisAlignment: 'start',
           width: Infinity,
           children: [
-            fieldLabel('05h1096o' /* Primeiro Nome ( Teclado ) */),
+            fieldLabel(T('rotuloNome')),
             Container({ width: SW * 1.0, child: nomeField }),
           ],
         }),
@@ -410,7 +419,7 @@ export function CadastroWidget() {
           mainAxisSize: 'min',
           crossAxisAlignment: 'start',
           width: Infinity,
-          children: [fieldLabel('6vx2q4r4' /* Whatsapp ( teclado ) */), whatsField],
+          children: [fieldLabel(T('rotuloWhatsapp')), whatsField],
         }),
         animationsMap.columnOnPageLoadAnimation2
       ),
@@ -423,7 +432,7 @@ export function CadastroWidget() {
           mainAxisSize: 'min',
           crossAxisAlignment: 'start',
           width: Infinity,
-          children: [fieldLabel('sfh76esp' /* Tipo da oficina ( Tela ) */), oficinaDropdown],
+          children: [fieldLabel(T('rotuloOficina')), oficinaDropdown],
         }),
         animationsMap.columnOnPageLoadAnimation3
       ),

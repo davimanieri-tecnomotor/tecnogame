@@ -161,7 +161,8 @@ O que dá para fazer:
   correspondente; **salvar fica bloqueado** enquanto houver problema;
 - **resetar todos os dados**: volta ao baralho de fábrica e apaga deste
   navegador o ranking e os telefones das partidas já jogadas. O que já foi para
-  o Firebase só sai pelo console.
+  o Firebase só sai pelo console. Fica no **pé da lista de veículos**, sob
+  *Antes da feira*, e não na barra — apagar tudo não é vizinho de salvar.
 
 ### Um veículo, várias perguntas
 

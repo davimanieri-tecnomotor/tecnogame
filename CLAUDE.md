@@ -27,7 +27,10 @@ módulo ES por origem nula). Esquecer significa o totem rodando código antigo. 
 **2. Nunca editar `questions.js`, `translations.js` nem `offensive_words.js`.**
 São gerados por `npm run gen` a partir do Dart original, e a CI roda o gerador e
 falha se o resultado diferir do commitado. **Texto de interface novo vai em
-`web/js/textos.js`**, que é lido pelo mesmo `FFLocalizations`.
+`web/js/textos.js`**, que é lido pelo mesmo `FFLocalizations` — e **frase errada
+do Dart se corrige lá também**: escreve-se a certa em `textos.js` e o ponto de
+uso troca `L('chave')` por `T('nome')`, com a chave antiga anotada no cabeçalho
+daquele arquivo. Corrigir na origem depende do zip que saiu do repositório.
 
 > `tec_game.zip` — a fonte de onde `npm run gen` extrai esses três arquivos —
 > saiu do repositório (tinha 48 MB). Sem ele, `scripts/gen_data.py` recusa

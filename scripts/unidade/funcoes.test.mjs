@@ -11,7 +11,9 @@ import { OFFENSIVE_WORDS } from '../../web/js/offensive_words.js';
 import {
   embaralhaQuestoes,
   formatMillisecondsToTime,
+  formatarTempoDeResposta,
   nomeOfensivo,
+  posicaoNoRanking,
   transformaNumero,
 } from '../../web/js/functions.js';
 
@@ -67,6 +69,37 @@ test('o relógio da tela de fim conta o tempo GASTO, não o que sobrou', () => {
   assert.equal(formatMillisecondsToTime(0), '00:01:00 S', 'sobrou nada => gastou o minuto');
   assert.equal(formatMillisecondsToTime(70000), '00:00:00 S', 'tempo acima do relógio não vira negativo');
   assert.equal(formatMillisecondsToTime(null), null);
+});
+
+test('o tempo do ranking é dito em segundos, com o décimo que desempata', () => {
+  assert.equal(formatarTempoDeResposta(60000), '0,0 s', 'sobrou tudo => gastou nada');
+  assert.equal(formatarTempoDeResposta(51600), '8,4 s');
+  assert.equal(formatarTempoDeResposta(0), '60,0 s', 'sobrou nada => gastou o minuto');
+  assert.equal(formatarTempoDeResposta(70000), '0,0 s', 'tempo acima do relógio não vira negativo');
+  assert.equal(formatarTempoDeResposta(-5000), '60,0 s', 'nem passa do minuto por baixo');
+  assert.equal(formatarTempoDeResposta(null), null);
+  assert.equal(formatarTempoDeResposta(51600, '.'), '8.4 s', 'o separador acompanha o idioma');
+});
+
+test('a posição do jogador sai certa com a gravação atrasada ou já chegada', () => {
+  // `tempo` é o que SOBROU no relógio: quanto maior, mais rápido foi.
+  const vencedores = [
+    { nome: 'Ana', tempo: 52000 },
+    { nome: 'Bruno', tempo: 41000 },
+    { nome: 'Carla', tempo: 30000 },
+  ];
+
+  // A partida é gravada depois da navegação: a lista pode ainda não ter a
+  // linha do jogador, e a posição tem de sair igual nos dois casos.
+  assert.equal(posicaoNoRanking(vencedores, { nome: 'Davi', tempo: 45000 }), 2, 'sem a própria linha');
+  assert.equal(posicaoNoRanking(vencedores, { nome: 'Bruno', tempo: 41000 }), 2, 'com a própria linha');
+  assert.equal(posicaoNoRanking(vencedores, { nome: 'Davi', tempo: 60000 }), 1, 'mais rápido que todos');
+  assert.equal(posicaoNoRanking(vencedores, { nome: 'Davi', tempo: 1000 }), 4, 'atrás de todos');
+  assert.equal(posicaoNoRanking([], { nome: 'Davi', tempo: 1000 }), 1, 'ranking vazio => é o primeiro');
+
+  // Quem perdeu não tem tempo para comparar, e não entra no ranking.
+  assert.equal(posicaoNoRanking(vencedores, { nome: 'Davi' }), null);
+  assert.equal(posicaoNoRanking(null, { nome: 'Davi', tempo: 1000 }), null);
 });
 
 test('o embaralhamento das alternativas é uniforme, não "quase"', () => {
