@@ -42,7 +42,7 @@ const FILE_BASE = pathToFileURL(path.join(WEB, 'index.html')).href;
  * entrar primeiro -- com o `sizes` (150s, 32 carregamentos de pagina) no meio
  * da fila, ele sozinho esticava a suite em 70s.
  */
-const TESTES = ['sizes', 'dialogs', 'playthrough', 'baralho', 'admin', 'respostas', 'routes', 'corte', 'teclado', 'estalo', 'centro', 'idioma'];
+const TESTES = ['sizes', 'dialogs', 'playthrough', 'baralho', 'inatividade', 'admin', 'respostas', 'routes', 'corte', 'teclado', 'estalo', 'centro', 'idioma'];
 
 const argv = process.argv.slice(2);
 const soHttp = argv.includes('--http');

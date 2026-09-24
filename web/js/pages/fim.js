@@ -41,7 +41,7 @@ import {
 import { TH, style } from '../theme.js';
 import { L } from '../i18n.js';
 import { T } from '../textos.js';
-import { CadastroStruct, FFAppState } from '../state.js';
+import { FFAppState } from '../state.js';
 import { formatarTempoDeResposta, posicaoNoRanking, transformaNumero } from '../functions.js';
 import { playSound } from '../audio.js';
 import { enviarMensagemZap, queryUsuariosVencedores } from '../backend.js';
@@ -108,12 +108,7 @@ export function FimWidget(spec) {
       resultado: spec.resultado(FFAppState.cadastro.nome),
     });
 
-    FFAppState.scannerEscolhido = '';
-    FFAppState.equipamentoPulado = false;
-    FFAppState.tempoAcabando = false;
-    FFAppState.cadastro = new CadastroStruct();
-    FFAppState.ajuda = 0;
-    FFAppState.resultado = null;
+    FFAppState.encerrarPartida();
 
     goNamed('telaVideoTransisao', { queryParameters: { tipo: serializeParam(0) } });
   };

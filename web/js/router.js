@@ -102,7 +102,15 @@ async function render(path, { comFade }) {
     if (previous) previous.node.remove();
     container.appendChild(node);
 
-    current = { route, node, dispose: page?.__dispose ?? node.__dispose ?? null, path };
+    current = {
+      route,
+      node,
+      dispose: page?.__dispose ?? node.__dispose ?? null,
+      // O que a tela quer quando o prazo de inatividade vence; sem isto, ela
+      // volta ao cadastro (ver inatividade.js).
+      aoExpirar: page?.__aoExpirar ?? node.__aoExpirar ?? null,
+      path,
+    };
 
     if (location.hash.slice(1) !== path) {
       history.replaceState({ path }, '', `#${path}`);
@@ -133,6 +141,13 @@ export function goNamed(name, { queryParameters = null } = {}) {
 export function go(path) {
   return render(path, { comFade: false });
 }
+
+/**
+ * A tela que está no palco agora, para quem precisa saber sem navegar — o prazo
+ * de inatividade (inatividade.js). O objeto é trocado a cada troca de tela,
+ * então comparar por identidade diz se a tela mudou.
+ */
+export const telaAtual = () => current;
 
 function buildPath(name, queryParameters) {
   const path = namedPaths.get(name);

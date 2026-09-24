@@ -10,10 +10,18 @@
 
 import { readRaw, writeRaw } from './storage.js';
 
-export const VERSAO_DO_JOGO = '2.5.1';
+export const VERSAO_DO_JOGO = '2.6.0';
 
 /** Mais recente primeiro — é a ordem em que o painel lista. */
 export const NOTAS_DE_ATUALIZACAO = [
+  {
+    versao: '2.6.0',
+    data: '2026-09-23',
+    itens: [
+      'Quatro minutos sem ninguém tocar na tela, e o jogo volta sozinho para o cadastro — em qualquer tela. Antes a roleta, a escolha do equipamento e o fim de jogo esperavam para sempre, e quem chegava depois de uma partida largada no meio jogava com o nome e o telefone de quem tinha ido embora.',
+      'No cadastro, os quatro minutos apagam a ficha que alguém começou a preencher e abandonou. O painel de administração não tem esse prazo.',
+    ],
+  },
   {
     versao: '2.5.1',
     data: '2026-09-22',

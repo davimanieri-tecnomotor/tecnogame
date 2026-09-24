@@ -4,6 +4,7 @@ import { installStage } from './stage.js';
 import { FFAppState } from './state.js';
 import { defineRoute, startRouter, go } from './router.js';
 import { FFLocalizations, onLanguageChange } from './i18n.js';
+import { vigiarInatividade } from './inatividade.js';
 
 import { CadastroWidget } from './pages/cadastro.js';
 import { InstrucoesWidget } from './pages/instrucoes.js';
@@ -65,6 +66,10 @@ function main() {
   });
 
   startRouter();
+
+  // Quatro minutos sem ninguém tocar, em qualquer tela, e o jogo volta ao
+  // cadastro — ver inatividade.js.
+  vigiarInatividade();
 }
 
 main();

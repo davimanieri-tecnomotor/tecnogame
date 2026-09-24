@@ -101,7 +101,15 @@ export function RankingWidget({ acao } = {}) {
       instantTimer = InstantTimer.periodic({
         duration: 60000,
         startImmediately: true,
-        callback: async () => {
+        callback: async (timer) => {
+          // Fechado por fora, o timer ficaria girando para sempre: uma troca de
+          // tela fecha o diálogo com `pop()` direto, sem passar pelo `close`
+          // daqui. O prazo de inatividade faz isso no cadastro (ver
+          // inatividade.js), então aconteceria a cada ficha largada.
+          if (!scroller.isConnected) {
+            timer.cancel();
+            return;
+          }
           await scrollController.animateTo(scrollController.maxScrollExtent, { duration: 30000 });
           await scrollController.animateTo(0, { duration: 30000 });
         },

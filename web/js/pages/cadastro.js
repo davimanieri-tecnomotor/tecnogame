@@ -3,6 +3,9 @@
 // "Tela destinada ao cadasrto do usuário" - name, WhatsApp, workshop type.
 // A count-up timer runs in the background; after 45 idle seconds the ranking
 // takes over the screen. Any tap, submit or dropdown change resets it.
+//
+// E o prazo de inatividade do jogo inteiro (quatro minutos, inatividade.js)
+// passa por aqui também: uma ficha começada e largada é apagada.
 
 import {
   Align,
@@ -40,7 +43,7 @@ import { registrarToqueSecreto } from '../admin/porta.js';
 import { sincronizarBaralho } from '../nuvem.js';
 import { adiantarOPercurso } from '../precarga.js';
 import { desmontarOCadastro } from '../transicoes.js';
-import { goNamed } from '../router.js';
+import { go, goNamed } from '../router.js';
 import {
   AnimationInfo,
   AnimationTrigger,
@@ -112,6 +115,10 @@ function resetFormState() {
   formState.oficinaKey = null;
   formState.invalido = 0;
 }
+
+/** Alguém começou a preencher? Decide se o prazo de inatividade tem o que apagar. */
+const fichaComecada = () =>
+  Boolean(formState.nome.text || formState.whats.text || formState.oficinaKey || formState.invalido);
 
 export function CadastroWidget() {
   const model = {
@@ -288,8 +295,13 @@ export function CadastroWidget() {
           FFAppState.ordemNumeros = embaralhaQuestoes();
       
           if (nomeOfensivo(model.textFieldNomeTextController.text)) {
-            await showDialog({ builder: () => NomeOfensivoWidget() });
+            // Conta ANTES de abrir o aviso, e não depois de ele fechar, como no
+            // Dart. Quem digita um nome ofensivo e vai embora deixa o aviso
+            // aberto; quando o prazo de inatividade apaga a ficha, o aviso
+            // fecha junto — e a conta que viesse depois do `await` cairia na
+            // ficha limpa, marcando o próximo jogador.
             model.invalido = model.invalido + 1;
+            await showDialog({ builder: () => NomeOfensivoWidget() });
             return;
           }
 
@@ -575,6 +587,18 @@ export function CadastroWidget() {
   root.__dispose = () => {
     model.instantTimer?.cancel();
     model.timerController.dispose();
+  };
+
+  // O prazo de inatividade vale para toda tela (inatividade.js), mas aqui ele
+  // faz outra coisa: o cadastro já é o começo, e não há para onde voltar. Sai
+  // só a ficha de quem desistiu no meio, para o próximo visitante não achar o
+  // nome e o telefone dessa pessoa. Sem nada digitado não há o que apagar, e o
+  // ranking do ocioso continua na tela.
+  root.__aoExpirar = () => {
+    if (!fichaComecada()) return;
+    resetFormState();
+    // `go`, e não `goNamed`: é a MESMA tela refeita, como na troca de idioma.
+    go(location.hash.slice(1) || '/');
   };
 
   return root;

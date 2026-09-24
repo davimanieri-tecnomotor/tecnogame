@@ -2557,6 +2557,23 @@
       });
     }
   
+    /**
+     * Esquece a partida: quem jogou, o equipamento, o resultado.
+     *
+     * Duas saídas passam por aqui — o REINICIAR da tela de fim e o prazo de
+     * inatividade (inatividade.js) — e as duas têm de deixar o jogo no mesmo
+     * ponto. Pela segunda sai quem largou a partida no meio, e sem isto o próximo
+     * jogaria com o nome e o telefone dessa pessoa.
+     */
+    encerrarPartida() {
+      this.scannerEscolhido = '';
+      this.equipamentoPulado = false;
+      this.tempoAcabando = false;
+      this.cadastro = new CadastroStruct();
+      this.ajuda = 0;
+      this.resultado = null;
+    }
+  
     /** Quantas rodadas o baralho tem — o número de fatias da roleta. */
     get totalSlots() {
       return this.baralho?.slots?.length ?? 0;
@@ -2849,7 +2866,15 @@
       if (previous) previous.node.remove();
       container.appendChild(node);
   
-      current = { route, node, dispose: page?.__dispose ?? node.__dispose ?? null, path };
+      current = {
+        route,
+        node,
+        dispose: page?.__dispose ?? node.__dispose ?? null,
+        // O que a tela quer quando o prazo de inatividade vence; sem isto, ela
+        // volta ao cadastro (ver inatividade.js).
+        aoExpirar: page?.__aoExpirar ?? node.__aoExpirar ?? null,
+        path,
+      };
   
       if (location.hash.slice(1) !== path) {
         history.replaceState({ path }, '', `#${path}`);
@@ -2881,6 +2906,13 @@
     return render(path, { comFade: false });
   }
   
+  /**
+   * A tela que está no palco agora, para quem precisa saber sem navegar — o prazo
+   * de inatividade (inatividade.js). O objeto é trocado a cada troca de tela,
+   * então comparar por identidade diz se a tela mudou.
+   */
+  const telaAtual = () => current;
+  
   function buildPath(name, queryParameters) {
     const path = namedPaths.get(name);
     if (!path) throw new Error(`unknown route: ${name}`);
@@ -2904,6 +2936,7 @@
   Object.defineProperty(__exports, "serializeParam", { get: () => serializeParam, enumerable: true });
   Object.defineProperty(__exports, "goNamed", { get: () => goNamed, enumerable: true });
   Object.defineProperty(__exports, "go", { get: () => go, enumerable: true });
+  Object.defineProperty(__exports, "telaAtual", { get: () => telaAtual, enumerable: true });
   Object.defineProperty(__exports, "startRouter", { get: () => startRouter, enumerable: true });
   });
 
@@ -3441,6 +3474,103 @@
   Object.defineProperty(__exports, "setAppLanguage", { get: () => setAppLanguage, enumerable: true });
   Object.defineProperty(__exports, "onLanguageChange", { get: () => onLanguageChange, enumerable: true });
   Object.defineProperty(__exports, "L", { get: () => L, enumerable: true });
+  });
+
+  /* ===== inatividade.js ===== */
+  __define("inatividade.js", function (__exports, __require) {
+  // O prazo de inatividade: quatro minutos sem ninguém tocar, e o jogo volta ao
+  // cadastro.
+  //
+  // POR QUE. Só o cadastro tinha prazo — os 45s que chamam o ranking. As outras
+  // telas que dependem de um toque esperavam para sempre: a roleta pelo GIRAR, a
+  // escolha do equipamento, o fim de jogo pelo REINICIAR. E a partida ficava
+  // junto: quem chegava depois de um jogo largado na roleta jogava com o cadastro
+  // de quem tinha ido embora, e o resultado saía gravado com o nome e o telefone
+  // da outra pessoa.
+  //
+  // QUATRO MINUTOS é folga de sobra para quem está jogando. No caminho normal a
+  // espera mais longa sem toque é a da pergunta, e o relógio de 60s dela manda
+  // para o fim sozinho; as telas de vídeo andam por conta própria.
+  //
+  // O PRAZO É DE CADA TELA: um toque ou uma tecla recomeçam a contagem, e a troca
+  // de tela também.
+  //
+  // O que acontece quando ele vence é decisão da tela que está no palco, e não
+  // daqui: ela pode deixar um `__aoExpirar` no nó que devolve, do mesmo jeito que
+  // deixa o `__dispose` (ver router.js). O cadastro usa isso para só apagar a
+  // ficha — ele já é o começo —, e a administração para ficar de fora. As demais
+  // caem em `voltarAoComeco`.
+  //
+  // O relógio é o `performance.now`, o mesmo do contador de ociosidade do
+  // cadastro. É o que deixa o verify/inatividade.mjs acelerar a hora da página em
+  // vez de esperar quatro minutos de verdade: trocar por `Date.now` quebra o teste
+  // sem quebrar o jogo.
+  
+  const { goNamed, telaAtual } = __require("router.js");
+  const { FFAppState } = __require("state.js");
+  
+  /** Quanto uma tela espera sem ninguém tocar. */
+  const PRAZO_DE_INATIVIDADE_MS = 4 * 60 * 1000;
+  
+  /**
+   * A contagem, sem DOM e sem relógio: quem chama avisa quando houve atividade e
+   * pergunta, a cada batida, se a tela atual passou do prazo parada.
+   *
+   * Vence uma vez por período e recomeça dali, para uma tela que decide não fazer
+   * nada (o painel) não ser chamada a cada batida.
+   */
+  function criarVigia() {
+    let desde = null;
+    let tela = null;
+    return {
+      /** Um toque ou uma tecla, em `agora`: a contagem recomeça. */
+      atividade(agora) {
+        desde = agora;
+      },
+      /** A tela `atual` venceu o prazo em `agora`? Tela nova conta como atividade. */
+      venceu(agora, atual) {
+        if (atual !== tela || desde == null) {
+          tela = atual;
+          desde = agora;
+          return false;
+        }
+        if (agora - desde < PRAZO_DE_INATIVIDADE_MS) return false;
+        desde = agora;
+        return true;
+      },
+    };
+  }
+  
+  /**
+   * O que faz uma tela sem instrução própria: esquece a partida e volta ao
+   * cadastro. Direto, sem a vinheta do REINICIAR — não há ninguém ali para ver.
+   */
+  function voltarAoComeco() {
+    FFAppState.encerrarPartida();
+    goNamed('cadastro');
+  }
+  
+  /** Liga o prazo. Chamado uma vez, no boot (main.js). */
+  function vigiarInatividade() {
+    const vigia = criarVigia();
+    const agora = () => performance.now();
+  
+    // A mesma lista que libera o áudio (audio.js): é o que o jogo entende por
+    // "alguém tocou".
+    for (const tipo of ['pointerdown', 'keydown', 'touchstart']) {
+      window.addEventListener(tipo, () => vigia.atividade(agora()), { capture: true, passive: true });
+    }
+  
+    // Uma batida por segundo: quatro minutos não pedem precisão de quadro.
+    setInterval(() => {
+      const tela = telaAtual();
+      if (!tela || !vigia.venceu(agora(), tela)) return;
+      (tela.aoExpirar ?? voltarAoComeco)();
+    }, 1000);
+  }
+  Object.defineProperty(__exports, "PRAZO_DE_INATIVIDADE_MS", { get: () => PRAZO_DE_INATIVIDADE_MS, enumerable: true });
+  Object.defineProperty(__exports, "criarVigia", { get: () => criarVigia, enumerable: true });
+  Object.defineProperty(__exports, "vigiarInatividade", { get: () => vigiarInatividade, enumerable: true });
   });
 
   /* ===== theme.js ===== */
@@ -5713,7 +5843,15 @@
         instantTimer = InstantTimer.periodic({
           duration: 60000,
           startImmediately: true,
-          callback: async () => {
+          callback: async (timer) => {
+            // Fechado por fora, o timer ficaria girando para sempre: uma troca de
+            // tela fecha o diálogo com `pop()` direto, sem passar pelo `close`
+            // daqui. O prazo de inatividade faz isso no cadastro (ver
+            // inatividade.js), então aconteceria a cada ficha largada.
+            if (!scroller.isConnected) {
+              timer.cancel();
+              return;
+            }
             await scrollController.animateTo(scrollController.maxScrollExtent, { duration: 30000 });
             await scrollController.animateTo(0, { duration: 30000 });
           },
@@ -6737,10 +6875,18 @@
   
   const { readRaw, writeRaw } = __require("storage.js");
   
-  const VERSAO_DO_JOGO = '2.5.1';
+  const VERSAO_DO_JOGO = '2.6.0';
   
   /** Mais recente primeiro — é a ordem em que o painel lista. */
   const NOTAS_DE_ATUALIZACAO = [
+    {
+      versao: '2.6.0',
+      data: '2026-09-23',
+      itens: [
+        'Quatro minutos sem ninguém tocar na tela, e o jogo volta sozinho para o cadastro — em qualquer tela. Antes a roleta, a escolha do equipamento e o fim de jogo esperavam para sempre, e quem chegava depois de uma partida largada no meio jogava com o nome e o telefone de quem tinha ido embora.',
+        'No cadastro, os quatro minutos apagam a ficha que alguém começou a preencher e abandonou. O painel de administração não tem esse prazo.',
+      ],
+    },
     {
       versao: '2.5.1',
       data: '2026-09-22',
@@ -8334,6 +8480,11 @@
     // continua perguntando, porque ali dá tempo.
     casca.__dispose = fecharCamada;
   
+    // O painel não tem prazo de inatividade (inatividade.js). É ferramenta de
+    // notebook, lida com calma — quem confere a aba Respostas passa minutos sem
+    // tocar em nada —, e voltar ao jogo no meio disso só atrapalharia quem opera.
+    casca.__aoExpirar = () => {};
+  
     return casca;
   }
   Object.defineProperty(__exports, "registrarToqueSecreto", { get: () => registrarToqueSecreto, enumerable: true });
@@ -8596,6 +8747,9 @@
   // "Tela destinada ao cadasrto do usuário" - name, WhatsApp, workshop type.
   // A count-up timer runs in the background; after 45 idle seconds the ranking
   // takes over the screen. Any tap, submit or dropdown change resets it.
+  //
+  // E o prazo de inatividade do jogo inteiro (quatro minutos, inatividade.js)
+  // passa por aqui também: uma ficha começada e largada é apagada.
   
   const { Align, ClipRRect, Column, Container, Icon, Img, InkWell, Opacity, Padding, Stack, StackAlign, Txt, TransformSkew, color, decorationImage, divide, el, unfocus, SW, SH } = __require("widgets.js");
   const { TH, style } = __require("theme.js");
@@ -8612,7 +8766,7 @@
   const { sincronizarBaralho } = __require("nuvem.js");
   const { adiantarOPercurso } = __require("precarga.js");
   const { desmontarOCadastro } = __require("transicoes.js");
-  const { goNamed } = __require("router.js");
+  const { go, goNamed } = __require("router.js");
   const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
   const { FlutterFlowTimer, FlutterFlowTimerController, InstantTimer, StopWatchMode, StopWatchTimer } = __require("timer.js");
   const { FlutterFlowDropDown, FlutterFlowLanguageSelector, FormFieldController, FormState, MaskTextInputFormatter, TextEditingController, TextFormField } = __require("forms.js");
@@ -8667,6 +8821,10 @@
     formState.oficinaKey = null;
     formState.invalido = 0;
   }
+  
+  /** Alguém começou a preencher? Decide se o prazo de inatividade tem o que apagar. */
+  const fichaComecada = () =>
+    Boolean(formState.nome.text || formState.whats.text || formState.oficinaKey || formState.invalido);
   
   function CadastroWidget() {
     const model = {
@@ -8843,8 +9001,13 @@
             FFAppState.ordemNumeros = embaralhaQuestoes();
         
             if (nomeOfensivo(model.textFieldNomeTextController.text)) {
-              await showDialog({ builder: () => NomeOfensivoWidget() });
+              // Conta ANTES de abrir o aviso, e não depois de ele fechar, como no
+              // Dart. Quem digita um nome ofensivo e vai embora deixa o aviso
+              // aberto; quando o prazo de inatividade apaga a ficha, o aviso
+              // fecha junto — e a conta que viesse depois do `await` cairia na
+              // ficha limpa, marcando o próximo jogador.
               model.invalido = model.invalido + 1;
+              await showDialog({ builder: () => NomeOfensivoWidget() });
               return;
             }
   
@@ -9130,6 +9293,18 @@
     root.__dispose = () => {
       model.instantTimer?.cancel();
       model.timerController.dispose();
+    };
+  
+    // O prazo de inatividade vale para toda tela (inatividade.js), mas aqui ele
+    // faz outra coisa: o cadastro já é o começo, e não há para onde voltar. Sai
+    // só a ficha de quem desistiu no meio, para o próximo visitante não achar o
+    // nome e o telefone dessa pessoa. Sem nada digitado não há o que apagar, e o
+    // ranking do ocioso continua na tela.
+    root.__aoExpirar = () => {
+      if (!fichaComecada()) return;
+      resetFormState();
+      // `go`, e não `goNamed`: é a MESMA tela refeita, como na troca de idioma.
+      go(location.hash.slice(1) || '/');
     };
   
     return root;
@@ -12621,7 +12796,7 @@
   const { TH, style } = __require("theme.js");
   const { L } = __require("i18n.js");
   const { T } = __require("textos.js");
-  const { CadastroStruct, FFAppState } = __require("state.js");
+  const { FFAppState } = __require("state.js");
   const { formatarTempoDeResposta, posicaoNoRanking, transformaNumero } = __require("functions.js");
   const { playSound } = __require("audio.js");
   const { enviarMensagemZap, queryUsuariosVencedores } = __require("backend.js");
@@ -12679,12 +12854,7 @@
         resultado: spec.resultado(FFAppState.cadastro.nome),
       });
   
-      FFAppState.scannerEscolhido = '';
-      FFAppState.equipamentoPulado = false;
-      FFAppState.tempoAcabando = false;
-      FFAppState.cadastro = new CadastroStruct();
-      FFAppState.ajuda = 0;
-      FFAppState.resultado = null;
+      FFAppState.encerrarPartida();
   
       goNamed('telaVideoTransisao', { queryParameters: { tipo: serializeParam(0) } });
     };
@@ -13031,6 +13201,7 @@
   const { FFAppState } = __require("state.js");
   const { defineRoute, startRouter, go } = __require("router.js");
   const { FFLocalizations, onLanguageChange } = __require("i18n.js");
+  const { vigiarInatividade } = __require("inatividade.js");
   
   const { CadastroWidget } = __require("pages/cadastro.js");
   const { InstrucoesWidget } = __require("pages/instrucoes.js");
@@ -13092,6 +13263,10 @@
     });
   
     startRouter();
+  
+    // Quatro minutos sem ninguém tocar, em qualquer tela, e o jogo volta ao
+    // cadastro — ver inatividade.js.
+    vigiarInatividade();
   }
   
   main();

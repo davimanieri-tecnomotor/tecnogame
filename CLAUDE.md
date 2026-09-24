@@ -14,7 +14,7 @@ npm start          # http://localhost:8099
 npm run bundle     # DEPOIS de qualquer mudança em web/js/ — ver abaixo
 npm run check      # imports resolvem, nada morto, bundle em dia (0,1s)
 npm test           # lógica pura, sem navegador (0,3s) — a volta mais curta
-npm run verify     # a suíte inteira, 24 execuções, ~3min50
+npm run verify     # a suíte inteira, 26 execuções, ~4min
 npm run verify:rapido   # só HTTP, ~110s — a volta do dia a dia
 ```
 
@@ -63,6 +63,7 @@ web/js/            os módulos ES — a fonte
   giro.js            a física da roleta, a lingueta, o borrão, os estalos
   nuvem.js           o baralho no Firestore, sem login
   precarga.js        pede as imagens da roleta enquanto o jogador se cadastra
+  inatividade.js     quatro minutos sem toque, e qualquer tela volta ao cadastro
   changelog.js       versão do jogo e as notas do sininho de novidades
   pages/ components/ admin/
     admin/respostas.js  dados de partida, telefone com login, export CSV
@@ -149,7 +150,7 @@ escreva `min`; o `SingleChildScrollView` já faz isso sozinho.
 
 ## Antes de dizer que está pronto
 
-- `npm run verify` — **24 de 24**, nos dois transportes.
+- `npm run verify` — **26 de 26**, nos dois transportes.
 - **Olhe a tela.** Um probe que devolve números pode passar com a tela quebrada:
   o bug da resposta que sumia passou por um probe verde porque eu li o JSON e
   não abri a captura. Ponha um `page.screenshot` e leia a imagem.

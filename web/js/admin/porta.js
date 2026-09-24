@@ -301,5 +301,10 @@ export function PortaDoAdmWidget() {
   // continua perguntando, porque ali dá tempo.
   casca.__dispose = fecharCamada;
 
+  // O painel não tem prazo de inatividade (inatividade.js). É ferramenta de
+  // notebook, lida com calma — quem confere a aba Respostas passa minutos sem
+  // tocar em nada —, e voltar ao jogo no meio disso só atrapalharia quem opera.
+  casca.__aoExpirar = () => {};
+
   return casca;
 }

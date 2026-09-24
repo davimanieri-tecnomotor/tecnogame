@@ -145,6 +145,23 @@ class FFAppStateClass {
     });
   }
 
+  /**
+   * Esquece a partida: quem jogou, o equipamento, o resultado.
+   *
+   * Duas saídas passam por aqui — o REINICIAR da tela de fim e o prazo de
+   * inatividade (inatividade.js) — e as duas têm de deixar o jogo no mesmo
+   * ponto. Pela segunda sai quem largou a partida no meio, e sem isto o próximo
+   * jogaria com o nome e o telefone dessa pessoa.
+   */
+  encerrarPartida() {
+    this.scannerEscolhido = '';
+    this.equipamentoPulado = false;
+    this.tempoAcabando = false;
+    this.cadastro = new CadastroStruct();
+    this.ajuda = 0;
+    this.resultado = null;
+  }
+
   /** Quantas rodadas o baralho tem — o número de fatias da roleta. */
   get totalSlots() {
     return this.baralho?.slots?.length ?? 0;
