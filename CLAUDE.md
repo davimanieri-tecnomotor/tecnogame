@@ -14,7 +14,7 @@ npm start          # http://localhost:8099
 npm run bundle     # DEPOIS de qualquer mudança em web/js/ — ver abaixo
 npm run check      # imports resolvem, nada morto, bundle em dia (0,1s)
 npm test           # lógica pura, sem navegador (0,3s) — a volta mais curta
-npm run verify     # a suíte inteira, 26 execuções, ~4min
+npm run verify     # a suíte inteira, 28 execuções, ~4min
 npm run verify:rapido   # só HTTP, ~110s — a volta do dia a dia
 ```
 
@@ -150,7 +150,7 @@ escreva `min`; o `SingleChildScrollView` já faz isso sozinho.
 
 ## Antes de dizer que está pronto
 
-- `npm run verify` — **26 de 26**, nos dois transportes.
+- `npm run verify` — **28 de 28**, nos dois transportes.
 - **Olhe a tela.** Um probe que devolve números pode passar com a tela quebrada:
   o bug da resposta que sumia passou por um probe verde porque eu li o JSON e
   não abri a captura. Ponha um `page.screenshot` e leia a imagem.
@@ -170,6 +170,10 @@ todo visitante carrega** — a chave web do Firebase inclusive.
   Continua sendo tranca de gaveta, porque viaja no mesmo JavaScript do jogador;
   por isso quem entra por ela entra em **modo local**, com o painel marcado na
   barra e salvar na nuvem bloqueado. Ver `web/js/admin/porta.js`;
+- **"Manter conectado" nasce desmarcada e não lembra a escolha.** Sessão
+  guardada no totem é painel aberto para quem der os cinco toques — com o
+  telefone de todo mundo na aba Respostas. Ver `guardarSessao` em
+  `web/js/admin/respostas.js`;
 - o painel decide o que liberar pelo estado **real** da autenticação
   (`aoMudarOperador`), nunca pela chave de sessão que a porta grava — essa quem
   escreve é o próprio navegador, e confiar nela seria teatro;

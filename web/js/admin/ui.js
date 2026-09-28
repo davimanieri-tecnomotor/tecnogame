@@ -88,17 +88,30 @@ export function caixaDeMarcar({ rotulo, marcado, onChange }) {
 
 let pilhaDeAvisos = null;
 
-export function aviso(texto, tipo = 'ok') {
+/**
+ * Um aviso no canto da tela, que some sozinho — ou com um clique.
+ *
+ * @param {'ok'|'erro'|'info'} [tipo] `info` é o diagnóstico: explica por que
+ *   a porta tomou um caminho, sem ser erro de ninguém.
+ * @param {object} [opcoes]
+ * @param {number} [opcoes.ms] quanto tempo fica. O padrão serve a frase curta;
+ *   o diagnóstico da porta traz o que conferir e onde, e precisa de mais.
+ */
+export function aviso(texto, tipo = 'ok', { ms = tipo === 'erro' ? 6000 : 3000 } = {}) {
   if (!pilhaDeAvisos) {
     pilhaDeAvisos = el('div', { class: 'avisos', role: 'status', 'aria-live': 'polite' });
     document.body.appendChild(pilhaDeAvisos);
   }
-  const node = el('div', { class: `aviso aviso-${tipo}`, text: texto });
-  pilhaDeAvisos.appendChild(node);
-  setTimeout(() => {
+  let foi = false;
+  const tirar = () => {
+    if (foi) return;
+    foi = true;
     node.classList.add('saindo');
     setTimeout(() => node.remove(), 300);
-  }, tipo === 'erro' ? 6000 : 3000);
+  };
+  const node = el('div', { class: `aviso aviso-${tipo}`, text: texto, title: 'Clique para fechar', onClick: tirar });
+  pilhaDeAvisos.appendChild(node);
+  setTimeout(tirar, ms);
 }
 
 /* ---------------------------------------------------------------- diálogo -- */
@@ -136,12 +149,18 @@ export function confirmar({ titulo, texto, confirmarTexto = 'Confirmar', perigos
 
 /**
  * Pede e-mail e senha — a conta de verdade do Firebase, não a senha 2040 da
- * porta. Resolve com `{email, senha}`, ou `null` se desistir.
+ * porta. Resolve com `{email, senha, manter}`, ou `null` se desistir;
+ * `manter` é a caixa "Manter conectado", que `entrar` recebe como está.
  */
 export function pedirCredenciais({ titulo = 'Entrar', texto } = {}) {
   return new Promise((resolve) => {
     const email = entradaSimples({ tipo: 'email', rotulo: 'E-mail', auto: 'username' });
     const senha = entradaSimples({ tipo: 'password', rotulo: 'Senha', auto: 'current-password' });
+    // Nasce desmarcada, e não lembra a escolha anterior: a porta também abre
+    // no totem, onde sessão guardada vira painel aberto para quem der os cinco
+    // toques (ver `guardarSessao` em respostas.js).
+    const manter = caixaDeMarcar({ rotulo: 'Manter conectado neste navegador' });
+    manter.classList.add('manter-conectado');
 
     const fechar = (r) => {
       fundo.remove();
@@ -152,7 +171,7 @@ export function pedirCredenciais({ titulo = 'Entrar', texto } = {}) {
       const e = email.entrada.value.trim();
       const s = senha.entrada.value;
       if (!e || !s) return;
-      fechar({ email: e, senha: s });
+      fechar({ email: e, senha: s, manter: manter.entrada.checked });
     };
     const onTecla = (ev) => {
       if (ev.key === 'Escape') fechar(null);
@@ -167,6 +186,13 @@ export function pedirCredenciais({ titulo = 'Entrar', texto } = {}) {
       texto ? el('p', { text: texto }) : null,
       email,
       senha,
+      el('div', { class: 'campo' }, [
+        manter,
+        el('span', {
+          class: 'campo-dica',
+          text: 'Desmarcado, a sessão acaba ao fechar a aba. Não marque no totem: quem abrir o painel ali entraria com a sua conta.',
+        }),
+      ]),
       el('div', { class: 'modal-acoes' }, [
         botao('Cancelar', { onClick: () => fechar(null) }),
         botao('Entrar', { tipo: 'primario', onClick: enviar }),

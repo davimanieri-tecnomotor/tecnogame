@@ -10,10 +10,18 @@
 
 import { readRaw, writeRaw } from './storage.js';
 
-export const VERSAO_DO_JOGO = '2.6.0';
+export const VERSAO_DO_JOGO = '2.7.0';
 
 /** Mais recente primeiro — é a ordem em que o painel lista. */
 export const NOTAS_DE_ATUALIZACAO = [
+  {
+    versao: '2.7.0',
+    data: '2026-09-25',
+    itens: [
+      'O login do painel tem a caixa "Manter conectado neste navegador": marcada, a próxima vez entra sem pedir a senha. Desmarcada, a conta sai quando a aba fecha. Não marque no totem da feira.',
+      'Quando o login não entra, um aviso no canto da tela diz por quê e o que conferir no Firebase. Quando o painel pede a senha local em vez do login, o aviso diz o motivo: o jogo aberto do disco, ou em localhost sem ?comNuvem=1.',
+    ],
+  },
   {
     versao: '2.6.0',
     data: '2026-09-23',

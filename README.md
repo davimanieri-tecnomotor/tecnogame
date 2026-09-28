@@ -181,6 +181,19 @@ uma tela do jogo: é uma ferramenta de notebook, com layout fluido e rolagem.
 Firebase do projeto, a mesma que libera o telefone na aba Respostas. Uma vez
 aberta, a porta fica destrancada até a aba fechar.
 
+A caixa **Manter conectado neste navegador**, no login, guarda a sessão do
+Firebase mesmo depois de fechar o navegador: a próxima aba entra sem
+perguntar. Desmarcada — o padrão —, a sessão dura até a aba fechar. **Não
+marque no totem**: ali, quem der os cinco toques no selo entraria no painel com
+a sua conta, telefone dos jogadores inclusive.
+
+Quando a porta não pede login, ou o Firebase recusa, um **aviso no canto da
+tela** diz por quê: o jogo aberto do disco, `localhost` sem `?comNuvem=1` (ou
+com ele depois do `#`, onde não vale), o SDK que não desceu da CDN, a porta já
+aberta antes pela senha local, ou a recusa do Firebase com o código
+(`[auth/invalid-credential]`…) e o que conferir no Console. O mesmo texto fica
+no console do navegador (F12), depois de o aviso sumir.
+
 Onde o Firebase **não é alcançável** — jogo aberto do disco, `localhost`, ou
 feira com a internet fora — não há login possível, e aí a senha **2040** abre o
 painel em **modo local**: a barra mostra `sem login — só este navegador` e
@@ -552,10 +565,11 @@ mudança. `npm test` roda os testes de **unidade** (`scripts/unidade/`) com o
 `node --test`: lógica que não precisa de tela — a matriz do `validarBaralho`, o
 corte de um ano da retenção, a junção de `usuarios` com `contatos`, o escape do
 CSV, quantos estalos a roleta dá e quando, quando o prazo de inatividade vence,
-as funções que vieram do Dart. Sem navegador, sem servidor, sem `bundle`.
+o que cada recusa do login do Firebase quer
+dizer, as funções que vieram do Dart. Sem navegador, sem servidor, sem `bundle`.
 
 `npm run verify` roda a checagem estática, **os testes de unidade**, regera o
-bundle e passa os treze testes de navegador nos **dois transportes** — 26
+bundle e passa os catorze testes de navegador nos **dois transportes** — 28
 execuções. Sobe o `http-server` se a porta 8099 estiver livre e reaproveita o
 que já estiver de pé.
 
@@ -566,7 +580,7 @@ afirmado num nível **não se repete no outro**: a conversão de baralho v1 para
 v2, por exemplo, mora no `verify:baralho`, com o jogo rodando, e não tem cópia
 em `scripts/unidade/`.
 
-As 26 execuções correm **em paralelo** (4 de cada vez por padrão). Cada teste
+As 28 execuções correm **em paralelo** (4 de cada vez por padrão). Cada teste
 sobe o próprio Chrome e só lê do servidor, então não disputam nada entre si; o
 que os prendia era o laço sequencial do `all.mjs`. A saída de cada um sai
 inteira quando ele termina, e no fim vem o tempo de cada execução — é assim que
@@ -603,6 +617,7 @@ em outro terminal, ou de `BASE=` apontando para o `file://`):
 | `npm run verify:centro` | a roleta e o carro sorteado ficam no meio do palco, como no Dart |
 | `npm run verify:admin` | ver, editar, adicionar, validar, publicar, enviar imagem, remover e restaurar |
 | `npm run verify:respostas` | aba Respostas: dados locais com telefone, baixa CSV de verdade, sem nuvem não mostra Entrar |
+| `npm run verify:login` | a porta diz por que pede o que pede, a recusa do login vem com o código, e "Manter conectado" decide onde a sessão fica (com um SDK falso — a suíte não fala com o Firebase) |
 | `npm run verify:inatividade` | quatro minutos sem toque devolvem qualquer tela ao cadastro, sem a partida de quem saiu; no cadastro só a ficha começada sai, e o painel fica de fora |
 | `npm run verify:sizes` | escala do palco em 1366x768, 1280x1024, 3840x2160 e retrato |
 | `node scripts/verify/probe.mjs telaAcao` | despeja a árvore de layout de uma rota |

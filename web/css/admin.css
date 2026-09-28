@@ -742,11 +742,13 @@
   color: var(--texto);
 }
 
+/* Acima do diálogo (50) e da caixa da porta (60, em app.css): o diagnóstico
+   da porta aparece COM a caixa aberta, e a 40 ficava atrás do véu dela. */
 .avisos {
   position: fixed;
   right: 16px;
   bottom: 16px;
-  z-index: 40;
+  z-index: 70;
   display: grid;
   gap: 8px;
   max-width: min(420px, calc(100vw - 32px));
@@ -759,12 +761,18 @@
   background: var(--fundo-3);
   box-shadow: 0 8px 26px #0009;
   font-size: 0.88rem;
+  cursor: pointer;
   animation: aviso-entra 180ms ease-out;
 }
 
 .aviso-erro {
   border-color: #ef535088;
   background: #2a1517;
+}
+
+.aviso-info {
+  border-color: #3471f488;
+  background: #13213c;
 }
 
 .aviso.saindo {

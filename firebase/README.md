@@ -35,6 +35,19 @@ habilitado, a porta aceita a senha local e abre o painel em **modo local** (ver
 `pedirLogin` em `web/js/admin/porta.js`). É rede de segurança, não plano: em
 modo local nada sobe para os outros totens.
 
+**Conta criada e o login não entra?** A porta mostra um aviso com o código
+que o Firebase devolveu. `[auth/invalid-credential]` é senha errada **ou**
+conta que não existe neste projeto — a proteção contra enumeração de e-mail
+junta os dois casos —, então a primeira coisa a conferir é se as contas estão
+em `tecnogame-c7e46` → Authentication → Users, e não noutro projeto. Se o
+aviso diz "Sem Firebase aqui", o login nem foi tentado: o motivo vem escrito
+(disco, `localhost` sem `?comNuvem=1`, SDK que não carregou).
+
+A sessão fica no navegador só se a caixa **Manter conectado** estiver marcada
+no login (`indexedDBLocalPersistence`); desmarcada, vai para o sessionStorage
+(`browserSessionPersistence`) e acaba com a aba. O padrão é desmarcada por
+causa do totem — ver `guardarSessao` em `web/js/admin/respostas.js`.
+
 ## A escrita do baralho exige login
 
 `conteudo/baralho` pede `request.auth != null`. Quem resolve isso é a própria

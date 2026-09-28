@@ -39,7 +39,17 @@ import { motivoDaFalha, removerChave } from '../storage.js';
 import { podeUsarNuvem } from '../firebase.js';
 import { publicarNaNuvem, sincronizarBaralho, ultimaPublicacao } from '../nuvem.js';
 import { VERSAO_DO_JOGO, NOTAS_DE_ATUALIZACAO, temNovidade, marcarVersaoVista } from '../changelog.js';
-import { COLUNAS, aoMudarOperador, baixarArquivo, buscarRespostas, entrar, formatarCelula, paraCSV, sair } from './respostas.js';
+import {
+  COLUNAS,
+  aoMudarOperador,
+  baixarArquivo,
+  buscarRespostas,
+  descreverFalha,
+  entrar,
+  formatarCelula,
+  paraCSV,
+  sair,
+} from './respostas.js';
 
 /* -------------------------------------------------------------- o estado -- */
 
@@ -233,12 +243,14 @@ async function entrarComFirebase() {
     texto: 'A conta do Firebase do projeto. Sem ela, a tabela mostra os dados da partida sem telefone.',
   });
   if (!dados) return;
-  const r = await entrar(dados.email, dados.senha);
+  const r = await entrar(dados.email, dados.senha, { manter: dados.manter });
   if (!r.ok) {
-    aviso(`Não entrou: ${r.motivo}`, 'erro');
+    // O mesmo texto e o mesmo prazo do diagnóstico da porta: traz o código e
+    // o que conferir, e não se lê em 6s.
+    aviso(`Não entrou: ${descreverFalha(r)}`, 'erro', { ms: 12000 });
     return;
   }
-  aviso(`Conectado como ${dados.email}.`);
+  aviso(`Conectado como ${dados.email} — ${dados.manter ? 'mantido neste navegador' : 'até fechar esta aba'}.`);
   // A tabela é atualizada pelo aoMudarOperador (montarAdmin), que dispara
   // sozinho quando o login mudar.
 }

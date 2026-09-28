@@ -4299,6 +4299,30 @@
     return maquinaDeTrabalho();
   }
   
+  /**
+   * Por que a nuvem está desligada aqui, numa frase para quem opera — ou `null`
+   * quando ela está ligada.
+   *
+   * Existe para o diagnóstico da porta (admin/porta.js). "Não consigo entrar"
+   * quase sempre era o jogo aberto num lugar onde o login nem é tentado, e a
+   * caixa da senha local sozinha não dizia qual: disco, localhost ou chave na
+   * URL. Os ramos espelham `origemDeDesenvolvimento`, na mesma ordem.
+   */
+  function motivoDaNuvemDesligada() {
+    if (typeof location === 'undefined') return 'fora de um navegador.';
+    if (location.protocol === 'file:') {
+      return 'o jogo foi aberto do disco (file://), e o navegador recusa o SDK do Firebase assim. Abra pelo endereço do GitHub Pages.';
+    }
+    if (busca().has('semNuvem')) return 'o endereço tem ?semNuvem=1, que desliga a nuvem.';
+    if (!origemDeDesenvolvimento()) return null;
+    // `#/adm?comNuvem=1` parece certo e não vale: depois do `#` é rota, e o jogo
+    // só lê a chave em `location.search`.
+    if (location.hash.includes('comNuvem')) {
+      return 'o ?comNuvem=1 está depois do #, onde o jogo não o lê. Ponha antes: /?comNuvem=1#/adm.';
+    }
+    return `em ${location.hostname} a nuvem nasce desligada, para os testes não sujarem o ranking. Abra com /?comNuvem=1#/adm.`;
+  }
+  
   const CONFIG = {
     /**
      * Liga o Firebase: o ranking compartilhado (`usuarios`) e o baralho na nuvem
@@ -4369,6 +4393,7 @@
     zapApiUrl: '',
     zapClientToken: '',
   };
+  Object.defineProperty(__exports, "motivoDaNuvemDesligada", { get: () => motivoDaNuvemDesligada, enumerable: true });
   Object.defineProperty(__exports, "CONFIG", { get: () => CONFIG, enumerable: true });
   });
 
@@ -4392,16 +4417,33 @@
   // com o último baralho que tiver guardado no próprio navegador. Todas as
   // funções daqui falham em silêncio nesse caso, e quem chama cai no local.
   
-  const { CONFIG } = __require("config.js");
+  const { CONFIG, motivoDaNuvemDesligada } = __require("config.js");
   
   const VERSAO_SDK = '10.12.2';
   const CDN = `https://www.gstatic.com/firebasejs/${VERSAO_SDK}`;
   
   let promessa = null;
   
+  /** O erro da última vez que o SDK não subiu — só para `motivoSemFirebase`. */
+  let falhaDoSdk = null;
+  
   /** `true` quando vale a pena tentar: ligado na config e fora do disco. */
   const podeUsarNuvem = () =>
     Boolean(CONFIG.useFirestore) && typeof location !== 'undefined' && location.protocol !== 'file:';
+  
+  /**
+   * Por que `firebase()` devolve (ou devolveu) null, numa frase para o
+   * operador — ou `null` se nada impediu. Separa os dois jeitos de ficar sem
+   * Firebase, que para quem está na frente da tela parecem o mesmo: a nuvem
+   * desligada por configuração, e o SDK que não desceu da CDN (a feira sem
+   * internet, ou uma rede que bloqueia o gstatic).
+   */
+  function motivoSemFirebase() {
+    const desligada = motivoDaNuvemDesligada();
+    if (desligada) return desligada;
+    if (!falhaDoSdk) return null;
+    return `o SDK do Firebase não carregou da CDN (${falhaDoSdk?.message ?? falhaDoSdk}). Sem internet, ou a rede bloqueia www.gstatic.com.`;
+  }
   
   /**
    * Sobe o SDK e devolve `{ app, db, fs, auth, fa }`, ou `null` se não der.
@@ -4426,9 +4468,11 @@
         import(`${CDN}/firebase-auth.js`),
       ]);
       const app = initializeApp(CONFIG.firebaseOptions);
+      falhaDoSdk = null;
       return { app, db: fs.getFirestore(app), fs, auth: fa.getAuth(app), fa };
     })().catch((erro) => {
       console.warn('Firebase indisponível; seguindo só com o armazenamento local.', erro);
+      falhaDoSdk = erro;
       // Zera para uma próxima tentativa poder acontecer (rede que voltou).
       promessa = null;
       return null;
@@ -4437,6 +4481,7 @@
     return promessa;
   }
   Object.defineProperty(__exports, "podeUsarNuvem", { get: () => podeUsarNuvem, enumerable: true });
+  Object.defineProperty(__exports, "motivoSemFirebase", { get: () => motivoSemFirebase, enumerable: true });
   Object.defineProperty(__exports, "firebase", { get: () => firebase, enumerable: true });
   });
 
@@ -6015,17 +6060,30 @@
   
   let pilhaDeAvisos = null;
   
-  function aviso(texto, tipo = 'ok') {
+  /**
+   * Um aviso no canto da tela, que some sozinho — ou com um clique.
+   *
+   * @param {'ok'|'erro'|'info'} [tipo] `info` é o diagnóstico: explica por que
+   *   a porta tomou um caminho, sem ser erro de ninguém.
+   * @param {object} [opcoes]
+   * @param {number} [opcoes.ms] quanto tempo fica. O padrão serve a frase curta;
+   *   o diagnóstico da porta traz o que conferir e onde, e precisa de mais.
+   */
+  function aviso(texto, tipo = 'ok', { ms = tipo === 'erro' ? 6000 : 3000 } = {}) {
     if (!pilhaDeAvisos) {
       pilhaDeAvisos = el('div', { class: 'avisos', role: 'status', 'aria-live': 'polite' });
       document.body.appendChild(pilhaDeAvisos);
     }
-    const node = el('div', { class: `aviso aviso-${tipo}`, text: texto });
-    pilhaDeAvisos.appendChild(node);
-    setTimeout(() => {
+    let foi = false;
+    const tirar = () => {
+      if (foi) return;
+      foi = true;
       node.classList.add('saindo');
       setTimeout(() => node.remove(), 300);
-    }, tipo === 'erro' ? 6000 : 3000);
+    };
+    const node = el('div', { class: `aviso aviso-${tipo}`, text: texto, title: 'Clique para fechar', onClick: tirar });
+    pilhaDeAvisos.appendChild(node);
+    setTimeout(tirar, ms);
   }
   
   /* ---------------------------------------------------------------- diálogo -- */
@@ -6063,12 +6121,18 @@
   
   /**
    * Pede e-mail e senha — a conta de verdade do Firebase, não a senha 2040 da
-   * porta. Resolve com `{email, senha}`, ou `null` se desistir.
+   * porta. Resolve com `{email, senha, manter}`, ou `null` se desistir;
+   * `manter` é a caixa "Manter conectado", que `entrar` recebe como está.
    */
   function pedirCredenciais({ titulo = 'Entrar', texto } = {}) {
     return new Promise((resolve) => {
       const email = entradaSimples({ tipo: 'email', rotulo: 'E-mail', auto: 'username' });
       const senha = entradaSimples({ tipo: 'password', rotulo: 'Senha', auto: 'current-password' });
+      // Nasce desmarcada, e não lembra a escolha anterior: a porta também abre
+      // no totem, onde sessão guardada vira painel aberto para quem der os cinco
+      // toques (ver `guardarSessao` em respostas.js).
+      const manter = caixaDeMarcar({ rotulo: 'Manter conectado neste navegador' });
+      manter.classList.add('manter-conectado');
   
       const fechar = (r) => {
         fundo.remove();
@@ -6079,7 +6143,7 @@
         const e = email.entrada.value.trim();
         const s = senha.entrada.value;
         if (!e || !s) return;
-        fechar({ email: e, senha: s });
+        fechar({ email: e, senha: s, manter: manter.entrada.checked });
       };
       const onTecla = (ev) => {
         if (ev.key === 'Escape') fechar(null);
@@ -6094,6 +6158,13 @@
         texto ? el('p', { text: texto }) : null,
         email,
         senha,
+        el('div', { class: 'campo' }, [
+          manter,
+          el('span', {
+            class: 'campo-dica',
+            text: 'Desmarcado, a sessão acaba ao fechar a aba. Não marque no totem: quem abrir o painel ali entraria com a sua conta.',
+          }),
+        ]),
         el('div', { class: 'modal-acoes' }, [
           botao('Cancelar', { onClick: () => fechar(null) }),
           botao('Entrar', { tipo: 'primario', onClick: enviar }),
@@ -6875,10 +6946,18 @@
   
   const { readRaw, writeRaw } = __require("storage.js");
   
-  const VERSAO_DO_JOGO = '2.6.0';
+  const VERSAO_DO_JOGO = '2.7.0';
   
   /** Mais recente primeiro — é a ordem em que o painel lista. */
   const NOTAS_DE_ATUALIZACAO = [
+    {
+      versao: '2.7.0',
+      data: '2026-09-25',
+      itens: [
+        'O login do painel tem a caixa "Manter conectado neste navegador": marcada, a próxima vez entra sem pedir a senha. Desmarcada, a conta sai quando a aba fecha. Não marque no totem da feira.',
+        'Quando o login não entra, um aviso no canto da tela diz por quê e o que conferir no Firebase. Quando o painel pede a senha local em vez do login, o aviso diz o motivo: o jogo aberto do disco, ou em localhost sem ?comNuvem=1.',
+      ],
+    },
     {
       versao: '2.6.0',
       data: '2026-09-23',
@@ -6997,33 +7076,140 @@
   // perto dentro de uma janela; é palpite informado, não certeza, e por isso
   // existe `janelaMs` para poder ser ajustada se um dia casar errado.
   
-  const { firebase, podeUsarNuvem } = __require("firebase.js");
+  const { CONFIG } = __require("config.js");
+  const { firebase, motivoSemFirebase, podeUsarNuvem } = __require("firebase.js");
   const { getRecords } = __require("storage.js");
   
   /* ---------------------------------------------------------------- login -- */
   
   /**
+   * O que um código de erro do Firebase Auth quer dizer para quem opera, e o
+   * que conferir para resolver.
+   *
+   * A `dica` existe porque o `motivo` sozinho não levava a lugar nenhum: com a
+   * proteção contra enumeração de e-mail ligada no projeto, conta inexistente,
+   * senha errada e conta criada NOUTRO projeto voltam todas como o mesmo
+   * `invalid-credential` — e a terceira foi a primeira suspeita quando o login
+   * não entrava com duas contas criadas no Console.
+   *
+   * @param {string} codigo o `erro.code` do SDK, como `auth/invalid-credential`
+   * @param {string} [mensagem] o `erro.message`, para o código que não está aqui
+   * @returns {{motivo: string, dica: string|null}}
+   */
+  function traduzirFalhaDeLogin(codigo, mensagem = '') {
+    const c = String(codigo ?? '');
+    const projeto = CONFIG.firebaseOptions.projectId;
+    const tem = (...partes) => partes.some((p) => c.includes(p));
+  
+    if (tem('invalid-credential', 'invalid-login-credentials', 'wrong-password', 'user-not-found')) {
+      return {
+        motivo: 'e-mail ou senha não conferem.',
+        dica: `Confira no Console do Firebase, projeto ${projeto} → Authentication → Users, se a conta existe ali. Conta criada em outro projeto dá este mesmo erro.`,
+      };
+    }
+    if (tem('invalid-email')) {
+      return { motivo: 'o e-mail não tem formato válido.', dica: 'Confira se não há caractere trocado.' };
+    }
+    if (tem('user-disabled')) {
+      return { motivo: 'esta conta está desativada.', dica: 'Reative em Authentication → Users, no Console.' };
+    }
+    if (tem('too-many-requests')) {
+      return {
+        motivo: 'muitas tentativas seguidas, e o Firebase bloqueou por um tempo.',
+        dica: 'Espere alguns minutos, ou redefina a senha pelo Console.',
+      };
+    }
+    if (tem('operation-not-allowed')) {
+      return {
+        motivo: 'o login por e-mail/senha não está habilitado no projeto do Firebase.',
+        dica: `Console, projeto ${projeto} → Authentication → Sign-in method → habilitar "E-mail/senha".`,
+      };
+    }
+    if (tem('network')) {
+      return {
+        motivo: 'sem conexão com o Firebase.',
+        dica: 'Confira a internet desta máquina. Rede corporativa pode bloquear googleapis.com.',
+      };
+    }
+    // A chave restrita por endereço no Google Cloud vem como
+    // `auth/requests-from-referer-<origem>-are-blocked.`
+    if (tem('referer')) {
+      const origem = typeof location === 'undefined' ? 'este endereço' : location.origin;
+      return {
+        motivo: 'a chave web do projeto está restrita por endereço e recusou este.',
+        dica: `Libere ${origem} nas restrições da chave, no Google Cloud Console → APIs e serviços → Credenciais.`,
+      };
+    }
+    if (tem('api-key')) {
+      return {
+        motivo: 'a chave web do projeto foi recusada.',
+        dica: 'Confira `firebaseOptions` em web/js/config.js contra as Configurações do projeto, no Console.',
+      };
+    }
+    return { motivo: mensagem || c || 'erro desconhecido.', dica: null };
+  }
+  
+  /** A falha de `entrar` numa linha só, com o código — é o texto dos avisos. */
+  function descreverFalha(r) {
+    const codigo = r?.codigo ? ` [${r.codigo}]` : '';
+    return `${r?.motivo ?? 'erro desconhecido.'}${codigo}${r?.dica ? ` ${r.dica}` : ''}`;
+  }
+  
+  /**
+   * Entra com a conta do Firebase.
+   *
    * `codigo` vai junto do `motivo` porque quem chama precisa separar dois casos
    * que para o operador parecem o mesmo: senha errada (tenta de novo) e login
    * não habilitado no projeto (não existe conta que funcione — ver porta.js).
+   *
+   * @param {object} [opcoes]
+   * @param {boolean} [opcoes.manter] guardar a sessão depois de fechar o
+   *   navegador. `false` (o padrão) a guarda só até a aba fechar — ver
+   *   `guardarSessao`.
+   * @returns {Promise<{ok: true} | {ok: false, codigo: string, motivo: string, dica: string|null}>}
    */
-  async function entrar(email, senha) {
+  async function entrar(email, senha, { manter = false } = {}) {
     const fb = await firebase();
-    if (!fb) return { ok: false, codigo: 'sem-nuvem', motivo: 'a nuvem está desligada ou o jogo foi aberto do disco.' };
+    if (!fb) {
+      return {
+        ok: false,
+        codigo: 'sem-nuvem',
+        motivo: 'este navegador não alcança o Firebase.',
+        dica: motivoSemFirebase(),
+      };
+    }
     try {
+      await guardarSessao(fb, manter);
       await fb.fa.signInWithEmailAndPassword(fb.auth, email, senha);
       return { ok: true };
     } catch (erro) {
+      // O objeto inteiro vai para o console: o aviso mostra o código, mas o que
+      // o SDK diz além dele (`customData`, a resposta crua) só aparece aqui.
+      console.warn('O Firebase recusou o login:', erro);
       const codigo = String(erro?.code ?? '');
-      if (codigo.includes('invalid-credential') || codigo.includes('wrong-password') || codigo.includes('user-not-found')) {
-        return { ok: false, codigo, motivo: 'e-mail ou senha não conferem.' };
-      }
-      if (codigo.includes('operation-not-allowed')) {
-        return { ok: false, codigo, motivo: 'o login por e-mail/senha não está habilitado no projeto do Firebase.' };
-      }
-      if (codigo.includes('network')) return { ok: false, codigo, motivo: 'sem conexão com o Firebase.' };
-      return { ok: false, codigo, motivo: erro?.message ?? String(erro) };
+      return { ok: false, codigo, ...traduzirFalhaDeLogin(codigo, erro?.message ?? String(erro)) };
     }
+  }
+  
+  /**
+   * Onde o SDK guarda a sessão, escolhido a cada login pela caixa "Manter
+   * conectado".
+   *
+   * Marcada: IndexedDB, que sobrevive a fechar o navegador — é o que o
+   * `getAuth()` já fazia sozinho antes de a caixa existir. Desmarcada:
+   * sessionStorage, que sobrevive a recarregar e morre com a aba.
+   *
+   * O padrão é DESMARCADA porque a porta também abre no totem, e sessão guardada
+   * ali significa que qualquer jogador que der os cinco toques no selo entra no
+   * painel com a conta de quem operou — inclusive na aba Respostas, com o
+   * telefone de todo mundo que jogou (ver `contatos` em firebase/README.md).
+   *
+   * Falha aqui cancela o login em vez de seguir com o padrão do SDK: o padrão é
+   * guardar para sempre, e seguir com ele seria desobedecer a caixa desmarcada.
+   */
+  async function guardarSessao(fb, manter) {
+    const onde = manter ? fb.fa.indexedDBLocalPersistence : fb.fa.browserSessionPersistence;
+    await fb.fa.setPersistence(fb.auth, onde);
   }
   
   /**
@@ -7209,6 +7395,8 @@
     link.remove();
     URL.revokeObjectURL(url);
   }
+  Object.defineProperty(__exports, "traduzirFalhaDeLogin", { get: () => traduzirFalhaDeLogin, enumerable: true });
+  Object.defineProperty(__exports, "descreverFalha", { get: () => descreverFalha, enumerable: true });
   Object.defineProperty(__exports, "entrar", { get: () => entrar, enumerable: true });
   Object.defineProperty(__exports, "operadorRestaurado", { get: () => operadorRestaurado, enumerable: true });
   Object.defineProperty(__exports, "sair", { get: () => sair, enumerable: true });
@@ -7252,7 +7440,7 @@
   const { podeUsarNuvem } = __require("firebase.js");
   const { publicarNaNuvem, sincronizarBaralho, ultimaPublicacao } = __require("nuvem.js");
   const { VERSAO_DO_JOGO, NOTAS_DE_ATUALIZACAO, temNovidade, marcarVersaoVista } = __require("changelog.js");
-  const { COLUNAS, aoMudarOperador, baixarArquivo, buscarRespostas, entrar, formatarCelula, paraCSV, sair } = __require("admin/respostas.js");
+  const { COLUNAS, aoMudarOperador, baixarArquivo, buscarRespostas, descreverFalha, entrar, formatarCelula, paraCSV, sair } = __require("admin/respostas.js");
   
   /* -------------------------------------------------------------- o estado -- */
   
@@ -7446,12 +7634,14 @@
       texto: 'A conta do Firebase do projeto. Sem ela, a tabela mostra os dados da partida sem telefone.',
     });
     if (!dados) return;
-    const r = await entrar(dados.email, dados.senha);
+    const r = await entrar(dados.email, dados.senha, { manter: dados.manter });
     if (!r.ok) {
-      aviso(`Não entrou: ${r.motivo}`, 'erro');
+      // O mesmo texto e o mesmo prazo do diagnóstico da porta: traz o código e
+      // o que conferir, e não se lê em 6s.
+      aviso(`Não entrou: ${descreverFalha(r)}`, 'erro', { ms: 12000 });
       return;
     }
-    aviso(`Conectado como ${dados.email}.`);
+    aviso(`Conectado como ${dados.email} — ${dados.manter ? 'mantido neste navegador' : 'até fechar esta aba'}.`);
     // A tabela é atualizada pelo aoMudarOperador (montarAdmin), que dispara
     // sozinho quando o login mudar.
   }
@@ -8211,10 +8401,10 @@
   
   const { el } = __require("widgets.js");
   const { go } = __require("router.js");
-  const { firebase, podeUsarNuvem } = __require("firebase.js");
+  const { firebase, motivoSemFirebase, podeUsarNuvem } = __require("firebase.js");
   const { montarAdmin, desmontarAdmin } = __require("admin/painel.js");
-  const { pedirCredenciais } = __require("admin/ui.js");
-  const { entrar, operadorRestaurado } = __require("admin/respostas.js");
+  const { aviso, pedirCredenciais } = __require("admin/ui.js");
+  const { descreverFalha, entrar, operadorRestaurado } = __require("admin/respostas.js");
   
   /** A senha do modo local. Só é pedida onde o Firebase não é alcançável. */
   const SENHA = '2040';
@@ -8252,6 +8442,25 @@
     } catch (_) {
       /* navegador sem armazenamento: a entrada volta a ser pedida, e tudo bem */
     }
+  };
+  
+  /** A porta acabou de ser aberta, e a próxima `pedirEntrada` é a da rota. */
+  let recemAberta = false;
+  
+  /* -------------------------------------------------------- diagnóstico ----- */
+  
+  /**
+   * Conta, num aviso, por que a porta tomou o caminho que tomou.
+   *
+   * Existe porque "não consigo entrar" tinha quatro causas que davam a mesma
+   * cara na tela: o jogo aberto onde o login nem é tentado (disco, localhost), o
+   * SDK que não desceu, a porta já aberta antes pela senha local, e a conta
+   * recusada pelo Firebase. Vai para o console também, onde fica depois de o
+   * aviso sumir.
+   */
+  const diagnostico = (texto, tipo = 'info') => {
+    console.info(`[porta] ${texto}`);
+    aviso(texto, tipo, { ms: 12000 });
   };
   
   /* ------------------------------------------------------------ o gesto ----- */
@@ -8379,15 +8588,23 @@
    */
   async function pedirLogin() {
     // Sessão que o SDK restaurou: já entrou nesta máquina, não pergunta de novo.
-    if (await operadorRestaurado()) return 'login';
+    const restaurado = await operadorRestaurado();
+    if (restaurado) {
+      aviso(`Conectado como ${restaurado}, pela sessão guardada neste navegador.`);
+      return 'login';
+    }
   
     let texto = 'A conta do Firebase do projeto. Ela é criada pelo Console — não há cadastro por aqui.';
     for (;;) {
       const dados = await pedirCredenciais({ titulo: 'Entrar na administração', texto });
       if (!dados) return null;
   
-      const r = await entrar(dados.email, dados.senha);
-      if (r.ok) return 'login';
+      const r = await entrar(dados.email, dados.senha, { manter: dados.manter });
+      if (r.ok) {
+        aviso(`Conectado como ${dados.email} — ${dados.manter ? 'mantido neste navegador' : 'até fechar esta aba'}.`);
+        return 'login';
+      }
+      diagnostico(`Não entrou: ${descreverFalha(r)}`, 'erro');
   
       // "Login não habilitado no projeto" não é erro de quem digitou: não existe
       // conta que possa funcionar, e insistir trancaria todo mundo do lado de
@@ -8411,12 +8628,32 @@
    * onde ele não alcança. Resolve com `true` quando pode entrar.
    */
   async function pedirEntrada() {
-    if (liberado()) return true;
+    const ja = liberado();
+    if (ja) {
+      // A porta aberta pela senha numa ida anterior NÃO pergunta de novo, nem
+      // depois de a nuvem ficar ao alcance — foi o que pareceu "o login não
+      // aparece" ao pôr o ?comNuvem=1 na mesma aba. `recemAberta` cala o aviso
+      // na segunda chamada do mesmo gesto (o selo pergunta, a rota confirma).
+      if (ja === 'local' && !recemAberta && podeUsarNuvem()) {
+        diagnostico(
+          'A porta já foi aberta nesta aba pela senha local, e não pergunta de novo. Para entrar com a conta: aba Respostas → Entrar, ou abra o jogo numa aba nova.'
+        );
+      }
+      recemAberta = false;
+      return true;
+    }
   
-    const via = (await nuvemAlcancavel()) ? await pedirLogin() : (await pedirSenha()) ? 'local' : null;
+    let via;
+    if (await nuvemAlcancavel()) {
+      via = await pedirLogin();
+    } else {
+      diagnostico(`Sem Firebase aqui: ${motivoSemFirebase() ?? 'motivo desconhecido.'} Por isso a porta pede a senha local, e não o login.`);
+      via = (await pedirSenha()) ? 'local' : null;
+    }
     if (!via) return false;
   
     liberar(via);
+    recemAberta = true;
     return true;
   }
   

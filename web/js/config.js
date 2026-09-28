@@ -48,6 +48,30 @@ function origemDeDesenvolvimento() {
   return maquinaDeTrabalho();
 }
 
+/**
+ * Por que a nuvem está desligada aqui, numa frase para quem opera — ou `null`
+ * quando ela está ligada.
+ *
+ * Existe para o diagnóstico da porta (admin/porta.js). "Não consigo entrar"
+ * quase sempre era o jogo aberto num lugar onde o login nem é tentado, e a
+ * caixa da senha local sozinha não dizia qual: disco, localhost ou chave na
+ * URL. Os ramos espelham `origemDeDesenvolvimento`, na mesma ordem.
+ */
+export function motivoDaNuvemDesligada() {
+  if (typeof location === 'undefined') return 'fora de um navegador.';
+  if (location.protocol === 'file:') {
+    return 'o jogo foi aberto do disco (file://), e o navegador recusa o SDK do Firebase assim. Abra pelo endereço do GitHub Pages.';
+  }
+  if (busca().has('semNuvem')) return 'o endereço tem ?semNuvem=1, que desliga a nuvem.';
+  if (!origemDeDesenvolvimento()) return null;
+  // `#/adm?comNuvem=1` parece certo e não vale: depois do `#` é rota, e o jogo
+  // só lê a chave em `location.search`.
+  if (location.hash.includes('comNuvem')) {
+    return 'o ?comNuvem=1 está depois do #, onde o jogo não o lê. Ponha antes: /?comNuvem=1#/adm.';
+  }
+  return `em ${location.hostname} a nuvem nasce desligada, para os testes não sujarem o ranking. Abra com /?comNuvem=1#/adm.`;
+}
+
 export const CONFIG = {
   /**
    * Liga o Firebase: o ranking compartilhado (`usuarios`) e o baralho na nuvem

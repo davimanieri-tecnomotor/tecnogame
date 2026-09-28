@@ -32,10 +32,10 @@
 
 import { el } from '../widgets.js';
 import { go } from '../router.js';
-import { firebase, podeUsarNuvem } from '../firebase.js';
+import { firebase, motivoSemFirebase, podeUsarNuvem } from '../firebase.js';
 import { montarAdmin, desmontarAdmin } from './painel.js';
-import { pedirCredenciais } from './ui.js';
-import { entrar, operadorRestaurado } from './respostas.js';
+import { aviso, pedirCredenciais } from './ui.js';
+import { descreverFalha, entrar, operadorRestaurado } from './respostas.js';
 
 /** A senha do modo local. Só é pedida onde o Firebase não é alcançável. */
 const SENHA = '2040';
@@ -73,6 +73,25 @@ const liberar = (via) => {
   } catch (_) {
     /* navegador sem armazenamento: a entrada volta a ser pedida, e tudo bem */
   }
+};
+
+/** A porta acabou de ser aberta, e a próxima `pedirEntrada` é a da rota. */
+let recemAberta = false;
+
+/* -------------------------------------------------------- diagnóstico ----- */
+
+/**
+ * Conta, num aviso, por que a porta tomou o caminho que tomou.
+ *
+ * Existe porque "não consigo entrar" tinha quatro causas que davam a mesma
+ * cara na tela: o jogo aberto onde o login nem é tentado (disco, localhost), o
+ * SDK que não desceu, a porta já aberta antes pela senha local, e a conta
+ * recusada pelo Firebase. Vai para o console também, onde fica depois de o
+ * aviso sumir.
+ */
+const diagnostico = (texto, tipo = 'info') => {
+  console.info(`[porta] ${texto}`);
+  aviso(texto, tipo, { ms: 12000 });
 };
 
 /* ------------------------------------------------------------ o gesto ----- */
@@ -200,15 +219,23 @@ const nuvemAlcancavel = async () => podeUsarNuvem() && (await firebase()) !== nu
  */
 async function pedirLogin() {
   // Sessão que o SDK restaurou: já entrou nesta máquina, não pergunta de novo.
-  if (await operadorRestaurado()) return 'login';
+  const restaurado = await operadorRestaurado();
+  if (restaurado) {
+    aviso(`Conectado como ${restaurado}, pela sessão guardada neste navegador.`);
+    return 'login';
+  }
 
   let texto = 'A conta do Firebase do projeto. Ela é criada pelo Console — não há cadastro por aqui.';
   for (;;) {
     const dados = await pedirCredenciais({ titulo: 'Entrar na administração', texto });
     if (!dados) return null;
 
-    const r = await entrar(dados.email, dados.senha);
-    if (r.ok) return 'login';
+    const r = await entrar(dados.email, dados.senha, { manter: dados.manter });
+    if (r.ok) {
+      aviso(`Conectado como ${dados.email} — ${dados.manter ? 'mantido neste navegador' : 'até fechar esta aba'}.`);
+      return 'login';
+    }
+    diagnostico(`Não entrou: ${descreverFalha(r)}`, 'erro');
 
     // "Login não habilitado no projeto" não é erro de quem digitou: não existe
     // conta que possa funcionar, e insistir trancaria todo mundo do lado de
@@ -232,12 +259,32 @@ async function pedirLogin() {
  * onde ele não alcança. Resolve com `true` quando pode entrar.
  */
 async function pedirEntrada() {
-  if (liberado()) return true;
+  const ja = liberado();
+  if (ja) {
+    // A porta aberta pela senha numa ida anterior NÃO pergunta de novo, nem
+    // depois de a nuvem ficar ao alcance — foi o que pareceu "o login não
+    // aparece" ao pôr o ?comNuvem=1 na mesma aba. `recemAberta` cala o aviso
+    // na segunda chamada do mesmo gesto (o selo pergunta, a rota confirma).
+    if (ja === 'local' && !recemAberta && podeUsarNuvem()) {
+      diagnostico(
+        'A porta já foi aberta nesta aba pela senha local, e não pergunta de novo. Para entrar com a conta: aba Respostas → Entrar, ou abra o jogo numa aba nova.'
+      );
+    }
+    recemAberta = false;
+    return true;
+  }
 
-  const via = (await nuvemAlcancavel()) ? await pedirLogin() : (await pedirSenha()) ? 'local' : null;
+  let via;
+  if (await nuvemAlcancavel()) {
+    via = await pedirLogin();
+  } else {
+    diagnostico(`Sem Firebase aqui: ${motivoSemFirebase() ?? 'motivo desconhecido.'} Por isso a porta pede a senha local, e não o login.`);
+    via = (await pedirSenha()) ? 'local' : null;
+  }
   if (!via) return false;
 
   liberar(via);
+  recemAberta = true;
   return true;
 }
 

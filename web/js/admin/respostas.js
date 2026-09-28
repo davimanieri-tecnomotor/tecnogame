@@ -26,33 +26,140 @@
 // perto dentro de uma janela; é palpite informado, não certeza, e por isso
 // existe `janelaMs` para poder ser ajustada se um dia casar errado.
 
-import { firebase, podeUsarNuvem } from '../firebase.js';
+import { CONFIG } from '../config.js';
+import { firebase, motivoSemFirebase, podeUsarNuvem } from '../firebase.js';
 import { getRecords } from '../storage.js';
 
 /* ---------------------------------------------------------------- login -- */
 
 /**
+ * O que um código de erro do Firebase Auth quer dizer para quem opera, e o
+ * que conferir para resolver.
+ *
+ * A `dica` existe porque o `motivo` sozinho não levava a lugar nenhum: com a
+ * proteção contra enumeração de e-mail ligada no projeto, conta inexistente,
+ * senha errada e conta criada NOUTRO projeto voltam todas como o mesmo
+ * `invalid-credential` — e a terceira foi a primeira suspeita quando o login
+ * não entrava com duas contas criadas no Console.
+ *
+ * @param {string} codigo o `erro.code` do SDK, como `auth/invalid-credential`
+ * @param {string} [mensagem] o `erro.message`, para o código que não está aqui
+ * @returns {{motivo: string, dica: string|null}}
+ */
+export function traduzirFalhaDeLogin(codigo, mensagem = '') {
+  const c = String(codigo ?? '');
+  const projeto = CONFIG.firebaseOptions.projectId;
+  const tem = (...partes) => partes.some((p) => c.includes(p));
+
+  if (tem('invalid-credential', 'invalid-login-credentials', 'wrong-password', 'user-not-found')) {
+    return {
+      motivo: 'e-mail ou senha não conferem.',
+      dica: `Confira no Console do Firebase, projeto ${projeto} → Authentication → Users, se a conta existe ali. Conta criada em outro projeto dá este mesmo erro.`,
+    };
+  }
+  if (tem('invalid-email')) {
+    return { motivo: 'o e-mail não tem formato válido.', dica: 'Confira se não há caractere trocado.' };
+  }
+  if (tem('user-disabled')) {
+    return { motivo: 'esta conta está desativada.', dica: 'Reative em Authentication → Users, no Console.' };
+  }
+  if (tem('too-many-requests')) {
+    return {
+      motivo: 'muitas tentativas seguidas, e o Firebase bloqueou por um tempo.',
+      dica: 'Espere alguns minutos, ou redefina a senha pelo Console.',
+    };
+  }
+  if (tem('operation-not-allowed')) {
+    return {
+      motivo: 'o login por e-mail/senha não está habilitado no projeto do Firebase.',
+      dica: `Console, projeto ${projeto} → Authentication → Sign-in method → habilitar "E-mail/senha".`,
+    };
+  }
+  if (tem('network')) {
+    return {
+      motivo: 'sem conexão com o Firebase.',
+      dica: 'Confira a internet desta máquina. Rede corporativa pode bloquear googleapis.com.',
+    };
+  }
+  // A chave restrita por endereço no Google Cloud vem como
+  // `auth/requests-from-referer-<origem>-are-blocked.`
+  if (tem('referer')) {
+    const origem = typeof location === 'undefined' ? 'este endereço' : location.origin;
+    return {
+      motivo: 'a chave web do projeto está restrita por endereço e recusou este.',
+      dica: `Libere ${origem} nas restrições da chave, no Google Cloud Console → APIs e serviços → Credenciais.`,
+    };
+  }
+  if (tem('api-key')) {
+    return {
+      motivo: 'a chave web do projeto foi recusada.',
+      dica: 'Confira `firebaseOptions` em web/js/config.js contra as Configurações do projeto, no Console.',
+    };
+  }
+  return { motivo: mensagem || c || 'erro desconhecido.', dica: null };
+}
+
+/** A falha de `entrar` numa linha só, com o código — é o texto dos avisos. */
+export function descreverFalha(r) {
+  const codigo = r?.codigo ? ` [${r.codigo}]` : '';
+  return `${r?.motivo ?? 'erro desconhecido.'}${codigo}${r?.dica ? ` ${r.dica}` : ''}`;
+}
+
+/**
+ * Entra com a conta do Firebase.
+ *
  * `codigo` vai junto do `motivo` porque quem chama precisa separar dois casos
  * que para o operador parecem o mesmo: senha errada (tenta de novo) e login
  * não habilitado no projeto (não existe conta que funcione — ver porta.js).
+ *
+ * @param {object} [opcoes]
+ * @param {boolean} [opcoes.manter] guardar a sessão depois de fechar o
+ *   navegador. `false` (o padrão) a guarda só até a aba fechar — ver
+ *   `guardarSessao`.
+ * @returns {Promise<{ok: true} | {ok: false, codigo: string, motivo: string, dica: string|null}>}
  */
-export async function entrar(email, senha) {
+export async function entrar(email, senha, { manter = false } = {}) {
   const fb = await firebase();
-  if (!fb) return { ok: false, codigo: 'sem-nuvem', motivo: 'a nuvem está desligada ou o jogo foi aberto do disco.' };
+  if (!fb) {
+    return {
+      ok: false,
+      codigo: 'sem-nuvem',
+      motivo: 'este navegador não alcança o Firebase.',
+      dica: motivoSemFirebase(),
+    };
+  }
   try {
+    await guardarSessao(fb, manter);
     await fb.fa.signInWithEmailAndPassword(fb.auth, email, senha);
     return { ok: true };
   } catch (erro) {
+    // O objeto inteiro vai para o console: o aviso mostra o código, mas o que
+    // o SDK diz além dele (`customData`, a resposta crua) só aparece aqui.
+    console.warn('O Firebase recusou o login:', erro);
     const codigo = String(erro?.code ?? '');
-    if (codigo.includes('invalid-credential') || codigo.includes('wrong-password') || codigo.includes('user-not-found')) {
-      return { ok: false, codigo, motivo: 'e-mail ou senha não conferem.' };
-    }
-    if (codigo.includes('operation-not-allowed')) {
-      return { ok: false, codigo, motivo: 'o login por e-mail/senha não está habilitado no projeto do Firebase.' };
-    }
-    if (codigo.includes('network')) return { ok: false, codigo, motivo: 'sem conexão com o Firebase.' };
-    return { ok: false, codigo, motivo: erro?.message ?? String(erro) };
+    return { ok: false, codigo, ...traduzirFalhaDeLogin(codigo, erro?.message ?? String(erro)) };
   }
+}
+
+/**
+ * Onde o SDK guarda a sessão, escolhido a cada login pela caixa "Manter
+ * conectado".
+ *
+ * Marcada: IndexedDB, que sobrevive a fechar o navegador — é o que o
+ * `getAuth()` já fazia sozinho antes de a caixa existir. Desmarcada:
+ * sessionStorage, que sobrevive a recarregar e morre com a aba.
+ *
+ * O padrão é DESMARCADA porque a porta também abre no totem, e sessão guardada
+ * ali significa que qualquer jogador que der os cinco toques no selo entra no
+ * painel com a conta de quem operou — inclusive na aba Respostas, com o
+ * telefone de todo mundo que jogou (ver `contatos` em firebase/README.md).
+ *
+ * Falha aqui cancela o login em vez de seguir com o padrão do SDK: o padrão é
+ * guardar para sempre, e seguir com ele seria desobedecer a caixa desmarcada.
+ */
+async function guardarSessao(fb, manter) {
+  const onde = manter ? fb.fa.indexedDBLocalPersistence : fb.fa.browserSessionPersistence;
+  await fb.fa.setPersistence(fb.auth, onde);
 }
 
 /**

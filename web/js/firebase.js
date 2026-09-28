@@ -16,16 +16,33 @@
 // com o último baralho que tiver guardado no próprio navegador. Todas as
 // funções daqui falham em silêncio nesse caso, e quem chama cai no local.
 
-import { CONFIG } from './config.js';
+import { CONFIG, motivoDaNuvemDesligada } from './config.js';
 
 const VERSAO_SDK = '10.12.2';
 const CDN = `https://www.gstatic.com/firebasejs/${VERSAO_SDK}`;
 
 let promessa = null;
 
+/** O erro da última vez que o SDK não subiu — só para `motivoSemFirebase`. */
+let falhaDoSdk = null;
+
 /** `true` quando vale a pena tentar: ligado na config e fora do disco. */
 export const podeUsarNuvem = () =>
   Boolean(CONFIG.useFirestore) && typeof location !== 'undefined' && location.protocol !== 'file:';
+
+/**
+ * Por que `firebase()` devolve (ou devolveu) null, numa frase para o
+ * operador — ou `null` se nada impediu. Separa os dois jeitos de ficar sem
+ * Firebase, que para quem está na frente da tela parecem o mesmo: a nuvem
+ * desligada por configuração, e o SDK que não desceu da CDN (a feira sem
+ * internet, ou uma rede que bloqueia o gstatic).
+ */
+export function motivoSemFirebase() {
+  const desligada = motivoDaNuvemDesligada();
+  if (desligada) return desligada;
+  if (!falhaDoSdk) return null;
+  return `o SDK do Firebase não carregou da CDN (${falhaDoSdk?.message ?? falhaDoSdk}). Sem internet, ou a rede bloqueia www.gstatic.com.`;
+}
 
 /**
  * Sobe o SDK e devolve `{ app, db, fs, auth, fa }`, ou `null` se não der.
@@ -50,9 +67,11 @@ export function firebase() {
       import(`${CDN}/firebase-auth.js`),
     ]);
     const app = initializeApp(CONFIG.firebaseOptions);
+    falhaDoSdk = null;
     return { app, db: fs.getFirestore(app), fs, auth: fa.getAuth(app), fa };
   })().catch((erro) => {
     console.warn('Firebase indisponível; seguindo só com o armazenamento local.', erro);
+    falhaDoSdk = erro;
     // Zera para uma próxima tentativa poder acontecer (rede que voltou).
     promessa = null;
     return null;
