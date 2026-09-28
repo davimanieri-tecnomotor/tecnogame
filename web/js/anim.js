@@ -242,3 +242,24 @@ export function animateOnActionTrigger(node, info, effects = null) {
 
 /** `await Future.delayed(Duration(milliseconds: n))` */
 export const delayed = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+/**
+ * A entrada das peças da 3.0 — fora do motor do flutter_animate de propósito.
+ *
+ * `fill: 'backwards'`: o quadro 0 vale só durante o atraso e, quando a
+ * animação acaba, o elemento volta ao CSS. Nada fica escrito inline — é a
+ * armadilha do `applyInitialState` (ver o CLAUDE.md), que deixava o quadro 0
+ * gravado no elemento e fez a resposta certa sumir da tela quando a animação
+ * foi cancelada. Aqui cancelar é seguro: o elemento só volta ao que o CSS diz.
+ *
+ * A peça nasce com `.aud-oculta` (opacidade 0) até a vez dela; `entrar` a
+ * tira. Com "menos movimento", todo movimento vira um esmaecer curto.
+ */
+export function entrar(no, quadros, opcoes = {}) {
+  if (!no) return null;
+  no.classList.remove('aud-oculta');
+  if (menosMovimento()) {
+    return no.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, delay: opcoes.delay || 0, fill: 'backwards' });
+  }
+  return no.animate(quadros, { fill: 'backwards', ...opcoes });
+}

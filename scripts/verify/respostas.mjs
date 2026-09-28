@@ -70,6 +70,9 @@ await page.evaluate(() => {
       tempo: 12000,
       equipamento: 'RST',
       invalido: 0,
+      // Os campos da 3.0: qual pergunta caiu e qual resposta foi escolhida.
+      perguntaId: 'orig-5',
+      alternativa: 3,
       data: new Date(agora - 2000).toISOString(),
     },
     {
@@ -107,6 +110,12 @@ if (tela.linhas !== 2) falhas.push(`tabela com ${tela.linhas} linha(s), esperava
 if (!tela.colunas.includes('Telefone')) falhas.push('sem login, o telefone LOCAL deveria aparecer do mesmo jeito');
 if (!tela.primeiraLinha.includes('(11) 91234-5678')) falhas.push('o telefone do Fulano não apareceu na linha dele');
 if (!tela.primeiraLinha.includes('Sim')) falhas.push('"venceu" deveria mostrar "Sim" para o Fulano');
+// A pergunta aparece pelo nome (veículo e começo do enunciado), e não pelo id.
+if (!tela.colunas.includes('Pergunta') || !tela.colunas.includes('Alternativa escolhida')) {
+  falhas.push(`as colunas da 3.0 não apareceram: ${JSON.stringify(tela.colunas)}`);
+}
+if (!tela.primeiraLinha.some((c) => /^VW 24-280 — No Rasther/.test(c))) falhas.push('a pergunta do Fulano não apareceu pelo nome');
+if (!tela.primeiraLinha.includes('3')) falhas.push('a alternativa escolhida pelo Fulano não apareceu');
 
 /* ----------------------------------------- 2. troca de aba não perde nada -- */
 

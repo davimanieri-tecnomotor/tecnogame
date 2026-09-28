@@ -21,7 +21,18 @@
 // do projeto — ver a nota em firebase/firestore.rules, que diz o que isso custa.
 
 import { el, botao, aviso, confirmar, limpar, mostrarNotas, pedirCredenciais } from './ui.js';
+import { campo, caixaDeMarcar, selecao } from './ui.js';
 import { editorDeSlot } from './editor.js';
+import { definirEstiloDaPergunta, estiloDaPergunta } from '../palco.js';
+import { alternarMudo, definirVolume, estaMudo, volumeAtual } from '../audio.js';
+import { Som } from '../som.js';
+import { maisRapidoDoDia } from '../estatisticas.js';
+import { formatarTempoDeResposta } from '../functions.js';
+import { FFAppState } from '../state.js';
+import { getRecords } from '../storage.js';
+import { goNamed } from '../router.js';
+import { milhaoAutomatico } from '../pages/milhao.js';
+import { rotuloDaPergunta } from '../deck.js';
 import {
   BARALHO_ORIGINAL,
   SLOTS_ORIGINAIS,
@@ -215,6 +226,9 @@ async function atualizarRespostas() {
   try {
     const r = await buscarRespostas();
     if (!app) return;
+    // A partida grava o id da pergunta; a tabela e o CSV mostram o nome dela.
+    const baralho = carregarBaralho();
+    r.linhas = r.linhas.map((l) => ({ ...l, pergunta: rotuloDaPergunta(l.perguntaId, baralho) }));
     estado.respostas = { ...r, carregado: true, carregando: false };
   } catch (erro) {
     estado.respostas.carregando = false;
@@ -611,6 +625,125 @@ function alternarAberto(i) {
   atualizarChrome();
 }
 
+/* --------------------------------------------------------------- na feira -- */
+
+/**
+ * "Na feira": o que o operador ajusta no estande, e não no baralho — vale só
+ * para ESTE navegador, na hora, sem Salvar.
+ *
+ *   - o estilo da tela da pergunta (clássico ou palco — ver palco.js);
+ *   - o volume do som, porque a feira barulhenta e o auditório silencioso
+ *     pedem volumes diferentes, e ele era cravado no código;
+ *   - a Pergunta do Milhão do dia: chamar o mais rápido de volta ao totem
+ *     para uma pergunta extra, valendo brinde (ver pages/milhao.js).
+ */
+function naFeira() {
+  const campoEstilo = selecao({
+    rotulo: 'Estilo da tela da pergunta',
+    valor: estiloDaPergunta(),
+    opcoes: [
+      { valor: 'classico', rotulo: 'Clássico — a coluna do Show do Milhão (padrão)' },
+      { valor: 'palco', rotulo: 'Palco — os losangos do Milionário' },
+    ],
+    onChange: (v) => {
+      definirEstiloDaPergunta(v);
+      aviso(`A próxima pergunta já sai no estilo ${v === 'palco' ? 'Palco' : 'Clássico'}.`);
+    },
+  });
+
+  const faixa = el('input', { type: 'range', min: '0', max: '100', step: '5', class: 'volume-faixa', 'aria-label': 'Volume do som do jogo' });
+  faixa.value = String(Math.round(volumeAtual() * 100));
+  const valor = el('span', { class: 'volume-valor', text: `${faixa.value}%` });
+  const mudo = caixaDeMarcar({
+    rotulo: 'Sem som',
+    marcado: estaMudo(),
+    onChange: (v) => {
+      if (v !== estaMudo()) alternarMudo();
+    },
+  });
+  faixa.addEventListener('input', () => {
+    definirVolume(Number(faixa.value) / 100);
+    valor.textContent = `${faixa.value}%`;
+    const caixa = mudo.querySelector('input');
+    if (caixa) caixa.checked = estaMudo();
+  });
+
+  // A lista vem do baralho PUBLICADO — é com ele que o jogo joga, e não com a
+  // cópia em edição aqui ao lado.
+  const publicado = carregarBaralho();
+  const opcoesDoMilhao = [{ valor: 'sorteio', rotulo: 'Sortear uma das perguntas ligadas' }];
+  publicado.slots.forEach((slot, i) =>
+    (slot.perguntas ?? []).forEach((p, j) => {
+      if (p.ativa === false) return;
+      const texto = (p.pt?.pergunta ?? '').trim();
+      opcoesDoMilhao.push({
+        valor: `${i}:${j}`,
+        rotulo: `${slot.veiculo?.nome?.trim() || `Rodada ${i + 1}`} — ${texto.slice(0, 48)}${texto.length > 48 ? '…' : ''}`,
+      });
+    })
+  );
+  const campeao = maisRapidoDoDia();
+  const campoNome = campo({
+    rotulo: 'Quem vai jogar',
+    valor: campeao?.nome ?? '',
+    dica: campeao
+      ? `O mais rápido de hoje neste totem: ${campeao.nome}, ${formatarTempoDeResposta(campeao.tempo)}.`
+      : 'Ninguém venceu hoje neste totem ainda — escreva o nome de quem vai jogar.',
+  });
+  const campoPergunta = selecao({ rotulo: 'Pergunta', valor: 'sorteio', opcoes: opcoesDoMilhao });
+
+  const ultimas = getRecords('milhao').slice(-3).reverse();
+
+  return el('div', { class: 'zona-de-risco na-feira' }, [
+    el('h3', { text: 'Na feira' }),
+    el('p', { class: 'nota', text: 'Vale só para este navegador, na hora — não precisa Salvar.' }),
+    campoEstilo,
+    el('div', { class: 'campo' }, [
+      el('span', { class: 'campo-rotulo', text: 'Volume do som' }),
+      el('div', { class: 'volume-linha' }, [faixa, valor, botao('Testar', { onClick: () => Som.fanfarra(0), titulo: 'Toca a fanfarra do acerto no volume escolhido' })]),
+      mudo,
+      el('span', { class: 'campo-dica', text: 'No totem, sem abrir o painel: Ctrl+Alt+M liga e desliga o som, Ctrl+Alt+↑/↓ muda o volume, Ctrl+Alt+Home volta ao cadastro.' }),
+    ]),
+    el('h3', { text: 'Pergunta do Milhão' }),
+    el('p', { class: 'nota', text: 'Uma pergunta extra, valendo brinde, para chamar o mais rápido do dia de volta ao totem. Sem ajudas, e não entra no ranking.' }),
+    campoNome,
+    campoPergunta,
+    botao('Chamar ao palco', { tipo: 'primario', onClick: () => chamarMilhao(campoNome.entrada.value, campoPergunta.entrada.value) }),
+    ultimas.length
+      ? el(
+          'ul',
+          { class: 'milhao-ultimas' },
+          ultimas.map((r) =>
+            el('li', {
+              text: `${r.nome || '(sem nome)'} — ${r.venceu ? `levou o brinde (${formatarTempoDeResposta(r.tempo)})` : 'não levou'} · ${new Date(r.data).toLocaleString('pt-BR')}`,
+            })
+          )
+        )
+      : null,
+  ]);
+}
+
+/** Fecha o painel e leva o jogo direto para a Pergunta do Milhão. */
+async function chamarMilhao(nome, qual) {
+  if (estado.sujo) {
+    const segue = await confirmar({
+      titulo: 'Sair sem publicar?',
+      texto: 'Há alterações que o totem ainda não recebeu. Chamar a Pergunta do Milhão agora as descarta.',
+      confirmarTexto: 'Descartar e chamar',
+      perigoso: true,
+    });
+    if (!segue) return;
+    estado.baralho = clonar(carregarBaralho());
+    estado.sujo = false;
+  }
+  FFAppState.recarregarBaralho();
+  const [i, j] = String(qual).split(':').map(Number);
+  const escolha = qual === 'sorteio' || !Number.isInteger(i) ? milhaoAutomatico(FFAppState.baralho) : { slot: i, pergunta: j };
+  FFAppState.milhao = { slot: escolha.slot, pergunta: escolha.pergunta, jogador: String(nome ?? '').trim().slice(0, 30) };
+  fecharCamada?.();
+  goNamed('milhao');
+}
+
 /**
  * A lateral: todos os veículos e, debaixo do que estiver aberto, o banco de
  * perguntas dele.
@@ -743,6 +876,7 @@ function lista() {
       text: 'A ordem dos veículos é a ordem das fatias da roleta. Cada veículo pode ter várias perguntas: quando a roleta para nele, o jogo sorteia uma das ligadas.',
     }),
     el('ul', { class: 'itens' }, itens),
+    naFeira(),
     // O fim da lista é o lugar de quem só se procura de propósito.
     el('div', { class: 'zona-de-risco' }, [
       el('h3', { text: 'Antes da feira' }),

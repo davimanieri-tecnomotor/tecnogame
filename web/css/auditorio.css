@@ -1,0 +1,2924 @@
+/* ==========================================================================
+   A cara de auditório (3.0).
+
+   Tudo o que a proposta visual de docs/proposta-visual/ trouxe para o jogo: o
+   palco com luz, a pergunta nos dois estilos (clássico e palco), o
+   apresentador, as fichas de ajuda, o conta-giros, o fim como pódio, o modo de
+   atração, e os detalhes da roleta, do carro e da escolha do equipamento.
+
+   Carregada DEPOIS de app.css (ver index.html): onde as duas disputam o mesmo
+   seletor, esta vence. Os seletores das peças vêm prefixados — `aud-` para as
+   peças, `pg-` para as telas, `palco-` para a luz —, para nunca esbarrar nos
+   `ff-` do porte.
+
+   Duas regras do CLAUDE.md governam quase tudo aqui:
+
+   - ANIMAÇÃO GANHA DE CSS. Os estados das peças usam propriedades que nenhuma
+     animação disputa: `filter` para esfriar, `scale` e `translate` (separadas
+     de `transform`) para o toque e o tremor, camadas de SVG próprias para a
+     cor.
+   - O PISO DE LEGIBILIDADE. Texto que o JS não passa por `fonte()` tem o
+     tamanho escolhido aqui para já cumprir os 12px de tela na menor janela
+     atendida (escala 0,667 → 18px de palco).
+   ========================================================================== */
+
+@property --feixe-cor {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgb(140, 190, 255);
+}
+
+@property --giro {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/* ==================================================================== palco */
+
+#stage {
+  /* A cor da luz muda de humor devagar: é a mesa de luz, não um interruptor. */
+  transition: --feixe-cor 700ms ease;
+}
+
+#fundo,
+#frente {
+  /* Os refletores e a lâmina passam da borda de propósito; `clip` e não
+     `hidden`, para nada disso virar rolagem por programa. */
+  overflow: hidden;
+  overflow: clip;
+}
+
+#frente {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+#frente > * {
+  pointer-events: none;
+}
+
+/* O quanto a arte de fundo escurece no humor em vigor (ver palco.js). */
+.palco-sombra {
+  position: absolute;
+  inset: 0;
+  background: #000611;
+  opacity: var(--palco-sombra, 0.08);
+  transition: opacity 700ms ease;
+}
+
+/* Os refletores. `screen` para ACENDER o que está embaixo, e não cobrir. O
+   desfoque fica no feixe e o recorte no filho: filtro vem antes de clip-path,
+   e no mesmo elemento o cone sairia com a borda dura. */
+.palco-feixes {
+  position: absolute;
+  inset: 0;
+  mix-blend-mode: screen;
+  opacity: var(--feixes-op, 0.42);
+  transition: opacity 600ms ease;
+}
+
+.palco-feixe {
+  position: absolute;
+  top: -70px;
+  width: 560px;
+  height: 1320px;
+  margin-left: -280px;
+  transform-origin: 50% 0;
+  filter: blur(20px);
+  will-change: transform;
+}
+
+.palco-feixe-cone {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(45% 0, 55% 0, 100% 100%, 0 100%);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--feixe-cor) 62%, transparent) 0%,
+    color-mix(in srgb, var(--feixe-cor) 20%, transparent) 42%,
+    transparent 88%
+  );
+}
+
+.palco-feixe-fonte {
+  position: absolute;
+  left: 50%;
+  top: 44px;
+  width: 130px;
+  height: 130px;
+  margin-left: -65px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 12%, color-mix(in srgb, var(--feixe-cor) 80%, transparent) 30%, transparent 70%);
+}
+
+.palco-nevoa {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 55%, rgba(1, 8, 26, 0.35) 75%, rgba(1, 6, 20, 0.6) 100%);
+  opacity: 0;
+  transition: opacity 700ms ease;
+}
+
+#stage[data-estilo] .palco-nevoa {
+  opacity: 1;
+}
+
+/* Os raios roxos do Show do Milhão de 2000, girando devagar atrás de tudo —
+   só no estilo clássico da pergunta. Tons amostrados do programa (#736ED8). */
+.palco-raios {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2600px;
+  height: 2600px;
+  margin: -1300px 0 0 -1300px;
+  opacity: 0;
+  transition: opacity 600ms ease;
+  background: repeating-conic-gradient(from 0deg, rgba(115, 110, 216, 0.34) 0deg 5deg, transparent 5deg 15deg);
+  -webkit-mask: radial-gradient(circle, #000 0, #000 20%, transparent 58%);
+  mask: radial-gradient(circle, #000 0, #000 20%, transparent 58%);
+  animation: aud-girar 90s linear infinite;
+}
+
+#stage[data-estilo='classico'] .palco-raios {
+  opacity: 1;
+}
+
+/* No clássico o fundo pega o azul royal do programa (#0C2FD3 → #0E1671). */
+#stage[data-estilo='classico'] .palco-sombra {
+  background: linear-gradient(180deg, #0c2fd3, #0e1671);
+  opacity: calc(0.25 + var(--palco-sombra, 0.4) * 0.6);
+}
+
+/* A Pergunta do Milhão: o estúdio inteiro vira ouro. */
+#stage[data-humor='milhao'] .palco-sombra {
+  background: linear-gradient(180deg, #4a3000, #140b00);
+  opacity: 0.62;
+}
+
+#stage[data-humor='milhao'] .palco-raios {
+  background: repeating-conic-gradient(from 0deg, rgba(255, 200, 80, 0.32) 0deg 5deg, transparent 5deg 15deg);
+}
+
+@keyframes aud-girar {
+  to {
+    rotate: 360deg;
+  }
+}
+
+#particulas {
+  position: absolute;
+  inset: 0;
+  width: 1920px;
+  height: 1080px;
+}
+
+.palco-flash {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: #fff;
+  mix-blend-mode: screen;
+}
+
+/* A lâmina: a faixa inclinada (10°, gradiente a 100deg) que é a troca de tela. */
+.palco-lamina {
+  position: absolute;
+  left: -200px;
+  top: -200px;
+  width: 2320px;
+  height: 1480px;
+  opacity: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 43%,
+    rgba(90, 170, 255, 0) 45%,
+    rgba(150, 210, 255, 0.8) 49%,
+    #fff 50%,
+    rgba(150, 210, 255, 0.8) 51%,
+    rgba(90, 170, 255, 0) 55%,
+    transparent 57%
+  );
+}
+
+/* =========================================================== peças comuns */
+
+.aud-oculta {
+  opacity: 0;
+}
+
+/* ------------------------------------------------------------ o losango -- */
+
+.lz {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+}
+
+.lz .l-base {
+  fill: url(#lz-base);
+}
+
+.lz .l-estado {
+  fill: url(#lz-ouro);
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+/* O verde mora numa camada só dele, por cima da cor de travada: é o que deixa
+   a revelação alternar travada ↔ verde sem trocar `fill` (que não se anima). */
+.lz .l-verde {
+  fill: url(#lz-verde);
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.lz .l-reflexo {
+  fill: url(#lz-reflexo);
+  pointer-events: none;
+}
+
+.lz .l-borda {
+  fill: none;
+  stroke: #cfd8e6;
+  stroke-width: 3;
+  transition: stroke 220ms ease;
+}
+
+.lz .l-risco {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-dasharray: 8 92;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------- o botão de auditório -- */
+
+/* O envelope leva o brilho de fora (drop-shadow), que o clip-path do botão
+   cortaria. */
+.aud-botao-env {
+  display: inline-block;
+  filter: drop-shadow(0 0 16px rgba(255, 190, 0, 0.5));
+}
+
+.aud-botao-env--prata {
+  filter: drop-shadow(0 0 10px rgba(160, 200, 255, 0.35));
+}
+
+.aud-botao-env--pulsa {
+  animation: aud-pulsa 1.15s ease-in-out infinite;
+}
+
+@keyframes aud-pulsa {
+  50% {
+    scale: 1.05;
+    filter: drop-shadow(0 0 34px rgba(255, 190, 0, 0.95));
+  }
+}
+
+/* Dois seletores de classe: o `.ff-inkwell` do porte zera fundo, fonte e
+   espaçamento, e empataria com um seletor só. */
+.ff-inkwell.aud-botao {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  height: 88px;
+  min-width: 300px;
+  padding: 0 58px;
+  font-family: 'pirulen', sans-serif;
+  letter-spacing: 3px;
+  color: #231500;
+  cursor: pointer;
+  clip-path: polygon(26px 0, calc(100% - 26px) 0, 100% 50%, calc(100% - 26px) 100%, 26px 100%, 0 50%);
+  background: linear-gradient(180deg, #fff1b8 0%, #ffc21a 50%, #e88a00 100%);
+  transition: scale 120ms ease;
+}
+
+.ff-inkwell.aud-botao.aud-apertado,
+.ff-inkwell.aud-botao:active {
+  scale: 0.95;
+}
+
+.ff-inkwell.aud-botao--prata {
+  min-width: 220px;
+  color: #0a1a3a;
+  background: linear-gradient(180deg, #f4f7fb 0%, #aeb9cc 55%, #7d889c 100%);
+}
+
+.ff-inkwell.aud-botao--menor {
+  height: 72px;
+}
+
+.ff-inkwell.aud-botao:focus-visible {
+  outline: none;
+  filter: brightness(1.12);
+}
+
+.aud-botao-texto {
+  position: relative;
+  z-index: 1;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+/* O brilho que passa. Por `background-position`, e não movendo uma faixa por
+   `left`: uma faixa que sai da caixa conta como conteúdo cortado (ver
+   verify/corte.mjs), e esta nunca sai. */
+.aud-botao::after,
+.aud-brilho::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent 42%, rgba(255, 255, 255, 0.85) 50%, transparent 58%) no-repeat;
+  background-size: 250% 100%;
+  background-position: 180% 0;
+  animation: aud-brilho 2.6s ease-in-out infinite;
+}
+
+@keyframes aud-brilho {
+  0%,
+  55% {
+    background-position: 180% 0;
+  }
+
+  100% {
+    background-position: -80% 0;
+  }
+}
+
+/* A barra que enche no CONTINUAR: a tela segue sozinha quando ela completa. */
+.aud-botao--contando::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 7px;
+  z-index: 1;
+  background: rgba(35, 21, 0, 0.4);
+  transform-origin: 0 50%;
+  animation: aud-contando var(--espera, 12000ms) linear forwards;
+}
+
+@keyframes aud-contando {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* O CONFIRMAR do cadastro ganha o mesmo brilho — por cima do fundo inline. */
+.aud-brilho {
+  position: relative;
+  overflow: hidden;
+}
+
+/* ------------------------------------------------ o selo com as lâmpadas -- */
+
+.aud-selo {
+  position: relative;
+  flex: none;
+  background: url('../assets/images/Selo_2.png') no-repeat;
+}
+
+/* As lâmpadas da arte, medidas no PNG, correndo como letreiro de auditório.
+   Só acendem por cima: a arte já as desenha brancas. */
+.aud-lampada {
+  position: absolute;
+  width: var(--d);
+  height: var(--d);
+  margin: calc(var(--d) / -2) 0 0 calc(var(--d) / -2);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 28%, rgba(255, 244, 190, 0.9) 42%, rgba(255, 200, 60, 0) 72%);
+  mix-blend-mode: screen;
+  opacity: 0.12;
+  pointer-events: none;
+  animation: aud-lampada 1.44s ease-out infinite;
+  animation-delay: calc(var(--i) * 0.12s);
+}
+
+@keyframes aud-lampada {
+  0% {
+    opacity: 1;
+    transform: scale(1.9);
+  }
+
+  28% {
+    opacity: 0.12;
+    transform: scale(1);
+  }
+
+  100% {
+    opacity: 0.12;
+    transform: scale(1);
+  }
+}
+
+/* No acerto elas piscam juntas; no suspense e no erro, apagam. */
+#stage[data-humor='acerto'] .aud-lampada {
+  animation: aud-lampada-festa 0.3s steps(2, jump-none) infinite;
+  animation-delay: 0s;
+}
+
+@keyframes aud-lampada-festa {
+  0% {
+    opacity: 1;
+    transform: scale(1.8);
+  }
+
+  100% {
+    opacity: 0.1;
+    transform: scale(1);
+  }
+}
+
+#stage[data-humor='suspense'] .aud-lampada,
+#stage[data-humor='erro'] .aud-lampada {
+  animation: none;
+  opacity: 0;
+}
+
+/* ------------------------------------------------------ a placa Mercosul -- */
+
+.aud-placa {
+  display: inline-block;
+  min-width: 318px;
+  border-radius: 9px;
+  overflow: hidden;
+  background: linear-gradient(#ffffff, #e6ebf2);
+  border: 3px solid #1b1b1b;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55), inset 0 0 0 2px #fff;
+}
+
+.aud-placa-faixa {
+  position: relative;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(90deg, #0b3a9c, #1552cc);
+  color: #fff;
+  font-family: 'Roboto', sans-serif;
+  font-weight: 700;
+  letter-spacing: 4px;
+  line-height: 20px;
+}
+
+/* O selo do Mercosul, simplificado. */
+.aud-placa-mercosul {
+  position: absolute;
+  left: 7px;
+  top: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 18%, transparent 20%), #0b3a9c;
+  box-shadow: inset 0 0 0 1.5px #fff;
+}
+
+.aud-placa-bandeira {
+  position: absolute;
+  right: 7px;
+  top: 3px;
+  width: 20px;
+  height: 14px;
+  background: #009c3b;
+}
+
+.aud-placa-bandeira::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  background: #ffdf00;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+
+.aud-placa-bandeira::after {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #002776;
+}
+
+.ff-text.aud-placa-texto {
+  padding: 2px 24px 4px;
+  font-family: 'Roboto', sans-serif;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #111;
+  text-align: center;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ================================================= a tela da pergunta ==== */
+
+.ff-scaffold.pg-auditorio {
+  overflow: hidden;
+  overflow: clip;
+}
+
+.pg-camera,
+.pg-tremor,
+.pg-cena {
+  position: absolute;
+  inset: 0;
+}
+
+.pg-camera {
+  transform-origin: 50% 50%;
+}
+
+/* O canhão de luz do suspense: o estúdio apaga e sobra a alternativa. */
+.pg-spot {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 600ms ease;
+  background: radial-gradient(
+    ellipse var(--spot-rx, 560px) var(--spot-ry, 250px) at var(--spot-x, 50%) var(--spot-y, 50%),
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0) 38%,
+    rgba(0, 3, 12, 0.9) 100%
+  );
+}
+
+.pg-spot.ligado {
+  opacity: 1;
+}
+
+/* A vinheta da reta final: fecha em vermelho conforme o tempo acaba. */
+.pg-vinheta {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--tensao, 0);
+  background: radial-gradient(ellipse at center, transparent 42%, rgba(60, 0, 0, 0.55) 78%, rgba(25, 0, 0, 0.92) 100%);
+}
+
+/* O pulso de cada segundo nos últimos dez. */
+.pg-pulso {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(255, 0, 0, 0.38) 100%);
+}
+
+.pg-locutor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pg-locutor > * {
+  pointer-events: auto;
+}
+
+.pg-locutor > .aud-grito,
+.pg-locutor > .aud-raios {
+  pointer-events: none;
+}
+
+.pg-selo {
+  position: absolute;
+}
+
+/* ------------------------------------------------------ a caixa da pergunta */
+
+.aud-pergunta {
+  position: absolute;
+}
+
+.aud-trilho,
+.aud-trilho-linha {
+  position: absolute;
+  height: 3px;
+  box-shadow: 0 0 12px rgba(160, 205, 255, 0.55);
+}
+
+.aud-trilho {
+  top: calc(50% - 1.5px);
+  width: 150px;
+}
+
+.aud-trilho.esq {
+  left: -150px;
+  background: linear-gradient(90deg, rgba(207, 216, 230, 0), #cfd8e6);
+  transform-origin: 100% 50%;
+}
+
+.aud-trilho.dir {
+  left: 100%;
+  background: linear-gradient(90deg, #cfd8e6, rgba(207, 216, 230, 0));
+  transform-origin: 0 50%;
+}
+
+.aud-trilho-linha {
+  background: #cfd8e6;
+}
+
+.aud-pergunta-aba {
+  position: absolute;
+  left: 64px;
+  top: -30px;
+  height: 34px;
+  padding: 0 30px 0 22px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'pirulen', sans-serif;
+  letter-spacing: 3px;
+  color: #fff;
+  background: linear-gradient(180deg, #ff3b30, #b3140c);
+  clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 100%, 0 100%);
+  white-space: nowrap;
+}
+
+.aud-pergunta-aba i {
+  width: 18px;
+  height: 16px;
+  background: #fff;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.aud-pergunta-aba-sub {
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 700;
+  letter-spacing: 2px;
+  opacity: 0.85;
+  text-transform: uppercase;
+}
+
+.aud-pergunta-caixa {
+  position: absolute;
+  left: 82px;
+  right: 82px;
+  top: 18px;
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.ff-text.aud-pergunta-texto {
+  display: block;
+  font-family: 'Paralucent', sans-serif;
+  font-weight: 500;
+  font-size: 30px;
+  line-height: 1.26;
+  letter-spacing: 0.4px;
+  color: #fff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  white-space: normal;
+}
+
+/* ------------------------------------------------------- as alternativas -- */
+
+.aud-opcao {
+  position: absolute;
+  cursor: pointer;
+  transition: scale 120ms ease;
+}
+
+.aud-opcao.apertada {
+  scale: 0.98;
+}
+
+.aud-opcao:focus-visible {
+  outline: 3px solid #ffbc00;
+  outline-offset: 4px;
+}
+
+@media (hover: hover) {
+  .aud-opcao:hover .l-borda {
+    stroke: #fff;
+  }
+}
+
+.aud-opcao-conteudo {
+  position: absolute;
+  inset: 0 46px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.aud-opcao-num {
+  flex: none;
+  width: 50px;
+  text-align: center;
+  font-family: 'pirulen', sans-serif;
+  font-weight: normal;
+  line-height: 1;
+  color: #ffd84d;
+  text-shadow: 0 0 18px rgba(255, 200, 60, 0.55);
+}
+
+.aud-opcao-caixa {
+  flex: 1;
+  min-width: 0;
+  height: 86px;
+  display: flex;
+  align-items: center;
+  padding-left: 20px;
+  border-left: 2px solid rgba(207, 216, 230, 0.35);
+}
+
+.ff-text.aud-opcao-texto {
+  display: block;
+  font-family: 'Paralucent', sans-serif;
+  font-weight: 500;
+  font-size: 26px;
+  line-height: 1.18;
+  color: #fff;
+  white-space: normal;
+}
+
+.aud-opcao.travada .l-estado {
+  opacity: 1;
+}
+
+.aud-opcao.travada .l-borda {
+  stroke: #fff4c2;
+}
+
+.aud-opcao.travada .aud-opcao-texto,
+.aud-opcao.travada .aud-opcao-num {
+  color: #231500;
+  text-shadow: none;
+}
+
+.aud-opcao.travada .aud-opcao-caixa {
+  border-left-color: rgba(35, 21, 0, 0.35);
+}
+
+.aud-opcao.travada {
+  animation: aud-travada 900ms ease-in-out infinite alternate;
+}
+
+@keyframes aud-travada {
+  from {
+    filter: drop-shadow(0 0 10px rgba(255, 180, 0, 0.55));
+  }
+
+  to {
+    filter: drop-shadow(0 0 32px rgba(255, 190, 0, 0.95));
+  }
+}
+
+.aud-opcao.fria {
+  filter: brightness(0.42) saturate(0.35);
+}
+
+.aud-opcao.meio-fria {
+  filter: brightness(0.68) saturate(0.7);
+}
+
+.aud-opcao.certa .l-verde {
+  opacity: 1;
+}
+
+.aud-opcao.certa .l-borda {
+  stroke: #d6ffe9;
+}
+
+.aud-opcao.certa .aud-opcao-texto {
+  color: #fff;
+}
+
+.aud-opcao.certa .aud-opcao-num {
+  color: #fff;
+  text-shadow: 0 0 18px rgba(0, 80, 30, 0.8);
+}
+
+.aud-opcao.certa .aud-opcao-caixa {
+  border-left-color: rgba(255, 255, 255, 0.45);
+}
+
+.aud-opcao.certa {
+  filter: drop-shadow(0 0 34px rgba(31, 211, 122, 0.85));
+}
+
+.aud-opcao.errada .l-estado {
+  fill: url(#lz-vermelho);
+  opacity: 1;
+}
+
+.aud-opcao.errada .l-borda {
+  stroke: #ffd2cf;
+}
+
+.aud-opcao.errada .aud-opcao-num {
+  color: #fff;
+  text-shadow: none;
+}
+
+.aud-opcao.errada {
+  filter: drop-shadow(0 0 30px rgba(255, 59, 48, 0.8));
+}
+
+/* O "glitch" da errada: um sinal de diagnóstico falhando. */
+.aud-opcao.glitch .aud-opcao-conteudo {
+  animation: aud-glitch 80ms steps(2, jump-none) 6;
+}
+
+@keyframes aud-glitch {
+  0% {
+    transform: translateX(-6px);
+    text-shadow: 4px 0 #ff2a6d, -4px 0 #05d9e8;
+    clip-path: inset(0 0 52% 0);
+  }
+
+  100% {
+    transform: translateX(5px);
+    text-shadow: -4px 0 #ff2a6d, 4px 0 #05d9e8;
+    clip-path: inset(40% 0 0 0);
+  }
+}
+
+/* As que as Cartas tiraram: apagadas e riscadas, e nenhum toque vale. */
+.aud-opcao.eliminada {
+  filter: brightness(0.25) saturate(0.1);
+  cursor: default;
+  pointer-events: none;
+}
+
+.aud-opcao.eliminada .aud-opcao-texto {
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 90, 79, 0.85);
+}
+
+/* ------------------------------------------ estilo CLÁSSICO (SBT, 2000) --- */
+/* O que faz uma tela ser reconhecida como Show do Milhão, e não como o
+   Milionário: a coluna à esquerda com logo, pergunta e as quatro alternativas
+   empilhadas; o número num círculo azul de aro branco (#372DDB), que fica
+   VERMELHO quando o jogador escolhe; a pergunta em #BA1C01 e a alternativa em
+   #912100; a faixa de valores em caixas amarelas (#FAD742) com o valor em
+   vermelho. Tons amostrados do programa de 30/03/2000. */
+
+[data-estilo-pergunta='classico'] .aud-pergunta .l-base {
+  fill: url(#lz-perg-cl);
+}
+
+[data-estilo-pergunta='classico'] .aud-pergunta .l-borda {
+  stroke: #ffd9c7;
+}
+
+/* Itálico por inclinação, e não por `font-style`: a face itálica 500 que o
+   porte declara para a Paralucent é a STENCIL (ver app.css), e a pergunta
+   sairia em letra vazada. */
+[data-estilo-pergunta='classico'] .aud-pergunta-texto {
+  transform: skewX(-6deg);
+}
+
+[data-estilo-pergunta='classico'] .aud-pergunta-caixa {
+  left: 44px;
+  right: 44px;
+  top: 24px;
+}
+
+[data-estilo-pergunta='classico'] .aud-pergunta-aba {
+  left: 30px;
+}
+
+[data-estilo-pergunta='classico'] .aud-opcao .l-base {
+  fill: url(#lz-opcao-cl);
+}
+
+[data-estilo-pergunta='classico'] .aud-opcao .l-borda {
+  stroke: #f3c2ae;
+}
+
+[data-estilo-pergunta='classico'] .aud-opcao-conteudo {
+  inset: 0 26px 0 16px;
+  gap: 18px;
+}
+
+[data-estilo-pergunta='classico'] .aud-opcao-caixa {
+  border-left: 0;
+  padding-left: 0;
+  height: 78px;
+}
+
+[data-estilo-pergunta='classico'] .aud-opcao-num {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  text-shadow: none;
+  background: radial-gradient(circle at 38% 32%, #5b52ff, #372ddb 55%, #1f188f);
+  box-shadow: inset 0 0 0 4px #fff, 0 4px 10px rgba(0, 0, 0, 0.45);
+  transition: background 160ms ease;
+}
+
+/* A escolha acende o NÚMERO, de azul para vermelho — e a barra esquenta. */
+[data-estilo-pergunta='classico'] .aud-opcao.travada .aud-opcao-num {
+  color: #fff;
+  background: radial-gradient(circle at 38% 32%, #ff7a5c, #e0301e 55%, #8f1206);
+}
+
+[data-estilo-pergunta='classico'] .aud-opcao.travada .l-estado {
+  fill: url(#lz-trava-cl);
+}
+
+[data-estilo-pergunta='classico'] .aud-opcao.travada .aud-opcao-texto {
+  color: #fff;
+}
+
+[data-estilo-pergunta='classico'] .aud-opcao.travada .l-borda {
+  stroke: #ffe45c;
+}
+
+[data-estilo-pergunta='classico'] .aud-opcao.travada {
+  animation-name: aud-travada-cl;
+}
+
+@keyframes aud-travada-cl {
+  from {
+    filter: drop-shadow(0 0 8px rgba(255, 215, 66, 0.5));
+  }
+
+  to {
+    filter: drop-shadow(0 0 26px rgba(255, 215, 66, 0.95));
+  }
+}
+
+[data-estilo-pergunta='classico'] .aud-opcao.certa .aud-opcao-num {
+  background: radial-gradient(circle at 38% 32%, #6dffb0, #1fd37a 55%, #007e42);
+}
+
+[data-estilo-pergunta='classico'] .aud-opcao.errada .aud-opcao-num {
+  background: #8f1206;
+}
+
+/* ------------------------------------ a Pergunta do Milhão: tudo em ouro -- */
+
+.pg-milhao .aud-pergunta .l-base,
+.pg-milhao .aud-opcao .l-base {
+  fill: url(#lz-milhao);
+}
+
+.pg-milhao .aud-pergunta .l-borda,
+.pg-milhao .aud-opcao .l-borda {
+  stroke: #ffd84d;
+}
+
+.pg-milhao .aud-pergunta-aba {
+  background: linear-gradient(180deg, #ffd84d, #b37a00);
+  color: #231500;
+}
+
+/* ------------------------------------------------------------ as fichas -- */
+
+.aud-ajudas {
+  position: absolute;
+}
+
+.ff-text.aud-aj-titulo {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  font-family: 'pirulen', sans-serif;
+  letter-spacing: 3px;
+  color: #cfe0ff;
+  white-space: nowrap;
+}
+
+.aud-aj-titulo b {
+  font-weight: normal;
+  color: #ffd84d;
+}
+
+.aud-aj-pinos {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.aud-aj-pinos i {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #ffd84d;
+  box-shadow: 0 0 10px rgba(255, 216, 77, 0.8);
+  transition: background 300ms, box-shadow 300ms;
+}
+
+.aud-aj-pinos i.gasto {
+  background: #2a3448;
+  box-shadow: none;
+}
+
+.aud-aj-fichas {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+
+.aud-ficha {
+  position: relative;
+  width: 96px;
+  cursor: pointer;
+  perspective: 700px;
+}
+
+.aud-ficha:focus-visible {
+  outline: 3px solid #ffbc00;
+  outline-offset: 6px;
+  border-radius: 50%;
+}
+
+.aud-ficha-moeda {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  transform-style: preserve-3d;
+  transition: transform 700ms cubic-bezier(0.3, 1.35, 0.5, 1), scale 120ms ease;
+}
+
+.aud-ficha:active .aud-ficha-moeda {
+  scale: 0.94;
+}
+
+.aud-ficha-face,
+.aud-ficha-verso {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.aud-ficha-face {
+  background: radial-gradient(circle at 35% 28%, #3574ff, #0b3196 55%, #051a55 100%);
+  box-shadow: inset 0 0 0 4px #ffd84d, inset 0 0 0 7px rgba(0, 0, 0, 0.35), 0 10px 22px rgba(0, 0, 0, 0.5),
+    0 0 26px rgba(80, 150, 255, 0.35);
+}
+
+/* O brilho que ronda o aro, cada ficha num ponto da volta. */
+.aud-ficha-face::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from var(--giro), transparent 0 68%, rgba(255, 255, 255, 0.85) 77%, transparent 86%);
+  -webkit-mask: radial-gradient(circle, transparent 41px, #000 42px, #000 47px, transparent 48px);
+  mask: radial-gradient(circle, transparent 41px, #000 42px, #000 47px, transparent 48px);
+  animation: aud-ficha-giro 3.4s linear infinite;
+  animation-delay: calc(var(--i) * -0.5s);
+}
+
+@keyframes aud-ficha-giro {
+  to {
+    --giro: 360deg;
+  }
+}
+
+.aud-ficha-verso {
+  transform: rotateY(180deg);
+  background: radial-gradient(circle at 35% 28%, #5d6880, #2a3346 60%, #151b28);
+  box-shadow: inset 0 0 0 4px #7d8699, 0 10px 22px rgba(0, 0, 0, 0.5);
+}
+
+.aud-ficha svg {
+  width: 48px;
+  height: 48px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.aud-ficha-verso svg {
+  width: 54px;
+  height: 54px;
+  stroke: #ff5a4f;
+  stroke-width: 7;
+}
+
+.ff-text.aud-ficha-rotulo {
+  width: 114px;
+  margin: 8px 0 0 -9px;
+  text-align: center;
+  white-space: pre-line;
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: 1px;
+  color: #dbe6ff;
+}
+
+.ff-text.aud-ficha-nota {
+  width: 114px;
+  margin-left: -9px;
+  text-align: center;
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 700;
+  color: #ff9a94;
+}
+
+.aud-ficha.usada {
+  cursor: default;
+}
+
+.aud-ficha.usada .aud-ficha-moeda {
+  transform: rotateY(180deg);
+}
+
+.aud-ficha.usada .aud-ficha-rotulo {
+  color: #6f7b93;
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 90, 79, 0.7);
+}
+
+.aud-ajudas.esgotadas .aud-ficha:not(.usada),
+.aud-ficha.sem-votos {
+  filter: grayscale(1) brightness(0.45);
+  cursor: default;
+}
+
+/* ---------------------------------------------------- o cartão da ajuda --- */
+
+.aud-cartao {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  border-radius: 26px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgb(8, 22, 58), rgb(3, 11, 32));
+  border: 2px solid rgba(160, 200, 255, 0.35);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
+}
+
+.aud-cartao-topo {
+  flex: none;
+  height: 70px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 26px;
+  background: var(--cor);
+  color: #fff;
+}
+
+.aud-cartao-icone svg {
+  display: block;
+  width: 38px;
+  height: 38px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.aud-cartao-topo strong {
+  font-family: 'pirulen', sans-serif;
+  font-weight: normal;
+  letter-spacing: 2px;
+}
+
+.aud-cartao-topo small {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.aud-cartao-topo small::before {
+  content: '';
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #3dff8f;
+  box-shadow: 0 0 10px #3dff8f;
+}
+
+.aud-cartao-corpo {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 26px;
+  padding: 24px 28px 0;
+}
+
+.aud-cartao-foto {
+  position: relative;
+  flex: none;
+  width: 320px;
+  height: 220px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.aud-cartao-foto img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ff-text.aud-chamando {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 0 16px;
+  background: rgba(3, 11, 32, 0.72);
+  color: #fff;
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.ff-text.aud-chamando::before {
+  content: '';
+  position: absolute;
+  left: calc(50% - 55px);
+  top: calc(50% - 55px);
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.8);
+  animation: aud-chamando 1s ease-out infinite;
+}
+
+@keyframes aud-chamando {
+  from {
+    transform: scale(0.5);
+    opacity: 1;
+  }
+
+  to {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+.aud-cartao-conversa {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+}
+
+.ff-text.aud-cartao-quem {
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #8fb0ea;
+  text-transform: uppercase;
+}
+
+.ff-text.aud-balao {
+  min-height: 70px;
+  padding: 18px 22px;
+  border-radius: 4px 20px 20px 20px;
+  background: #fff;
+  color: #0a1a3a;
+  font-family: 'Paralucent', sans-serif;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.aud-digitando {
+  display: inline-flex;
+  gap: 7px;
+  padding: 6px 2px;
+}
+
+.aud-digitando i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #7d889c;
+  animation: aud-digitando 900ms ease-in-out infinite;
+}
+
+.aud-digitando i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.aud-digitando i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes aud-digitando {
+  30% {
+    transform: translateY(-7px);
+    background: #0a1a3a;
+  }
+
+  60% {
+    transform: none;
+  }
+}
+
+.aud-cartao-pe {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 28px 20px;
+}
+
+/* As Cartas e as Placas: título, a mesa, o resultado. */
+.aud-cartao-corpo--cartas,
+.aud-cartao-corpo--placas {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding-top: 16px;
+}
+
+.ff-text.aud-cartas-titulo {
+  font-family: 'pirulen', sans-serif;
+  letter-spacing: 2px;
+  color: #fff;
+  text-align: center;
+}
+
+.ff-text.aud-cartas-sub,
+.ff-text.aud-placas-sub {
+  max-width: 92%;
+  font-family: 'Open Sans', sans-serif;
+  color: #c9d7f5;
+  text-align: center;
+}
+
+.aud-mesa-cartas {
+  display: flex;
+  gap: 26px;
+  margin-top: 6px;
+  perspective: 900px;
+}
+
+.aud-carta {
+  width: 104px;
+  height: 146px;
+  cursor: pointer;
+}
+
+.aud-carta-miolo {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 600ms cubic-bezier(0.3, 1.3, 0.5, 1), translate 160ms ease;
+}
+
+.aud-carta:hover:not(.virada) .aud-carta-miolo {
+  translate: 0 -8px;
+}
+
+.aud-carta.virada .aud-carta-miolo {
+  transform: rotateY(180deg);
+}
+
+.aud-carta-verso,
+.aud-carta-frente {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.aud-carta-verso {
+  background: repeating-linear-gradient(45deg, #8b1e3f 0 8px, #6a1530 8px 16px);
+  border: 5px solid #fff;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5);
+}
+
+.aud-carta-frente {
+  transform: rotateY(180deg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: #fff;
+  color: #111;
+  border: 3px solid #d7dce5;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5);
+}
+
+.aud-carta-frente.vermelha {
+  color: #c8102e;
+}
+
+.aud-carta-frente b {
+  font: 700 56px/1 'Roboto', sans-serif;
+}
+
+.aud-carta-frente span {
+  font: 40px/1 'Roboto', sans-serif;
+}
+
+.aud-carta.escolhida {
+  filter: drop-shadow(0 0 24px rgba(255, 216, 77, 0.9));
+}
+
+.ff-text.aud-cartas-resultado {
+  min-height: 30px;
+  font-family: 'Paralucent', sans-serif;
+  font-weight: 700;
+  color: #ffd84d;
+  text-align: center;
+}
+
+.aud-placas {
+  display: flex;
+  align-items: flex-end;
+  gap: 34px;
+  height: 230px;
+  margin-top: 4px;
+}
+
+.aud-placa-voto {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 92px;
+  height: 100%;
+}
+
+.aud-placa-voto b {
+  font-family: 'pirulen', sans-serif;
+  font-weight: normal;
+  color: #ffd84d;
+}
+
+.aud-placa-trilho {
+  position: relative;
+  flex: 1;
+  width: 58px;
+  border-radius: 10px 10px 4px 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.aud-placa-trilho i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--p, 0) * 100%);
+  border-radius: 10px 10px 4px 4px;
+  background: linear-gradient(180deg, #ffe27a, #ffb400);
+  transform-origin: 50% 100%;
+}
+
+.aud-placa-num {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font: 22px/1 'pirulen', sans-serif;
+  color: #fff;
+  background: #372ddb;
+  box-shadow: inset 0 0 0 3px #fff;
+}
+
+/* --------------------------------------------------------- o conta-giros -- */
+
+.aud-tacometro {
+  position: absolute;
+  filter: drop-shadow(0 16px 30px rgba(0, 0, 0, 0.55));
+}
+
+.aud-tacometro svg {
+  display: block;
+  overflow: visible;
+}
+
+.aud-taco-zona {
+  fill: none;
+  stroke: #ff2a2a;
+  stroke-width: 7;
+  opacity: 0.9;
+}
+
+.aud-taco-risco {
+  stroke: rgba(255, 255, 255, 0.5);
+  stroke-width: 2;
+}
+
+.aud-taco-risco.medio {
+  stroke-width: 3;
+  stroke: rgba(255, 255, 255, 0.8);
+}
+
+.aud-taco-risco.maior {
+  stroke-width: 4.5;
+  stroke: #fff;
+}
+
+.aud-taco-risco.quente {
+  stroke: #ff5a4f;
+}
+
+.aud-taco-num {
+  font: 26px 'pirulen', sans-serif;
+  fill: #dfe8ff;
+  text-anchor: middle;
+}
+
+.aud-taco-num.quente {
+  fill: #ff6b61;
+}
+
+.aud-taco-trilho {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 12;
+  stroke-linecap: round;
+}
+
+.aud-taco-arco {
+  fill: none;
+  stroke-width: 12;
+  stroke-linecap: round;
+  transition: stroke 500ms ease;
+}
+
+.ff-text.aud-taco-leitura {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: 'pirulen', sans-serif;
+  line-height: 1;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.aud-taco-dec {
+  color: #9fb7e8;
+}
+
+.ff-text.aud-taco-rotulo {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 700;
+  letter-spacing: 4px;
+  line-height: 1;
+  color: #7f95c2;
+}
+
+.aud-taco--reta {
+  animation: aud-taco-quente 1s ease-in-out infinite;
+}
+
+@keyframes aud-taco-quente {
+  50% {
+    filter: drop-shadow(0 16px 30px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 36px rgba(255, 40, 40, 0.8));
+  }
+}
+
+.aud-taco--reta .aud-taco-int,
+.aud-taco--estourou .aud-taco-int {
+  color: #ff6b61;
+}
+
+.aud-taco--estourou {
+  animation: none;
+  filter: drop-shadow(0 0 44px rgba(255, 40, 40, 0.95));
+}
+
+.aud-taco--parado .aud-taco-leitura {
+  animation: aud-piscar 260ms steps(2, jump-none) 3;
+}
+
+@keyframes aud-piscar {
+  50% {
+    opacity: 0.15;
+  }
+}
+
+/* -------------------------------------- ERRAR / RECORDE / ACERTAR AGORA --- */
+
+.aud-aposta {
+  position: absolute;
+}
+
+.aud-ap-caixas {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.aud-ap-caixa {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.aud-ap-caixa > b {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 56px;
+  border-radius: 10px;
+  font: 23px/1 'pirulen', sans-serif;
+  font-weight: normal;
+  background: rgba(8, 24, 62, 0.9);
+  color: #dbe6ff;
+  box-shadow: inset 0 0 0 2px rgba(160, 200, 255, 0.3);
+}
+
+.aud-ap-caixa small {
+  max-width: 100%;
+  font-family: 'Open Sans', sans-serif;
+  font-style: italic;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 1.5px;
+  color: #cfe0ff;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.aud-ap-caixa--erro > b {
+  color: #ff9a94;
+  box-shadow: inset 0 0 0 2px rgba(255, 90, 79, 0.45);
+}
+
+.aud-ap-caixa--acertar > b {
+  background: linear-gradient(180deg, #fff1b8, #ffc21a 50%, #e88a00);
+  color: #231500;
+  box-shadow: 0 0 22px rgba(255, 190, 0, 0.45);
+}
+
+.aud-ap-caixa--acertar small {
+  color: #ffd84d;
+}
+
+.aud-ap-rolo {
+  display: inline-grid;
+  height: 34px;
+  align-items: center;
+  overflow: hidden;
+  overflow: clip;
+}
+
+.aud-ap-rolo > i {
+  grid-area: 1 / 1;
+  font-style: normal;
+  font-size: 30px;
+  line-height: 34px;
+}
+
+.aud-ap-barra {
+  position: relative;
+  height: 24px;
+  margin-top: 8px;
+  border-radius: 12px;
+  overflow: hidden;
+  overflow: clip;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.aud-ap-barra > i {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, rgba(255, 180, 0, 0.45), rgba(255, 216, 77, 0.9));
+}
+
+.aud-ap-barra > span {
+  position: relative;
+  display: block;
+  text-align: center;
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 600;
+  line-height: 24px;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
+}
+
+[data-estilo-pergunta='classico'] .aud-ap-caixas {
+  gap: 30px;
+}
+
+[data-estilo-pergunta='classico'] .aud-ap-caixa > b {
+  height: 70px;
+  font-size: 30px;
+  background: linear-gradient(180deg, #fff0a0, #fad742 45%, #e6b800);
+  color: #ba1c01;
+  box-shadow: inset 0 0 0 3px #fff6c8, 0 6px 14px rgba(0, 0, 0, 0.4);
+}
+
+[data-estilo-pergunta='classico'] .aud-ap-caixa small {
+  color: #fff;
+  letter-spacing: 3px;
+}
+
+[data-estilo-pergunta='classico'] .aud-ap-caixa--acertar > b {
+  box-shadow: inset 0 0 0 3px #fff6c8, 0 0 30px rgba(250, 215, 66, 0.7);
+}
+
+[data-estilo-pergunta='classico'] .aud-ap-barra {
+  margin-top: 10px;
+}
+
+/* ------------------------------------------------- a ordem de serviço ----- */
+
+.aud-os {
+  position: absolute;
+  width: 560px;
+  height: 480px;
+  transform-origin: 0 0;
+}
+
+.aud-os-chip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 66px;
+  padding: 0 24px 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(14, 48, 124, 0.88), rgba(4, 18, 52, 0.88));
+  border: 1px solid rgba(160, 200, 255, 0.35);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+}
+
+.aud-os-chip img {
+  width: 52px;
+  height: 58px;
+  object-fit: contain;
+}
+
+.aud-os-chip small {
+  display: block;
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 2.5px;
+  color: #9fb7e8;
+}
+
+.aud-os-chip strong {
+  display: block;
+  font-family: 'pirulen', sans-serif;
+  font-weight: normal;
+  line-height: 1.2;
+  letter-spacing: 1px;
+  color: #fff;
+}
+
+.aud-os-palco {
+  position: absolute;
+  left: 0;
+  top: 78px;
+  width: 560px;
+  height: 318px;
+}
+
+.aud-os-luz {
+  position: absolute;
+  left: 50%;
+  top: -150px;
+  width: 470px;
+  height: 480px;
+  margin-left: -235px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(170, 215, 255, 0.5), rgba(170, 215, 255, 0.08) 80%, transparent);
+  clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%);
+  filter: blur(14px);
+  mix-blend-mode: screen;
+}
+
+.aud-os-piso {
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  width: 520px;
+  height: 84px;
+  margin-left: -260px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(110, 175, 255, 0.6), rgba(20, 70, 200, 0.2) 46%, transparent 70%);
+  box-shadow: inset 0 0 0 2px rgba(160, 205, 255, 0.35);
+}
+
+.aud-os-carro {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 22px 18px rgba(0, 0, 0, 0.6));
+}
+
+.aud-os-placa {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 404px;
+  display: flex;
+  justify-content: center;
+}
+
+/* =============================================================== o locutor */
+
+.aud-grito {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  white-space: nowrap;
+  font-family: 'pirulen', sans-serif;
+  line-height: 1.1;
+  letter-spacing: 4px;
+  isolation: isolate;
+}
+
+/* A faixa escura atrás da frase: por cima do palco cheio o ouro sozinho se perdia. */
+.aud-grito::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1.3em;
+  z-index: -1;
+  transform: translateY(-50%);
+  background: linear-gradient(90deg, transparent, rgba(2, 8, 26, 0.78) 16%, rgba(2, 8, 26, 0.78) 84%, transparent);
+}
+
+.aud-grito span {
+  position: relative;
+  display: inline-block;
+  transform: skewX(-7deg);
+  background: linear-gradient(180deg, #fff7cf 0%, #ffd84d 42%, #ff9e00 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 6px 0 #6b3a00) drop-shadow(0 0 28px rgba(255, 190, 60, 0.6));
+}
+
+.aud-grito--vermelho span {
+  background-image: linear-gradient(180deg, #ffe0dd 0%, #ff5a4f 45%, #b3140c 100%);
+  filter: drop-shadow(0 6px 0 #4a0400) drop-shadow(0 0 28px rgba(255, 60, 40, 0.65));
+}
+
+.aud-grito--branco span {
+  background-image: linear-gradient(180deg, #ffffff 0%, #cfe0ff 100%);
+  filter: drop-shadow(0 5px 0 #0a2a6b) drop-shadow(0 0 24px rgba(120, 180, 255, 0.65));
+}
+
+/* O brilho que atravessa a palavra, uma vez, depois de ela assentar. */
+.aud-grito span::after {
+  content: attr(data-t);
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 38%, rgba(255, 255, 255, 0.95) 50%, transparent 62%) no-repeat;
+  background-size: 260% 100%;
+  background-position: 200% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: aud-brilho-texto 1s 0.25s ease-out 1 forwards;
+}
+
+@keyframes aud-brilho-texto {
+  to {
+    background-position: -110% 0;
+  }
+}
+
+.aud-raios {
+  position: absolute;
+  width: 1900px;
+  height: 1900px;
+  margin: -950px 0 0 -950px;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 216, 77, 0.3) 0deg 6deg, transparent 6deg 16deg);
+  -webkit-mask: radial-gradient(circle, #000 0, #000 16%, transparent 60%);
+  mask: radial-gradient(circle, #000 0, #000 16%, transparent 60%);
+  mix-blend-mode: screen;
+  animation: aud-girar 16s linear infinite;
+}
+
+.aud-painel {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.65));
+}
+
+.aud-painel > .lz .l-base {
+  fill: rgba(4, 16, 46, 0.975);
+}
+
+.aud-painel > .lz .l-borda {
+  stroke: #ffd84d;
+}
+
+.aud-painel > .lz .l-reflexo {
+  opacity: 0.6;
+}
+
+.aud-painel-conteudo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 100%;
+  padding: 0 44px;
+}
+
+.ff-text.aud-painel-titulo {
+  font: 50px/1.05 'pirulen', sans-serif;
+  letter-spacing: 3px;
+  color: #fff;
+  text-shadow: 0 0 26px rgba(255, 216, 77, 0.45);
+}
+
+.ff-text.aud-painel-titulo--ouro {
+  color: #ffd84d;
+}
+
+.ff-text.aud-painel-titulo--menor {
+  font-size: 40px;
+}
+
+.ff-text.aud-painel-sub {
+  margin-top: 12px;
+  max-width: 700px;
+  font-family: 'Open Sans', sans-serif;
+  line-height: 1.4;
+  color: #c9d7f5;
+}
+
+.aud-painel-botoes {
+  display: flex;
+  gap: 30px;
+  margin-top: 26px;
+}
+
+.aud-escolhida {
+  margin-top: 18px;
+  max-width: 700px;
+  padding: 12px 34px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  text-align: left;
+  background: linear-gradient(180deg, rgba(255, 216, 77, 0.95), rgba(255, 160, 0, 0.95));
+  clip-path: polygon(18px 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 18px 100%, 0 50%);
+  color: #231500;
+}
+
+.aud-escolhida b {
+  flex: none;
+  font: 38px/1 'pirulen', sans-serif;
+  font-weight: normal;
+}
+
+.aud-escolhida .ff-text {
+  font-family: 'Paralucent', sans-serif;
+  font-weight: 500;
+  line-height: 1.25;
+  color: inherit;
+}
+
+.aud-escolhida--verde {
+  background: linear-gradient(180deg, #7cffb8, #1fd37a 45%, #0b7f45);
+  color: #02240f;
+}
+
+[data-estilo-pergunta='classico'] .ff-text.aud-painel-titulo {
+  font-size: 42px;
+}
+
+[data-estilo-pergunta='classico'] .ff-text.aud-painel-titulo--menor {
+  font-size: 34px;
+}
+
+/* No clássico a alternativa repetida no painel imita a da coluna: barra de
+   canto redondo, número no círculo — vermelho enquanto travada, verde na lição. */
+[data-estilo-pergunta='classico'] .aud-escolhida {
+  max-width: 640px;
+  padding: 10px 26px 10px 12px;
+  clip-path: inset(0 round 16px);
+  background: linear-gradient(180deg, #ff6a2b, #e03a06 50%, #a51f00);
+  color: #fff;
+}
+
+[data-estilo-pergunta='classico'] .aud-escolhida b {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 28px;
+  background: radial-gradient(circle at 38% 32%, #ff7a5c, #e0301e 55%, #8f1206);
+  box-shadow: inset 0 0 0 4px #fff;
+}
+
+[data-estilo-pergunta='classico'] .aud-escolhida--verde {
+  background: linear-gradient(180deg, #6dffb0, #1fd37a 45%, #007e42);
+  color: #02240f;
+}
+
+[data-estilo-pergunta='classico'] .aud-escolhida--verde b {
+  background: radial-gradient(circle at 38% 32%, #6dffb0, #1fd37a 55%, #007e42);
+  color: #fff;
+}
+
+/* O resultado: o tempo no odômetro e o ranking abrindo espaço para o jogador. */
+.aud-tempo-final {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+}
+
+.aud-tempo-final small {
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: #9fb7e8;
+}
+
+.aud-tempo-final b {
+  font-family: 'pirulen', sans-serif;
+  font-weight: normal;
+  line-height: 1;
+  color: #ffd84d;
+  text-shadow: 0 0 24px rgba(255, 216, 77, 0.5);
+}
+
+.aud-lista {
+  position: relative;
+  width: 600px;
+  height: 200px;
+  margin-top: 12px;
+}
+
+.aud-linha {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 26px;
+  font-family: 'pirulen', sans-serif;
+  color: #fff;
+  background: rgba(12, 34, 88, 0.8);
+  clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 14px 100%, 0 50%);
+}
+
+.aud-linha .ff-text {
+  font-size: 20px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.aud-linha-p {
+  width: 48px;
+  color: #9fb7e8;
+}
+
+.aud-linha .aud-linha-n {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.aud-linha-t {
+  color: #cfe0ff;
+}
+
+.aud-linha--eu {
+  background: linear-gradient(180deg, #fff1b8, #ffc21a 50%, #e88a00);
+  color: #231500;
+}
+
+.aud-linha--eu .aud-linha-p,
+.aud-linha--eu .aud-linha-t {
+  color: #231500;
+}
+
+/* A lição: a certa, e onde aprender — com o QR do vídeo, quando há link. */
+.aud-licao-tv {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  max-width: 700px;
+  margin-top: 18px;
+  text-align: left;
+}
+
+.aud-licao-tv > img {
+  flex: none;
+  width: 170px;
+  height: 106px;
+  padding: 8px;
+  border-radius: 12px;
+  object-fit: contain;
+  object-view-box: inset(18.9% 5.3% 10.2% 6.7%);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.aud-licao-qr {
+  flex: none;
+  padding: 6px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 0 0 3px #ffd84d, 0 0 24px rgba(255, 216, 77, 0.5);
+}
+
+.aud-licao-qr svg {
+  display: block;
+}
+
+.aud-licao-tv small {
+  display: block;
+  margin-bottom: 6px;
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 800;
+  letter-spacing: 2.5px;
+  color: #ff8a80;
+}
+
+.aud-licao-tv p {
+  margin: 0;
+  font-family: 'Paralucent', sans-serif;
+  font-weight: 500;
+  line-height: 1.3;
+  color: #fff;
+}
+
+.aud-licao-tv p.aud-licao-aponte {
+  margin-top: 8px;
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 600;
+  color: #ffd84d;
+}
+
+/* ====================================================================== fim */
+
+.pg-fim .fim-esquerda {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 960px;
+  height: 1080px;
+}
+
+.fim-anfitriao {
+  position: absolute;
+  left: 30px;
+  bottom: 20px;
+  width: 880px;
+  height: auto;
+  filter: drop-shadow(0 30px 40px rgba(0, 0, 0, 0.45));
+}
+
+.fim-balao {
+  position: absolute;
+  left: 50px;
+  top: 50px;
+  width: 470px;
+  height: auto;
+  filter: drop-shadow(0 16px 24px rgba(0, 0, 0, 0.45));
+}
+
+.ff-text.fim-manchete {
+  position: absolute;
+  left: 560px;
+  top: 70px;
+  width: 380px;
+  font-family: 'pirulen', sans-serif;
+  line-height: 1.2;
+  letter-spacing: 3px;
+  color: #fff;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.6);
+}
+
+.pg-fim .fim-direita {
+  position: absolute;
+  left: 990px;
+  top: 40px;
+  width: 880px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.fim-coluna-podio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.ff-text.fim-titulo {
+  font-family: 'pirulen', sans-serif;
+  letter-spacing: 3px;
+  color: #fff;
+  text-shadow: 0 0 22px rgba(120, 180, 255, 0.45);
+}
+
+.fim-podio {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 18px;
+  min-height: 330px;
+  width: 100%;
+}
+
+.fim-degrau {
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.fim-degrau--vazio {
+  height: 1px;
+}
+
+.ff-text.fim-degrau-nome {
+  max-width: 100%;
+  font-family: 'pirulen', sans-serif;
+  color: #fff;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.ff-text.fim-degrau-tempo {
+  font-family: 'pirulen', sans-serif;
+  color: #cfe0ff;
+}
+
+.fim-pedestal {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 14px;
+  border-radius: 14px 14px 0 0;
+  background: linear-gradient(180deg, #2b5fd6, #0c2a78);
+  box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.35), 0 16px 30px rgba(0, 0, 0, 0.45);
+  transform-origin: 50% 100%;
+}
+
+.fim-pedestal .ff-text {
+  font-family: 'pirulen', sans-serif;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.fim-degrau--1 .fim-pedestal {
+  background: linear-gradient(180deg, #ffe27a, #ffb400 55%, #b37a00);
+}
+
+.fim-degrau--1 .fim-pedestal .ff-text {
+  color: #3a2600;
+}
+
+.fim-degrau--2 .fim-pedestal {
+  background: linear-gradient(180deg, #eef2f8, #aeb9cc 55%, #6f7b93);
+}
+
+.fim-degrau--2 .fim-pedestal .ff-text {
+  color: #1a2438;
+}
+
+.fim-degrau--3 .fim-pedestal {
+  background: linear-gradient(180deg, #f2b27a, #c9772e 55%, #7a4212);
+}
+
+.fim-degrau--eu .fim-degrau-nome {
+  color: #ffd84d;
+}
+
+.fim-degrau--eu .fim-pedestal {
+  box-shadow: 0 0 0 4px #ffd84d, 0 0 40px rgba(255, 216, 77, 0.6);
+}
+
+.ff-text.fim-vazio {
+  align-self: center;
+  font-family: 'Open Sans', sans-serif;
+  color: #b9c6da;
+  text-align: center;
+}
+
+.fim-minha {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 26px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fff1b8, #ffc21a 50%, #e88a00);
+  color: #231500;
+}
+
+.fim-minha .ff-text {
+  font-family: 'pirulen', sans-serif;
+  line-height: 1;
+}
+
+.fim-licao {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 20px 26px;
+  border-radius: 16px;
+  background: rgba(0, 14, 36, 0.78);
+  border: 2px solid #ff5963;
+}
+
+.fim-licao-texto {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ff-text.fim-licao-titulo {
+  font-family: 'pirulen', sans-serif;
+  letter-spacing: 2px;
+  color: #ff9a94;
+}
+
+.ff-text.fim-licao-certa {
+  font-family: 'Open Sans', sans-serif;
+  color: #fff;
+}
+
+.ff-text.fim-licao-escolhida {
+  font-family: 'Open Sans', sans-serif;
+  color: #b9c6da;
+}
+
+.ff-text.fim-licao-aponte {
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 700;
+  color: #ffd84d;
+}
+
+.fim-qr {
+  flex: none;
+  padding: 6px;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.fim-qr svg {
+  display: block;
+}
+
+.fim-chamada {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 18px 26px;
+  border-radius: 18px;
+  background: linear-gradient(90deg, rgba(0, 81, 255, 0.9), rgba(14, 116, 144, 0.9));
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
+}
+
+.fim-chamada-icone svg {
+  display: block;
+  width: 64px;
+  height: 64px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ff-text.fim-chamada-titulo {
+  font-family: 'pirulen', sans-serif;
+  letter-spacing: 2px;
+  color: #fff;
+}
+
+.ff-text.fim-chamada-sub {
+  font-family: 'Open Sans', sans-serif;
+  color: #dbe6ff;
+}
+
+.pg-fim .fim-reiniciar {
+  position: absolute;
+  right: 60px;
+  bottom: 40px;
+  /* O `.ff-scaffold > *` do porte estica todo filho direto da tela a 100%. */
+  width: auto;
+  height: auto;
+}
+
+/* ================================================== o modo de atração ==== */
+
+/* O cadastro some por baixo da atração: atrás do letreiro fica o estúdio. */
+.ff-scaffold.atr-escondido {
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+.atr-palco {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  overflow: clip;
+  background: radial-gradient(ellipse at 30% 40%, rgba(11, 44, 120, 0.35), rgba(0, 6, 17, 0.45) 70%);
+}
+
+/* A roleta girando sozinha, devagar, mostrando os veículos em jogo. */
+.atr-roda {
+  position: absolute;
+  left: -150px;
+  bottom: -260px;
+  width: 620px;
+  height: 620px;
+  opacity: 0.5;
+  animation: aud-girar 60s linear infinite;
+}
+
+.atr-roda > img,
+.atr-roda > svg {
+  width: 620px;
+  height: 620px;
+  object-fit: contain;
+}
+
+.atr-esquerda {
+  position: absolute;
+  left: 80px;
+  top: 70px;
+  width: 820px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 26px;
+}
+
+.ff-text.atr-toque {
+  font-family: 'pirulen', sans-serif;
+  letter-spacing: 4px;
+  white-space: nowrap;
+  text-align: center;
+  color: #ffd84d;
+  text-shadow: 0 0 30px rgba(255, 216, 77, 0.7);
+  animation: aud-convite 1.4s ease-in-out infinite;
+}
+
+@keyframes aud-convite {
+  50% {
+    scale: 1.06;
+    opacity: 0.75;
+  }
+}
+
+.atr-dia {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.ff-text.atr-dia-numeros,
+.ff-text.atr-dia-campeao {
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 600;
+  color: #dbe6ff;
+}
+
+.atr-dia-numeros b {
+  font-family: 'pirulen', sans-serif;
+  font-weight: normal;
+  color: #ffd84d;
+  letter-spacing: 2px;
+}
+
+.atr-direita {
+  position: absolute;
+  left: 980px;
+  top: 90px;
+  width: 860px;
+}
+
+.atr-hall {
+  padding: 36px 40px;
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(8, 22, 58, 0.92), rgba(3, 11, 32, 0.92));
+  border: 2px solid rgba(255, 216, 77, 0.5);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.55);
+}
+
+.ff-text.atr-hall-titulo {
+  margin-bottom: 26px;
+  font-family: 'pirulen', sans-serif;
+  letter-spacing: 3px;
+  color: #fff;
+  text-align: center;
+}
+
+.atr-linhas {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.atr-linha {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  height: 84px;
+  padding: 0 28px;
+  border-radius: 16px;
+  background: rgba(12, 34, 88, 0.85);
+  animation: aud-hall 3.6s ease-in-out infinite;
+  animation-delay: calc(var(--i) * 0.18s);
+}
+
+@keyframes aud-hall {
+  0%,
+  70%,
+  100% {
+    translate: 0 0;
+  }
+
+  80% {
+    translate: 10px 0;
+  }
+}
+
+.atr-linha .ff-text {
+  font-family: 'pirulen', sans-serif;
+  line-height: 1;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.atr-linha .atr-nome {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.atr-linha--ouro {
+  background: linear-gradient(180deg, #fff1b8, #ffc21a 50%, #e88a00);
+}
+
+.atr-linha--ouro .ff-text {
+  color: #231500;
+}
+
+.atr-linha--prata {
+  background: linear-gradient(180deg, #f4f7fb, #aeb9cc 55%, #7d889c);
+}
+
+.atr-linha--prata .ff-text {
+  color: #0a1a3a;
+}
+
+.atr-linha--bronze {
+  background: linear-gradient(180deg, #f2b27a, #c9772e 55%, #7a4212);
+}
+
+.ff-text.atr-vazio {
+  font-family: 'Open Sans', sans-serif;
+  color: #b9c6da;
+  text-align: center;
+}
+
+/* ============================================================== a roleta */
+
+.roleta-area,
+.roleta-eixo {
+  /* O dedo que arrasta a roda não pode virar rolagem ou zoom. */
+  touch-action: none;
+  cursor: grab;
+}
+
+.roleta-eixo:active {
+  cursor: grabbing;
+}
+
+/* A dica do gesto, solta embaixo do botão (fora do fluxo da coluna). */
+.roleta-botao {
+  position: relative;
+  display: flex;
+}
+
+.ff-text.roleta-dica {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 12px);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
+/* A fatia vencedora: uma forma PARADA embaixo, onde a seta aponta. */
+.roleta-vencedora {
+  opacity: 0;
+  mix-blend-mode: screen;
+}
+
+.roleta-vencedora.acesa {
+  opacity: 1;
+  animation: aud-vencedora 0.8s ease-in-out 0.7s infinite alternate;
+}
+
+@keyframes aud-vencedora {
+  to {
+    opacity: 0.55;
+  }
+}
+
+/* O nome do carro que ganhou, sobre o miolo da roda: embaixo ele cobriria
+   justamente a foto da fatia que ganhou. */
+.roleta-parou {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 10px 34px;
+  border-radius: 16px;
+  font-family: 'pirulen', sans-serif;
+  font-size: 40px;
+  line-height: 1.1;
+  letter-spacing: 3px;
+  white-space: nowrap;
+  color: #231500;
+  background: linear-gradient(180deg, #fff1b8, #ffc21a 50%, #e88a00);
+  box-shadow: 0 0 0 3px #fff6cc, 0 0 36px rgba(255, 200, 60, 0.8);
+  pointer-events: none;
+}
+
+/* O aro comemorando: três piscadas fortes, em vez do estalo único de antes. */
+.roleta-faisca--festa {
+  animation: aud-festa-aro 0.28s steps(2, jump-none) 5;
+}
+
+@keyframes aud-festa-aro {
+  0% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.1;
+  }
+}
+
+/* ============================================================ o carro */
+
+.carro-moldura {
+  position: relative;
+  display: flex;
+}
+
+/* O reflexo de showroom: a foto clareada, só dentro de uma faixa que corre. */
+.carro-reflexo {
+  opacity: 0;
+  filter: brightness(2.3) saturate(0.35);
+  clip-path: polygon(-30% 0, -18% 0, -28% 100%, -40% 100%);
+  pointer-events: none;
+}
+
+.carro-reflexo.passando {
+  animation: aud-reflexo 900ms cubic-bezier(0.4, 0, 0.2, 1) 1;
+}
+
+@keyframes aud-reflexo {
+  0% {
+    opacity: 0.9;
+    clip-path: polygon(-30% 0, -18% 0, -28% 100%, -40% 100%);
+  }
+
+  100% {
+    opacity: 0.9;
+    clip-path: polygon(128% 0, 140% 0, 130% 100%, 118% 100%);
+  }
+}
+
+.aud-placa.carro-placa {
+  display: block;
+}
+
+/* ============================================ a escolha do equipamento */
+
+.eq-cartao {
+  position: relative;
+  display: flex;
+  transition: transform 140ms ease-out;
+  transform-style: preserve-3d;
+}
+
+.eq-cartao--inclinado {
+  transform: perspective(900px) rotateX(var(--incl-x, 0deg)) rotateY(var(--incl-y, 0deg)) scale(1.03);
+}
+
+/* A luz que segue o dedo no cartão inclinado. */
+.eq-brilho {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease;
+  background: radial-gradient(circle at var(--luz-x, 50%) var(--luz-y, 50%), rgba(255, 255, 255, 0.35), transparent 55%);
+  mix-blend-mode: screen;
+}
+
+.eq-cartao--inclinado .eq-brilho {
+  opacity: 1;
+}
+
+.eq-carimbo {
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  z-index: 2;
+  transform: translate(-50%, -50%) rotate(-14deg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 22px;
+  border: 6px solid #ff3b30;
+  border-radius: 12px;
+  background: rgba(40, 0, 0, 0.72);
+  color: #ff5a4f;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 0 30px rgba(255, 59, 48, 0.5);
+}
+
+.eq-carimbo b {
+  font-family: 'pirulen', sans-serif;
+  font-weight: normal;
+  letter-spacing: 3px;
+  line-height: 1;
+}
+
+.eq-carimbo span {
+  max-width: 340px;
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #ffd2cf;
+}
+
+/* O escolhido, voando para o centro para "ligar". */
+.eq-voador {
+  position: absolute;
+  z-index: 5;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.eq-voador-tela {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(ellipse at 50% 45%, rgba(170, 225, 255, 0.85), rgba(0, 120, 255, 0.25) 45%, transparent 70%);
+  mix-blend-mode: screen;
+}
+
+.eq-voador--ligado {
+  box-shadow: 0 0 0 4px rgba(170, 225, 255, 0.9), 0 0 70px rgba(80, 170, 255, 0.9);
+}
+
+.eq-voador--ligado .eq-voador-tela {
+  animation: aud-ligar 700ms ease-out forwards;
+}
+
+@keyframes aud-ligar {
+  0% {
+    opacity: 0;
+  }
+
+  30% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.55;
+  }
+}
+
+/* Enquanto o escolhido voa, os outros recuam. */
+.eq-escolhendo .eq-stack {
+  filter: brightness(0.45) saturate(0.4);
+  transition: filter 300ms ease;
+}
+
+/* ================================================= o aviso do operador */
+
+.aud-aviso-operador {
+  position: absolute;
+  right: 40px;
+  top: 40px;
+  z-index: 60;
+  padding: 14px 24px;
+  border-radius: 14px;
+  background: rgba(3, 10, 28, 0.9);
+  border: 1px solid rgba(160, 200, 255, 0.4);
+  color: #fff;
+  font: 600 26px/1.2 'Open Sans', sans-serif;
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+
+.aud-aviso-operador.visivel {
+  opacity: 1;
+}
+
+/* ======================================================= menos movimento */
+/* Sai o que é movimento em laço; a cor continua dizendo o momento. */
+
+@media (prefers-reduced-motion: reduce) {
+  .palco-raios,
+  .aud-lampada,
+  .aud-ficha-face::after,
+  .aud-botao::after,
+  .aud-brilho::after,
+  .aud-raios,
+  .aud-botao-env--pulsa,
+  .aud-opcao.travada,
+  .aud-taco--reta,
+  .aud-chamando::before,
+  .aud-digitando i,
+  .aud-opcao.glitch .aud-opcao-conteudo,
+  .atr-toque,
+  .atr-roda,
+  .atr-linha,
+  .roleta-vencedora.acesa,
+  .roleta-faisca--festa,
+  .aud-grito span::after {
+    animation: none !important;
+  }
+
+  .aud-opcao.travada {
+    filter: drop-shadow(0 0 24px rgba(255, 190, 0, 0.9));
+  }
+
+  .eq-cartao--inclinado {
+    transform: none;
+  }
+}

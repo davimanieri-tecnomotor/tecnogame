@@ -627,7 +627,14 @@ export function InkWell({ onTap, child, style, disabled = false, label, feedback
     });
     // Enter e Espaco, o contrato de um botao. Espaco tem de ter o rolar da
     // pagina cancelado no keydown, mas dispara no keyup, como um <button>.
+    //
+    // So a tecla do PROPRIO alvo. A que nasce num campo de texto la dentro
+    // sobe ate aqui — e o cadastro inteiro mora dentro de um InkWell, o que
+    // capta o toque no fundo. Sem esta guarda o `preventDefault` do Espaco
+    // engolia o espaco digitado no nome: "Davi Manieri" virava "DaviManieri"
+    // (foi o anuncio "COM VOCES" da 3.0 que mostrou).
     node.addEventListener('keydown', (event) => {
+      if (event.target !== node) return;
       if (event.key === 'Enter') {
         event.preventDefault();
         event.stopPropagation();
@@ -637,6 +644,7 @@ export function InkWell({ onTap, child, style, disabled = false, label, feedback
       }
     });
     node.addEventListener('keyup', (event) => {
+      if (event.target !== node) return;
       if (event.key === ' ' || event.key === 'Spacebar') {
         event.preventDefault();
         event.stopPropagation();

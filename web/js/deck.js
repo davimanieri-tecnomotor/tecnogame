@@ -118,8 +118,41 @@ export function perguntaVazia() {
     scanners: { raster3S: true, rasher4: true, xtool: true },
     pularEquipamento: false,
     gabarito: '1',
+    video: '',
     ...textos,
   };
+}
+
+/**
+ * Um nome legível para uma pergunta, a partir do id que a partida grava
+ * (`perguntaId`, desde a 3.0): "VW 24-280 — No Rasther, existe uma função…".
+ * É o que a aba Respostas mostra no lugar de "orig-5" ou "pmfq3…". Pergunta
+ * que saiu do baralho continua aparecendo pelo id, que é o que sobrou dela.
+ */
+export function rotuloDaPergunta(id, deck) {
+  if (!id) return '';
+  for (const slot of deck?.slots ?? []) {
+    const pergunta = (slot.perguntas ?? []).find((p) => p.id === id);
+    if (!pergunta) continue;
+    const texto = String(pergunta.pt?.pergunta ?? '').trim();
+    const inicio = texto.length > 60 ? `${texto.slice(0, 60)}…` : texto;
+    return [slot.veiculo?.nome?.trim(), inicio].filter(Boolean).join(' — ') || id;
+  }
+  return id;
+}
+
+/**
+ * O link do vídeo do TecnomotorTV de uma pergunta, se for um link de verdade.
+ *
+ * Desde a 3.0 cada pergunta pode guardar o endereço do vídeo que ensina o
+ * assunto dela, e quem erra leva um QR code para ele (ver a lição, em
+ * pages/tela_acao.js). É um só para os três idiomas: o conteúdo do canal é em
+ * português. Só `http(s)`: o QR de um texto qualquer levaria o celular do
+ * jogador a lugar nenhum — ou a um lugar que ninguém escolheu.
+ */
+export function videoDaPergunta(pergunta) {
+  const v = String(pergunta?.video ?? '').trim();
+  return /^https?:\/\/\S+$/i.test(v) ? v : '';
 }
 
 /** Um slot vazio, para o admin criar uma rodada nova. */
@@ -154,6 +187,9 @@ export const SLOTS_ORIGINAIS = VEICULOS_ORIGINAIS.map((veiculo, i) => {
     // O baralho de fábrica pergunta sempre: é o que o Dart fazia.
     pularEquipamento: false,
     gabarito: String(base.gabarito),
+    // O Dart não guardava link de vídeo: `ajudaTecnomotorTv` é só texto. O
+    // operador preenche no painel, pergunta por pergunta.
+    video: '',
   };
   for (const lang of IDIOMAS) {
     const q = QUESTIONS[lang][i] ?? {};
@@ -212,6 +248,11 @@ export function validarBaralho(deck) {
           }
         }
       }
+      // O vídeo é opcional; mas se preenchido, tem de ser um endereço — é ele
+      // que vira o QR code que o jogador leva no celular.
+      if (String(pergunta.video ?? '').trim() && !videoDaPergunta(pergunta)) {
+        erros.push(`${ondeP}: o link do vídeo precisa começar com https:// (está "${String(pergunta.video).trim().slice(0, 40)}")`);
+      }
     });
   });
 
@@ -238,6 +279,8 @@ function normalizarPergunta(bruta, molde) {
     // tem o campo, e o jogo tem de continuar perguntando nele.
     pularEquipamento: bruta?.pularEquipamento === true,
     gabarito: String(bruta?.gabarito ?? '1'),
+    // Baralho de antes da 3.0 não tem vídeo: nasce vazio, e a lição sai sem QR.
+    video: typeof bruta?.video === 'string' ? bruta.video : '',
   };
   for (const lang of IDIOMAS) {
     pergunta[lang] = { ...molde[lang], ...(bruta?.[lang] ?? {}) };

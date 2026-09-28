@@ -30,6 +30,7 @@ const ROTAS = [
   ['perdeu', '/perdeu'],
   ['instrucoes', '/instrucoes'],
   ['telaVideoScanner', '/telaVideoScanner'],
+  ['milhao', '/milhao'],
 ];
 
 const browser = await puppeteer.launch({

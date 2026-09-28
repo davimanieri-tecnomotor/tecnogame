@@ -24,7 +24,7 @@ import {
 } from '../widgets.js';
 import { TH, style } from '../theme.js';
 import { L } from '../i18n.js';
-import { playSound } from '../audio.js';
+import { Som } from '../som.js';
 import { goNamed, serializeParam } from '../router.js';
 import {
   AnimationInfo,
@@ -39,7 +39,6 @@ import {
 const NEXT = () => goNamed('telaVideoTransisao', { queryParameters: { tipo: serializeParam(1) } });
 
 export function InstrucoesWidget() {
-  const model = {};
   let left = false;
 
   const animationsMap = {
@@ -64,7 +63,7 @@ export function InstrucoesWidget() {
 
   const skipButton = InkWell({
     onTap: async () => {
-      playSound(model, 'soundPlayer', 'assets/audios/adriantnt_u_click.mp3', 1.0);
+      Som.clique();
       animationsMap.containerOnActionTriggerAnimation.controller.forward();
       left = true;
       NEXT();

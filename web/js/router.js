@@ -7,6 +7,9 @@
 
 import { popAllDialogs } from './dialog.js';
 import { unfocus } from './widgets.js';
+import { menosMovimento } from './anim.js';
+import { lamina, repousar } from './palco.js';
+import { Som } from './som.js';
 
 const routes = new Map();
 /** name -> path, so goNamed can resolve like go_router does. */
@@ -38,23 +41,29 @@ export const serializeParam = (value) => (value == null ? null : String(value));
 /* --------------------------------------------------------- a transição ---- */
 
 /**
- * TODA troca de tela é a mesma coisa: a que sai apaga, a que entra acende.
+ * TODA troca de tela é a mesma coisa — e desde a 3.0 ela tem assinatura: uma
+ * faixa de luz inclinada atravessa o palco, e o que fica para trás dela já é a
+ * tela nova (a lâmina, em palco.js).
  *
  * O porte trouxe do Dart duas gramáticas — `fade` e `scale` — e as telas as
  * misturavam. A escolha do equipamento, os dois vídeos e a tela da pergunta
  * NASCIAM DE UM PONTO no rodapé e cresciam até encher o palco, enquanto as
  * outras esmaeciam. Num totem em que o jogador atravessa sete telas em dois
  * minutos, mudar de gramática a cada passo se lê como defeito, e não como
- * variedade — e a escala ainda espremia a arte no caminho.
+ * variedade. A regra de uma gramática só continua; o que mudou foi o gesto.
  *
- * Quem decide agora é este arquivo, e só ele. `goNamed` é como o jogo troca de
- * tela: esmaece sempre. `go` continua instantâneo, porque quem o chama não está
- * viajando — é a troca de idioma, que reconstrói a MESMA tela, e a porta da
- * administração, que levanta uma camada por fora do palco.
+ * Quem decide é este arquivo, e só ele. `goNamed` é como o jogo troca de tela:
+ * a lâmina passa sempre. `go` continua instantâneo, porque quem o chama não
+ * está viajando — é a troca de idioma, que reconstrói a MESMA tela, e a porta
+ * da administração, que levanta uma camada por fora do palco.
  *
- * Os dois trechos são sequenciais de propósito (`render` espera o primeiro):
- * a tela que sai some inteira antes de a outra aparecer, e o que se vê no meio
- * é o fundo do palco. Cruzar as duas deixaria dois desenhos sobrepostos.
+ * A tela nova entra POR BAIXO da que sai e já começa a se montar enquanto a
+ * faixa passa: é a faixa que a revela. O fundo do palco (a luz) não troca, e é
+ * isso que faz a passagem parecer um estúdio mudando de quadro, e não um
+ * aplicativo mudando de página.
+ *
+ * Com "menos movimento" no sistema volta o esmaecer de antes: a que sai apaga
+ * inteira, depois a que entra acende (sequencial, para não sobrepor desenhos).
  */
 const ESMAECER_MS = 300;
 
@@ -85,12 +94,18 @@ async function render(path, { comFade }) {
 
     const container = document.getElementById('pages');
     const previous = current;
+    const comLamina = comFade && previous && !menosMovimento();
 
     if (previous) {
       // dispose() on the outgoing page's state.
       previous.dispose?.();
-      if (comFade) await esmaecer(previous.node, 1, 0);
+      if (comFade && !comLamina) await esmaecer(previous.node, 1, 0);
     }
+
+    // A luz volta ao repouso ANTES de a tela nova se montar: quem quer outro
+    // humor (a pergunta, o cadastro em atração) o pede no próprio build, e a
+    // cor transita enquanto a lâmina passa.
+    repousar();
 
     const node = document.createElement('div');
     node.className = 'ff-page';
@@ -99,8 +114,13 @@ async function render(path, { comFade }) {
     const page = route.builder({ params, node });
     if (page && page !== node) node.appendChild(page);
 
-    if (previous) previous.node.remove();
-    container.appendChild(node);
+    if (comLamina) {
+      // Por baixo da que sai: é a faixa que a revela.
+      container.insertBefore(node, previous.node);
+    } else {
+      if (previous) previous.node.remove();
+      container.appendChild(node);
+    }
 
     current = {
       route,
@@ -116,7 +136,16 @@ async function render(path, { comFade }) {
       history.replaceState({ path }, '', `#${path}`);
     }
 
-    if (comFade) await esmaecer(node, 0, 1);
+    if (comLamina) {
+      Som.lamina();
+      // A que sai não recebe mais toque: o dedo que acerta a faixa já está na
+      // tela nova, e um segundo toque na velha navegaria duas vezes.
+      previous.node.style.pointerEvents = 'none';
+      await lamina(previous.node);
+      previous.node.remove();
+    } else if (comFade) {
+      await esmaecer(node, 0, 1);
+    }
   } finally {
     navigating = false;
     // So o ultimo pedido interessa: quem apertou duas telas atras nao quer

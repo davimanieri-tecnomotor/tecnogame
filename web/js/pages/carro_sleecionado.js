@@ -11,15 +11,21 @@
 //
 //   - o carro entra pela direita com velocidade e freia, passando um pouco do
 //     ponto e voltando (o mesmo excesso amortecido do recuo da roleta);
-//   - a placa com o nome bate depois, como carimbo;
+//   - a placa com o nome bate depois, como carimbo — desde a 3.0 uma placa
+//     Mercosul, que o mecânico reconhece de longe;
+//   - quando o carro para, a revelação de showroom: um reflexo de luz atravessa
+//     a lataria (só a lataria: o reflexo é recortado pela própria foto) e há um
+//     flash de câmera;
 //   - pousado, o carro respira devagar, para os segundos que sobram até a
 //     próxima tela não serem uma foto parada.
 
-import { Align, Column, Container, Padding, Txt, decorationImage, el, color, unfocus } from '../widgets.js';
-import { style } from '../theme.js';
+import { Align, Column, Container, Padding, el, unfocus } from '../widgets.js';
 import { FFAppState } from '../state.js';
 import { EQUIPAMENTO_PADRAO } from '../components/ferramenta.js';
 import { CarroFotoWidget } from '../components/carro_foto.js';
+import { PlacaMercosul } from '../components/placa.js';
+import { Som } from '../som.js';
+import { flash } from '../palco.js';
 import { goNamed } from '../router.js';
 import {
   AnimationInfo,
@@ -76,8 +82,12 @@ export function CarroSleecionadoWidget() {
     }),
   };
 
-  const foto = CarroFotoWidget();
+  // O reflexo de showroom mora DENTRO da foto (ver carro_foto.js): uma cópia
+  // clareada que só aparece na faixa de luz que atravessa a lataria.
+  const foto = CarroFotoWidget({ comReflexo: true });
   animateOnPageLoad(foto, animationsMap.carroOnPageLoadAnimation);
+  const reflexo = foto.__reflexo;
+  const veiculo = FFAppState.slotAtual?.veiculo;
 
   // O respiro parado fica NO INVÓLUCRO, e não na foto: a entrada escreve
   // `transform` na foto pela Web Animations API, e uma animação CSS de
@@ -87,17 +97,20 @@ export function CarroSleecionadoWidget() {
 
   // O nome vinha de uma tabela fixa por indice no Dart (que, aliás, nao era o
   // campo `nome` da questao — esse o jogo nunca exibia). Agora e o nome do
-  // veiculo da rodada.
-  const nome = Txt(FFAppState.slotAtual?.veiculo?.nome || 'SEM CARRO SELECIONADO', {
-    ...style('bodyMedium', {
-      fontFamily: 'Roboto',
-      fontWeight: 700,
-      color: '#FFFFFF',
-      fontSize: 70.0,
-      letterSpacing: 5.0,
-    }),
-  });
+  // veiculo da rodada, numa placa Mercosul.
+  const nome = PlacaMercosul(veiculo?.nome || 'SEM CARRO SELECIONADO', { tamanho: 66 });
+  nome.classList.add('carro-placa');
   animateOnPageLoad(nome, animationsMap.nomeOnPageLoadAnimation);
+
+  // A chegada se ouve: o carro passando, a placa batendo, o flash da câmera.
+  Som.whoosh(0.12, 0.62, 0.2, false);
+  Som.carimbo(0.9);
+  delayed(1250).then(() => {
+    if (left || !root.isConnected) return;
+    reflexo?.classList.add('passando');
+    flash('#ffffff', 0.55, 300);
+    Som.brilho(0);
+  });
 
   const content = Column({
     // `min`, e nao o `max` do Dart: dentro da Column de fora o Flutter dava a
@@ -109,13 +122,13 @@ export function CarroSleecionadoWidget() {
   });
   animateOnActionTrigger(content, animationsMap.columnOnActionTriggerAnimation);
 
+  // Sem arte de fundo: ela mora no palco (#fundo, ver palco.js), com a luz.
   const root = el(
     'div',
-    { class: 'ff-scaffold', style: { background: color(0xFF1D1D2B) } },
+    { class: 'ff-scaffold' },
     Container({
       width: Infinity,
       height: Infinity,
-      image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),
       child: Column({
         mainAxisSize: 'min',
         mainAxisAlignment: 'center',
@@ -143,7 +156,7 @@ export function CarroSleecionadoWidget() {
     // da pergunta uma pele inteira em vez do cinza de reserva, e não vê o vídeo
     // demonstrativo: ele é a apresentação do equipamento ESCOLHIDO, e aqui não
     // houve escolha. O registro da partida diz isso com todas as letras (ver
-    // `equipamentoDaPartida`, em perguntas_erespostas.js).
+    // `equipamentoDaPartida`, em pages/tela_acao.js).
     if (FFAppState.questoesBrasil[FFAppState.indiceAtual]?.pularEquipamento) {
       FFAppState.scannerEscolhido = EQUIPAMENTO_PADRAO;
       FFAppState.equipamentoPulado = true;

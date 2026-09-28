@@ -13,14 +13,14 @@ const NOME_IDIOMA = { pt: 'Português', en: 'English', es: 'Español' };
 
 /** Rótulo e ajuda de cada campo, para o operador não precisar adivinhar. */
 const ROTULOS = {
-  pergunta: ['Enunciado', 'O defeito que aparece na tela grande, à esquerda'],
+  pergunta: ['Enunciado', 'O defeito que aparece na caixa da pergunta'],
   respostaUm: ['Alternativa 1', null],
   respostaDois: ['Alternativa 2', null],
   respostaTres: ['Alternativa 3', null],
   respostaQuatro: ['Alternativa 4', null],
   ajudaApoio: ['Dica — Apoio Técnico', null],
   ajudaTreinamentoEad: ['Dica — Cursos EAD', null],
-  ajudaTecnomotorTv: ['Dica — TecnomotorTV', null],
+  ajudaTecnomotorTv: ['Dica — TecnomotorTV', 'Aparece também na lição de quem erra, ao lado do QR do vídeo (se houver link)'],
   ajudaComunidade: ['Dica — Comunidade', null],
   ajudaRepresentanteComercial: ['Dica — Representante comercial', null],
   relatoPreliminar: ['Relato preliminar', 'Não aparece no jogo — o original guardava e nunca exibia'],
@@ -256,14 +256,28 @@ export function editorDeSlot({ slot, pergunta, indice, posicao = 0, total = 1, o
     },
   });
 
+  // O vídeo do TecnomotorTV que ensina o assunto desta pergunta (3.0). Quem erra
+  // leva o link num QR code, na lição e na tela de fim. Um para os três
+  // idiomas: o canal é em português.
+  const campoVideo = campo({
+    rotulo: 'Vídeo do TecnomotorTV (link)',
+    valor: pergunta.video ?? '',
+    dica: 'Opcional. Cole o endereço completo (https://...). Quem errar esta pergunta leva um QR code para ele — na lição e na tela de fim.',
+    onInput: (v) => {
+      pergunta.video = v.trim();
+      mudou();
+    },
+  });
+
   const blocoRegras = el('section', { class: 'bloco' }, [
     el('h3', { text: 'Regras desta pergunta' }),
     campoGabarito,
+    campoVideo,
     el('div', { class: 'campo' }, [
       el('span', { class: 'campo-rotulo', text: 'Equipamentos que resolvem esta pergunta' }),
       el('span', {
         class: 'campo-dica',
-        text: 'Os não marcados abrem "equipamento inválido" quando o jogador escolhe. Ao menos um precisa estar marcado. Vale só para esta pergunta — outra do mesmo veículo pode pedir equipamentos diferentes.',
+        text: 'Os não marcados levam o carimbo "INCOMPATÍVEL" quando o jogador os escolhe. Ao menos um precisa estar marcado. Vale só para esta pergunta — outra do mesmo veículo pode pedir equipamentos diferentes.',
       }),
       grupoDeScanners,
     ]),
@@ -271,7 +285,7 @@ export function editorDeSlot({ slot, pergunta, indice, posicao = 0, total = 1, o
       campoPular,
       el('span', {
         class: 'campo-dica',
-        text: 'Para pergunta que não depende de scanner: o jogo vai do veículo direto para ela, com a tela do Rasther 3S e sem o vídeo demonstrativo de 14s. Os equipamentos acima deixam de valer, e a aba Respostas grava a partida como "não escolhido".',
+        text: 'Para pergunta que não depende de scanner: o jogo vai do veículo direto para ela, com o Rasther 3S na etiqueta "Você está usando" e sem o vídeo demonstrativo de 14s. Os equipamentos acima deixam de valer, e a aba Respostas grava a partida como "não escolhido".',
       }),
     ]),
   ]);
@@ -363,10 +377,12 @@ export function editorDeSlot({ slot, pergunta, indice, posicao = 0, total = 1, o
     for (const c of Object.values(camposPorIdioma[idiomaAtivo] ?? {})) c.marcarErro(null);
     campoNome.marcarErro(null);
     campoImagem.marcarErro(null);
+    campoVideo.marcarErro(null);
 
     for (const m of ultimosErros) {
       if (/sem nome/.test(m)) campoNome.marcarErro('Obrigatório');
       if (/sem imagem/.test(m)) campoImagem.marcarErro('Obrigatório');
+      if (/link do vídeo/.test(m)) campoVideo.marcarErro('Precisa ser um endereço que começa com https://');
       const vazio = m.match(/(\w+) vazio em (PT|EN|ES)/);
       if (vazio) {
         const [, nome, lang] = vazio;

@@ -202,7 +202,12 @@ body {
   left: 50%;
   width: 1920px;
   height: 1080px;
+  /* `clip`, e não só `hidden`: com `hidden` a caixa continua ROLÁVEL por
+     programa (foco, scrollIntoView), e os refletores e a lâmina de luz passam
+     da borda de propósito — no protótipo o palco inteiro subia 200px. O
+     `hidden` fica antes, para navegador que não conhece `clip`. */
   overflow: hidden;
+  overflow: clip;
   transform-origin: center center;
   /* --stage-scale is written by js/stage.js on every resize */
   transform: translate(-50%, -50%) scale(var(--stage-scale, 1));
@@ -728,61 +733,6 @@ body {
   background: #000;
 }
 
-/* ------------------------------------------------------- popup de suporte -- */
-/* O layout sai da arte, medida no pixel; os numeros estao em
-   js/components/pop_up.js, que explica de onde vem cada um. Aqui fica so o
-   que e CSS: o fundo sem corte, a pilha absoluta e o texto que nunca vaza. */
-.pop-cartao {
-  position: relative;
-  flex: none;
-  /* `100% 100%` e nao `cover`: o cartao entra com a proporcao da arte, entao
-     esticar para os dois lados nao distorce e nao corta as bordas. */
-  background: url('../assets/images/Pop_Up.png') 0 0 / 100% 100% no-repeat;
-}
-
-.pop-logo,
-.pop-fechar,
-.pop-texto,
-.pop-foto {
-  position: absolute;
-}
-
-.pop-logo {
-  display: flex;
-  align-items: center;
-}
-
-.pop-fechar {
-  display: flex;
-  width: 56px;
-  height: 56px;
-  align-items: center;
-  justify-content: center;
-}
-
-.pop-texto {
-  display: grid;
-  /* `safe center` centra o texto curto e, quando ele e longo demais, desiste de
-     centrar em vez de empurrar o comeco para fora da area rolavel. */
-  align-content: safe center;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  /* Sem isto a dica saia em serif: nem o `body`, nem `.ff-text`, nem esta
-     regra declaravam familia, e o navegador caia no padrao dele (Times). No
-     meio de um jogo inteiro em Paralucent, o unico texto com serifa era
-     justamente o que o jogador para para ler. */
-  font-family: 'Paralucent', 'Inter', sans-serif;
-  font-size: max(32px, var(--piso-fonte, 0px));
-  line-height: 1.35;
-  color: #0a2540;
-}
-
-.pop-foto {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-}
-
 /* ------------------------------------------------------------- roleta ----- */
 /* A roda de verdade. O giro, a seta batendo nas divisas e o borrao estao em
    js/giro.js, que explica a fisica; aqui fica o que e desenho: a luz que NAO
@@ -1130,116 +1080,7 @@ html[data-modo="adm"] body {
   background: var(--azul-claro);
 }
 
-/* --- a partida: escolha, revelacao e reta final --- */
-
-/* O Stack recorta (`Clip.hardEdge` do Flutter), e o cartao ocupa o Stack
-   inteiro: anel, brilho e tremida ficavam todos do lado de fora e eram
-   aparados. Aqui nada transborda por acidente — o numero grande fica por cima
-   do cartao, dentro dele —, entao liberar a borda e seguro. */
-[data-resposta] {
-  overflow: visible;
-}
-
-/* O cartao tocado, enquanto a caixa de confirmacao esta aberta. Antes nada
-   marcava a escolha, e a propria caixa cobre a lista: quem se distraiu
-   confirmava sem ver o que tinha tocado. */
-.ff-resposta-cartao {
-  transition: transform 160ms ease-out, box-shadow 160ms ease-out, opacity 220ms ease-out,
-    outline-color 160ms ease-out;
-  outline: 3px solid transparent;
-  outline-offset: 3px;
-}
-
-.ff-resposta--escolhida .ff-resposta-cartao {
-  outline-color: #0051FF;
-  transform: translateX(10px);
-}
-
-/* A revelacao. A tela congela, as descartadas apagam, a certa acende. E o
-   momento que faltava: antes o jogo julgava e trocava de pagina na mesma
-   batida, e ninguem chegava a ver o que era certo. */
-.ff-revelando {
-  pointer-events: none;
-}
-
-/* Apaga o cartao INTEIRO, numero junto: e o conjunto que sai de cena. Uma
-   opacidade no cartao e outra no involucro se multiplicariam, e o resultado
-   some de vez.
-
-   A OPACIDADE NAO ESTA AQUI de proposito: ela e escrita inline por revelar()
-   em perguntas_erespostas.js. Neste elemento ela e disputada por duas animacoes
-   preenchidas e pelo quadro 0 do `applyInitialState`, e a regra de folha perdia
-   em silencio. O que fica aqui e so o que ninguem mais escreve. */
-/* O cartao descartado recua por FILTRO, e nao por opacidade.
-
-   Opacidade neste elemento e propriedade disputada: a entrada a anima, o
-   `applyInitialState` escreve o quadro 0 inline, e animacao ganha de inline no
-   cascade. O resultado era um cartao frio saindo apagado e o outro nao, na
-   mesma revelacao. `filter` ninguem mais toca, entao a regra vale sempre. */
-.ff-resposta--fria {
-  filter: saturate(0.15) brightness(0.62) contrast(0.9);
-}
-
-.ff-resposta--certa .ff-resposta-cartao {
-  outline-width: 5px;
-  outline-color: #22C069;
-  box-shadow: inset 0 0 0 2px rgba(34, 192, 105, 0.55), 0 0 46px 6px rgba(34, 192, 105, 0.55);
-  animation: ff-acertou 520ms cubic-bezier(0.22, 1.2, 0.36, 1) 1;
-}
-
-.ff-resposta--errada .ff-resposta-cartao {
-  outline-width: 5px;
-  outline-color: #FF3B30;
-  box-shadow: inset 0 0 0 2px rgba(255, 59, 48, 0.55), 0 0 40px 4px rgba(255, 59, 48, 0.45);
-  animation: ff-errou 420ms ease-out 1;
-}
-
-@keyframes ff-acertou {
-  0% { transform: scale(1); }
-  45% { transform: scale(1.045); }
-  100% { transform: scale(1); }
-}
-
-/* Um "nao" curto, na horizontal: tres idas e vindas que morrem. */
-@keyframes ff-errou {
-  0%, 100% { transform: translateX(0); }
-  18% { transform: translateX(-12px); }
-  38% { transform: translateX(9px); }
-  60% { transform: translateX(-5px); }
-  82% { transform: translateX(2px); }
-}
-
-/* A reta final: os ultimos 15s. A bandeira `tempoAcabando` ja existia no Dart e
-   ninguem a lia; estes dois blocos sao os ouvintes que faltavam. */
-.ff-cronometro {
-  transition: background 400ms ease-out, box-shadow 400ms ease-out;
-}
-
-.ff-cronometro--reta-final {
-  animation: ff-relogio-apertado 1s ease-in-out infinite;
-}
-
-@keyframes ff-relogio-apertado {
-  0%, 100% {
-    box-shadow: -5px 5px 10px 1px rgba(0, 0, 0, 0.36);
-    transform: scale(1);
-  }
-  50% {
-    box-shadow: -5px 5px 10px 1px rgba(0, 0, 0, 0.36), 0 0 0 6px rgba(255, 0, 0, 0.28);
-    transform: scale(1.025);
-  }
-}
-
-/* A moldura do enunciado esquenta junto — e a metade esquerda da tela, e sem
-   ela so o canto de baixo a direita saberia que o tempo esta acabando. */
-.ff-moldura--reta-final {
-  animation: ff-moldura-apertada 1s ease-in-out infinite;
-}
-
-@keyframes ff-moldura-apertada {
-  0%, 100% { border-color: #FFFFFF; box-shadow: none; }
-  50% { border-color: #FF6B63; box-shadow: inset 0 0 60px rgba(255, 0, 13, 0.18); }
-}
+/* --- a escolha do equipamento --- */
 
 /* Involucro de um equipamento na tela de escolha: so existe para carregar a
    animacao de entrada sem disputar propriedade com a do toque (ver scanner.js).
@@ -1267,21 +1108,7 @@ html[data-modo="adm"] body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* O veredito continua sendo lido pela cor; o que sai e o movimento. */
-  .ff-resposta--certa .ff-resposta-cartao,
-  .ff-resposta--errada .ff-resposta-cartao,
-  .ff-cronometro--reta-final,
-  .ff-moldura--reta-final,
   .ff-carro-respira {
     animation: none;
-  }
-
-  .ff-resposta--escolhida .ff-resposta-cartao {
-    transform: none;
-  }
-
-  /* Sem o pulso, a reta final precisa ficar dita de outro jeito. */
-  .ff-moldura--reta-final {
-    border-color: #FF6B63;
   }
 }

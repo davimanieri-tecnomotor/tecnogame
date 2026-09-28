@@ -1,89 +1,36 @@
-// Stand-in for just_audio's AudioPlayer, with the same call shape the Dart uses:
+// O áudio do jogo: um contexto, um barramento e o estalo da roleta.
 //
-//   _model.soundPlayer1 ??= AudioPlayer();
-//   if (_model.soundPlayer1!.playing) { await _model.soundPlayer1!.stop(); }
-//   _model.soundPlayer1!.setVolume(0.6);
-//   _model.soundPlayer1!.setAsset(path).then((_) => _model.soundPlayer1!.play());
+// ATÉ A 2.x o jogo tocava arquivos: o `AudioPlayer` daqui imitava o
+// `just_audio` do Dart e tocava mp3 de terceiros — o "select" do Undertale, a
+// fanfarra de vitória do Final Fantasy, a derrota do Brawl Stars, o tema do
+// Jaspion e uma faixa 8-bit. Saíram todos na 3.0: licença de música de terceiros
+// num estande é risco, o jogo é servido publicamente pelo GitHub Pages (quem
+// abre a página baixa os mp3), e por `file://` a Web Audio nem busca arquivo.
+// Toda a sonoplastia passou a ser SINTETIZADA na hora — ver som.js.
 //
-// Browsers refuse to start audio before the first user gesture, so plays that
-// happen on page load are queued and released by the first interaction.
+// Aqui fica o que é de todos:
+//
+//   - o `AudioContext` único (o navegador limita quantos uma página abre);
+//   - o BARRAMENTO: um ganho de volume, um limitador e uma "sala" de
+//     reverberação. Tudo que o jogo toca passa por ele, para o operador ter um
+//     volume e um mudo só (ver `definirVolume`) e para fanfarra, aplauso e grave
+//     somados não estourarem a caixa de som do estande;
+//   - o estalo da roleta, que continua sendo o recorte gravado de estalo.js.
 
 import { ESTALO } from './estalo.js';
+import { readRaw, writeRaw } from './storage.js';
 
-const pending = new Set();
-let unlocked = false;
+/* ---------------------------------------------------------- o contexto --- */
 
-function unlock() {
-  unlocked = true;
-  for (const player of pending) player.play();
-  pending.clear();
-  contexto?.resume?.().catch(() => {});
-}
-
-for (const type of ['pointerdown', 'keydown', 'touchstart']) {
-  window.addEventListener(type, unlock, { once: true, capture: true });
-}
-
-export class AudioPlayer {
-  constructor() {
-    this.el = new Audio();
-    this.el.preload = 'auto';
-    this._volume = 1;
-  }
-
-  get playing() {
-    return !this.el.paused && !this.el.ended && this.el.currentTime > 0;
-  }
-
-  setVolume(volume) {
-    this._volume = volume;
-    this.el.volume = Math.max(0, Math.min(1, volume));
-    return Promise.resolve();
-  }
-
-  setAsset(path) {
-    if (this.el.src !== new URL(path, location.href).href) this.el.src = path;
-    this.el.currentTime = 0;
-    return Promise.resolve();
-  }
-
-  play() {
-    this.el.volume = Math.max(0, Math.min(1, this._volume));
-    const attempt = this.el.play();
-    if (attempt && attempt.catch) {
-      attempt.catch(() => {
-        if (!unlocked) pending.add(this);
-      });
-    }
-    return Promise.resolve();
-  }
-
-  async stop() {
-    this.el.pause();
-    this.el.currentTime = 0;
-    pending.delete(this);
-  }
-
-  dispose() {
-    this.stop();
-    this.el.src = '';
-  }
-}
-
-/* -------------------------------------------------- sons sintetizados ----- */
-
-/**
- * O tique dos últimos segundos não é arquivo: é uma nota curta gerada na hora
- * pela Web Audio API.
- *
- * Por que sintetizar em vez de gravar: não precisa de asset novo, não pesa no
- * bundle, e toca por `file://` — o que o navegador recusa na origem nula é
- * *buscar* arquivo, não gerar som. E o tom pode acompanhar a urgência sem
- * precisar de uma faixa por segundo.
- */
 let contexto = null;
 
-function contextoDeAudio() {
+/**
+ * O contexto de áudio, criado no primeiro uso.
+ *
+ * Nasce suspenso até o primeiro gesto (política de autoplay dos navegadores);
+ * `desbloquear`, abaixo, o acorda no primeiro toque ou tecla.
+ */
+export function contextoDeAudio() {
   if (contexto) return contexto;
   const Ctor = window.AudioContext || window.webkitAudioContext;
   if (!Ctor) return null;
@@ -95,19 +42,133 @@ function contextoDeAudio() {
   return contexto;
 }
 
+function desbloquear() {
+  contexto?.resume?.().catch(() => {});
+}
+
+// Fora do navegador (os testes de unidade importam o roteador, que importa o
+// som) não há janela para ouvir.
+if (typeof window !== 'undefined') {
+  for (const tipo of ['pointerdown', 'keydown', 'touchstart']) {
+    window.addEventListener(tipo, desbloquear, { capture: true });
+  }
+}
+
+/* ------------------------------------------------------ o barramento ----- */
+
+/**
+ * O volume do operador, de 0 a 1, guardado neste navegador.
+ *
+ * 0,9 e não 1: o limitador trabalha menos com folga, e é o volume em que os
+ * sons desta versão foram equilibrados entre si.
+ */
+const VOLUME_PADRAO = 0.9;
+const CHAVE_VOLUME = 'som.volume';
+const CHAVE_MUDO = 'som.mudo';
+
+let volume = lerVolume();
+let mudo = readRaw(CHAVE_MUDO) === '1';
+
+function lerVolume() {
+  const v = Number.parseFloat(readRaw(CHAVE_VOLUME) ?? '');
+  return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : VOLUME_PADRAO;
+}
+
+let barra = null;
+
+/**
+ * O barramento de saída: `{ ctx, saida, sala }`, ou null sem Web Audio.
+ *
+ * `saida` é onde todo som se liga; `sala` é o envio para a reverberação, que
+ * volta misturada na saída. O impulso da sala é ruído com queda exponencial,
+ * gerado aqui mesmo — é o que faz um sino soar num estúdio, e não dentro da
+ * caixa, sem arquivo nenhum.
+ */
+export function barramento() {
+  const ctx = contextoDeAudio();
+  if (!ctx) return null;
+  if (barra) return barra;
+
+  const limitador = ctx.createDynamicsCompressor();
+  limitador.threshold.value = -16;
+  limitador.knee.value = 12;
+  limitador.ratio.value = 5;
+  limitador.attack.value = 0.002;
+  limitador.release.value = 0.2;
+
+  const saida = ctx.createGain();
+  saida.gain.value = mudo ? 0 : volume;
+  saida.connect(limitador).connect(ctx.destination);
+
+  const sala = ctx.createConvolver();
+  sala.buffer = impulsoDaSala(ctx, 2.4, 3.2);
+  const retorno = ctx.createGain();
+  retorno.gain.value = 0.25;
+  sala.connect(retorno).connect(saida);
+
+  barra = { ctx, saida, sala };
+  return barra;
+}
+
+function impulsoDaSala(ctx, segundos, queda) {
+  const n = Math.floor(ctx.sampleRate * segundos);
+  const b = ctx.createBuffer(2, n, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) {
+    const d = b.getChannelData(c);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, queda);
+  }
+  return b;
+}
+
+function aplicarVolume() {
+  if (!barra) return;
+  barra.saida.gain.setTargetAtTime(mudo ? 0 : volume, barra.ctx.currentTime, 0.03);
+}
+
+/** O volume do operador (0 a 1). */
+export const volumeAtual = () => volume;
+
+/** Muda e guarda o volume. Ligar o volume desliga o mudo — é o que se espera. */
+export function definirVolume(v) {
+  volume = Math.min(1, Math.max(0, Number(v) || 0));
+  writeRaw(CHAVE_VOLUME, String(volume));
+  if (mudo && volume > 0) {
+    mudo = false;
+    writeRaw(CHAVE_MUDO, '0');
+  }
+  aplicarVolume();
+  return volume;
+}
+
+export const estaMudo = () => mudo;
+
+/** Liga ou desliga o som de tudo. Devolve se ficou mudo. */
+export function alternarMudo() {
+  mudo = !mudo;
+  writeRaw(CHAVE_MUDO, mudo ? '1' : '0');
+  aplicarVolume();
+  return mudo;
+}
+
+/* -------------------------------------------------- sons sintetizados ----- */
+
 /**
  * Um estalo curto. `frequencia` em Hz, `duracao` em segundos.
  *
  * O envelope é o que separa "relógio" de "bipe de forno": ataque quase
  * instantâneo (5ms) e queda exponencial. Uma nota de volume constante soa como
  * alarme; esta soa como ponteiro.
+ *
+ * `quando` é um instante no relógio do áudio, para quem marca com antecedência
+ * (os tiques da reta final); sem ele, toca agora.
  */
-export function tique({ frequencia = 1040, duracao = 0.07, volume = 0.16 } = {}) {
-  const ctx = contextoDeAudio();
-  if (!ctx) return;
+export function tique({ frequencia = 1040, duracao = 0.07, volume: vol = 0.16, quando = null } = {}) {
+  const b = barramento();
+  if (!b) return;
+  const { ctx } = b;
   if (ctx.state === 'suspended') ctx.resume().catch(() => {});
 
-  const agora = ctx.currentTime;
+  const agora = Math.max(quando ?? ctx.currentTime, ctx.currentTime);
   const osc = ctx.createOscillator();
   const ganho = ctx.createGain();
 
@@ -115,10 +176,10 @@ export function tique({ frequencia = 1040, duracao = 0.07, volume = 0.16 } = {})
   osc.frequency.setValueAtTime(frequencia, agora);
   // exponentialRampToValueAtTime não aceita zero, daí o 0.0001 nas pontas.
   ganho.gain.setValueAtTime(0.0001, agora);
-  ganho.gain.exponentialRampToValueAtTime(Math.max(volume, 0.0002), agora + 0.005);
+  ganho.gain.exponentialRampToValueAtTime(Math.max(vol, 0.0002), agora + 0.005);
   ganho.gain.exponentialRampToValueAtTime(0.0001, agora + duracao);
 
-  osc.connect(ganho).connect(ctx.destination);
+  osc.connect(ganho).connect(b.saida);
   osc.start(agora);
   osc.stop(agora + duracao + 0.02);
 }
@@ -186,9 +247,12 @@ function estaloEm(ctx) {
  * O contexto nasce com a tela da roleta, e não no primeiro estalo: o relógio de
  * um contexto recém-criado fica parado enquanto a placa acorda, e estalo
  * marcado nesse relógio sai atrasado exatamente essa espera.
+ *
+ * Os estalos passam pelo barramento como todo o resto: o volume e o mudo do
+ * operador valem para a roleta também.
  */
 export function criarEstalos() {
-  contextoDeAudio();
+  barramento();
   /** O volume do giro inteiro: desligá-lo cala o que já está marcado. */
   let saida = null;
   /** Quanto o relógio do áudio está à frente do da tela, em segundos. */
@@ -207,12 +271,13 @@ export function criarEstalos() {
   return {
     /** Um giro começa. Chamar no toque: é ele que libera o áudio. */
     preparar() {
-      const ctx = contextoDeAudio();
-      if (!ctx) return;
+      const b = barramento();
+      if (!b) return;
+      const { ctx } = b;
       if (ctx.state === 'suspended') ctx.resume().catch(() => {});
       saida?.disconnect();
       saida = ctx.createGain();
-      saida.connect(ctx.destination);
+      saida.connect(b.saida);
       ponte = null;
       anterior = null;
       medir(ctx);
@@ -234,12 +299,12 @@ export function criarEstalos() {
       const quando = Math.max(alvo, ctx.currentTime);
 
       const ritmo = anterior ? 1000 / (instante - anterior.instante) : 0;
-      const volume = VOLUME_DO_ESTALO * Math.min(1, (RITMO_CHEIO / ritmo) ** QUEDA_COM_O_RITMO);
+      const vol = VOLUME_DO_ESTALO * Math.min(1, (RITMO_CHEIO / ritmo) ** QUEDA_COM_O_RITMO);
 
       const fonte = ctx.createBufferSource();
       fonte.buffer = estaloEm(ctx);
       const ganho = ctx.createGain();
-      ganho.gain.setValueAtTime(volume, quando);
+      ganho.gain.setValueAtTime(vol, quando);
       fonte.connect(ganho).connect(saida);
       fonte.start(quando);
 
@@ -256,17 +321,4 @@ export function criarEstalos() {
       anterior = null;
     },
   };
-}
-
-/** The one-liner the Dart repeats everywhere, as a single call. */
-export function playSound(holder, key, asset, volume = 1.0) {
-  let player = holder[key];
-  if (!player) {
-    player = new AudioPlayer();
-    holder[key] = player;
-  }
-  if (player.playing) player.stop();
-  player.setVolume(volume);
-  player.setAsset(asset).then(() => player.play());
-  return player;
 }

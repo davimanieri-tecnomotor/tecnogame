@@ -1,389 +1,198 @@
-// Port of lib/fim/ganhou/ganhou_widget.dart and lib/fim/perdeu/perdeu_widget.dart
+// As duas telas de fim (lib/fim/ganhou e lib/fim/perdeu no Dart), que na 3.0
+// viraram pódio e chamada para o estande.
 //
-// The two end screens are the same layout with different art, copy, sound,
-// alignments and gaps, so the shared build lives here and the differences are
-// the `spec` passed in by ganhou.js / perdeu.js.
+// A festa mudou de lugar. O veredito agora é comemorado (ou lamentado) na
+// própria tela da pergunta — o canhão de luz, a fanfarra, o ranking abrindo
+// espaço para o jogador, a lição de quem errou. Repetir tudo aqui seria contar
+// duas vezes a mesma coisa. Esta tela fica com o que vem DEPOIS do jogo:
 //
-// Both read the top 5 winners and show the first 3, then REINICIAR sends the
-// WhatsApp message, clears the run state and restarts at the transition video.
+//   - o anfitrião da Tecnomotor, com o balão de sempre (ACERTOU! / ERROUU!);
+//   - o pódio dos maiores campeões, com o lugar do jogador marcado;
+//   - para quem errou, a resposta certa e — se a pergunta tiver o link — o QR
+//     code do vídeo do TecnomotorTV que ensina aquilo;
+//   - a chamada para falar com um representante, que é o motivo de o jogo
+//     existir num estande;
+//   - REINICIAR, que manda a mensagem de WhatsApp (desligada, ver config.js),
+//     esquece a partida e recomeça pela vinheta.
 //
-// E a tela de DERROTA passou a contar qual era a resposta certa. O jogo julgava
-// e ia embora sem dizer — num jogo feito para ensinar técnico a usar scanner,
-// quem errava saía sem ter aprendido nada, que é o contrário do ponto.
-//
-// A de vitória não mostra: a revelação na tela da pergunta já acendeu em verde
-// a alternativa certa, e ela era justamente a que o jogador escolheu. Repetir
-// ali é contar a alguém o que essa pessoa acabou de dizer.
-//
-// O que mostrar vem de `FFAppState.resultado`, escrito na hora do veredito.
+// O que mostrar vem de `FFAppState.resultado`, escrito no veredito.
 
-import {
-  Align,
-  ClipRRect,
-  Column,
-  Container,
-  Expanded,
-  FutureBuilder,
-  Img,
-  Padding,
-  Row,
-  Stack,
-  StackAlign,
-  Txt,
-  color,
-  decorationImage,
-  divide,
-  el,
-  maybeHandleOverflow,
-  unfocus,
-  valueOrDefault,
-} from '../widgets.js';
-import { TH, style } from '../theme.js';
+import { el, fonte, FutureBuilder, maybeHandleOverflow, unfocus, valueOrDefault } from '../widgets.js';
+import { entrar, menosMovimento } from '../anim.js';
 import { L } from '../i18n.js';
 import { T } from '../textos.js';
 import { FFAppState } from '../state.js';
 import { formatarTempoDeResposta, posicaoNoRanking, transformaNumero } from '../functions.js';
-import { playSound } from '../audio.js';
+import { Som } from '../som.js';
+import { confete } from '../particulas.js';
 import { enviarMensagemZap, queryUsuariosVencedores } from '../backend.js';
 import { goNamed, serializeParam } from '../router.js';
-import {
-  AnimationInfo,
-  AnimationTrigger,
-  Curves,
-  FadeEffect,
-  MoveEffect,
-  ScaleEffect,
-  animateOnActionTrigger,
-  animateOnPageLoad,
-} from '../anim.js';
-import { FFButtonWidget } from '../forms.js';
+import { registrarComandos } from '../comandos.js';
+import { QrSvg } from '../qr.js';
+import { BotaoDeAuditorio } from '../components/botao.js';
 
-const slideIn = (delay, duration) =>
-  new AnimationInfo({
-    trigger: AnimationTrigger.onPageLoad,
-    effectsBuilder: () => [
-      MoveEffect({ curve: Curves.easeInOut, delay, duration, begin: [-100.0, 0.0], end: [0.0, 0.0] }),
-      FadeEffect({ curve: Curves.easeInOut, delay, duration, begin: 0.0, end: 1.0 }),
-    ],
-  });
+/** Os três degraus do pódio: a altura de cada um e a ordem em que sobem (do 3º ao 1º). */
+const DEGRAUS = { 1: { altura: 250, ordem: 2 }, 2: { altura: 190, ordem: 1 }, 3: { altura: 140, ordem: 0 } };
 
 export function FimWidget(spec) {
-  const model = {};
-
-  const animationsMap = {
-    imageOnPageLoadAnimation1: slideIn(0.0, 600.0),
-    imageOnPageLoadAnimation2: slideIn(0.0, 600.0),
-    textOnPageLoadAnimation: slideIn(0.0, 600.0),
-    buttonOnPageLoadAnimation: new AnimationInfo({
-      trigger: AnimationTrigger.onPageLoad,
-      applyInitialState: true,
-      effectsBuilder: () => [
-        MoveEffect({ curve: Curves.easeInOut, delay: 2400.0, duration: 2000.0, begin: [-100.0, 0.0], end: [0.0, 0.0] }),
-        FadeEffect({ curve: Curves.easeInOut, delay: 2400.0, duration: 2000.0, begin: 0.0, end: 1.0 }),
-      ],
-    }),
-    buttonOnActionTriggerAnimation: new AnimationInfo({
-      trigger: AnimationTrigger.onActionTrigger,
-      applyInitialState: true,
-      effectsBuilder: () => [
-        ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 200.0, begin: [1.0, 1.0], end: [0.9, 0.9] }),
-        ScaleEffect({ curve: Curves.easeInOut, delay: 200.0, duration: 200.0, begin: [0.9, 0.9], end: [1.0, 1.0] }),
-      ],
-    }),
-    containerOnPageLoadAnimation: new AnimationInfo({
-      trigger: AnimationTrigger.onPageLoad,
-      effectsBuilder: () => [
-        FadeEffect({ curve: Curves.easeInOut, delay: 600.0, duration: 2000.0, begin: 0.0, end: 1.0 }),
-        MoveEffect({ curve: Curves.easeIn, delay: 600.0, duration: 2000.0, begin: [100.0, 0.0], end: [0.0, 0.0] }),
-      ],
-    }),
-  };
+  const resultado = FFAppState.resultado;
+  let saindo = false;
 
   const restart = async () => {
-    playSound(model, 'soundPlayer2', 'assets/audios/undertale-select-sound.mp3', 0.6);
-    animationsMap.buttonOnActionTriggerAnimation.controller.forward();
-
+    if (saindo) return;
+    saindo = true;
+    Som.selecionar();
     await enviarMensagemZap({
       numero: transformaNumero(FFAppState.cadastro.telefone),
       resultado: spec.resultado(FFAppState.cadastro.nome),
     });
-
     FFAppState.encerrarPartida();
-
     goNamed('telaVideoTransisao', { queryParameters: { tipo: serializeParam(0) } });
   };
 
-  const build = (winners) => {
-    const listaVencedores = winners.slice(0, 3);
+  /* ------------------------------------------------------- o anfitrião ---- */
 
-    // Onde o jogador entrou nesta lista. Só quem venceu tem posição — o ranking
-    // é de vencedores. Ver `posicaoNoRanking`: a gravação da partida sai depois
-    // da navegação, então a conta não espera por ela.
-    const minhaPosicao = FFAppState.resultado?.acertou
-      ? posicaoNoRanking(winners, { nome: FFAppState.cadastro.nome, tempo: FFAppState.resultado.tempo })
+  const balao = el('img', { class: 'fim-balao', src: spec.badgeImage, alt: '', draggable: 'false' });
+  const anfitriao = el('img', { class: 'fim-anfitriao', src: spec.heroImage, alt: '', draggable: 'false' });
+  const manchete = el('div', { class: 'ff-text fim-manchete', text: L(spec.headlineKey), style: { fontSize: fonte(34) } });
+
+  /* ----------------------------------------------------------- o pódio ---- */
+
+  const podio = (winners) => {
+    const top = winners.slice(0, 3);
+    const minha = resultado?.acertou
+      ? posicaoNoRanking(winners, { nome: FFAppState.cadastro.nome, tempo: resultado.tempo })
       : null;
 
-    /** A cor do jogador no ranking: o amarelo do logo, e só na linha dele. */
-    const AMARELO = '#FFD84D';
-
-    const linhaDoRanking = ({ posicao, nome, tempo, souEu }) => {
-      const cor = souEu ? AMARELO : '#FFFFFF';
-      const fonte = (extra = {}) =>
-        style('bodyMedium', { fontFamily: 'pirulen', fontSize: 32.0, fontWeight: 400, color: cor, ...extra });
-      return Row({
-        mainAxisSize: 'max',
-        mainAxisAlignment: spec.rowAlignment,
-        children: divide(
-          [
-            Txt(`${posicao} - `, fonte()),
-            Expanded({
-              child: Txt(
-                // O nome fica mesmo na linha do jogador: o ranking de um totem
-                // de feira é lido em voz alta por quem está em volta. A marca é
-                // o "VOCÊ" ao lado, porque só a cor não serve a quem não a
-                // distingue.
-                souEu
-                  ? `${maybeHandleOverflow(nome, { maxChars: 10, replacement: '…' })} · ${T('voce')}`
-                  : maybeHandleOverflow(nome, { maxChars: 13, replacement: '…' }),
-                fonte()
-              ),
-            }),
-            Txt(valueOrDefault(formatarTempoDeResposta(tempo), '—'), fonte()),
-          ],
-          spec.rowGap
-        ),
+    const bloco = el('div', { class: 'fim-podio' });
+    if (!top.length) {
+      bloco.appendChild(el('div', { class: 'ff-text fim-vazio', text: T('rankingVazio'), style: { fontSize: fonte(24) } }));
+    }
+    // 2º, 1º, 3º: a ordem do pódio de verdade, com o campeão no meio.
+    for (const pos of [2, 1, 3]) {
+      const v = top[pos - 1];
+      if (!v) {
+        bloco.appendChild(el('div', { class: 'fim-degrau fim-degrau--vazio' }));
+        continue;
+      }
+      const souEu = minha === pos;
+      const nome = souEu
+        ? `${maybeHandleOverflow(v.nome, { maxChars: 9, replacement: '…' })} · ${T('voce')}`
+        : maybeHandleOverflow(v.nome, { maxChars: 12, replacement: '…' });
+      const pedestal = el('div', { class: 'fim-pedestal', style: { height: `${DEGRAUS[pos].altura}px` } }, [
+        el('b', { class: 'ff-text', text: `${pos}º`, style: { fontSize: fonte(pos === 1 ? 64 : 48) } }),
+      ]);
+      const degrau = el('div', { class: ['fim-degrau', `fim-degrau--${pos}`, souEu ? 'fim-degrau--eu' : null], dataPosicao: String(pos) }, [
+        el('div', { class: 'ff-text fim-degrau-nome', text: nome.toUpperCase(), style: { fontSize: fonte(24) } }),
+        el('div', { class: 'ff-text fim-degrau-tempo', text: valueOrDefault(formatarTempoDeResposta(v.tempo), '—'), style: { fontSize: fonte(22) } }),
+        pedestal,
+      ]);
+      bloco.appendChild(degrau);
+      const atraso = 500 + DEGRAUS[pos].ordem * 260;
+      entrar(pedestal, [{ transform: 'scaleY(0)' }, { transform: 'scaleY(1.04)', offset: 0.8 }, { transform: 'none' }], {
+        duration: 520,
+        delay: atraso,
+        easing: 'cubic-bezier(.2,.9,.3,1)',
       });
-    };
-
-    const rows = listaVencedores.map((item, index) =>
-      linhaDoRanking({
-        posicao: index + 1,
-        nome: item.nome,
-        tempo: item.tempo,
-        souEu: minhaPosicao === index + 1,
-      })
-    );
-
-    // Fora dos três primeiros o jogador sumia do próprio ranking: via nomes
-    // desconhecidos e ia embora sem saber onde tinha ficado.
-    if (minhaPosicao && minhaPosicao > listaVencedores.length) {
-      rows.push(
-        linhaDoRanking({
-          posicao: minhaPosicao,
-          nome: FFAppState.cadastro.nome,
-          tempo: FFAppState.resultado.tempo,
-          souEu: true,
-        })
-      );
+      entrar(degrau.firstChild, [{ opacity: 0, transform: 'translateY(20px)' }, { opacity: 1, transform: 'none' }], { duration: 300, delay: atraso + 380 });
+      entrar(degrau.children[1], [{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: atraso + 440 });
+      Som.pop(atraso / 1000 + 0.3, 480 + (3 - pos) * 140);
     }
 
-    // Sem vencedor nenhum o título ficava sozinho sobre um retângulo vazio, que
-    // se lê como tela quebrada e não como ranking novo.
-    if (!rows.length) {
-      rows.push(
-        Txt(
-          T('rankingVazio'),
-          style('bodyMedium', { fontFamily: 'Open Sans', fontSize: 22.0, color: '#B9C6DA', textAlign: 'center' })
-        )
-      );
-    }
-
-    const button = FFButtonWidget({
-      onPressed: restart,
-      text: L(spec.buttonKey),
-      options: {
-        width: 560.0,
-        height: 85.0,
-        padding: [16.0, 0.0, 16.0, 0.0],
-        color: color(0xFF0051FF),
-        textStyle: style('titleSmall', {
-          fontFamily: 'pirulen',
-          color: '#FFFFFF',
-          fontSize: 32.0,
-          letterSpacing: 10.0,
-          fontWeight: 400,
-        }),
-        elevation: 0.0,
-        borderSide: { color: '#FFFFFF', width: 1 },
-        borderRadius: 8.0,
-      },
-    });
-    animateOnPageLoad(button, animationsMap.buttonOnPageLoadAnimation);
-    animateOnActionTrigger(button, animationsMap.buttonOnActionTriggerAnimation);
-
-    const hero = animateOnPageLoad(
-      ClipRRect({
-        borderRadius: 8.0,
-        child: Img(spec.heroImage, { width: 1058.8, height: 869.9, fit: 'contain' }),
-      }),
-      animationsMap.imageOnPageLoadAnimation1
-    );
-
-    const badge = animateOnPageLoad(
-      ClipRRect({
-        borderRadius: 8.0,
-        child: Img(spec.badgeImage, { width: 565.5, height: spec.badgeHeight, fit: 'cover' }),
-      }),
-      animationsMap.imageOnPageLoadAnimation2
-    );
-
-    const headline = animateOnPageLoad(
-      Txt(
-        L(spec.headlineKey),
-        style('bodyMedium', {
-          fontFamily: 'pirulen',
-          color: '#FFFFFF',
-          fontSize: 46.0,
-          letterSpacing: 5.0,
-          fontWeight: 400,
-          textAlign: 'left',
-        })
-      ),
-      animationsMap.textOnPageLoadAnimation
-    );
-
-    // O gabarito, contado a QUEM ERROU. Entra atrasado de propósito (1,1s): a
-    // manchete chega primeiro, a explicação depois — na ordem em que a pessoa
-    // quer as duas coisas.
-    //
-    // Quem acertou não vê este cartão. A revelação na tela da pergunta já
-    // acendeu a alternativa certa em verde, e ela era a que o jogador tinha
-    // escolhido: repetir aqui é contar a alguém o que essa pessoa acabou de
-    // dizer. Quem errou é que precisa da resposta — é a única coisa que ele
-    // leva embora.
-    const resultado = FFAppState.resultado;
-    const gabarito =
-      !resultado?.acertou && resultado?.numeroCerto && resultado?.textoCerto
-        ? animateOnPageLoad(
-            Container({
-              // 520 e não mais: o botão REINICIAR começa em x≈615 do palco, e
-              // o canto de baixo à esquerda é o único vazio das duas telas.
-              width: 520.0,
-              color: color(0xB3000E24),
-              borderRadius: 12.0,
-              border: '2px solid #FF5963',
-              child: Padding({
-                padding: [28.0, 20.0, 28.0, 20.0],
-                child: Column({
-                  mainAxisSize: 'max',
-                  crossAxisAlignment: 'start',
-                  children: [
-                    Txt(
-                      `${T('respostaCerta')}: ${T('alternativa')} ${resultado.numeroCerto}`,
-                      style('bodyMedium', {
-                        fontFamily: 'pirulen',
-                        color: '#FF9A94',
-                        fontSize: 22.0,
-                        letterSpacing: 2.0,
-                        fontWeight: 400,
-                        textAlign: 'left',
-                      })
-                    ),
-                    Padding({
-                      padding: [0.0, 10.0, 0.0, 0.0],
-                      child: Txt(
-                        resultado.textoCerto,
-                        style('bodyMedium', {
-                          fontFamily: 'Open Sans',
-                          color: '#FFFFFF',
-                          fontSize: 22.0,
-                          fontWeight: 400,
-                          textAlign: 'left',
-                        })
-                      ),
-                    }),
-                    // Sem isto a pessoa não liga o que escolheu ao que era certo.
-                    resultado.textoEscolhido
-                      ? Padding({
-                          padding: [0.0, 14.0, 0.0, 0.0],
-                          child: Txt(
-                            `${T('voceRespondeu')}: ${T('alternativa')} ${resultado.numeroEscolhido}`,
-                            style('bodyMedium', {
-                              fontFamily: 'Open Sans',
-                              color: '#B9C6DA',
-                              fontSize: 18.0,
-                              fontWeight: 400,
-                              textAlign: 'left',
-                            })
-                          ),
-                        })
-                      : null,
-                  ],
-                }),
-              }),
-            }),
-            slideIn(1100.0, 700.0)
-          )
+    // Fora do pódio o jogador não sumia só do pódio: sumia do próprio ranking,
+    // via nomes desconhecidos e ia embora sem saber onde tinha ficado.
+    const fora =
+      minha && minha > 3
+        ? el('div', { class: 'fim-minha', dataEu: '1' }, [
+            el('span', { class: 'ff-text', text: T('suaPosicao'), style: { fontSize: fonte(16) } }),
+            el('b', { class: 'ff-text', text: `${minha}º`, style: { fontSize: fonte(34) } }),
+            el('span', { class: 'ff-text', text: `${maybeHandleOverflow(FFAppState.cadastro.nome, { maxChars: 12, replacement: '…' })} · ${formatarTempoDeResposta(resultado.tempo)}`.toUpperCase(), style: { fontSize: fonte(22) } }),
+          ])
         : null;
-
-    const ranking = animateOnPageLoad(
-      Container({
-        width: spec.rankingWidth,
-        // 224 e a altura do titulo mais tres linhas. A quarta linha — a do
-        // jogador que ficou fora do podio — precisa de espaco proprio, senao
-        // nasce cortada pela borda do quadro.
-        height: rows.length > 3 ? 288.0 : 224.0,
-        child: Column({
-          mainAxisSize: 'max',
-          crossAxisAlignment: spec.rankingCrossAxis,
-          children: [
-            Padding({
-              padding: [0.0, 0.0, 0.0, 16.0],
-              child: Txt(L(spec.rankingTitleKey), style('bodyMedium', { fontFamily: 'pirulen', fontSize: 42.0 })),
-            }),
-            Column({ mainAxisSize: 'max', crossAxisAlignment: spec.listCrossAxis, children: rows }),
-          ],
-        }),
-      }),
-      animationsMap.containerOnPageLoadAnimation
-    );
-
-    return Stack({
-      children: [
-        Container({
-          width: Infinity,
-          height: Infinity,
-          image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),
-          child: Column({
-            mainAxisSize: 'max',
-            mainAxisAlignment: 'center',
-            children: [
-              Align({
-                alignment: [0.0, 0.0],
-                child: Column({
-                  mainAxisSize: 'min',
-                  children: [Align({ alignment: [0.0, 1.0], child: hero })],
-                }),
-              }),
-              Padding({ padding: [0.0, 32.0, 0.0, 0.0], child: button }),
-            ],
-          }),
-        }),
-        StackAlign({ alignment: [-0.83, -0.8], child: badge }),
-        StackAlign({
-          alignment: spec.headlineAlignment,
-          child: Padding({ padding: [0.0, 32.0, 0.0, 40.0], child: headline }),
-        }),
-        StackAlign({ alignment: spec.rankingAlignment, child: ranking }),
-        // Ancorado por baixo (y perto de 1): o cartão cresce com o tamanho da
-        // resposta e a borda de baixo fica onde está, em vez de descer para
-        // fora do palco.
-        gabarito ? StackAlign({ alignment: [-0.897, 0.93], child: gabarito }) : null,
-      ],
-    });
+    if (fora) entrar(fora, [{ opacity: 0, transform: 'translateX(60px)' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: 1500, easing: 'ease-out' });
+    return el('div', { class: 'fim-coluna-podio' }, [
+      el('div', { class: 'ff-text fim-titulo', text: L(spec.rankingTitleKey), style: { fontSize: fonte(42) } }),
+      bloco,
+      fora,
+    ]);
   };
 
-  const root = el(
-    'div',
-    { class: 'ff-scaffold', style: { background: TH.primaryBackground } },
-    FutureBuilder({ future: queryUsuariosVencedores({ limit: 5 }), builder: build, fill: true })
-  );
+  /* --------------------------------------------------- a lição e o QR ---- */
+
+  // O gabarito, contado a QUEM ERROU. Quem acertou não vê: a revelação já
+  // acendeu a alternativa certa em verde, e ela era a que o jogador escolheu.
+  const licao =
+    !resultado?.acertou && resultado?.numeroCerto && resultado?.textoCerto
+      ? (() => {
+          const qr = resultado.video ? QrSvg(resultado.video, { tamanho: 170 }) : null;
+          const no = el('div', { class: 'fim-licao', dataLicao: '1' }, [
+            el('div', { class: 'fim-licao-texto' }, [
+              el('div', { class: 'ff-text fim-licao-titulo', text: `${T('respostaCerta')}: ${T('alternativa')} ${resultado.numeroCerto}`, style: { fontSize: fonte(20) } }),
+              el('div', { class: 'ff-text fim-licao-certa', text: resultado.textoCerto, style: { fontSize: fonte(21) } }),
+              resultado.textoEscolhido
+                ? el('div', { class: 'ff-text fim-licao-escolhida', text: `${T('voceRespondeu')}: ${T('alternativa')} ${resultado.numeroEscolhido}`, style: { fontSize: fonte(17) } })
+                : null,
+              qr ? el('div', { class: 'ff-text fim-licao-aponte', text: T('aprendaAponte'), style: { fontSize: fonte(16) } }) : null,
+            ]),
+            qr ? el('div', { class: 'fim-qr', dataQr: '1' }, qr) : null,
+          ]);
+          entrar(no, [{ opacity: 0, transform: 'translateY(30px)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: 1300, easing: 'ease-out' });
+          return no;
+        })()
+      : null;
+
+  /* ------------------------------------------------ a chamada do estande -- */
+
+  const chamada = el('div', { class: 'fim-chamada' }, [
+    el('span', { class: 'fim-chamada-icone' }),
+    el('div', {}, [
+      el('div', { class: 'ff-text fim-chamada-titulo', text: T('faleComRepresentante'), style: { fontSize: fonte(26) } }),
+      el('div', { class: 'ff-text fim-chamada-sub', text: T('faleComRepresentanteSub'), style: { fontSize: fonte(18) } }),
+    ]),
+  ]);
+  chamada.firstChild.innerHTML =
+    '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="8" y="21" width="48" height="31" rx="5"/><path d="M24 21v-6h16v6"/><path d="M8 34h48"/><path d="M29 34v5h6v-5"/></svg>';
+  entrar(chamada, [{ opacity: 0, transform: 'translateY(30px)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: 1800, easing: 'ease-out' });
+
+  const reiniciar = BotaoDeAuditorio(L(spec.buttonKey), { pulsa: true, acao: 'reiniciar', aoTocar: restart });
+  reiniciar.classList.add('fim-reiniciar');
+  entrar(reiniciar, [{ opacity: 0, transform: 'translateY(30px)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: 2200, easing: 'ease-out' });
+
+  /* ----------------------------------------------------------- a tela ----- */
+
+  const direita = el('div', { class: 'fim-direita' }, [
+    FutureBuilder({ future: queryUsuariosVencedores({ limit: 5 }), builder: podio }),
+    licao,
+    chamada,
+  ]);
+
+  const root = el('div', { class: ['ff-scaffold', 'pg-fim', resultado?.acertou ? 'pg-fim--ganhou' : 'pg-fim--perdeu'] }, [
+    el('div', { class: 'fim-esquerda' }, [anfitriao, balao, manchete]),
+    direita,
+    reiniciar,
+  ]);
   root.addEventListener('click', unfocus);
 
-  playSound(model, 'soundPlayer1', spec.sound, 1.0);
+  entrar(anfitriao, [{ opacity: 0, transform: 'translateX(-100px)' }, { opacity: 1, transform: 'none' }], { duration: 600, easing: 'cubic-bezier(.2,.8,.3,1)' });
+  entrar(balao, [{ opacity: 0, transform: 'scale(.3) rotate(-12deg)' }, { opacity: 1, transform: 'scale(1.06) rotate(2deg)', offset: 0.7 }, { opacity: 1, transform: 'none' }], {
+    duration: 520,
+    delay: 350,
+    easing: 'cubic-bezier(.2,1.3,.4,1)',
+  });
+  entrar(manchete, [{ opacity: 0, transform: 'translateX(-60px)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: 700, easing: 'ease-out' });
 
+  // A comemoração maior já aconteceu na pergunta; aqui é o eco dela.
+  if (resultado?.acertou) {
+    Som.aplauso(0.25, 2.2, 0.6);
+    Som.sino(1046.5, 0.3, 0.1);
+    if (!menosMovimento()) setTimeout(() => root.isConnected && confete({ x: 960, y: -20, angulo: 90, espalha: 120, forca: 500, n: 90 }), 400);
+  } else {
+    Som.sino(523.25, 0.2, 0.08);
+  }
+
+  const desligarComandos = registrarComandos({ principal: restart });
   root.__dispose = () => {
-    model.soundPlayer1?.stop();
+    desligarComandos();
   };
 
   return root;

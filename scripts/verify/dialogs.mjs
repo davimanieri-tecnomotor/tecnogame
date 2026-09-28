@@ -3,6 +3,7 @@
 import puppeteer from 'puppeteer';
 import fs from 'node:fs';
 import path from 'node:path';
+import { alternativasNaTela, continuar, passarDaAbertura, responder } from './_jogo.mjs';
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8099';
 // BASE may be an origin (http://host:port) or a full page URL
@@ -274,8 +275,12 @@ await clickText('GIRAR A ROLETA');
 await waitForRoute('scanner', 30000);
 await wait(2200);
 
-/* ------------------------------------------------ invalid equipment dialog */
-log('--- invalid equipment dialog');
+/* ---------------------------------------------- invalid equipment stamp */
+// Desde a 3.0 o equipamento que nao resolve a pergunta leva o carimbo
+// "INCOMPATIVEL" no proprio cartao, com um zumbido, em vez da caixa vermelha
+// que parava o jogo ate alguem fechar. Nada abre por cima; o jogador segue na
+// escolha.
+log('--- invalid equipment stamp');
 const dimmed = await page.evaluate(() => {
   const tools = [...document.querySelectorAll('#pages [style*="opacity: 0.2"]')];
   if (!tools.length) return null;
@@ -283,14 +288,12 @@ const dimmed = await page.evaluate(() => {
   return tools[0].querySelector('img').getAttribute('src');
 });
 if (dimmed) {
-  await wait(1200);
+  await wait(700);
   await shot('07-invalid');
-  const invalid = await dialogText();
-  log(`  clicked ${dimmed} -> ${JSON.stringify(invalid?.slice(0, 40))}`);
-  if (!invalid?.includes('EQUIPAMENTO INVÁLIDO')) throw new Error('invalid-equipment dialog missing');
-  await clickText('Voltar', '#overlays');
-  await wait(500);
-  if (await dialogOpen()) throw new Error('invalid dialog did not close');
+  const carimbo = await page.evaluate(() => document.querySelector('#pages [data-carimbo]')?.textContent ?? null);
+  log(`  clicked ${dimmed} -> ${JSON.stringify(carimbo?.slice(0, 40))}`);
+  if (!carimbo?.includes('INCOMPATÍVEL')) throw new Error('o carimbo de incompativel nao apareceu');
+  if (await dialogOpen()) throw new Error('o incompativel nao deveria abrir dialogo nenhum');
   if ((await route()) !== 'scanner') throw new Error('should stay on scanner');
 } else {
   log('  (every scanner was valid for this question - skipped)');
@@ -311,17 +314,8 @@ await waitForRoute('telaAcao', 30000);
 await wait(1200);
 
 /* ------------------------------------------------- pick the correct answer */
-const cards = await page.evaluate(() =>
-  [...document.querySelectorAll('#pages .ff-text')]
-    .filter((n) => /^[1-4]$/.test(n.textContent.trim()) && Math.round(parseFloat(getComputedStyle(n).fontSize)) === 55)
-    .map((n) => {
-      const stack = n.closest('.ff-stack');
-      const body = [...stack.querySelectorAll('.ff-text')].find(
-        (t) => Math.round(parseFloat(getComputedStyle(t).fontSize)) === 24
-      );
-      return { number: n.textContent.trim(), text: body?.textContent ?? '' };
-    })
-);
+await passarDaAbertura(page);
+const cards = (await alternativasNaTela(page)).map((c) => ({ number: String(c.i + 1), text: c.texto, i: c.i }));
 log(`  cards: ${JSON.stringify(cards.map((c) => c.number + ':' + c.text.slice(0, 24)))}`);
 
 const FIELDS = { 1: 'respostaUm', 2: 'respostaDois', 3: 'respostaTres', 4: 'respostaQuatro' };
@@ -333,14 +327,8 @@ log(`  question "${question.nome}" gabarito=${question.gabarito} -> ${JSON.strin
 const target = cards.find((c) => c.text === correctText);
 if (!target) throw new Error('correct answer is not on screen');
 log(`  clicking card ${target.number}`);
-await page.evaluate((wanted) => {
-  const hit = [...document.querySelectorAll('#pages .ff-text')].find(
-    (n) => Math.round(parseFloat(getComputedStyle(n).fontSize)) === 24 && n.textContent === wanted
-  );
-  hit.closest('.ff-stack').querySelector('.ff-inkwell').click();
-}, correctText);
-await wait(1000);
-await clickText('Confirmar', '#overlays');
+await responder(page, target.i);
+await continuar(page, 25000);
 await waitForRoute('Ganhou', 20000);
 await wait(4800);
 await shot('08-ganhou');
@@ -352,9 +340,11 @@ log(`  stored: ${JSON.stringify(winner)}`);
 if (!winner?.venceu) throw new Error('win was not recorded');
 
 const podium = await page.evaluate(() =>
-  [...document.querySelectorAll('#pages .ff-text')].map((n) => n.textContent.trim()).filter((t) => /^\d - $|Ana|Carla|Vencedor/.test(t))
+  [...document.querySelectorAll('#pages .fim-degrau')].map((n) => `${n.dataset.posicao}: ${n.querySelector('.fim-degrau-nome')?.textContent ?? ''}`)
 );
-log(`  podium text nodes: ${JSON.stringify(podium)}`);
+log(`  podium: ${JSON.stringify(podium)}`);
+// O vencedor desta partida entra no podio, marcado: e a tela de fim da 3.0.
+if (!podium.some((t) => /VENCEDOR/i.test(t))) throw new Error('o vencedor nao apareceu no podio');
 
 await browser.close();
 if (errors.length) {

@@ -943,3 +943,40 @@
 .marcar-grupo.sem-efeito {
   opacity: 0.4;
 }
+
+/* "Na feira" (3.0): o que o operador ajusta no estande — estilo da pergunta,
+   volume e a Pergunta do Milhão. Mora acima da zona de risco, com a mesma
+   divisória, porque é tão de propósito quanto ela, e muito menos perigoso. */
+.na-feira h3 + .nota {
+  margin-bottom: 12px;
+}
+
+.na-feira h3:not(:first-child) {
+  margin-top: 18px;
+}
+
+.volume-linha {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.volume-faixa {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--azul-claro);
+}
+
+.volume-valor {
+  min-width: 3.2em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--texto-2);
+}
+
+.milhao-ultimas {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  font-size: 0.82rem;
+  color: var(--texto-2);
+}

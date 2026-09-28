@@ -9,6 +9,7 @@
 //  5. a fatia que para sob a seta é a mesma rodada que o jogo abre em seguida;
 //  9. a pergunta marcada com `pularEquipamento` vai do carro direto para o jogo.
 import puppeteer from 'puppeteer';
+import { continuar, passarDaAbertura, responder } from './_jogo.mjs';
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8099';
 const pageUrl = (route) => (BASE.endsWith('.html') ? `${BASE}#${route}` : `${BASE}/#${route}`);
@@ -258,17 +259,12 @@ for (let i = 0; i < 90; i++) {
 await wait(1500);
 
 const jogo = await page.evaluate(() => {
-  // O valor COMPUTADO, e nao `n.style.fontSize`: o piso de legibilidade emite
-  // `max(55px, var(--piso-fonte))`, entao a string do estilo inline nao e mais
-  // "55px". Em 1x o computado continua 55.
-  const fontePx = (n) => Math.round(parseFloat(getComputedStyle(n).fontSize));
-  const cards = [...document.querySelectorAll('#pages .ff-text')]
-    .filter((n) => /^[1-4]$/.test(n.textContent.trim()) && fontePx(n) === 55)
-    .map((n) => n.closest('.ff-stack'));
+  // Pelos ganchos da 3.0 (`data-alternativa`), e nao pelo tamanho da letra do
+  // numero, que o piso de legibilidade muda.
   const enunciado = [...document.querySelectorAll('#pages .ff-text')]
     .map((n) => n.textContent.trim())
     .find((t) => t.startsWith('Pergunta de teste'));
-  return { alternativas: cards.length, enunciado };
+  return { alternativas: document.querySelectorAll('#pages [data-alternativa]').length, enunciado };
 });
 console.log('   tela de jogo ->', JSON.stringify(jogo));
 if (jogo.alternativas !== 4) falhas.push(`a tela de jogo mostrou ${jogo.alternativas} alternativas`);
@@ -667,7 +663,7 @@ const peleEregistro = await page.evaluate(async () => {
   return {
     escolhido: st.FFAppState.scannerEscolhido,
     marcado: st.FFAppState.equipamentoPulado,
-    // A foto do cabecalho do painel e a do equipamento padrao (o 3S).
+    // A etiqueta "Voce esta usando" mostra o equipamento padrao (o 3S).
     foto: [...document.querySelectorAll('#pages img')].map((i) => i.getAttribute('src')).find((src) => /Rasther_CANFD/.test(src)),
   };
 });
@@ -675,20 +671,11 @@ console.log('   pele do painel ->', JSON.stringify(peleEregistro));
 if (!peleEregistro.foto) falhas.push('o painel nao vestiu o equipamento padrao');
 if (peleEregistro.marcado !== true) falhas.push('a partida nao ficou marcada como sem escolha');
 
-// Responde, para conferir o que vai para a aba Respostas.
-await page.evaluate(() => {
-  const fontePx = (n) => Math.round(parseFloat(getComputedStyle(n).fontSize));
-  const cards = [...document.querySelectorAll('#pages .ff-text')]
-    .filter((n) => /^[1-4]$/.test(n.textContent.trim()) && fontePx(n) === 55)
-    .map((n) => n.closest('.ff-stack'));
-  cards[0].querySelector('.ff-inkwell').click();
-});
-await wait(1200);
-await page.evaluate(() => {
-  const hit = [...document.querySelectorAll('#overlays .ff-text')].find((n) => n.textContent.trim() === 'Confirmar');
-  hit.closest('.ff-inkwell').click();
-});
-await wait(6000);
+// Responde, para conferir o que vai para a aba Respostas. A partida e gravada
+// no SIM, antes do suspense.
+await passarDaAbertura(page);
+await responder(page, 0);
+await wait(1500);
 const gravado = await page.evaluate(
   () => JSON.parse(localStorage.getItem('tecgame:usuarios') || '[]').slice(-1)[0] ?? null
 );

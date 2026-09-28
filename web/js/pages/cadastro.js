@@ -1,19 +1,23 @@
 // Port of lib/pages/escolha/cadastro/cadastro_widget.dart
 //
 // "Tela destinada ao cadasrto do usuário" - name, WhatsApp, workshop type.
-// A count-up timer runs in the background; after 45 idle seconds the ranking
-// takes over the screen. Any tap, submit or dropdown change resets it.
+// A count-up timer runs in the background; after 45 idle seconds the attract
+// mode takes over the screen. Any tap, submit or dropdown change resets it.
 //
 // E o prazo de inatividade do jogo inteiro (quatro minutos, inatividade.js)
 // passa por aqui também: uma ficha começada e largada é apagada.
+//
+// NA 3.0: o selo ganhou as lâmpadas acesas correndo (components/selo.js), o
+// CONFIRMAR ganhou o brilho passando, e confirmar a ficha tem anúncio — "COM
+// VOCÊS: DAVI!", com aplauso, antes do vídeo de instruções. Custa um segundo e
+// meio e personaliza a partida inteira. Os 45s parados abrem o modo de atração
+// (components/atracao.js) no lugar da lista de nomes rolando.
 
 import {
   Align,
-  ClipRRect,
   Column,
   Container,
   Icon,
-  Img,
   InkWell,
   Opacity,
   Padding,
@@ -22,7 +26,6 @@ import {
   Txt,
   TransformSkew,
   color,
-  decorationImage,
   divide,
   el,
   unfocus,
@@ -33,12 +36,16 @@ import { TH, style } from '../theme.js';
 import { L, FFLocalizations, LANGUAGES, setAppLanguage } from '../i18n.js';
 import { T } from '../textos.js';
 import { CadastroStruct, FFAppState } from '../state.js';
-import { embaralhaQuestoes, nomeOfensivo } from '../functions.js';
-import { playSound } from '../audio.js';
+import { embaralhaQuestoes, nomeOfensivo, primeiroNome } from '../functions.js';
+import { Som } from '../som.js';
+import { humor } from '../palco.js';
+import { grito, raios } from '../locutor.js';
+import { criarRoteiro, soInterrupcao } from '../roteiro.js';
 import { showDialog } from '../dialog.js';
 import { NomeOfensivoWidget } from '../components/nome_ofensivo.js';
 import { PoliticaPrivacidadeWidget } from '../components/politica_privacidade.js';
-import { RankingWidget } from '../components/ranking.js';
+import { AtracaoWidget } from '../components/atracao.js';
+import { SeloComLampadas } from '../components/selo.js';
 import { registrarToqueSecreto } from '../admin/porta.js';
 import { sincronizarBaralho } from '../nuvem.js';
 import { adiantarOPercurso } from '../precarga.js';
@@ -120,7 +127,10 @@ function resetFormState() {
 const fichaComecada = () =>
   Boolean(formState.nome.text || formState.whats.text || formState.oficinaKey || formState.invalido);
 
+
 export function CadastroWidget() {
+  const roteiro = criarRoteiro();
+  let left = false;
   const model = {
     // `invalido` conta as tentativas com nome ofensivo e também precisa
     // sobreviver ao rebuild, senão a contagem zera na troca de idioma.
@@ -217,7 +227,7 @@ export function CadastroWidget() {
     cursorColor: TH.primaryText,
     validator: (value) => (value == null || value.length === 0 ? L('ra9dcpxq') /* Digite seu nome */ : null),
     onSubmitted: () => {
-      playSound(model, 'soundPlayer3', 'assets/audios/adriantnt_u_click.mp3', 1.0);
+      Som.clique();
       restartIdleTimer();
     },
   });
@@ -242,7 +252,7 @@ export function CadastroWidget() {
       return null;
     },
     onSubmitted: () => {
-      playSound(model, 'soundPlayer4', 'assets/audios/adriantnt_u_click.mp3', 1.0);
+      Som.clique();
       restartIdleTimer();
     },
   });
@@ -258,7 +268,7 @@ export function CadastroWidget() {
       // Guarda a chave, não o rótulo traduzido, para a escolha atravessar a
       // troca de idioma (ver formState no topo).
       formState.oficinaKey = OFICINA_KEYS[index] ?? null;
-      playSound(model, 'soundPlayer5', 'assets/audios/adriantnt_u_click.mp3', 1.0);
+      Som.clique();
       restartIdleTimer();
     },
     height: 70.0,
@@ -284,12 +294,13 @@ export function CadastroWidget() {
   // Por fora, o alvo passa a ser exatamente a forma azul que se vê (o
   // `TransformSkew` é o pai, então a inclinação vale para o acerto também), e o
   // afundar do `.ff-press` passa a ser do botão inteiro em vez de só da palavra.
+  let caixaDoConfirmar = null;
   const confirmar = TransformSkew({
     ax: -0.5,
     child: InkWell({
       label: 'CONFIRMAR',
       onTap: async () => {
-          playSound(model, 'soundPlayer6', 'assets/audios/undertale-select-sound.mp3', 0.6);
+          Som.selecionar();
           animationsMap.transformOnActionTriggerAnimation.controller.forward();
 
           FFAppState.ordemNumeros = embaralhaQuestoes();
@@ -326,9 +337,11 @@ export function CadastroWidget() {
             selo,
           });
 
+          await anunciar(FFAppState.cadastro.nome);
+          if (left) return;
           goNamed('instrucoes');
         },
-      child: Container({
+      child: caixaDoConfirmar = Container({
         width: SW * 0.25,
         height: SH * 0.07,
         color: color(0xFF0053B6),
@@ -358,6 +371,34 @@ export function CadastroWidget() {
   });
   animateOnPageLoad(confirmar, animationsMap.transformOnPageLoadAnimation);
   animateOnActionTrigger(confirmar, animationsMap.transformOnActionTriggerAnimation);
+  // O brilho que passa pelo botão, como nos botões do apresentador: diz "é
+  // aqui" sem piscar. Mora num ::after (auditorio.css), porque o fundo do
+  // Container é escrito inline e uma regra de folha não o alcançaria.
+  caixaDoConfirmar.classList.add('aud-brilho');
+
+  /**
+   * "COM VOCÊS: DAVI!" — o apresentador chama o jogador pelo primeiro nome,
+   * com aplauso, no palco já vazio da ficha desmontada. Um segundo e meio.
+   */
+  async function anunciar(nome) {
+    const quem = primeiroNome(nome);
+    if (!quem) return;
+    const camada = el('div', { class: 'pg-locutor' });
+    root.appendChild(camada);
+    try {
+      humor('atracao');
+      const r = raios(camada, { y: 540 });
+      Som.impacto(0, 0.6);
+      Som.aplauso(0.1, 1.8, 0.7);
+      grito(camada, T('comVoces'), { cor: 'branco', tam: 64, y: 360, segura: 1100, chave: 'comVoces' }, roteiro).catch(soInterrupcao);
+      await roteiro.pausa(180);
+      Som.fanfarra(0);
+      await grito(camada, `${quem.toUpperCase()}!`, { tam: 150, y: 450, segura: 900, chave: 'nome' }, roteiro);
+      r.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, fill: 'forwards' });
+    } catch (erro) {
+      soInterrupcao(erro);
+    }
+  }
 
   /* -------------------------------------------------------------- privacy -- */
 
@@ -463,12 +504,14 @@ export function CadastroWidget() {
   // O selo é também a porta da administração: cinco toques nele, dentro de 3s,
   // pedem a senha. Não tem marca nenhuma de propósito — é para o operador, não
   // para o jogador.
+  //
+  // As lâmpadas acesas correndo em volta do logo são as da própria arte,
+  // medidas no PNG (ver components/selo.js). A caixa e o enquadramento são os
+  // de sempre — 23% x 25% do palco, `cover` —, então o cadastro não mexe um
+  // pixel de lugar.
   const selo = registrarToqueSecreto(
     animateOnPageLoad(
-      ClipRRect({
-        borderRadius: 8.0,
-        child: Img('assets/images/Selo_2.png', { width: SW * 0.23, height: SH * 0.25, fit: 'cover' }),
-      }),
+      SeloComLampadas({ largura: SW * 0.23, altura: SH * 0.25, enquadramento: 'cover' }),
       animationsMap.imageOnPageLoadAnimation
     )
   );
@@ -491,17 +534,18 @@ export function CadastroWidget() {
     children: [
       InkWell({
         onTap: () => {
-          playSound(model, 'soundPlayer2', 'assets/audios/adriantnt_u_click.mp3', 1.0);
+          Som.clique();
           restartIdleTimer();
         },
         // Cobre a tela inteira so para captar o toque no fundo e reiniciar a
         // contagem de inatividade: nao e um botao, e nao deve afundar.
         feedback: false,
         style: { width: '100%', height: '100%' },
+        // Sem a arte de fundo: desde a 3.0 ela mora no palco (#fundo, ver
+        // palco.js), com os refletores por cima. Pintá-la aqui apagaria a luz.
         child: Container({
           width: Infinity,
           height: Infinity,
-          image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),
           child: el(
             'form',
             {
@@ -537,7 +581,7 @@ export function CadastroWidget() {
     ],
   });
 
-  const root = el('div', { class: 'ff-scaffold', style: { background: color(0xFF000B18) } }, body);
+  const root = el('div', { class: 'ff-scaffold' }, body);
   root.addEventListener('click', unfocus);
 
   /* --------------------------------------------------------- on page load -- */
@@ -559,32 +603,41 @@ export function CadastroWidget() {
     }
   });
   FFAppState.finalizou = false;
-  playSound(model, 'soundPlayer1', 'assets/audios/adriantnt_u_click.mp3', 1.0);
   model.timerController.onStartTimer();
 
-  let showingRanking = false;
+  // 45s parado, e o modo de atração toma a tela. Fechado por um toque, a
+  // contagem recomeça: é o laço de fliperama — atração, convite, espera,
+  // atração de novo. No Dart a contagem ficava parada depois de fechar, e a
+  // atração só voltava se alguém tocasse no fundo do cadastro.
+  let mostrandoAtracao = false;
   model.instantTimer = InstantTimer.periodic({
     duration: 1000,
     startImmediately: true,
     callback: async () => {
-      if (model.timerMilliseconds <= 45000 || showingRanking) return;
+      if (model.timerMilliseconds <= 45000 || mostrandoAtracao) return;
       model.timerController.onResetTimer();
       model.timerController.onStopTimer();
-      showingRanking = true;
-      await showDialog({
-        builder: () =>
-          RankingWidget({
-            acao: async () => {
-              model.timerController.onResetTimer();
-              model.timerController.onStartTimer();
-            },
-          }),
-      });
-      showingRanking = false;
+      mostrandoAtracao = true;
+      humor('atracao');
+      // A ficha sai de cena por baixo da atração (e a barreira quase não
+      // escurece): assim o que aparece atrás do letreiro é o estúdio com os
+      // refletores varrendo, e não um formulário apagado.
+      root.classList.add('atr-escondido');
+      await showDialog({ builder: () => AtracaoWidget(), barrierColor: 'rgba(0, 6, 17, 0.25)' });
+      root.classList.remove('atr-escondido');
+      mostrandoAtracao = false;
+      // `left` e não `isConnected`: numa troca de tela a lâmina ainda mostra
+      // esta página por um instante, e o humor da tela seguinte não pode ser
+      // desfeito por quem já saiu.
+      if (left) return;
+      humor('repouso');
+      restartIdleTimer();
     },
   });
 
   root.__dispose = () => {
+    left = true;
+    roteiro.encerrar();
     model.instantTimer?.cancel();
     model.timerController.dispose();
   };
@@ -593,7 +646,7 @@ export function CadastroWidget() {
   // faz outra coisa: o cadastro já é o começo, e não há para onde voltar. Sai
   // só a ficha de quem desistiu no meio, para o próximo visitante não achar o
   // nome e o telefone dessa pessoa. Sem nada digitado não há o que apagar, e o
-  // ranking do ocioso continua na tela.
+  // modo de atração continua na tela.
   root.__aoExpirar = () => {
     if (!fichaComecada()) return;
     resetFormState();
