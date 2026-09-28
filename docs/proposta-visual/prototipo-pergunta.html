@@ -1,0 +1,2667 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>TecnoGame · protótipo da pergunta</title>
+<!--
+  PROTÓTIPO DE PROPOSTA. Não é o jogo e não entra no bundle.
+
+  Mostra, jogável, a tela da pergunta do TecnoGame com cara de programa de
+  auditório: palco com luz, o "Posso perguntar?", o relógio que virou
+  conta-giros, a faixa ERRAR / RECORDE / ACERTAR, o "Está certo disso?", o
+  suspense e as três revelações (acerto, erro, tempo esgotado). A proposta
+  completa está no README.md desta pasta.
+
+  Dois estilos, na tecla E: "Palco" (terço inferior com losangos, a gramática
+  do Milionário) e "Clássico SBT" (a coluna do Show do Milhão de 2000, com os
+  tons amostrados do programa).
+
+  Segue as regras do jogo de propósito, para mostrar que tudo cabe nele:
+    - um arquivo só, sem framework, sem build, sem dependência;
+    - abre com dois cliques (file://): nada de módulo ES, nada de fetch;
+    - palco fixo de 1920x1080 escalado para a janela;
+    - todo som é sintetizado na Web Audio (por file:// não dá para buscar
+      arquivo de áudio) e marcado no relógio do áudio;
+    - com `prefers-reduced-motion`, saem câmera, tremor, confete e varredura.
+
+  Imagens e fontes vêm de ../../web/assets; nada foi copiado. O ranking do
+  painel "ACERTAR AGORA" é de exemplo.
+-->
+<style>
+@property --feixe-cor { syntax: '<color>'; inherits: true; initial-value: rgb(150, 200, 255); }
+@property --giro { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+
+@font-face { font-family: 'pirulen'; src: url('../../web/assets/fonts/pirulen_rg.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Paralucent'; src: url('../../web/assets/fonts/ParalucentMedium.otf') format('opentype'); font-weight: 500; font-display: block; }
+@font-face { font-family: 'Paralucent'; src: url('../../web/assets/fonts/ParalucentBold.otf') format('opentype'); font-weight: 700; font-display: block; }
+@font-face { font-family: 'Open Sans'; src: url('../../web/assets/fonts/google/open-sans-latin.woff2') format('woff2'); font-weight: 300 800; font-display: block; }
+@font-face { font-family: 'Roboto'; src: url('../../web/assets/fonts/google/roboto-latin.woff2') format('woff2'); font-weight: 100 900; font-display: block; }
+
+:root {
+  --noite: #020B1F;
+  --azul: #0051FF;
+  --azul-claro: #3E8BFF;
+  --ouro: #FFD84D;
+  --ouro-forte: #FFB400;
+  --verde: #1FD37A;
+  --vermelho: #FF3B30;
+  --prata: #CFD8E6;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0; height: 100%; overflow: hidden;
+  background: #000611;
+  user-select: none; -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+#viewport {
+  position: fixed; inset: 0; overflow: hidden;
+  background: radial-gradient(ellipse at center, #06173d 0%, #000611 70%);
+}
+
+/* `clip`, e não `hidden`: com `hidden` a caixa continua ROLÁVEL por programa
+   (foco, scrollIntoView), e a lâmina e os refletores, que passam da borda de
+   propósito, davam 200px de rolagem — o palco inteiro subia. */
+#stage {
+  position: absolute; left: 50%; top: 50%;
+  width: 1920px; height: 1080px; overflow: clip;
+  transform: translate(-50%, -50%) scale(var(--escala, 1));
+  transform-origin: center;
+  background: var(--noite);
+  color: #fff; font-family: 'Open Sans', sans-serif;
+  /* A cor da luz muda de humor devagar: é a mesa de luz, não um interruptor. */
+  transition: --feixe-cor 700ms ease;
+}
+
+#camera, #tremor { position: absolute; inset: 0; }
+#camera { transform-origin: 50% 50%; }
+
+.oculta { opacity: 0; }
+
+/* ------------------------------------------------------------------ palco */
+
+.fundo {
+  position: absolute; inset: 0;
+  background: #020B1F url('../../web/assets/images/BG_Seleo_Equipamento.png') center / cover no-repeat;
+  filter: brightness(var(--luz-fundo, .6)) saturate(1.15);
+  transition: filter 700ms ease;
+}
+
+/* Os refletores. `screen` para ACENDER o que está embaixo, e não cobrir. O
+   desfoque fica no pai e o recorte no filho: filtro vem antes de clip-path, e
+   no mesmo elemento o cone sairia com a borda dura. */
+.feixes {
+  position: absolute; inset: 0; pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: var(--feixes-op, .9);
+  transition: opacity 600ms ease;
+}
+.feixe {
+  position: absolute; top: -70px; width: 560px; height: 1320px; margin-left: -280px;
+  transform-origin: 50% 0; filter: blur(20px);
+}
+.feixe-cone {
+  position: absolute; inset: 0;
+  clip-path: polygon(45% 0, 55% 0, 100% 100%, 0 100%);
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--feixe-cor) 62%, transparent) 0%,
+    color-mix(in srgb, var(--feixe-cor) 20%, transparent) 42%,
+    transparent 88%);
+}
+.feixe-fonte {
+  position: absolute; left: 50%; top: 44px; width: 130px; height: 130px; margin-left: -65px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 12%, color-mix(in srgb, var(--feixe-cor) 80%, transparent) 30%, transparent 70%);
+}
+
+.nevoa {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 60% 45% at 50% 20%, rgba(40, 110, 255, .20), transparent 70%),
+    linear-gradient(to bottom, transparent 46%, rgba(1, 8, 26, .55) 60%, rgba(1, 6, 20, .92) 100%);
+}
+
+.cena { position: absolute; inset: 0; }
+
+/* O canhão de luz do suspense: o resto do estúdio apaga e sobra a alternativa. */
+.spot {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  transition: opacity 600ms ease;
+  background: radial-gradient(ellipse var(--spot-rx, 560px) var(--spot-ry, 250px) at var(--spot-x, 50%) var(--spot-y, 50%),
+    rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 38%, rgba(0, 3, 12, .9) 100%);
+}
+.spot.ligado { opacity: 1; }
+
+.vinheta {
+  position: absolute; inset: 0; pointer-events: none; opacity: var(--tensao, 0);
+  background: radial-gradient(ellipse at center, transparent 42%, rgba(60, 0, 0, .55) 78%, rgba(25, 0, 0, .92) 100%);
+}
+.pulso {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(255, 0, 0, .38) 100%);
+}
+#particulas { position: absolute; inset: 0; width: 1920px; height: 1080px; pointer-events: none; }
+.locutor { position: absolute; inset: 0; pointer-events: none; }
+.locutor > * { pointer-events: auto; }
+.locutor > .grito, .locutor > .raios { pointer-events: none; }
+.flash { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: #fff; mix-blend-mode: screen; }
+
+/* ------------------------------------------------------------------- selo */
+
+.selo { position: absolute; pointer-events: none; }
+.selo img { position: absolute; max-width: none; }
+/* As lâmpadas do próprio selo, medidas no PNG, correndo como letreiro de
+   auditório. Só acendem por cima: a arte já as desenha brancas. */
+.lampada {
+  position: absolute; width: var(--d); height: var(--d);
+  margin: calc(var(--d) / -2) 0 0 calc(var(--d) / -2);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 28%, rgba(255, 244, 190, .9) 42%, rgba(255, 200, 60, 0) 72%);
+  mix-blend-mode: screen; opacity: .12;
+  animation: lampada 1.44s ease-out infinite;
+  animation-delay: calc(var(--i) * .12s);
+}
+@keyframes lampada {
+  0% { opacity: 1; transform: scale(1.9); }
+  28% { opacity: .12; transform: scale(1); }
+  100% { opacity: .12; transform: scale(1); }
+}
+[data-humor="acerto"] .lampada { animation: lampada-festa .3s steps(2, jump-none) infinite; animation-delay: 0s; }
+@keyframes lampada-festa { 0% { opacity: 1; transform: scale(1.8); } 100% { opacity: .1; transform: scale(1); } }
+[data-humor="suspense"] .lampada, [data-humor="erro"] .lampada { animation: none; opacity: 0; }
+
+/* -------------------------------------------------------- ordem de serviço */
+
+.os { position: absolute; left: 64px; top: 58px; width: 560px; height: 480px; }
+.os-chip {
+  position: absolute; left: 0; top: 0; height: 66px; padding: 0 24px 0 10px;
+  display: flex; align-items: center; gap: 12px; border-radius: 14px;
+  background: linear-gradient(180deg, rgba(14, 48, 124, .88), rgba(4, 18, 52, .88));
+  border: 1px solid rgba(160, 200, 255, .35);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+}
+.os-chip img { width: 44px; height: 58px; object-fit: contain; object-view-box: inset(4.6% 22.3% 4.6% 22.4%); }
+.os-chip small { display: block; font: 700 12px/1.3 'Open Sans'; letter-spacing: 2.5px; color: #9fb7e8; }
+.os-chip strong { display: block; font: 21px/1.2 'pirulen'; letter-spacing: 1px; color: #fff; font-weight: normal; }
+.os-palco { position: absolute; left: 0; top: 78px; width: 560px; height: 318px; }
+.os-luz {
+  position: absolute; left: 50%; top: -150px; width: 470px; height: 480px; margin-left: -235px;
+  background: linear-gradient(to bottom, rgba(170, 215, 255, .5), rgba(170, 215, 255, .08) 80%, transparent);
+  clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%);
+  filter: blur(14px); mix-blend-mode: screen; pointer-events: none;
+}
+.os-piso {
+  position: absolute; left: 50%; bottom: -14px; width: 520px; height: 84px; margin-left: -260px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(110, 175, 255, .6), rgba(20, 70, 200, .2) 46%, transparent 70%);
+  box-shadow: inset 0 0 0 2px rgba(160, 205, 255, .35);
+}
+.os-carro {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: contain; object-view-box: inset(16.2% 9.5% 17.2% 5%);
+  filter: drop-shadow(0 22px 18px rgba(0, 0, 0, .6));
+}
+/* Placa Mercosul, com o nome do veículo no lugar dos caracteres. */
+.placa {
+  position: absolute; left: 50%; top: 404px; width: 318px; height: 76px; margin-left: -159px;
+  border-radius: 9px; overflow: hidden;
+  background: linear-gradient(#ffffff, #e6ebf2);
+  border: 3px solid #1b1b1b;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .55), inset 0 0 0 2px #fff;
+}
+.placa-faixa {
+  position: relative; height: 20px;
+  background: linear-gradient(90deg, #0b3a9c, #1552cc);
+  color: #fff; font: 700 12px/20px 'Roboto'; letter-spacing: 4px; text-align: center;
+}
+.placa-faixa::before { /* o selo do Mercosul, simplificado */
+  content: ''; position: absolute; left: 7px; top: 3px; width: 14px; height: 14px; border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 18%, transparent 20%), #0b3a9c; box-shadow: inset 0 0 0 1.5px #fff;
+}
+.placa-bandeira { position: absolute; right: 7px; top: 3px; width: 20px; height: 14px; background: #009c3b; }
+.placa-bandeira::before { content: ''; position: absolute; inset: 2px 2px; background: #ffdf00; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+.placa-bandeira::after { content: ''; position: absolute; left: 7px; top: 4px; width: 6px; height: 6px; border-radius: 50%; background: #002776; }
+.placa-texto { font: 700 42px/54px 'Roboto'; color: #111; text-align: center; letter-spacing: 3px; }
+
+/* ----------------------------------------------------------------- ajudas */
+
+.ajudas { position: absolute; left: 628px; top: 250px; width: 664px; }
+.ajudas-titulo {
+  display: flex; justify-content: center; align-items: center; gap: 14px;
+  font: 17px/1 'pirulen'; letter-spacing: 3px; color: #cfe0ff;
+}
+.ajudas-titulo b { font-weight: normal; color: var(--ouro); }
+.ajudas-titulo .pinos { display: inline-flex; gap: 6px; }
+.ajudas-titulo .pinos i { width: 13px; height: 13px; border-radius: 50%; background: var(--ouro); box-shadow: 0 0 10px rgba(255, 216, 77, .8); transition: background 300ms, box-shadow 300ms; }
+.ajudas-titulo .pinos i.gasto { background: #2a3448; box-shadow: none; }
+.ajudas-fichas { display: flex; justify-content: space-between; margin-top: 18px; }
+.ficha { position: relative; width: 112px; cursor: pointer; perspective: 700px; }
+.ficha-moeda {
+  position: relative; width: 112px; height: 112px;
+  transform-style: preserve-3d;
+  transition: transform 700ms cubic-bezier(.3, 1.35, .5, 1);
+}
+.ficha:active .ficha-moeda { scale: .94; }
+.ficha-face, .ficha-verso {
+  position: absolute; inset: 0; border-radius: 50%; display: grid; place-items: center;
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+}
+.ficha-face {
+  background: radial-gradient(circle at 35% 28%, #3574ff, #0b3196 55%, #051a55 100%);
+  box-shadow: inset 0 0 0 4px #ffd84d, inset 0 0 0 7px rgba(0, 0, 0, .35), 0 10px 22px rgba(0, 0, 0, .5), 0 0 26px rgba(80, 150, 255, .35);
+}
+.ficha-face::after { /* o brilho que ronda o aro */
+  content: ''; position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(from var(--giro), transparent 0 68%, rgba(255, 255, 255, .85) 77%, transparent 86%);
+  -webkit-mask: radial-gradient(circle, transparent 49px, #000 50px, #000 56px, transparent 57px);
+  mask: radial-gradient(circle, transparent 49px, #000 50px, #000 56px, transparent 57px);
+  animation: ficha-giro 3.4s linear infinite;
+  animation-delay: calc(var(--i) * -.68s);
+}
+@keyframes ficha-giro { to { --giro: 360deg; } }
+.ficha-verso {
+  transform: rotateY(180deg);
+  background: radial-gradient(circle at 35% 28%, #5d6880, #2a3346 60%, #151b28);
+  box-shadow: inset 0 0 0 4px #7d8699, 0 10px 22px rgba(0, 0, 0, .5);
+}
+.ficha svg { width: 56px; height: 56px; fill: none; stroke: #fff; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.ficha-verso svg { stroke: #ff5a4f; stroke-width: 7; width: 62px; height: 62px; }
+.ficha-rotulo {
+  width: 150px; margin: 10px 0 0 -19px; text-align: center; white-space: pre-line;
+  font: 800 13px/1.15 'Open Sans'; letter-spacing: 1.2px; color: #dbe6ff;
+}
+.ficha.usada { cursor: default; }
+.ficha.usada .ficha-moeda { transform: rotateY(180deg); }
+.ficha.usada .ficha-rotulo { color: #6f7b93; text-decoration: line-through; text-decoration-color: rgba(255, 90, 79, .7); }
+.ajudas.esgotadas .ficha:not(.usada) { filter: grayscale(1) brightness(.45); cursor: default; }
+
+/* -------------------------------------------------------------- tacômetro */
+
+.tacometro { position: absolute; left: 1416px; top: 28px; width: 370px; height: 370px; filter: drop-shadow(0 16px 30px rgba(0, 0, 0, .55)); }
+.tacometro svg { overflow: visible; }
+.taco-zona { fill: none; stroke: #ff2a2a; stroke-width: 7; opacity: .9; }
+.taco-risco { stroke: rgba(255, 255, 255, .5); stroke-width: 2; }
+.taco-risco.medio { stroke-width: 3; stroke: rgba(255, 255, 255, .8); }
+.taco-risco.maior { stroke-width: 4.5; stroke: #fff; }
+.taco-risco.quente { stroke: #ff5a4f; }
+.taco-num { font: 23px 'pirulen'; fill: #dfe8ff; text-anchor: middle; }
+.taco-num.quente { fill: #ff6b61; }
+.taco-trilho { fill: none; stroke: rgba(255, 255, 255, .08); stroke-width: 12; stroke-linecap: round; }
+.taco-arco { fill: none; stroke-width: 12; stroke-linecap: round; transition: stroke 500ms ease; }
+.taco-dig { text-anchor: middle; fill: #fff; }
+.taco-dig .i { font: 54px 'pirulen'; }
+.taco-dig .d { font: 26px 'pirulen'; fill: #9fb7e8; }
+.taco-rot { font: 700 12px 'Open Sans'; letter-spacing: 4px; fill: #7f95c2; text-anchor: middle; }
+.tacometro.reta { animation: taco-quente 1s ease-in-out infinite; }
+@keyframes taco-quente {
+  50% { filter: drop-shadow(0 16px 30px rgba(0, 0, 0, .55)) drop-shadow(0 0 36px rgba(255, 40, 40, .8)); }
+}
+.tacometro.reta .taco-dig .i, .tacometro.estourou .taco-dig .i { fill: #ff6b61; }
+.tacometro.estourou { animation: none; filter: drop-shadow(0 0 44px rgba(255, 40, 40, .95)); }
+.tacometro.parado .taco-dig { animation: piscar-dig 260ms steps(2, jump-none) 3; }
+@keyframes piscar-dig { 50% { opacity: .15; } }
+
+/* ----------------------------------------- aposta: ERRAR / RECORDE / ACERTAR */
+
+/* A faixa de três caixas do Show do Milhão (ERRAR / PARAR / ACERTAR), com o
+   PARAR trocado pelo RECORDE: aqui não se para, e o que está em jogo é a
+   posição no ranking — que cai enquanto o relógio anda. */
+.aposta { position: absolute; left: 1402px; top: 404px; width: 400px; }
+.ap-caixas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.ap-caixa { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.ap-caixa > b {
+  display: grid; place-items: center; width: 100%; height: 56px; border-radius: 10px;
+  font: 23px/1 'pirulen'; font-weight: normal;
+  background: rgba(8, 24, 62, .9); color: #dbe6ff;
+  box-shadow: inset 0 0 0 2px rgba(160, 200, 255, .3);
+}
+.ap-caixa small { font: italic 800 12px/1 'Open Sans'; letter-spacing: 1.5px; color: #cfe0ff; }
+.ap-caixa.erro > b { color: #ff9a94; box-shadow: inset 0 0 0 2px rgba(255, 90, 79, .45); }
+.ap-caixa.acertar > b {
+  background: linear-gradient(180deg, #FFF1B8, #FFC21A 50%, #E88A00); color: #231500;
+  box-shadow: 0 0 22px rgba(255, 190, 0, .45);
+}
+.ap-caixa.acertar small { color: var(--ouro); }
+.ap-rolo { display: inline-grid; overflow: hidden; height: 34px; align-items: center; }
+.ap-rolo > i { grid-area: 1 / 1; font-style: normal; font-size: 30px; line-height: 34px; }
+.ap-barra {
+  position: relative; height: 20px; margin: 8px 0 0; border-radius: 10px; overflow: hidden;
+  background: rgba(255, 255, 255, .08);
+}
+.ap-barra i {
+  position: absolute; inset: 0; transform-origin: 0 50%;
+  background: linear-gradient(90deg, rgba(255, 180, 0, .45), rgba(255, 216, 77, .9));
+}
+.ap-barra span {
+  position: relative; display: block; text-align: center;
+  font: 600 13px/20px 'Open Sans'; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .8);
+}
+.ap-barra span b { font-weight: 800; }
+
+/* ------------------------------------------------------ pergunta e losangos */
+
+.losango { position: absolute; left: 0; top: 0; overflow: visible; }
+.l-base { fill: url(#g-base); }
+.l-estado { fill: url(#g-ouro); opacity: 0; transition: opacity 200ms ease; }
+/* O verde mora numa camada só dele, por cima da cor de travada: é o que deixa
+   a revelação alternar travada ↔ verde, como no programa, sem trocar `fill`
+   (que não se anima). */
+.l-verde { fill: url(#g-verde); opacity: 0; transition: opacity 200ms ease; }
+.l-reflexo { fill: url(#g-reflexo); pointer-events: none; }
+.l-borda { fill: none; stroke: #cfd8e6; stroke-width: 3; transition: stroke 220ms ease; }
+.l-risco {
+  fill: none; stroke: #fff; stroke-width: 5; stroke-linecap: round;
+  stroke-dasharray: 8 92; opacity: 0; pointer-events: none;
+}
+
+.pergunta { position: absolute; left: 150px; top: 568px; width: 1620px; height: 184px; }
+.trilho, .trilho-linha {
+  position: absolute; height: 3px;
+  box-shadow: 0 0 12px rgba(160, 205, 255, .55);
+}
+.trilho { top: 91px; width: 150px; }
+.trilho.esq { left: -150px; background: linear-gradient(90deg, rgba(207, 216, 230, 0), #cfd8e6); transform-origin: 100% 50%; }
+.trilho.dir { left: 1620px; background: linear-gradient(90deg, #cfd8e6, rgba(207, 216, 230, 0)); transform-origin: 0 50%; }
+.trilho-linha { background: #cfd8e6; }
+.aba {
+  position: absolute; left: 64px; top: -30px; height: 34px; padding: 0 30px 0 22px;
+  display: flex; align-items: center; gap: 10px;
+  font: 16px/1 'pirulen'; letter-spacing: 3px; color: #fff;
+  background: linear-gradient(180deg, #ff3b30, #b3140c);
+  clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 100%, 0 100%);
+}
+.aba span { font: 700 13px/1 'Open Sans'; letter-spacing: 2px; opacity: .85; text-transform: uppercase; }
+.aba i { /* triângulo de alerta */
+  width: 18px; height: 16px; background: #fff; clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  position: relative;
+}
+.pergunta-texto {
+  position: absolute; left: 82px; right: 82px; top: 18px; bottom: 18px;
+  display: flex; align-items: center; justify-content: center; text-align: center;
+}
+.pergunta-texto span { display: block; font: 500 34px/1.26 'Paralucent'; letter-spacing: .4px; color: #fff; text-shadow: 0 2px 10px rgba(0, 0, 0, .5); }
+
+.opcao { position: absolute; width: 795px; height: 110px; cursor: pointer; transition: scale 120ms ease; }
+.opcao.apertada { scale: .98; }
+@media (hover: hover) { .opcao:hover .l-borda { stroke: #fff; } }
+.opcao-conteudo {
+  position: absolute; inset: 0 46px; display: flex; align-items: center; gap: 20px;
+}
+.opcao-num {
+  width: 50px; text-align: center; font: 42px/1 'pirulen'; font-weight: normal;
+  color: var(--ouro); text-shadow: 0 0 18px rgba(255, 200, 60, .55);
+}
+.opcao-caixa {
+  flex: 1; height: 86px; display: flex; align-items: center;
+  padding-left: 20px; border-left: 2px solid rgba(207, 216, 230, .35);
+}
+.opcao-texto { display: block; font: 500 27px/1.18 'Paralucent'; color: #fff; }
+
+.opcao.travada .l-estado { fill: url(#g-ouro); opacity: 1; }
+.opcao.travada .l-borda { stroke: #fff4c2; }
+.opcao.travada .opcao-texto, .opcao.travada .opcao-num { color: #231500; text-shadow: none; }
+.opcao.travada .opcao-caixa { border-left-color: rgba(35, 21, 0, .35); }
+.opcao.travada { animation: travada 900ms ease-in-out infinite alternate; }
+@keyframes travada {
+  from { filter: drop-shadow(0 0 10px rgba(255, 180, 0, .55)); }
+  to { filter: drop-shadow(0 0 32px rgba(255, 190, 0, .95)); }
+}
+.opcao.fria { filter: brightness(.42) saturate(.35); }
+.opcao.meio-fria { filter: brightness(.68) saturate(.7); }
+.opcao.certa .l-verde { opacity: 1; }
+.opcao.certa .l-borda { stroke: #d6ffe9; }
+.opcao.certa .opcao-texto { color: #fff; }
+.opcao.certa .opcao-num { color: #fff; text-shadow: 0 0 18px rgba(0, 80, 30, .8); }
+.opcao.certa .opcao-caixa { border-left-color: rgba(255, 255, 255, .45); }
+.opcao.certa { filter: drop-shadow(0 0 34px rgba(31, 211, 122, .85)); }
+.opcao.errada .l-estado { fill: url(#g-vermelho); opacity: 1; }
+.opcao.errada .l-borda { stroke: #ffd2cf; }
+.opcao.errada .opcao-num { color: #fff; text-shadow: none; }
+.opcao.errada { filter: drop-shadow(0 0 30px rgba(255, 59, 48, .8)); }
+.opcao.glitch .opcao-conteudo { animation: glitch 80ms steps(2, jump-none) 6; }
+@keyframes glitch {
+  0% { transform: translateX(-6px); text-shadow: 4px 0 #ff2a6d, -4px 0 #05d9e8; clip-path: inset(0 0 52% 0); }
+  100% { transform: translateX(5px); text-shadow: -4px 0 #ff2a6d, 4px 0 #05d9e8; clip-path: inset(40% 0 0 0); }
+}
+
+/* ============================================ estilo CLÁSSICO (SBT, 2000)
+
+   O que faz uma tela ser reconhecida como Show do Milhão, e não como o
+   Milionário (cujos losangos ligados por uma linha a Globo usa aqui): coluna à
+   esquerda com logo, pergunta e as quatro alternativas empilhadas; o número
+   num círculo azul de aro branco, que fica VERMELHO quando o jogador escolhe;
+   a faixa ERRAR/PARAR/ACERTAR em caixas amarelas com o valor em vermelho; o
+   azul royal com raios roxos. Tons amostrados do programa de 30/03/2000. */
+
+.raios-fundo {
+  position: absolute; left: 50%; top: 50%; width: 2600px; height: 2600px; margin: -1300px 0 0 -1300px;
+  pointer-events: none; opacity: 0; transition: opacity 600ms ease;
+  background: repeating-conic-gradient(from 0deg, rgba(115, 110, 216, .34) 0deg 5deg, transparent 5deg 15deg);
+  -webkit-mask: radial-gradient(circle, #000 0, #000 20%, transparent 58%);
+  mask: radial-gradient(circle, #000 0, #000 20%, transparent 58%);
+  animation: girar 90s linear infinite;
+}
+[data-estilo="classico"] .raios-fundo { opacity: 1; }
+[data-estilo="classico"] .fundo {
+  background-image: linear-gradient(180deg, rgba(12, 47, 211, .55), rgba(14, 22, 113, .8)), url('../../web/assets/images/BG_Seleo_Equipamento.png');
+}
+[data-estilo="classico"] .nevoa { background: radial-gradient(ellipse 70% 55% at 72% 45%, rgba(60, 90, 255, .25), transparent 70%); }
+
+[data-estilo="classico"] .pergunta .l-base { fill: url(#g-perg-cl); }
+[data-estilo="classico"] .pergunta .l-borda { stroke: #ffd9c7; }
+[data-estilo="classico"] .pergunta-texto span { font-style: italic; }
+[data-estilo="classico"] .opcao .l-base { fill: url(#g-opcao-cl); }
+[data-estilo="classico"] .opcao .l-borda { stroke: #f3c2ae; }
+[data-estilo="classico"] .opcao-conteudo { inset: 0 26px 0 16px; gap: 18px; }
+[data-estilo="classico"] .opcao-caixa { border-left: 0; padding-left: 0; height: 78px; }
+[data-estilo="classico"] .opcao-num {
+  width: 64px; height: 64px; flex: none; border-radius: 50%; display: grid; place-items: center;
+  font-size: 30px; color: #fff; text-shadow: none;
+  background: radial-gradient(circle at 38% 32%, #5b52ff, #372DDB 55%, #1f188f);
+  box-shadow: inset 0 0 0 4px #fff, 0 4px 10px rgba(0, 0, 0, .45);
+  transition: background 160ms ease;
+}
+/* A escolha acende o NÚMERO, de azul para vermelho — e a barra esquenta. */
+[data-estilo="classico"] .opcao.travada .opcao-num { background: radial-gradient(circle at 38% 32%, #ff7a5c, #e0301e 55%, #8f1206); color: #fff; }
+[data-estilo="classico"] .opcao.travada .l-estado { fill: url(#g-trava-cl); }
+[data-estilo="classico"] .opcao.travada .opcao-texto { color: #fff; }
+[data-estilo="classico"] .opcao.travada .l-borda { stroke: #ffe45c; }
+[data-estilo="classico"] .opcao.travada { animation-name: travada-cl; }
+@keyframes travada-cl {
+  from { filter: drop-shadow(0 0 8px rgba(255, 215, 66, .5)); }
+  to { filter: drop-shadow(0 0 26px rgba(255, 215, 66, .95)); }
+}
+[data-estilo="classico"] .opcao.certa .opcao-num { background: radial-gradient(circle at 38% 32%, #6dffb0, #1FD37A 55%, #007E42); }
+[data-estilo="classico"] .opcao.errada .opcao-num { background: #8f1206; }
+
+[data-estilo="classico"] .ap-caixa > b {
+  height: 70px; font-size: 30px;
+  background: linear-gradient(180deg, #FFF0A0, #FAD742 45%, #E6B800); color: #BA1C01;
+  box-shadow: inset 0 0 0 3px #fff6c8, 0 6px 14px rgba(0, 0, 0, .4);
+}
+[data-estilo="classico"] .ap-caixa small { font-size: 15px; color: #fff; letter-spacing: 3px; }
+[data-estilo="classico"] .ap-caixa.acertar > b { box-shadow: inset 0 0 0 3px #fff6c8, 0 0 30px rgba(250, 215, 66, .7); }
+
+/* A posição de cada peça no estilo clássico: a coluna fica com a pergunta, e
+   o lado direito vira o "palco" — onde, na TV, aparecia o participante, aqui
+   aparece o veículo que chegou para o diagnóstico. */
+[data-estilo="classico"] .os { left: 1100px; top: 236px; scale: 1.22; transform-origin: 0 0; }
+[data-estilo="classico"] .tacometro { left: 1566px; top: 14px; scale: .8; transform-origin: 0 0; }
+[data-estilo="classico"] .ajudas { left: 1112px; top: 860px; }
+[data-estilo="classico"] .aposta { left: 60px; top: 894px; width: 960px; }
+[data-estilo="classico"] .ap-caixas { gap: 30px; }
+[data-estilo="classico"] .ap-barra { margin-top: 10px; }
+/* Caixa de cantos redondos, sem pontas: o texto pode ir mais perto da borda. */
+[data-estilo="classico"] .pergunta-texto { left: 44px; right: 44px; }
+[data-estilo="classico"] .aba { left: 30px; }
+/* Os painéis e o cartão da ajuda moram no palco da direita, que é mais estreito. */
+[data-estilo="classico"] .painel-titulo { font-size: 42px; }
+[data-estilo="classico"] .painel-titulo.menor { font-size: 34px; }
+/* A alternativa repetida no painel imita a da coluna: barra de canto redondo,
+   número no círculo — vermelho enquanto travada, verde na lição. */
+[data-estilo="classico"] .escolhida {
+  max-width: 640px; clip-path: inset(0 round 16px); padding: 10px 26px 10px 12px;
+  background: linear-gradient(180deg, #ff6a2b, #e03a06 50%, #a51f00); color: #fff;
+}
+[data-estilo="classico"] .escolhida b {
+  flex: none; width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; font-size: 28px;
+  background: radial-gradient(circle at 38% 32%, #ff7a5c, #e0301e 55%, #8f1206); box-shadow: inset 0 0 0 4px #fff;
+}
+[data-estilo="classico"] .escolhida.verde { background: linear-gradient(180deg, #6dffb0, #1FD37A 45%, #007E42); color: #02240f; }
+[data-estilo="classico"] .escolhida.verde b { background: radial-gradient(circle at 38% 32%, #6dffb0, #1FD37A 55%, #007E42); color: #fff; }
+[data-estilo="classico"] .licao-tv { max-width: 660px; }
+[data-estilo="classico"] .licao-tv img { width: 160px; height: 100px; }
+[data-estilo="classico"] .cartao { left: 1052px; top: 300px; width: 820px; }
+[data-estilo="classico"] .cartao-foto { width: 300px; }
+
+/* ------------------------------------------------------------- o locutor */
+
+.grito {
+  position: absolute; left: 0; right: 0; text-align: center; white-space: nowrap;
+  font-family: 'pirulen'; line-height: 1.1; letter-spacing: 4px;
+  isolation: isolate;
+}
+/* A faixa escura atrás da frase: por cima do palco cheio (carro, fichas,
+   mostrador) o ouro sozinho se perdia. */
+.grito::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1.3em; z-index: -1;
+  transform: translateY(-50%);
+  background: linear-gradient(90deg, transparent, rgba(2, 8, 26, .78) 16%, rgba(2, 8, 26, .78) 84%, transparent);
+}
+.grito span {
+  position: relative; display: inline-block; transform: skewX(-7deg);
+  background: linear-gradient(180deg, #FFF7CF 0%, #FFD84D 42%, #FF9E00 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 6px 0 #6b3a00) drop-shadow(0 0 28px rgba(255, 190, 60, .6));
+}
+.grito.vermelho span {
+  background-image: linear-gradient(180deg, #FFE0DD 0%, #FF5A4F 45%, #B3140C 100%);
+  filter: drop-shadow(0 6px 0 #4a0400) drop-shadow(0 0 28px rgba(255, 60, 40, .65));
+}
+.grito.branco span {
+  background-image: linear-gradient(180deg, #FFFFFF 0%, #CFE0FF 100%);
+  filter: drop-shadow(0 5px 0 #0a2a6b) drop-shadow(0 0 24px rgba(120, 180, 255, .65));
+}
+.grito span::after { /* o brilho que atravessa a palavra */
+  content: attr(data-t); position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 38%, rgba(255, 255, 255, .95) 50%, transparent 62%) no-repeat;
+  background-size: 260% 100%; background-position: 200% 0;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: brilho-texto 1s .25s ease-out 1 forwards;
+}
+@keyframes brilho-texto { to { background-position: -110% 0; } }
+
+.raios {
+  position: absolute; left: 960px; top: 300px; width: 1900px; height: 1900px; margin: -950px 0 0 -950px;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 216, 77, .30) 0deg 6deg, transparent 6deg 16deg);
+  -webkit-mask: radial-gradient(circle, #000 0, #000 16%, transparent 60%);
+  mask: radial-gradient(circle, #000 0, #000 16%, transparent 60%);
+  mix-blend-mode: screen; animation: girar 16s linear infinite;
+}
+@keyframes girar { to { rotate: 360deg; } }
+
+.painel {
+  position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; filter: drop-shadow(0 24px 40px rgba(0, 0, 0, .65));
+}
+.painel > .losango .l-base { fill: rgba(4, 16, 46, .975); }
+.painel > .losango .l-borda { stroke: #FFD84D; }
+.painel > .losango .l-reflexo { opacity: .6; }
+.painel-conteudo { position: relative; display: flex; flex-direction: column; align-items: center; }
+.painel-titulo { font: 50px/1.05 'pirulen'; letter-spacing: 3px; color: #fff; text-shadow: 0 0 26px rgba(255, 216, 77, .45); }
+.painel-titulo.ouro { color: var(--ouro); }
+.painel-titulo.menor { font-size: 40px; }
+.painel-sub { margin-top: 12px; font: 400 21px/1.4 'Open Sans'; color: #c9d7f5; max-width: 700px; }
+.painel-botoes { display: flex; gap: 30px; margin-top: 26px; }
+.escolhida {
+  margin-top: 18px; max-width: 700px; padding: 12px 34px;
+  display: flex; align-items: center; gap: 18px; text-align: left;
+  background: linear-gradient(180deg, rgba(255, 216, 77, .95), rgba(255, 160, 0, .95));
+  clip-path: polygon(18px 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 18px 100%, 0 50%);
+  color: #231500;
+}
+.escolhida b { font: 38px/1 'pirulen'; font-weight: normal; }
+.escolhida span { font: 500 22px/1.25 'Paralucent'; }
+.escolhida.verde { background: linear-gradient(180deg, #7CFFB8, #1FD37A 45%, #0B7F45); color: #02240f; }
+
+/* O botão de auditório: losango, ouro, com o brilho passando. O envelope leva
+   o brilho de fora (drop-shadow), que o clip-path do botão cortaria. */
+.botao-env { display: inline-block; filter: drop-shadow(0 0 16px rgba(255, 190, 0, .5)); }
+.botao-env.prata { filter: drop-shadow(0 0 10px rgba(160, 200, 255, .35)); }
+.botao-env.pulsa { animation: pulsa 1.15s ease-in-out infinite; }
+@keyframes pulsa { 50% { scale: 1.05; filter: drop-shadow(0 0 34px rgba(255, 190, 0, .95)); } }
+.botao {
+  position: relative; display: grid; place-items: center; overflow: hidden;
+  height: 88px; min-width: 300px; padding: 0 58px;
+  font: 29px/1 'pirulen'; letter-spacing: 3px; color: #231500; cursor: pointer;
+  clip-path: polygon(26px 0, calc(100% - 26px) 0, 100% 50%, calc(100% - 26px) 100%, 26px 100%, 0 50%);
+  background: linear-gradient(180deg, #FFF1B8 0%, #FFC21A 50%, #E88A00 100%);
+  transition: scale 120ms ease;
+}
+.botao:active, .botao.apertado { scale: .95; }
+.botao.prata { background: linear-gradient(180deg, #F4F7FB 0%, #AEB9CC 55%, #7D889C 100%); color: #0a1a3a; min-width: 220px; }
+.botao.menor { height: 72px; font-size: 25px; }
+.botao::after {
+  content: ''; position: absolute; top: 0; bottom: 0; width: 90px; left: -140px;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .85), transparent);
+  animation: botao-brilho 2.6s ease-in-out infinite;
+}
+@keyframes botao-brilho { 0%, 55% { left: -140px; } 100% { left: calc(100% + 60px); } }
+
+/* O cartão da ajuda: uma conversa, e não um aviso. */
+.cartao {
+  position: absolute; left: 500px; top: 96px; width: 920px; height: 450px;
+  border-radius: 26px; overflow: hidden;
+  background: linear-gradient(180deg, rgb(8, 22, 58), rgb(3, 11, 32));
+  border: 2px solid rgba(160, 200, 255, .35);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, .6);
+  display: flex; flex-direction: column;
+}
+.cartao-topo {
+  height: 70px; display: flex; align-items: center; gap: 16px; padding: 0 26px;
+  background: var(--cor); color: #fff;
+}
+.cartao-topo svg { width: 38px; height: 38px; fill: none; stroke: #fff; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.cartao-topo strong { font: 22px/1 'pirulen'; font-weight: normal; letter-spacing: 2px; }
+.cartao-topo small { margin-left: auto; font: 700 14px 'Open Sans'; letter-spacing: 1px; display: flex; align-items: center; gap: 8px; }
+.cartao-topo small::before { content: ''; width: 11px; height: 11px; border-radius: 50%; background: #3dff8f; box-shadow: 0 0 10px #3dff8f; }
+.cartao-corpo { flex: 1; display: flex; gap: 26px; padding: 24px 28px 0; }
+.cartao-foto {
+  width: 360px; height: 230px; border-radius: 18px; flex: none;
+  background: rgba(255, 255, 255, .92); overflow: hidden; position: relative;
+}
+.cartao-foto img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.cartao-foto .chamando {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  background: rgba(3, 11, 32, .72); color: #fff; font: 700 18px 'Open Sans'; letter-spacing: 1px;
+}
+.cartao-foto .chamando::before {
+  content: ''; position: absolute; width: 110px; height: 110px; border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, .8); animation: chamando 1s ease-out infinite;
+}
+@keyframes chamando { from { transform: scale(.5); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
+.cartao-conversa { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+.cartao-quem { font: 700 15px 'Open Sans'; letter-spacing: 1.5px; color: #8fb0ea; text-transform: uppercase; }
+.balao {
+  position: relative; padding: 18px 22px; border-radius: 4px 20px 20px 20px;
+  background: #fff; color: #0a1a3a; font: 500 24px/1.3 'Paralucent'; min-height: 70px;
+}
+.digitando { display: inline-flex; gap: 7px; padding: 6px 2px; }
+.digitando i { width: 11px; height: 11px; border-radius: 50%; background: #7d889c; animation: digitando 900ms ease-in-out infinite; }
+.digitando i:nth-child(2) { animation-delay: .15s; }
+.digitando i:nth-child(3) { animation-delay: .3s; }
+@keyframes digitando { 30% { transform: translateY(-7px); background: #0a1a3a; } 60% { transform: none; } }
+.cartao-pe { display: flex; justify-content: flex-end; padding: 0 28px 22px; }
+.cartao-pe .botao { height: 70px; font-size: 24px; min-width: 240px; }
+
+/* O resultado: tempo no odômetro e o ranking abrindo espaço para o jogador. */
+.resultado { width: 860px; }
+.tempo-final { display: flex; align-items: baseline; gap: 20px; }
+.tempo-final small { font: 800 16px 'Open Sans'; letter-spacing: 3px; color: #9fb7e8; }
+.tempo-final b { font: 56px/1 'pirulen'; font-weight: normal; color: var(--ouro); text-shadow: 0 0 24px rgba(255, 216, 77, .5); }
+.lista { position: relative; width: 640px; height: 200px; margin-top: 12px; }
+.linha {
+  position: absolute; left: 0; right: 0; height: 36px; display: flex; align-items: center; gap: 18px; padding: 0 26px;
+  font: 20px/1 'pirulen'; color: #fff; background: rgba(12, 34, 88, .8);
+  clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 14px 100%, 0 50%);
+}
+.linha .p { width: 48px; color: #9fb7e8; }
+.linha .n { flex: 1; text-align: left; }
+.linha .t { color: #cfe0ff; }
+.linha.eu { background: linear-gradient(180deg, #FFF1B8, #FFC21A 50%, #E88A00); color: #231500; }
+.linha.eu .p, .linha.eu .t { color: #231500; }
+.licao-tv { display: flex; align-items: center; gap: 22px; margin-top: 18px; max-width: 760px; text-align: left; }
+.licao-tv img { width: 190px; height: 118px; object-fit: contain; object-view-box: inset(18.9% 5.3% 10.5% 6.7%); flex: none; background: rgba(255, 255, 255, .92); border-radius: 12px; padding: 8px; }
+.licao-tv small { display: block; font: 800 14px 'Open Sans'; letter-spacing: 2.5px; color: #ff8a80; margin-bottom: 6px; }
+.licao-tv p { margin: 0; font: 500 22px/1.3 'Paralucent'; color: #fff; }
+
+/* ------------------------------------------------------ abertura e lâmina */
+
+.abertura {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at 50% 42%, #0b2c78 0%, #031033 45%, #000611 80%);
+}
+.abertura .selo { position: relative; }
+.abertura h1 { margin: 6px 0 0; font: 30px/1.2 'pirulen'; font-weight: normal; letter-spacing: 6px; color: #fff; }
+.abertura p { margin: 14px 0 30px; max-width: 900px; text-align: center; font: 400 21px/1.5 'Open Sans'; color: #b8c9ea; }
+.abertura kbd {
+  display: inline-block; min-width: 26px; padding: 1px 7px; border-radius: 6px; margin: 0 2px;
+  border: 1px solid rgba(255, 255, 255, .35); font: 700 15px 'Open Sans'; color: #fff; background: rgba(255, 255, 255, .08);
+}
+.abertura .atalhos { margin-top: 30px; font: 400 17px/1.8 'Open Sans'; color: #8ea3c9; text-align: center; }
+.lamina {
+  position: absolute; left: -200px; top: -200px; width: 2320px; height: 1480px; pointer-events: none; opacity: 0;
+  background: linear-gradient(100deg, transparent 43%, rgba(90, 170, 255, .0) 45%, rgba(150, 210, 255, .8) 49%, #fff 50%, rgba(150, 210, 255, .8) 51%, rgba(90, 170, 255, 0) 55%, transparent 57%);
+}
+
+/* ------------------------------------------------------ menos movimento */
+
+.menos .lampada, .menos .ficha-face::after, .menos .botao::after, .menos .raios,
+.menos .botao-env.pulsa, .menos .opcao.travada, .menos .tacometro.reta, .menos .cartao-foto .chamando::before,
+.menos .digitando i, .menos .opcao.glitch .opcao-conteudo { animation: none !important; }
+.menos .opcao.travada { filter: drop-shadow(0 0 24px rgba(255, 190, 0, .9)); }
+
+/* --------------------------------------- barra do protótipo (fora do palco) */
+
+.demo {
+  position: fixed; left: 12px; top: 12px; z-index: 10; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 6px 8px; border-radius: 12px; max-width: calc(100vw - 24px);
+  background: rgba(3, 10, 28, .82); border: 1px solid rgba(160, 200, 255, .25);
+  font: 12px/1.2 system-ui, sans-serif; color: #cfe0ff;
+  transition: opacity 400ms ease;
+}
+.demo.sumida { opacity: 0; pointer-events: none; }
+.demo b { color: #ffd84d; padding: 0 6px; letter-spacing: 1px; }
+.demo button {
+  font: inherit; color: #fff; background: rgba(255, 255, 255, .08); cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, .18); border-radius: 8px; padding: 5px 9px;
+}
+.demo button:hover { background: rgba(255, 255, 255, .16); }
+.demo button[aria-pressed="true"] { background: rgba(255, 216, 77, .25); border-color: rgba(255, 216, 77, .6); }
+.demo kbd { opacity: .6; margin-left: 4px; font: inherit; }
+.demo .gab { padding: 0 6px; opacity: .8; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="g-base" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#15408f"/><stop offset=".5" stop-color="#0a2463"/><stop offset="1" stop-color="#050f33"/>
+    </linearGradient>
+    <linearGradient id="g-reflexo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".26"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="g-ouro" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFEFB0"/><stop offset=".45" stop-color="#FFC21A"/><stop offset="1" stop-color="#E07B00"/>
+    </linearGradient>
+    <linearGradient id="g-verde" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8DFFC4"/><stop offset=".45" stop-color="#1FD37A"/><stop offset="1" stop-color="#0B7F45"/>
+    </linearGradient>
+    <linearGradient id="g-vermelho" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFA59F"/><stop offset=".45" stop-color="#FF3B30"/><stop offset="1" stop-color="#9E0F0A"/>
+    </linearGradient>
+    <linearGradient id="g-cromo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f4f7fb"/><stop offset=".48" stop-color="#8f9bb0"/><stop offset=".53" stop-color="#e9eef6"/><stop offset="1" stop-color="#5b667a"/>
+    </linearGradient>
+    <radialGradient id="g-face" cx=".5" cy=".42" r=".62">
+      <stop offset="0" stop-color="#11275a"/><stop offset=".7" stop-color="#050c22"/><stop offset="1" stop-color="#02060f"/>
+    </radialGradient>
+    <linearGradient id="g-agulha" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#ffb35c"/><stop offset="1" stop-color="#ff2d12"/>
+    </linearGradient>
+    <!-- Estilo clássico: tons amostrados do Show do Milhão de 30/03/2000
+         (pergunta #BA1C01, alternativa #912100). -->
+    <linearGradient id="g-perg-cl" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e2380f"/><stop offset=".5" stop-color="#BA1C01"/><stop offset="1" stop-color="#7a1100"/>
+    </linearGradient>
+    <linearGradient id="g-opcao-cl" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b83208"/><stop offset=".5" stop-color="#912100"/><stop offset="1" stop-color="#591300"/>
+    </linearGradient>
+    <linearGradient id="g-trava-cl" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff6a2b"/><stop offset=".5" stop-color="#e03a06"/><stop offset="1" stop-color="#a51f00"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div id="viewport">
+  <div id="stage" data-humor="abertura">
+    <div id="camera">
+      <div id="tremor">
+        <div class="fundo"></div>
+        <div class="raios-fundo"></div>
+        <div class="feixes">
+          <div class="feixe" style="left:250px"><div class="feixe-cone"></div><div class="feixe-fonte"></div></div>
+          <div class="feixe" style="left:690px"><div class="feixe-cone"></div><div class="feixe-fonte"></div></div>
+          <div class="feixe" style="left:1230px"><div class="feixe-cone"></div><div class="feixe-fonte"></div></div>
+          <div class="feixe" style="left:1670px"><div class="feixe-cone"></div><div class="feixe-fonte"></div></div>
+        </div>
+        <div class="nevoa"></div>
+        <div class="cena"></div>
+        <div class="spot"></div>
+      </div>
+    </div>
+    <div class="vinheta"></div>
+    <div class="pulso"></div>
+    <div class="locutor"></div>
+    <canvas id="particulas" width="1920" height="1080"></canvas>
+    <div class="flash"></div>
+    <div class="abertura"></div>
+    <div class="lamina"></div>
+  </div>
+</div>
+
+<div class="demo" id="demo">
+  <b>PROTÓTIPO</b>
+  <button data-acao="recomecar">↺ Recomeçar<kbd>R</kbd></button>
+  <button data-acao="reta">⏭ Reta final<kbd>F</kbd></button>
+  <button data-acao="esgotar">⏱ Quase sem tempo<kbd>T</kbd></button>
+  <button data-acao="estilo" id="botao-estilo">◧ Estilo: Palco<kbd>E</kbd></button>
+  <button data-acao="som" aria-pressed="true">♪ Som<kbd>M</kbd></button>
+  <button data-acao="movimento" aria-pressed="false">Menos movimento</button>
+  <span class="gab">gabarito: <strong id="gab">—</strong></span>
+</div>
+
+<script>
+'use strict';
+(() => {
+  const IMG = '../../web/assets/images/';
+  const W = 1920, H = 1080;
+  const NS = 'http://www.w3.org/2000/svg';
+
+  /* ================================================================ dados */
+
+  // A pergunta do VW 24-280, exatamente como está no baralho de fábrica
+  // (web/js/questions.js, slot 6). O gabarito é o campo `respostaTres`.
+  const Q = {
+    veiculo: 'VW 24-280',
+    equipamento: 'RASTHER 3S',
+    pergunta: 'No Rasther, existe uma função usada para validar componentes do sistema de freio motor e ventilador em veículos com motor MAN D08. Caso, após a análise, os componentes ainda apresentem falhas, qual é a função que deve ser executada para garantir o funcionamento correto do sistema?',
+    respostas: [
+      'Com o Rasther, executar a programação PTO presente.',
+      'Com o Rasther, executar a programação Inibição do acelerador com PTO ativado.',
+      'Com o Rasther, realizar o ajuste Reset dos contadores.',
+      'Com o Rasther, realizar o ciclo de rodagem e o reset de código de defeitos.',
+    ],
+    certa: 2, // índice em `respostas`
+    ajudas: {
+      apoio: 'No nosso canal TecnomotorTV, tem um vídeo que explica certinho sobre isso.',
+      ead: 'Valeu pela sugestão! Vamos alinhar com o instrutor pra gravar um conteúdo sobre isso.',
+      tv: 'Neste vídeo, Fabiano Almeida ensina o passo a passo para o Reset dos contadores no Rasther!',
+      comunidade: 'O Fabiano falou disso no treinamento. Pena que eu não anotei…',
+      rep: 'Confere no canal da Tecnomotor no YouTube, deve ter algo sobre isso por lá!',
+    },
+  };
+
+  // Ranking DE EXEMPLO. `tempo` é o que sobrou no relógio, como o jogo grava.
+  const RANKING = [
+    { nome: 'ANA', tempo: 52000 },
+    { nome: 'BRUNO', tempo: 41000 },
+    { nome: 'CARLA', tempo: 30000 },
+    { nome: 'DIEGO', tempo: 22600 },
+    { nome: 'ELISA', tempo: 15900 },
+  ];
+  /** A posição que o jogador pegaria se acertasse agora — a mesma conta de `posicaoNoRanking`. */
+  const posicao = (restante) => 1 + RANKING.filter((v) => v.tempo > restante).length;
+
+  // As lâmpadas do selo, medidas no Selo_2.png (1080x1350) por varredura de
+  // pixel: blobs quase brancos no aro. Em ordem horária.
+  const LAMPADAS = [[403, 453], [468, 422], [542, 413], [621, 431], [685, 465], [733, 784], [676, 833], [611, 868], [539, 880], [462, 868], [398, 829], [346, 782]];
+
+  const ICONE = {
+    fone: '<path d="M14 36v-6a18 18 0 0 1 36 0v6"/><rect x="9" y="34" width="11" height="17" rx="4"/><rect x="44" y="34" width="11" height="17" rx="4"/><path d="M50 51c0 5-5 8-12 8h-5"/>',
+    capelo: '<path d="M4 26 32 14l28 12-28 12z"/><path d="M16 32v11c0 4 7 8 16 8s16-4 16-8V32"/><path d="M60 26v15"/>',
+    play: '<rect x="7" y="13" width="50" height="33" rx="6"/><path d="M28 22v15l12-7.5z"/><path d="M22 54h20"/>',
+    grupo: '<circle cx="21" cy="23" r="7"/><circle cx="43" cy="23" r="7"/><path d="M7 50c0-8 6-13 14-13s14 5 14 13"/><path d="M33 41c2-3 6-4 10-4 8 0 14 5 14 13"/>',
+    maleta: '<rect x="8" y="21" width="48" height="31" rx="5"/><path d="M24 21v-6h16v6"/><path d="M8 34h48"/><path d="M29 34v5h6v-5"/>',
+    x: '<path d="M18 18 46 46M46 18 18 46"/>',
+  };
+
+  const AJUDAS = [
+    { chave: 'apoio', nome: 'APOIO TÉCNICO', rotulo: 'APOIO\nTÉCNICO', icone: ICONE.fone, cor: '#0B5BD3', foto: 'Apoio_(1).png', recorte: 'inset(20.5% 4.6% 25% 4.8%)', verbo: 'Chamando o Apoio Técnico…', quem: 'Apoio Técnico Tecnomotor' },
+    { chave: 'ead', nome: 'CURSOS EAD', rotulo: 'CURSOS\nEAD', icone: ICONE.capelo, cor: '#6A3BD9', foto: 'Instrutores_(1)_(1).png', recorte: 'inset(23.1% 2.9% 22.9% 2.5%)', verbo: 'Abrindo a aula…', quem: 'Instrutores Tecnomotor' },
+    { chave: 'tv', nome: 'TECNOMOTOR TV', rotulo: 'TECNOMOTOR\nTV', icone: ICONE.play, cor: '#D3202A', foto: 'TecnmotorTV.png', recorte: 'inset(18.9% 5.3% 10.5% 6.7%)', verbo: 'Abrindo o vídeo…', quem: 'Canal TecnomotorTV' },
+    { chave: 'comunidade', nome: 'COMUNIDADE', rotulo: 'COMUNI-\nDADE', icone: ICONE.grupo, cor: '#1C9B55', foto: 'Comunidade.png', recorte: 'inset(5.3% 6.9% 9.5% 6%)', verbo: 'Perguntando no grupo…', quem: 'Comunidade Rasther' },
+    { chave: 'rep', nome: 'REPRESENTANTE', rotulo: 'REPRESEN-\nTANTE', icone: ICONE.maleta, cor: '#C97A00', foto: 'Representantes_(1).png', recorte: 'inset(26.9% 4.6% 25% 4.8%)', verbo: 'Ligando para o representante…', quem: 'Representante comercial' },
+  ];
+
+  /* ============================================================= estilos */
+
+  /**
+   * Os dois estilos do protótipo: as mesmas peças em dois arranjos.
+   *
+   *   palco    — o terço inferior do Milionário: pergunta larga embaixo e as
+   *              alternativas em losango, 2x2, ligadas pela linha.
+   *   classico — a coluna do Show do Milhão de 2000: logo, pergunta e as
+   *              quatro alternativas empilhadas à esquerda; à direita, o palco,
+   *              onde na TV ficava o participante e aqui fica o veículo.
+   *
+   * O CSS resolve as cores e o lugar das peças fixas ([data-estilo]); aqui
+   * ficam as medidas que o JS usa para desenhar e para mirar luz e câmera.
+   */
+  const ESTILOS = {
+    palco: {
+      nome: 'Palco',
+      selo: { x: 842, y: 18, largura: 236 },
+      pergunta: { x: 150, y: 568, w: 1620, h: 184, ponta: 44, raio: 0, trilhos: true, texto: [34, 24] },
+      opcoes: { w: 795, h: 110, ponta: 38, raio: 0, pos: [[150, 782], [975, 782], [150, 914], [975, 914]], trilhos: true, texto: [27, 19], lados: true },
+      spot: [560, 250],
+      painel: { x: 960, ponta: 60, raio: 0 },
+      posso: { largura: 920, altura: 330, y: 212 },
+      certo: { largura: 890, altura: 326, y: 206 },
+      resultado: { largura: 900, altura: 392, y: 148 },
+      licao: { largura: 880, altura: 430, y: 116 },
+      gritoFinal: 'translateY(-226px) scale(.45)',
+    },
+    classico: {
+      nome: 'Clássico SBT',
+      selo: { x: 425, y: 10, largura: 230 },
+      pergunta: { x: 60, y: 226, w: 960, h: 214, ponta: 0, raio: 22, trilhos: false, texto: [30, 22] },
+      opcoes: { w: 960, h: 94, ponta: 0, raio: 16, pos: [[60, 462], [60, 566], [60, 670], [60, 774]], trilhos: false, texto: [26, 18], lados: false },
+      spot: [760, 200],
+      painel: { x: 1440, ponta: 0, raio: 30 },
+      posso: { largura: 760, altura: 330, y: 360 },
+      certo: { largura: 760, altura: 340, y: 350 },
+      resultado: { largura: 760, altura: 400, y: 330 },
+      licao: { largura: 780, altura: 440, y: 330 },
+      gritoFinal: 'translate(-420px, -220px) scale(.42)',
+    },
+  };
+  let estilo = 'palco';
+  const E = () => ESTILOS[estilo];
+
+  /* =========================================================== utilidades */
+
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  function el(tag, attrs = {}, ...filhos) {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v == null || v === false) continue;
+      if (k === 'class') n.className = v;
+      else if (k === 'style') n.style.cssText = v;
+      else if (k === 'html') n.innerHTML = v;
+      else if (k === 'text') n.textContent = v;
+      else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+      else n.setAttribute(k, v);
+    }
+    for (const f of filhos.flat()) if (f != null) n.append(f);
+    return n;
+  }
+  const entre = (v, a, b) => Math.max(a, Math.min(b, v));
+  const decimal = (ms) => { const d = Math.round(Math.max(0, ms) / 100); return `${Math.floor(d / 10)},${d % 10}`; };
+  const aleatorio = (a, b) => a + Math.random() * (b - a);
+
+  const stage = $('#stage');
+  let MENOS = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  stage.classList.toggle('menos', MENOS);
+
+  function encaixar() { stage.style.setProperty('--escala', Math.min(innerWidth / W, innerHeight / H)); }
+  addEventListener('resize', encaixar);
+  encaixar();
+
+  /**
+   * Cada partida é uma sessão. Recomeçar incrementa o número, e toda espera
+   * de uma sessão velha acorda num erro que ninguém trata — é o que impede
+   * um "CERTA RESPOSTA!" atrasado de cair em cima da partida seguinte.
+   */
+  let sessao = 0;
+  class Abortado extends Error {}
+  const pausa = (ms, s) => new Promise((ok, falha) => setTimeout(() => (s === sessao ? ok() : falha(new Abortado())), ms));
+  const vivo = (s) => s === sessao;
+
+  /** Entrada com `fill: backwards`: o quadro 0 vale durante o atraso, e ao
+   *  terminar o elemento volta ao CSS — nada fica escrito inline. */
+  function entrar(no, quadros, opcoes) {
+    if (!no) return null;
+    no.classList.remove('oculta');
+    if (MENOS) return no.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, delay: opcoes.delay || 0, fill: 'backwards' });
+    return no.animate(quadros, { fill: 'backwards', ...opcoes });
+  }
+
+  /** O centro de um elemento em px do palco (1920x1080), qualquer que seja a escala da janela. */
+  function noPalco(no) {
+    const st = stage.getBoundingClientRect(), b = no.getBoundingClientRect(), k = st.width / W;
+    return [(b.left - st.left + b.width / 2) / k, (b.top - st.top + b.height / 2) / k];
+  }
+
+  function caber(caixa, texto, max, min) {
+    let t = max;
+    texto.style.fontSize = t + 'px';
+    while (t > min && (texto.offsetHeight > caixa.clientHeight || texto.scrollWidth > caixa.clientWidth + 1)) {
+      t -= 1;
+      texto.style.fontSize = t + 'px';
+    }
+  }
+
+  /* ================================================================== som */
+
+  const Som = (() => {
+    let ctx = null, saida = null, sala = null, ruido = null, mudo = false;
+    const agora = () => ctx.currentTime;
+
+    function iniciar() {
+      if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+      const C = window.AudioContext || window.webkitAudioContext;
+      if (!C) return;
+      ctx = new C();
+      // O limitador no fim da linha: fanfarra, aplauso e bumbo somados não
+      // podem estourar a caixa de som do estande.
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -16; comp.knee.value = 12; comp.ratio.value = 5;
+      comp.attack.value = 0.002; comp.release.value = 0.2;
+      saida = ctx.createGain();
+      saida.gain.value = mudo ? 0 : 0.9;
+      saida.connect(comp).connect(ctx.destination);
+      // A "sala": reverberação por convolução com um impulso gerado aqui
+      // mesmo. É o que faz o sino soar em estúdio, e não dentro da caixa.
+      sala = ctx.createConvolver();
+      sala.buffer = impulso(2.4, 3.2);
+      const retorno = ctx.createGain();
+      retorno.gain.value = 0.25;
+      sala.connect(retorno).connect(saida);
+      ruido = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+      const d = ruido.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+
+    function impulso(seg, queda) {
+      const n = Math.floor(ctx.sampleRate * seg);
+      const b = ctx.createBuffer(2, n, ctx.sampleRate);
+      for (let c = 0; c < 2; c++) {
+        const d = b.getChannelData(c);
+        for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, queda);
+      }
+      return b;
+    }
+
+    function envelope(g, t, ataque, pico, dur) {
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(Math.max(pico, 0.0002), t + Math.max(0.001, ataque));
+      g.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(ataque + 0.01, dur));
+    }
+
+    function ligar(no, o) {
+      no.connect(o.bus || saida);
+      if (o.molhado > 0) {
+        const e = ctx.createGain();
+        e.gain.value = o.molhado;
+        no.connect(e);
+        e.connect(sala);
+      }
+    }
+
+    function osc(tipo, f, t, dur, vol, o = {}) {
+      const n = ctx.createOscillator();
+      n.type = tipo;
+      n.frequency.setValueAtTime(f, t);
+      if (o.glide) n.frequency.exponentialRampToValueAtTime(o.glide, t + (o.glideEm ?? dur));
+      if (o.detune) n.detune.value = o.detune;
+      const g = ctx.createGain();
+      envelope(g, t, o.ataque ?? 0.005, vol, dur);
+      let fim = n;
+      if (o.filtro) {
+        const fi = ctx.createBiquadFilter();
+        fi.type = o.filtro.tipo || 'lowpass';
+        fi.Q.value = o.filtro.q ?? 0.7;
+        fi.frequency.setValueAtTime(o.filtro.f, t);
+        if (o.filtro.ate) fi.frequency.exponentialRampToValueAtTime(o.filtro.ate, t + (o.filtro.em ?? dur));
+        n.connect(fi);
+        fim = fi;
+      }
+      fim.connect(g);
+      ligar(g, o);
+      n.start(t);
+      n.stop(t + dur + 0.1);
+      return n;
+    }
+
+    function chiado(t, dur, vol, o = {}) {
+      const s = ctx.createBufferSource();
+      s.buffer = ruido;
+      s.loop = true;
+      const fi = ctx.createBiquadFilter();
+      fi.type = o.tipo || 'bandpass';
+      fi.Q.value = o.q ?? 1;
+      fi.frequency.setValueAtTime(o.f ?? 1000, t);
+      if (o.ate) fi.frequency.exponentialRampToValueAtTime(o.ate, t + (o.em ?? dur));
+      const g = ctx.createGain();
+      envelope(g, t, o.ataque ?? 0.005, vol, dur);
+      s.connect(fi);
+      fi.connect(g);
+      ligar(g, o);
+      s.start(t, Math.random() * 1.8);
+      s.stop(t + dur + 0.1);
+    }
+
+    /* As vozes. `em` é quanto depois de agora, em segundos. */
+    const V = {
+      sino(f, em = 0, vol = 0.16) {
+        if (!ctx) return;
+        const t = agora() + em;
+        osc('sine', f, t, 1.6, vol, { molhado: 0.55, ataque: 0.002 });
+        osc('sine', f * 2.01, t, 0.7, vol * 0.3, { molhado: 0.4, ataque: 0.002 });
+        osc('sine', f * 3.03, t, 0.3, vol * 0.14, { ataque: 0.002 });
+        osc('triangle', f * 4.1, t, 0.12, vol * 0.08, { ataque: 0.001 });
+      },
+      bumbo(em = 0, vol = 0.6, de = 150, ate = 42, dur = 0.5) {
+        if (!ctx) return;
+        osc('sine', de, agora() + em, dur, vol, { glide: ate, glideEm: dur * 0.6, ataque: 0.002 });
+      },
+      prato(em = 0, vol = 0.1, dur = 1.4) {
+        if (!ctx) return;
+        chiado(agora() + em, dur, vol, { tipo: 'highpass', f: 6500, q: 0.4, ataque: 0.002, molhado: 0.35 });
+      },
+      whoosh(em = 0, dur = 0.5, vol = 0.22, sobe = true) {
+        if (!ctx) return;
+        chiado(agora() + em, dur, vol, { f: sobe ? 280 : 2800, ate: sobe ? 3400 : 240, q: 1.6, ataque: dur * 0.65, molhado: 0.25 });
+      },
+      impacto(em = 0, vol = 1) {
+        if (!ctx) return;
+        V.bumbo(em, 0.75 * vol, 130, 38, 0.7);
+        chiado(agora() + em, 0.35, 0.28 * vol, { tipo: 'lowpass', f: 2600, ate: 200, q: 0.8, ataque: 0.002 });
+        V.prato(em, 0.09 * vol, 1.6);
+      },
+      tiqueEm(t, f = 1000, vol = 0.1) {
+        if (!ctx) return;
+        osc('square', f, Math.max(t, agora()), 0.06, vol, { ataque: 0.002, filtro: { f: 3800 } });
+      },
+      tique(em = 0, f = 1000, vol = 0.1) { if (ctx) V.tiqueEm(agora() + em, f, vol); },
+      clunk(em = 0) {
+        if (!ctx) return;
+        const t = agora() + em;
+        osc('square', 190, t, 0.1, 0.22, { glide: 70, ataque: 0.001, filtro: { f: 1400 } });
+        chiado(t, 0.06, 0.25, { f: 900, q: 3, ataque: 0.001 });
+        V.bumbo(em, 0.4, 110, 45, 0.3);
+      },
+      travar(em = 0) {
+        if (!ctx) return;
+        const t = agora() + em;
+        V.bumbo(em, 0.55, 140, 48, 0.45);
+        osc('sawtooth', 110, t, 0.55, 0.07, { filtro: { f: 400, ate: 2600, em: 0.35, q: 4 } });
+        osc('sine', 1760, t + 0.02, 0.35, 0.05, { molhado: 0.5 });
+      },
+      pop(em = 0, f = 620) {
+        if (!ctx) return;
+        osc('sine', f, agora() + em, 0.14, 0.16, { glide: f * 1.7, glideEm: 0.08, ataque: 0.002, molhado: 0.2 });
+      },
+      blip(em = 0, sobe = false) {
+        if (!ctx) return;
+        osc('triangle', sobe ? 520 : 900, agora() + em, 0.18, 0.12, { glide: sobe ? 900 : 430, ataque: 0.003 });
+      },
+      brilho(em = 0) {
+        if (!ctx) return;
+        [1318.5, 1568, 2093, 2637, 3136].forEach((f, i) => osc('sine', f, agora() + em + i * 0.045, 0.35, 0.07, { molhado: 0.6, ataque: 0.002 }));
+      },
+      mensagem(em = 0) {
+        if (!ctx) return;
+        osc('sine', 880, agora() + em, 0.09, 0.12, { ataque: 0.002 });
+        osc('sine', 1320, agora() + em + 0.09, 0.14, 0.12, { ataque: 0.002, molhado: 0.3 });
+      },
+      digitar(em = 0) {
+        if (!ctx) return;
+        chiado(agora() + em, 0.018, 0.05, { tipo: 'highpass', f: 2600, q: 0.7, ataque: 0.001 });
+      },
+      chamar(em = 0) {
+        if (!ctx) return;
+        // 425 Hz é o tom de chamada da telefonia brasileira.
+        for (let k = 0; k < 2; k++) osc('sine', 425, agora() + em + k * 0.45, 0.3, 0.08, { ataque: 0.01 });
+      },
+      /** "Metais": duas serras desafinadas e um filtro que abre como sopro. */
+      metal(f, t, dur, vol) {
+        for (const d of [-8, 8]) osc('sawtooth', f, t, dur, vol, { detune: d, ataque: 0.02, filtro: { f: 700, ate: 3200, em: 0.08, q: 1.2 }, molhado: 0.35 });
+      },
+      fanfarra(em = 0) {
+        if (!ctx) return;
+        const t = agora() + em;
+        [392, 523.25, 659.25, 783.99].forEach((f, i) => V.metal(f, t + i * 0.11, 0.2, 0.05));
+        [523.25, 659.25, 783.99, 1046.5].forEach((f) => V.metal(f, t + 0.47, 1.7, 0.042));
+        V.bumbo(em + 0.47, 0.7, 120, 40, 0.8);
+        V.prato(em + 0.47, 0.11, 2.2);
+        [2093, 2637, 3136, 2637, 3520].forEach((f, i) => osc('sine', f, t + 0.55 + i * 0.13 + Math.random() * 0.05, 0.5, 0.045, { molhado: 0.7, ataque: 0.002 }));
+      },
+      /** Aplauso granular: centenas de palmas de ruído, cada uma num filtro
+       *  e num instante sorteados. Sem gravação nenhuma. */
+      aplauso(em = 0, dur = 3.4) {
+        if (!ctx) return;
+        const t = agora() + em;
+        chiado(t, dur + 0.6, 0.05, { f: 1500, q: 0.35, ataque: 0.35, molhado: 0.3 });
+        for (let i = 0; i < 360; i++) {
+          const ti = t + 0.04 + dur * Math.pow(Math.random(), 1.25);
+          const k = 1 - (ti - t) / (dur + 0.2);
+          chiado(ti, 0.012 + Math.random() * 0.02, 0.1 * Math.pow(Math.max(k, 0.05), 0.8) * (0.4 + Math.random() * 0.6),
+            { f: 800 + Math.random() * 2400, q: 1.1, ataque: 0.001, molhado: 0.25 });
+        }
+      },
+      /** O erro sem deboche: três notas que descem, e um baque. Quem joga é
+       *  cliente, e não motivo de piada. */
+      derrota(em = 0) {
+        if (!ctx) return;
+        const t = agora() + em;
+        V.bumbo(em, 0.6, 90, 32, 0.9);
+        [[329.63, 0, 0.3], [261.63, 0.24, 0.3], [220, 0.48, 1.1]].forEach(([f, d, dur]) => {
+          for (const dt of [-10, 10]) {
+            osc('sawtooth', f, t + d, dur, 0.045, { detune: dt, ataque: 0.02, glide: d > 0.4 ? f * 0.94 : null, glideEm: dur, filtro: { f: 1300, q: 0.9 }, molhado: 0.4 });
+          }
+        });
+      },
+      alarme(em = 0) {
+        if (!ctx) return;
+        for (let k = 0; k < 6; k++) osc('square', k % 2 ? 740 : 988, agora() + em + k * 0.15, 0.14, 0.075, { ataque: 0.002, filtro: { f: 3200 } });
+      },
+      estouro(em = 0) {
+        if (!ctx) return;
+        const t = agora() + em;
+        chiado(t, 1.1, 0.55, { tipo: 'lowpass', f: 3000, ate: 160, q: 0.7, ataque: 0.003 });
+        V.bumbo(em, 0.9, 80, 28, 1.0);
+        for (let i = 0; i < 16; i++) chiado(t + 0.05 + Math.random() * 0.9, 0.01, 0.3 * Math.random(), { tipo: 'highpass', f: 2500, ataque: 0.001 });
+      },
+      /** O ronco da partida: o conta-giros varre como painel de carro ligando. */
+      ronco(em = 0, dur = 1.3) {
+        if (!ctx) return;
+        const t = agora() + em;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.16, t + 0.12);
+        g.gain.setValueAtTime(0.16, t + dur * 0.55);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        const fi = ctx.createBiquadFilter();
+        fi.type = 'lowpass';
+        fi.frequency.setValueAtTime(500, t);
+        fi.frequency.exponentialRampToValueAtTime(2400, t + dur * 0.45);
+        fi.frequency.exponentialRampToValueAtTime(600, t + dur);
+        fi.connect(g);
+        g.connect(saida);
+        for (const [tipo, k] of [['sawtooth', 1], ['square', 0.5]]) {
+          const o = ctx.createOscillator();
+          o.type = tipo;
+          o.frequency.setValueAtTime(42 * k * 2, t);
+          o.frequency.exponentialRampToValueAtTime(150 * k * 2, t + dur * 0.45);
+          o.frequency.exponentialRampToValueAtTime(48 * k * 2, t + dur);
+          o.connect(fi);
+          o.start(t);
+          o.stop(t + dur + 0.05);
+        }
+      },
+      rolagem(em = 0, n = 18, dur = 0.9) {
+        if (!ctx) return;
+        for (let i = 0; i < n; i++) V.tique(em + (i / n) * dur, 700 + i * 40, 0.05);
+      },
+      /** O suspense antes do veredito. Devolve quem o corta, e os instantes das
+       *  batidas para a tela pulsar junto. */
+      suspense(dur = 2.6) {
+        const batidas = [0.12, 0.8, 1.36, 1.82, 2.2, 2.48].filter((x) => x < dur);
+        if (!ctx) return { batidas, cortar() {} };
+        const t = agora();
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(1, t + 0.4);
+        g.connect(saida);
+        const a = ctx.createOscillator();
+        a.type = 'sine';
+        a.frequency.value = 55;
+        const ga = ctx.createGain();
+        ga.gain.value = 0.22;
+        a.connect(ga).connect(g);
+        a.start(t);
+        const b = ctx.createOscillator();
+        b.type = 'sawtooth';
+        b.frequency.value = 110;
+        const fb = ctx.createBiquadFilter();
+        fb.type = 'lowpass';
+        fb.frequency.setValueAtTime(180, t);
+        fb.frequency.exponentialRampToValueAtTime(700, t + dur);
+        const gb = ctx.createGain();
+        gb.gain.value = 0.07;
+        b.connect(fb).connect(gb).connect(g);
+        b.start(t);
+        chiado(t, dur, 0.13, { f: 260, ate: 2800, q: 2.2, ataque: dur * 0.92, bus: g });
+        batidas.forEach((x) => {
+          osc('sine', 95, t + x, 0.24, 0.5, { glide: 36, glideEm: 0.15, ataque: 0.002, bus: g });
+          osc('sine', 85, t + x + 0.17, 0.26, 0.36, { glide: 34, glideEm: 0.15, ataque: 0.002, bus: g });
+        });
+        return {
+          batidas,
+          cortar(fade = 0.04) {
+            const n = agora();
+            g.gain.cancelScheduledValues(n);
+            g.gain.setValueAtTime(Math.max(g.gain.value, 0.0002), n);
+            g.gain.exponentialRampToValueAtTime(0.0001, n + fade);
+            setTimeout(() => { for (const o of [a, b]) { try { o.stop(); } catch (_) { /* já parou */ } } g.disconnect(); }, (fade + 0.2) * 1000);
+          },
+        };
+      },
+    };
+
+    function alternarMudo() {
+      mudo = !mudo;
+      if (saida) saida.gain.setTargetAtTime(mudo ? 0 : 0.9, agora(), 0.03);
+      return mudo;
+    }
+
+    /** Um instante do relógio da tela (performance.now, ms) no relógio do áudio. */
+    const audioEm = (perfMs) => (ctx ? agora() + (perfMs - performance.now()) / 1000 : 0);
+
+    return {
+      iniciar, V, alternarMudo, audioEm,
+      osc: (...a) => ctx && osc(...a),
+      chiado: (...a) => ctx && chiado(...a),
+      get ctx() { return ctx; },
+      get saida() { return saida; },
+      get sala() { return sala; },
+    };
+  })();
+
+  /**
+   * A trilha da pergunta, gerada na hora e marcada adiante no relógio do áudio
+   * (agendador com antecedência de 150ms). Três níveis: o tempo apertando sobe
+   * o andamento, abre o filtro e soma camadas — o que o ouvido percebe como
+   * "está acabando" sem ninguém olhar o relógio.
+   */
+  const Trilha = (() => {
+    let bus = null, pad = null, timer = null, prox = 0, passo = 0, nivel = 0, abafada = false;
+    const BPM = [96, 112, 132];
+    const CORTE = [520, 900, 1500];
+
+    function iniciar() {
+      const ctx = Som.ctx;
+      if (!ctx) return;
+      parar(0.01);
+      const t = ctx.currentTime;
+      bus = ctx.createGain();
+      bus.gain.setValueAtTime(0.0001, t);
+      bus.gain.exponentialRampToValueAtTime(0.85, t + 1.2);
+      bus.connect(Som.saida);
+      const filtro = ctx.createBiquadFilter();
+      filtro.type = 'lowpass';
+      filtro.frequency.value = CORTE[0];
+      filtro.Q.value = 0.9;
+      const gPad = ctx.createGain();
+      gPad.gain.value = 0.035;
+      filtro.connect(gPad);
+      gPad.connect(bus);
+      const envio = ctx.createGain();
+      envio.gain.value = 0.35;
+      gPad.connect(envio);
+      envio.connect(Som.sala);
+      const oscs = [];
+      // Lá menor aberto: A2, E3, A3, C4, cada um em duas serras desafinadas.
+      for (const f of [110, 164.81, 220, 261.63]) {
+        for (const d of [-7, 7]) {
+          const o = ctx.createOscillator();
+          o.type = 'sawtooth';
+          o.frequency.value = f;
+          o.detune.value = d;
+          o.connect(filtro);
+          o.start(t);
+          oscs.push(o);
+        }
+      }
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.13;
+      const lg = ctx.createGain();
+      lg.gain.value = 160;
+      lfo.connect(lg);
+      lg.connect(filtro.frequency);
+      lfo.start(t);
+      pad = { oscs, lfo, filtro };
+      nivel = 0;
+      abafada = false;
+      prox = t + 0.08;
+      passo = 0;
+      timer = setInterval(agendar, 25);
+    }
+
+    function agendar() {
+      const ctx = Som.ctx;
+      if (!ctx || !bus) return;
+      while (prox < ctx.currentTime + 0.15) {
+        tocar(passo, prox);
+        prox += 60 / BPM[nivel] / 2;
+        passo++;
+      }
+    }
+
+    function tocar(i, t) {
+      const k = abafada ? 0.3 : 1;
+      if (i % 4 === 0) Som.osc('sine', 110, t, 0.34, 0.3 * k, { glide: 40, glideEm: 0.2, ataque: 0.002, bus });
+      if (i % 8 === 6) Som.osc('sine', 100, t, 0.26, 0.18 * k, { glide: 40, glideEm: 0.18, ataque: 0.002, bus });
+      if (nivel >= 1) Som.chiado(t, 0.035, (i % 2 ? 0.035 : 0.018) * k, { tipo: 'highpass', f: 7800, q: 0.6, ataque: 0.001, bus });
+      if (nivel >= 2) {
+        // O semitom que vai e volta: o motivo de suspense mais velho do cinema.
+        const f = Math.floor(i / 2) % 2 ? 233.08 : 220;
+        Som.osc('sawtooth', f, t, 0.15, 0.045 * k, { ataque: 0.004, filtro: { f: 1900, q: 1 }, bus });
+      }
+    }
+
+    function definirNivel(n) {
+      if (n === nivel) return;
+      nivel = n;
+      if (pad) pad.filtro.frequency.setTargetAtTime(abafada ? 300 : CORTE[n], Som.ctx.currentTime, 0.6);
+    }
+
+    function abafar(sim) {
+      abafada = sim;
+      const ctx = Som.ctx;
+      if (!ctx || !bus) return;
+      bus.gain.setTargetAtTime(sim ? 0.4 : 0.85, ctx.currentTime, 0.12);
+      pad?.filtro.frequency.setTargetAtTime(sim ? 300 : CORTE[nivel], ctx.currentTime, 0.2);
+    }
+
+    function parar(fade = 0.3) {
+      clearInterval(timer);
+      timer = null;
+      const ctx = Som.ctx;
+      if (!ctx || !bus) return;
+      const b = bus, p = pad;
+      bus = null;
+      pad = null;
+      const t = ctx.currentTime;
+      b.gain.cancelScheduledValues(t);
+      b.gain.setValueAtTime(Math.max(b.gain.value, 0.0002), t);
+      b.gain.exponentialRampToValueAtTime(0.0001, t + fade);
+      setTimeout(() => { p?.oscs.forEach((o) => o.stop()); p?.lfo.stop(); b.disconnect(); }, (fade + 0.25) * 1000);
+    }
+
+    return { iniciar, definirNivel, abafar, parar };
+  })();
+
+  /* ============================================================ partículas */
+
+  const Particulas = (() => {
+    const cv = $('#particulas');
+    const g = cv.getContext('2d');
+    const lista = [];
+    let rodando = false, ultimo = 0;
+    const CORES = ['#FFD84D', '#FFB400', '#0051FF', '#3E8BFF', '#FFFFFF', '#FF3B30'];
+
+    function acordar() {
+      if (rodando) return;
+      rodando = true;
+      ultimo = performance.now();
+      requestAnimationFrame(loop);
+    }
+
+    function loop(agora) {
+      const dt = Math.min(0.033, (agora - ultimo) / 1000);
+      ultimo = agora;
+      g.clearRect(0, 0, W, H);
+      for (let i = lista.length - 1; i >= 0; i--) {
+        const p = lista[i];
+        p.vida -= dt;
+        p.idade += dt;
+        if (p.vida <= 0 || p.y > H + 80) { lista.splice(i, 1); continue; }
+        const ar = Math.exp(-p.arrasto * dt);
+        p.vx *= ar;
+        p.vy *= ar;
+        p.vy += p.gravidade * dt;
+        p.x += p.vx * dt + (p.balanco ? Math.sin(p.idade * p.balanco) * 40 * dt : 0);
+        p.y += p.vy * dt;
+        p.giro += p.vgiro * dt;
+        p.fase += p.vfase * dt;
+        desenhar(p);
+      }
+      g.globalAlpha = 1;
+      if (lista.length) requestAnimationFrame(loop);
+      else { rodando = false; g.clearRect(0, 0, W, H); }
+    }
+
+    function desenhar(p) {
+      const alfa = Math.min(1, p.vida / p.someEm) * p.alfa;
+      g.globalAlpha = alfa;
+      if (p.tipo === 'confete') {
+        g.save();
+        g.translate(p.x, p.y);
+        g.rotate(p.giro);
+        // O cosseno da fase é o papel virando no ar: a largura aparente vai a
+        // zero e volta, e é isso que separa confete de retângulo caindo.
+        g.scale(1, Math.cos(p.fase));
+        g.fillStyle = p.cor;
+        if (p.redondo) { g.beginPath(); g.arc(0, 0, p.w / 2.4, 0, Math.PI * 2); g.fill(); }
+        else g.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        g.restore();
+      } else if (p.tipo === 'faisca') {
+        g.globalCompositeOperation = 'lighter';
+        g.strokeStyle = p.cor;
+        g.lineWidth = p.w;
+        g.lineCap = 'round';
+        g.beginPath();
+        g.moveTo(p.x, p.y);
+        g.lineTo(p.x - p.vx * 0.035, p.y - p.vy * 0.035);
+        g.stroke();
+        g.globalCompositeOperation = 'source-over';
+      } else if (p.tipo === 'fumaca') {
+        const r = p.r0 + p.idade * p.cresce;
+        const grad = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+        grad.addColorStop(0, `rgba(${p.tom}, ${p.tom}, ${p.tom + 8}, .55)`);
+        grad.addColorStop(1, `rgba(${p.tom}, ${p.tom}, ${p.tom + 8}, 0)`);
+        g.fillStyle = grad;
+        g.beginPath();
+        g.arc(p.x, p.y, r, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+
+    /** `angulo` em graus, 0 = direita, -90 = para cima. */
+    function confete({ x, y, angulo, espalha = 28, forca = 1900, n = 150 }) {
+      if (MENOS) return;
+      for (let i = 0; i < n; i++) {
+        const a = ((angulo + (Math.random() - 0.5) * espalha) * Math.PI) / 180;
+        const v = forca * aleatorio(0.5, 1.15);
+        lista.push({
+          tipo: 'confete', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+          gravidade: aleatorio(850, 1150), arrasto: aleatorio(1.4, 2.6), balanco: aleatorio(2, 5),
+          giro: Math.random() * 6.28, vgiro: aleatorio(-9, 9), fase: Math.random() * 6.28, vfase: aleatorio(6, 16),
+          w: aleatorio(10, 20), h: aleatorio(6, 12), redondo: Math.random() < 0.18,
+          cor: CORES[(Math.random() * CORES.length) | 0], vida: aleatorio(3.2, 4.8), idade: 0, someEm: 0.9, alfa: 1,
+        });
+      }
+      acordar();
+    }
+
+    function faiscas({ x, y, n = 40, cores = ['#FFF3B0', '#FFD84D', '#FFFFFF'], forca = 900 }) {
+      if (MENOS) return;
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const v = forca * aleatorio(0.35, 1.1);
+        lista.push({
+          tipo: 'faisca', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 200,
+          gravidade: 900, arrasto: 2.8, giro: 0, vgiro: 0, fase: 0, vfase: 0,
+          w: aleatorio(2, 4), cor: cores[(Math.random() * cores.length) | 0], vida: aleatorio(0.45, 0.9), idade: 0, someEm: 0.35, alfa: 1,
+        });
+      }
+      acordar();
+    }
+
+    function fumaca({ x, y, n = 26 }) {
+      if (MENOS) return;
+      for (let i = 0; i < n; i++) {
+        lista.push({
+          tipo: 'fumaca', x: x + aleatorio(-40, 40), y: y + aleatorio(-20, 30),
+          vx: aleatorio(-80, 80), vy: aleatorio(-170, -60), gravidade: -30, arrasto: 0.6,
+          giro: 0, vgiro: 0, fase: 0, vfase: 0, r0: aleatorio(20, 44), cresce: aleatorio(60, 110),
+          tom: (aleatorio(120, 175)) | 0, vida: aleatorio(1.6, 2.6), idade: 0, someEm: 1.2, alfa: 1,
+        });
+      }
+      acordar();
+    }
+
+    function limpar() { lista.length = 0; g.clearRect(0, 0, W, H); }
+
+    return { confete, faiscas, fumaca, limpar };
+  })();
+
+  /* ========================================================== luz e câmera */
+
+  const Luz = (() => {
+    let feixes = [], vel = 0.5, fase = 0;
+    const HUMOR = {
+      abertura: { cor: 'rgb(120, 170, 255)', op: 0.55, vel: 0.5, fundo: 0.42 },
+      normal: { cor: 'rgb(150, 200, 255)', op: 0.9, vel: 1, fundo: 0.6 },
+      reta: { cor: 'rgb(255, 72, 56)', op: 0.95, vel: 1.9, fundo: 0.5 },
+      suspense: { cor: 'rgb(255, 200, 120)', op: 0, vel: 0.3, fundo: 0.2 },
+      acerto: { cor: 'rgb(255, 214, 90)', op: 1, vel: 2.6, fundo: 0.78 },
+      erro: { cor: 'rgb(255, 50, 40)', op: 0.45, vel: 0.5, fundo: 0.34 },
+    };
+
+    function montar() {
+      feixes = $$('.feixe').map((n, i) => ({ n, base: [16, 7, -7, -16][i], amp: [9, 12, 12, 9][i], vel: [0.33, 0.47, 0.41, 0.29][i], fase: i * 1.7 }));
+    }
+
+    function humor(nome) {
+      const h = HUMOR[nome];
+      stage.dataset.humor = nome;
+      stage.style.setProperty('--feixe-cor', h.cor);
+      stage.style.setProperty('--feixes-op', h.op);
+      stage.style.setProperty('--luz-fundo', h.fundo);
+      vel = h.vel;
+    }
+
+    function animar(dt) {
+      fase += dt * (MENOS ? 0 : vel);
+      for (const f of feixes) f.n.style.transform = `rotate(${(f.base + f.amp * Math.sin(fase * f.vel * 2 + f.fase)).toFixed(2)}deg)`;
+    }
+
+    function flash(cor = '#fff', pico = 0.85, ms = 320) {
+      const n = $('.flash');
+      n.style.background = cor;
+      n.animate([{ opacity: 0 }, { opacity: MENOS ? pico * 0.35 : pico, offset: 0.12 }, { opacity: 0 }], { duration: ms, easing: 'ease-out' });
+    }
+
+    function spot(x, y) {
+      const s = $('.spot');
+      s.style.setProperty('--spot-x', x + 'px');
+      s.style.setProperty('--spot-y', y + 'px');
+      // O canhão tem o formato da alternativa: largo e baixo na coluna do
+      // clássico, mais redondo no 2x2 do palco.
+      s.style.setProperty('--spot-rx', E().spot[0] + 'px');
+      s.style.setProperty('--spot-ry', E().spot[1] + 'px');
+      s.classList.add('ligado');
+    }
+
+    return { montar, humor, animar, flash, spot, spotApagar: () => $('.spot').classList.remove('ligado') };
+  })();
+
+  const Camera = (() => {
+    let zoom = null;
+    function aproximar(x, y, escala = 1.06, ms = 2600) {
+      if (MENOS) return;
+      const c = $('#camera');
+      c.style.transformOrigin = `${x}px ${y}px`;
+      zoom?.cancel();
+      zoom = c.animate([{ transform: 'scale(1)' }, { transform: `scale(${escala})` }], { duration: ms, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' });
+    }
+    function soltar(ms = 560) {
+      if (!zoom) return;
+      const c = $('#camera');
+      const atual = getComputedStyle(c).transform;
+      zoom.cancel();
+      zoom = null;
+      if (MENOS) return;
+      c.animate([{ transform: atual }, { transform: 'scale(0.992)', offset: 0.6 }, { transform: 'scale(1)' }], { duration: ms, easing: 'cubic-bezier(.2,.9,.25,1)' });
+    }
+    /** Tremor que morre: cada quadro sorteado, a amplitude caindo em curva. */
+    function tremer(forca = 16, ms = 480) {
+      if (MENOS) return;
+      const n = 12, quadros = [];
+      for (let i = 0; i <= n; i++) {
+        const k = Math.pow(1 - i / n, 1.6);
+        quadros.push({ transform: `translate(${((Math.random() * 2 - 1) * forca * k).toFixed(1)}px, ${((Math.random() * 2 - 1) * forca * 0.6 * k).toFixed(1)}px)` });
+      }
+      quadros[n] = { transform: 'translate(0px, 0px)' };
+      $('#tremor').animate(quadros, { duration: ms, easing: 'linear' });
+    }
+    function soco(escala = 1.022, ms = 440) {
+      if (MENOS) return;
+      $('#tremor').animate([{ transform: 'scale(1)' }, { transform: `scale(${escala})`, offset: 0.22 }, { transform: 'scale(1)' }], { duration: ms, easing: 'cubic-bezier(.2,.8,.3,1)' });
+    }
+    function reset() { zoom?.cancel(); zoom = null; }
+    return { aproximar, soltar, tremer, soco, reset };
+  })();
+
+  /* ================================================================ peças */
+
+  /**
+   * A caixa de uma pergunta, alternativa ou painel. Com `ponta` é o losango do
+   * Milionário (hexágono alongado); com `ponta` 0 é a caixa de cantos
+   * redondos do Show do Milhão, de raio `raio`.
+   */
+  function losango(w, h, d, classe = '', raio = 0) {
+    const hexa = (w2, h2, d2, o = 0) => `M${o + d2} ${o}L${o + w2 - d2} ${o}L${o + w2} ${o + h2 / 2}L${o + w2 - d2} ${o + h2}L${o + d2} ${o + h2}L${o} ${o + h2 / 2}Z`;
+    const caixa = (w2, h2, r, o = 0) => `M${o + r} ${o}H${o + w2 - r}A${r} ${r} 0 0 1 ${o + w2} ${o + r}V${o + h2 - r}A${r} ${r} 0 0 1 ${o + w2 - r} ${o + h2}H${o + r}A${r} ${r} 0 0 1 ${o} ${o + h2 - r}V${o + r}A${r} ${r} 0 0 1 ${o + r} ${o}Z`;
+    const redonda = d === 0;
+    const base = redonda ? caixa(w, h, raio) : hexa(w, h, d);
+    const borda = redonda ? caixa(w - 4, h - 4, Math.max(0, raio - 2), 2) : hexa(w - 4, h - 4, d - 1.2, 2);
+    const reflexo = redonda
+      ? `M${raio} 0H${w - raio}A${raio} ${raio} 0 0 1 ${w} ${raio}V${h / 2}H0V${raio}A${raio} ${raio} 0 0 1 ${raio} 0Z`
+      : `M${d} 0L${w - d} 0L${w} ${h / 2}L0 ${h / 2}Z`;
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('class', `losango ${classe}`);
+    svg.setAttribute('width', w);
+    svg.setAttribute('height', h);
+    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    svg.innerHTML = `<path class="l-base" d="${base}"/><path class="l-estado" d="${base}"/><path class="l-verde" d="${base}"/><path class="l-reflexo" d="${reflexo}"/><path class="l-borda" d="${borda}"/><path class="l-risco" d="${borda}" pathLength="100"/>`;
+    return svg;
+  }
+
+  /** A luz que corre pela borda de um losango, uma volta. */
+  function correr(svg, { ms = 700, delay = 0 } = {}) {
+    const r = svg?.querySelector('.l-risco');
+    if (!r || MENOS) return;
+    r.animate([{ strokeDashoffset: 0, opacity: 0 }, { opacity: 1, offset: 0.1 }, { opacity: 1, offset: 0.8 }, { strokeDashoffset: -100, opacity: 0 }], { duration: ms, delay, easing: 'cubic-bezier(.4,0,.2,1)' });
+  }
+
+  function botao(texto, { classe = '', aoTocar, pulsa = false } = {}) {
+    const b = el('div', { class: `botao ${classe}`, role: 'button', tabindex: '0', text: texto });
+    const env = el('div', { class: `botao-env ${classe} ${pulsa ? 'pulsa' : ''}` }, b);
+    b.addEventListener('pointerdown', () => b.classList.add('apertado'));
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach((e) => b.addEventListener(e, () => b.classList.remove('apertado')));
+    b.addEventListener('click', (e) => { e.stopPropagation(); aoTocar?.(); });
+    return env;
+  }
+
+  const Selo = {
+    criar({ largura, x = null, y = null }) {
+      const rec = { x0: 140, y0: 330, w: 800, h: 630 };
+      const k = largura / rec.w;
+      const caixa = el('div', { class: 'selo', style: `${x != null ? `left:${x}px;top:${y}px;` : ''}width:${largura}px;height:${(rec.h * k).toFixed(1)}px` });
+      caixa.append(el('img', { src: `${IMG}Selo_2.png`, alt: 'TecnoGame', style: `width:${(1080 * k).toFixed(1)}px;left:${(-rec.x0 * k).toFixed(1)}px;top:${(-rec.y0 * k).toFixed(1)}px` }));
+      LAMPADAS.forEach(([lx, ly], i) => caixa.append(el('i', { class: 'lampada', style: `left:${((lx - rec.x0) * k).toFixed(1)}px;top:${((ly - rec.y0) * k).toFixed(1)}px;--i:${i};--d:${(46 * k).toFixed(1)}px` })));
+      return caixa;
+    },
+  };
+
+  /* ------------------------------------------------------------ tacômetro */
+
+  const Tacometro = (() => {
+    const C = 200, A0 = -135, A1 = 135;
+    let raiz, agulha, arco, dInt, dDec, alvo = A0, ang = A0, vAng = 0, t = 0;
+    const angDe = (restante) => A0 + (1 - restante / 60000) * (A1 - A0);
+    const polar = (r, a) => { const rad = (a * Math.PI) / 180; return [C + r * Math.sin(rad), C - r * Math.cos(rad)]; };
+    const arcoD = (r, a0, a1) => {
+      const [x0, y0] = polar(r, a0), [x1, y1] = polar(r, a1);
+      return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+    };
+
+    function criar() {
+      raiz = el('div', { class: 'tacometro oculta' });
+      let s = '<svg viewBox="0 0 400 400" width="370" height="370">';
+      s += '<circle cx="200" cy="200" r="197" fill="url(#g-cromo)"/><circle cx="200" cy="200" r="186" fill="#050b1c"/><circle cx="200" cy="200" r="182" fill="url(#g-face)"/>';
+      s += `<path class="taco-zona" d="${arcoD(176, angDe(15000), A1)}"/>`;
+      for (let seg = 0; seg <= 60; seg++) {
+        const a = angDe(seg * 1000);
+        const maior = seg % 10 === 0, medio = seg % 5 === 0;
+        const [x0, y0] = polar(maior ? 144 : medio ? 152 : 158, a), [x1, y1] = polar(168, a);
+        s += `<line class="taco-risco ${maior ? 'maior' : medio ? 'medio' : ''} ${seg <= 15 ? 'quente' : ''}" x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}"/>`;
+        if (maior) {
+          const [lx, ly] = polar(121, a);
+          s += `<text class="taco-num ${seg <= 15 ? 'quente' : ''}" x="${lx.toFixed(1)}" y="${(ly + 8).toFixed(1)}">${seg}</text>`;
+        }
+      }
+      s += `<path class="taco-trilho" d="${arcoD(97, A0, A1)}"/><path class="taco-arco" d="${arcoD(97, A0, A0 + 0.01)}"/>`;
+      // Os dígitos moram na boca do mostrador, abaixo dos rótulos 60 e 0: a
+      // agulha nunca passa por ali (ela varre por cima, de -135° a 135°).
+      s += '<text class="taco-dig" x="200" y="338"><tspan class="i">60</tspan><tspan class="d">,0</tspan></text><text class="taco-rot" x="200" y="364">SEGUNDOS</text>';
+      s += `<g class="taco-agulha" transform="rotate(${A0} 200 200)"><polygon points="194.5,214 205.5,214 201.6,38 198.4,38" fill="url(#g-agulha)"/><circle cx="200" cy="200" r="22" fill="url(#g-cromo)"/><circle cx="200" cy="200" r="10" fill="#0b0f18"/></g>`;
+      s += '<ellipse cx="200" cy="112" rx="150" ry="66" fill="#fff" opacity=".05"/></svg>';
+      raiz.innerHTML = s;
+      agulha = $('.taco-agulha', raiz);
+      arco = $('.taco-arco', raiz);
+      dInt = $('.taco-dig .i', raiz);
+      dDec = $('.taco-dig .d', raiz);
+      alvo = ang = A0;
+      vAng = 0;
+      definir(60000);
+      return raiz;
+    }
+
+    function definir(restante) {
+      alvo = angDe(restante);
+      const d = Math.round(Math.max(0, restante) / 100);
+      dInt.textContent = String(Math.floor(d / 10));
+      dDec.textContent = ',' + (d % 10);
+      arco.setAttribute('d', arcoD(97, A0, Math.max(A0 + 0.01, alvo)));
+      const frac = restante / 60000;
+      const cor = frac > 0.5 ? '#3E8BFF' : frac > 0.25 ? '#FFB400' : '#FF3B30';
+      arco.style.stroke = cor;
+      raiz.classList.toggle('reta', restante <= 15000 && restante > 0);
+    }
+
+    /** A agulha tem massa: uma mola levemente subamortecida persegue o alvo,
+     *  e no vermelho ela treme, como ponteiro de motor no limite. */
+    function animar(dt) {
+      if (!agulha) return;
+      t += dt;
+      let alvoVivo = alvo;
+      if (!MENOS && raiz.classList.contains('reta')) alvoVivo += Math.sin(t * 47) * 0.9 + Math.sin(t * 83) * 0.5;
+      const k = 170, c = 17;
+      vAng += (k * (alvoVivo - ang) - c * vAng) * dt;
+      ang += vAng * dt;
+      if (MENOS) ang = alvoVivo;
+      agulha.setAttribute('transform', `rotate(${ang.toFixed(2)} 200 200)`);
+    }
+
+    /** O "painel ligando": a agulha varre a escala inteira e volta. */
+    async function varredura(s) {
+      if (MENOS) return;
+      const guardado = alvo;
+      alvo = A1;
+      await pausa(620, s);
+      alvo = guardado;
+    }
+
+    function estourar() {
+      alvo = A1 + 7;
+      vAng = 900;
+      raiz.classList.remove('reta');
+      raiz.classList.add('estourou');
+      setTimeout(() => { alvo = A1; }, 280);
+    }
+
+    function parar() { raiz.classList.remove('parado'); void raiz.offsetWidth; raiz.classList.add('parado'); }
+
+    /** O centro do mostrador em px do palco, medido: o estilo o põe noutro lugar. */
+    const centro = () => noPalco($('circle', raiz));
+
+    return { criar, definir, animar, varredura, estourar, parar, centro };
+  })();
+
+  /* --------------------------------------------- aposta: ERRAR / ACERTAR */
+
+  const Aposta = (() => {
+    let raiz, rolo, barra, barraTxt, pos = null;
+
+    function criar() {
+      const recorde = RANKING[0];
+      raiz = el('div', {
+        class: 'aposta oculta',
+        html: `<div class="ap-caixas">
+            <div class="ap-caixa erro"><b>FORA</b><small>ERRAR</small></div>
+            <div class="ap-caixa recorde"><b>${decimal(60000 - recorde.tempo)} s</b><small>RECORDE · ${recorde.nome}</small></div>
+            <div class="ap-caixa acertar"><b><span class="ap-rolo"><i>1º</i></span></b><small>ACERTAR AGORA</small></div>
+          </div>
+          <div class="ap-barra"><i></i><span></span></div>`,
+      });
+      rolo = $('.ap-rolo', raiz);
+      barra = $('.ap-barra i', raiz);
+      barraTxt = $('.ap-barra span', raiz);
+      pos = null;
+      atualizar(60000, { som: false });
+      return raiz;
+    }
+
+    function atualizar(restante, { som = true } = {}) {
+      const p = posicao(restante);
+      if (p !== pos) { trocar(p, pos != null && som); pos = p; }
+      // Quem está logo atrás: quando o relógio passar do tempo dele, ele te
+      // ultrapassa. A barra é essa folga.
+      const atras = RANKING[p - 1];
+      if (atras) {
+        const folga = restante - atras.tempo;
+        const janela = (p === 1 ? 60000 : RANKING[p - 2].tempo) - atras.tempo;
+        barra.style.transform = `scaleX(${entre(folga / janela, 0, 1).toFixed(3)})`;
+        barraTxt.innerHTML = `vale o ${p}º lugar por mais <b>${decimal(folga)} s</b>`;
+      } else {
+        barra.style.transform = 'scaleX(0)';
+        barraTxt.textContent = 'ainda entra no ranking';
+      }
+    }
+
+    function trocar(p, animar) {
+      const novo = el('i', { text: `${p}º` });
+      if (!animar || MENOS) { rolo.replaceChildren(novo); return; }
+      const velho = rolo.firstElementChild;
+      rolo.append(novo);
+      velho?.animate([{ transform: 'translateY(0)', opacity: 1 }, { transform: 'translateY(-100%)', opacity: 0 }], { duration: 260, easing: 'cubic-bezier(.5,0,.75,0)', fill: 'forwards' })
+        .finished.then(() => velho.remove(), () => {});
+      novo.animate([{ transform: 'translateY(100%)', opacity: 0 }, { transform: 'translateY(0)', opacity: 1 }], { duration: 380, delay: 110, easing: 'cubic-bezier(.2,1.4,.4,1)', fill: 'backwards' });
+      $('.ap-caixa.acertar > b', raiz).animate([{ filter: 'brightness(1.9)' }, { filter: 'brightness(1)' }], { duration: 520 });
+      Som.V.blip(0, false);
+    }
+
+    return { criar, atualizar };
+  })();
+
+  /* ----------------------------------------------------- pergunta e opções */
+
+  const Pergunta = (() => {
+    let raiz, caixa, texto, aba;
+    function criar() {
+      const m = E().pergunta;
+      raiz = el('div', { class: 'pergunta oculta', style: `left:${m.x}px;top:${m.y}px;width:${m.w}px;height:${m.h}px` });
+      if (m.trilhos) raiz.append(el('div', { class: 'trilho esq' }), el('div', { class: 'trilho dir' }));
+      raiz.append(losango(m.w, m.h, m.ponta, 'l-pergunta', m.raio));
+      aba = el('div', { class: 'aba', html: '<i></i>DEFEITO<span>· problema do cliente</span>' });
+      raiz.append(aba);
+      texto = el('span', { text: Q.pergunta });
+      caixa = el('div', { class: 'pergunta-texto' }, texto);
+      raiz.append(caixa);
+      return raiz;
+    }
+    function ajustar() { caber(caixa, texto, ...E().pergunta.texto); }
+    async function abrir(s) {
+      raiz.classList.remove('oculta');
+      Som.V.whoosh(0, 0.36, 0.2);
+      $$('.trilho', raiz).forEach((t) => entrar(t, [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' }));
+      const lz = $('.l-pergunta', raiz);
+      entrar(lz, [{ transform: 'scaleY(.03)', opacity: 0 }, { transform: 'scaleY(.03)', opacity: 1, offset: 0.3 }, { transform: 'scaleY(1)', opacity: 1 }], { duration: 440, easing: 'cubic-bezier(.2,.9,.2,1)' });
+      correr(lz, { ms: 900, delay: 240 });
+      Som.V.sino(523.25, 0.24, 0.1);
+      await pausa(300, s);
+      entrar(caixa, [{ opacity: 0, transform: 'translateY(10px)', filter: 'blur(6px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }], { duration: 420, easing: 'ease-out' });
+      entrar(aba, [{ transform: 'translateY(26px)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 360, delay: 120, easing: 'cubic-bezier(.2,1.3,.4,1)' });
+      await pausa(420, s);
+    }
+    return { criar, abrir, ajustar };
+  })();
+
+  const Opcoes = (() => {
+    let nos = [], trilhos = [], aoTocar = null;
+
+    function criar(cena, { tocar }) {
+      const m = E().opcoes;
+      aoTocar = tocar;
+      trilhos = [];
+      // A linha que atravessa cada fileira do 2x2 — assinatura do Milionário,
+      // e por isso só no estilo palco.
+      if (m.trilhos) {
+        for (const y of [836, 968]) {
+          for (const [x, w] of [[0, 150], [945, 30], [1770, 150]]) {
+            const t = el('div', { class: 'trilho-linha oculta', style: `top:${y}px;left:${x}px;width:${w}px` });
+            cena.append(t);
+            trilhos.push(t);
+          }
+        }
+      }
+      nos = Q.embaralhadas.map((txt, i) => {
+        const texto = el('span', { class: 'opcao-texto', text: txt });
+        const caixa = el('div', { class: 'opcao-caixa' }, texto);
+        const n = el('div', { class: 'opcao oculta', style: `left:${m.pos[i][0]}px;top:${m.pos[i][1]}px;width:${m.w}px;height:${m.h}px`, 'data-i': i, role: 'button', 'aria-label': `Alternativa ${i + 1}: ${txt}` },
+          losango(m.w, m.h, m.ponta, '', m.raio),
+          el('div', { class: 'opcao-conteudo' }, el('b', { class: 'opcao-num', text: String(i + 1) }), caixa));
+        n.addEventListener('pointerdown', () => n.classList.add('apertada'));
+        ['pointerup', 'pointerleave', 'pointercancel'].forEach((e) => n.addEventListener(e, () => n.classList.remove('apertada')));
+        n.addEventListener('click', () => aoTocar(i));
+        n._caixa = caixa;
+        n._texto = texto;
+        cena.append(n);
+        return n;
+      });
+    }
+
+    function ajustar() { for (const n of nos) caber(n._caixa, n._texto, ...E().opcoes.texto); }
+
+    async function entrar4(s) {
+      const notas = [659.25, 783.99, 987.77, 1174.66];
+      for (let i = 0; i < 4; i++) {
+        const n = nos[i];
+        // No 2x2 cada uma vem do seu lado; empilhadas, todas vêm da borda.
+        const deEsq = !E().opcoes.lados || i % 2 === 0;
+        entrar(n, [{ transform: `translateX(${deEsq ? -70 : 70}px) scaleY(.05)`, opacity: 0 }, { transform: 'translateX(0) scaleY(.05)', opacity: 1, offset: 0.35 }, { transform: 'none', opacity: 1 }], { duration: 400, easing: 'cubic-bezier(.2,.9,.25,1)' });
+        correr($('.losango', n), { ms: 650, delay: 140 });
+        Som.V.sino(notas[i], 0, 0.1);
+        if (i % 2 === 1) trilhos.slice((i - 1) / 2 * 3, (i - 1) / 2 * 3 + 3).forEach((t) => entrar(t, [{ opacity: 0 }, { opacity: 1 }], { duration: 300 }));
+        await pausa(230, s);
+      }
+      await pausa(220, s);
+    }
+
+    const centro = (i) => { const m = E().opcoes; return [m.pos[i][0] + m.w / 2, m.pos[i][1] + m.h / 2]; };
+
+    function travar(i) {
+      nos.forEach((n, k) => { n.classList.toggle('travada', k === i); n.classList.toggle('meio-fria', k !== i); });
+    }
+    function destravar() { nos.forEach((n) => n.classList.remove('travada', 'meio-fria')); }
+    /** Apaga as descartadas. As exceções ficam como estão: a certa ainda
+     *  precisa da cor de travada para piscar travada ↔ verde. */
+    function esfriar(excecoes = []) {
+      nos.forEach((n, k) => {
+        if (excecoes.includes(k)) return;
+        n.classList.remove('meio-fria', 'travada');
+        n.classList.add('fria');
+      });
+    }
+    function pulsar(i) {
+      if (MENOS) return;
+      nos[i].animate([{ scale: '1' }, { scale: '1.018', offset: 0.3 }, { scale: '1' }], { duration: 420, easing: 'ease-out' });
+    }
+    /**
+     * Acende a certa, como no programa: a barra ALTERNA entre a cor de antes e
+     * o verde, três vezes, e assenta no verde. Quem travou nela vê travada ↔
+     * verde; quem errou vê a certa piscar do escuro para o verde.
+     *
+     * Período de 0,4s, medido no Show do Milhão de 2000 e no Milionário: 2,5
+     * piscadas por segundo, abaixo das três que o WCAG põe como limite de
+     * fotossensibilidade.
+     *
+     * O `steps` vai em CADA quadro-chave, e não nas opções da animação: lá ele
+     * vale para a iteração inteira, e a barra ficava parada 1,2s e trocava de
+     * cor uma vez só — foi o defeito da primeira versão.
+     */
+    function certa(i) {
+      const n = nos[i];
+      const estavaTravada = n.classList.contains('travada');
+      n.classList.remove('meio-fria', 'fria', 'errada');
+      n.classList.add('certa');
+      const assentar = () => n.classList.remove('travada');
+      if (MENOS) { assentar(); return; }
+      const q = (o) => ({ opacity: o, easing: 'steps(1, end)' });
+      const piscar = $('.l-verde', n).animate([q(1), q(0), q(1), q(0), q(1), q(0), { opacity: 1 }], { duration: 1200 });
+      if (estavaTravada) piscar.finished.then(assentar, assentar);
+      else assentar();
+      correr($('.losango', n), { ms: 800 });
+    }
+    function errada(i) {
+      const n = nos[i];
+      n.classList.remove('travada', 'meio-fria');
+      n.classList.add('errada');
+      if (!MENOS) { n.classList.add('glitch'); setTimeout(() => n.classList.remove('glitch'), 520); }
+    }
+    function brilhoOcioso() {
+      const n = nos[(Math.random() * nos.length) | 0];
+      correr($('.losango', n), { ms: 1100 });
+    }
+
+    return { criar, ajustar, entrar4, centro, travar, destravar, esfriar, pulsar, certa, errada, brilhoOcioso };
+  })();
+
+  /* ---------------------------------------------------------------- ajudas */
+
+  const Ajudas = (() => {
+    let raiz, pinos, usadas = 0, cartao = null, fecharCartao = null;
+    const MAX = 2;
+
+    function criar({ usar }) {
+      usadas = 0;
+      raiz = el('div', { class: 'ajudas' });
+      pinos = el('span', { class: 'pinos' }, el('i'), el('i'));
+      raiz.append(el('div', { class: 'ajudas-titulo oculta' }, el('span', { html: 'AJUDAS <b>· 2 DISPONÍVEIS</b>' }), pinos));
+      const fichas = el('div', { class: 'ajudas-fichas' });
+      AJUDAS.forEach((a, i) => {
+        const f = el('div', { class: 'ficha oculta', role: 'button', 'aria-label': `Ajuda: ${a.nome}`, style: `--i:${i}` },
+          el('div', { class: 'ficha-moeda' },
+            el('div', { class: 'ficha-face', html: `<svg viewBox="0 0 64 64">${a.icone}</svg>` }),
+            el('div', { class: 'ficha-verso', html: `<svg viewBox="0 0 64 64">${ICONE.x}</svg>` })),
+          el('div', { class: 'ficha-rotulo', text: a.rotulo }));
+        f.addEventListener('click', () => usar(i, f));
+        fichas.append(f);
+      });
+      raiz.append(fichas);
+      return raiz;
+    }
+
+    async function entrarTodas(s) {
+      entrar($('.ajudas-titulo', raiz), [{ opacity: 0, transform: 'translateY(-12px)' }, { opacity: 1, transform: 'none' }], { duration: 360, easing: 'ease-out' });
+      const fichas = $$('.ficha', raiz);
+      fichas.forEach((f, i) => {
+        entrar(f, [{ transform: 'scale(0) rotate(-40deg)', opacity: 0 }, { transform: 'scale(1.12) rotate(4deg)', opacity: 1, offset: 0.7 }, { transform: 'none', opacity: 1 }], { duration: 460, delay: i * 90, easing: 'cubic-bezier(.2,.9,.3,1)' });
+        Som.V.pop(i * 0.09, 520 + i * 70);
+      });
+      await pausa(300, s);
+    }
+
+    const disponivel = (f) => usadas < MAX && !f.classList.contains('usada');
+
+    async function usar(i, f, s, { aoFechar }) {
+      const a = AJUDAS[i];
+      usadas++;
+      $$('i', pinos).forEach((p, k) => p.classList.toggle('gasto', k < usadas));
+      const resta = MAX - usadas;
+      $('.ajudas-titulo b', raiz).textContent = resta === 0 ? '· ESGOTADAS' : `· ${resta} DISPONÍVE${resta === 1 ? 'L' : 'IS'}`;
+      f.classList.add('usada');
+      if (usadas >= MAX) raiz.classList.add('esgotadas');
+      Som.V.brilho();
+
+      const foto = el('img', { src: IMG + a.foto, alt: '', style: `object-view-box:${a.recorte}` });
+      const chamando = el('div', { class: 'chamando', text: a.verbo });
+      const balao = el('div', { class: 'balao' }, el('span', { class: 'digitando' }, el('i'), el('i'), el('i')));
+      const pe = el('div', { class: 'cartao-pe oculta' });
+      cartao = el('div', { class: 'cartao', style: `--cor:${a.cor}` },
+        el('div', { class: 'cartao-topo', html: `<svg viewBox="0 0 64 64">${a.icone}</svg><strong>${a.nome}</strong><small>ONLINE AGORA</small>` }),
+        el('div', { class: 'cartao-corpo' },
+          el('div', { class: 'cartao-foto' }, foto, chamando),
+          el('div', { class: 'cartao-conversa' }, el('div', { class: 'cartao-quem', text: a.quem }), balao)),
+        pe);
+      $('.locutor').append(cartao);
+
+      // Nasce da própria ficha: o olho acompanha de onde a ajuda veio.
+      const [fx, fy] = noPalco($('.ficha-moeda', f)), [cx, cy] = noPalco(cartao);
+      const dx = fx - cx, dy = fy - cy;
+      entrar(cartao, [{ transform: `translate(${dx}px, ${dy}px) scale(.12)`, opacity: 0, borderRadius: '50%' }, { transform: 'none', opacity: 1, borderRadius: '26px' }], { duration: 480, easing: 'cubic-bezier(.2,.9,.25,1)' });
+      Som.V.whoosh(0, 0.4, 0.18);
+
+      let fechado = false;
+      const fechar = () => {
+        if (fechado) return;
+        fechado = true;
+        fecharCartao = null;
+        const c = cartao;
+        cartao = null;
+        Som.V.whoosh(0, 0.3, 0.14, false);
+        c.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.9) translateY(20px)' }], { duration: 220, easing: 'ease-in', fill: 'forwards' }).finished.then(() => c.remove(), () => c.remove());
+        aoFechar();
+      };
+      fecharCartao = fechar;
+      pe.append(botao('ENTENDI', { aoTocar: fechar }));
+
+      try {
+        Som.V.chamar(0.05);
+        await pausa(MENOS ? 150 : 950, s);
+        if (fechado) return;
+        chamando.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 250, fill: 'forwards' });
+        await pausa(650, s);
+        if (fechado) return;
+        // Digita a dica, a ~70 caracteres por segundo: rápido o bastante
+        // para não roubar o relógio, lento o bastante para parecer gente.
+        Som.V.mensagem();
+        const alvo = el('span');
+        balao.replaceChildren(alvo);
+        const txt = Q.ajudas[a.chave];
+        for (let k = 1; k <= txt.length; k += 2) {
+          if (fechado) return;
+          alvo.textContent = txt.slice(0, k);
+          if (k % 6 === 1) Som.V.digitar();
+          await pausa(MENOS ? 0 : 28, s);
+        }
+        alvo.textContent = txt;
+        entrar(pe, [{ opacity: 0, transform: 'translateY(12px)' }, { opacity: 1, transform: 'none' }], { duration: 260 });
+      } catch (e) {
+        if (!(e instanceof Abortado)) throw e;
+      }
+    }
+
+    return { criar, entrarTodas, usar, disponivel, fechar: () => fecharCartao?.(), get aberta() { return !!cartao; } };
+  })();
+
+  /* --------------------------------------------------------------- locutor */
+
+  const Locutor = (() => {
+    const camada = () => $('.locutor');
+    let aberto = null;
+
+    /** A frase do apresentador, grande, entrando como pancada. */
+    async function grito(texto, { cor = '', y = 262, tam = 150, segura = 520, fica = false } = {}, s) {
+      const span = el('span', { text: texto, 'data-t': texto });
+      const g = el('div', { class: `grito ${cor}`, style: `top:${y}px;font-size:${tam}px` }, span);
+      camada().append(g);
+      entrar(g, [{ transform: 'scale(1.9)', opacity: 0, filter: 'blur(14px)' }, { transform: 'scale(.96)', opacity: 1, filter: 'blur(0)', offset: 0.6 }, { transform: 'none', opacity: 1, filter: 'blur(0)' }], { duration: 420, easing: 'cubic-bezier(.2,.8,.3,1)' });
+      await pausa(420 + segura, s);
+      if (fica) return g;
+      await g.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.86) translateY(-24px)' }], { duration: 260, easing: 'ease-in', fill: 'forwards' }).finished.catch(() => {});
+      g.remove();
+      return null;
+    }
+
+    function raios() {
+      const r = el('div', { class: 'raios' });
+      camada().append(r);
+      entrar(r, [{ opacity: 0, scale: '.6' }, { opacity: 1, scale: '1' }], { duration: 700, easing: 'ease-out' });
+      return r;
+    }
+
+    /** Um painel do apresentador, no centro do "palco" do estilo em vigor. */
+    function painel({ largura = 900, altura = 320, y = 150, conteudo }) {
+      const { x, ponta, raio } = E().painel;
+      const p = el('div', { class: 'painel', style: `left:${x - largura / 2}px;top:${y}px;width:${largura}px;height:${altura}px` });
+      p.append(losango(largura, altura, ponta, '', raio));
+      p.append(el('div', { class: 'painel-conteudo' }, conteudo));
+      camada().append(p);
+      entrar(p, [{ transform: 'scaleX(.15) scaleY(.6)', opacity: 0 }, { transform: 'scaleX(1.02) scaleY(1)', opacity: 1, offset: 0.7 }, { transform: 'none', opacity: 1 }], { duration: 440, easing: 'cubic-bezier(.2,.9,.25,1)' });
+      correr($('.losango', p), { ms: 1000, delay: 250 });
+      return {
+        no: p,
+        fechar() {
+          if (aberto?.no === p) aberto = null;
+          p.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(1.06)' }], { duration: 200, easing: 'ease-in', fill: 'forwards' }).finished.then(() => p.remove(), () => p.remove());
+        },
+      };
+    }
+
+    function possoPerguntar() {
+      return new Promise((ok) => {
+        let feito = false;
+        const pode = () => {
+          if (feito) return;
+          feito = true;
+          p.fechar();
+          Som.V.impacto(0, 0.55);
+          Som.V.whoosh(0, 0.3, 0.2);
+          ok();
+        };
+        // Abaixo do selo, e não por cima dele: o logo cortado pela metade
+        // atrás do painel parecia defeito.
+        const p = painel({
+          ...E().posso,
+          conteudo: [
+            el('div', { class: 'painel-titulo', text: 'POSSO PERGUNTAR?' }),
+            el('div', { class: 'painel-sub', text: 'O relógio só começa quando você disser que pode.' }),
+            el('div', { class: 'painel-botoes' }, botao('PODE!', { pulsa: true, aoTocar: pode })),
+          ],
+        });
+        aberto = { no: p.no, fechar: p.fechar, enter: pode };
+        Som.V.whoosh(0, 0.35, 0.16);
+        Som.V.sino(392, 0.12, 0.09);
+        Som.V.sino(523.25, 0.24, 0.09);
+      });
+    }
+
+    function estaCertoDisso(i, texto) {
+      return new Promise((ok) => {
+        let feito = false;
+        const responder = (sim) => {
+          if (feito) return;
+          feito = true;
+          p.fechar();
+          ok(sim);
+        };
+        // No palco, 890 de largura: mais que isso a ponta direita cobre o
+        // "ACERTAR AGORA", que é justamente o que o jogador deve olhar agora.
+        const p = painel({
+          ...E().certo,
+          conteudo: [
+            el('div', { class: 'painel-titulo ouro', text: 'ESTÁ CERTO DISSO?' }),
+            el('div', { class: 'escolhida' }, el('b', { text: String(i + 1) }), el('span', { text: texto })),
+            el('div', { class: 'painel-botoes' },
+              botao('SIM, É ESSA!', { aoTocar: () => responder(true) }),
+              botao('NÃO', { classe: 'prata', aoTocar: () => { Som.V.whoosh(0, 0.25, 0.12, false); responder(false); } })),
+          ],
+        });
+        aberto = { no: p.no, fechar: () => responder(false), enter: () => responder(true), esc: () => responder(false), fecharSemResposta: () => { feito = true; p.fechar(); } };
+      });
+    }
+
+    function fecharTudo() { aberto?.fecharSemResposta?.(); aberto = null; }
+
+    return { grito, raios, painel, possoPerguntar, estaCertoDisso, fecharTudo, get aberto() { return aberto; } };
+  })();
+
+  /* ================================================================ roteiro */
+
+  const Relogio = {
+    restante: 60000, rodando: false, t0: 0, base: 60000,
+    iniciar() { this.rodando = true; this.t0 = performance.now(); this.base = this.restante; },
+    parar() { this.atualizar(); this.rodando = false; },
+    atualizar() { if (this.rodando) this.restante = Math.max(0, this.base - (performance.now() - this.t0)); return this.restante; },
+    pular(ms) { this.base = ms; this.t0 = performance.now(); this.restante = ms; },
+  };
+
+  let estado = 'abertura', retaFinal = false, ultimoTique = null, ocioso = 0;
+
+  function embaralhar() {
+    const ordem = [0, 1, 2, 3];
+    for (let i = 3; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [ordem[i], ordem[j]] = [ordem[j], ordem[i]]; }
+    Q.embaralhadas = ordem.map((k) => Q.respostas[k]);
+    Q.gab = ordem.indexOf(Q.certa);
+    $('#gab').textContent = String(Q.gab + 1);
+  }
+
+  function montarCena() {
+    const cena = $('.cena');
+    cena.replaceChildren();
+    $('.locutor').replaceChildren();
+    stage.dataset.estilo = estilo;
+    embaralhar();
+
+    const selo = Selo.criar(E().selo);
+    selo.classList.add('oculta');
+    cena.append(selo);
+
+    const os = el('div', {
+      class: 'os',
+      html: `<div class="os-chip oculta"><img src="${IMG}Rasther_CANFD_(1).png" alt=""><div><small>VOCÊ ESTÁ USANDO</small><strong>${Q.equipamento}</strong></div></div>
+        <div class="os-palco"><div class="os-luz oculta"></div><div class="os-piso oculta"></div><img class="os-carro oculta" src="${IMG}VW_-_Constellation.png" alt="${Q.veiculo}"></div>
+        <div class="placa oculta"><div class="placa-faixa">BRASIL<i class="placa-bandeira"></i></div><div class="placa-texto">${Q.veiculo}</div></div>`,
+    });
+    cena.append(os);
+    cena.append(Ajudas.criar({ usar: tocarAjuda }));
+    cena.append(Tacometro.criar());
+    cena.append(Aposta.criar());
+    cena.append(Pergunta.criar());
+    Opcoes.criar(cena, { tocar: tocarOpcao });
+    Pergunta.ajustar();
+    Opcoes.ajustar();
+
+    Relogio.rodando = false;
+    Relogio.restante = 60000;
+    retaFinal = false;
+    ultimoTique = null;
+    stage.style.setProperty('--tensao', 0);
+  }
+
+  async function entrarCenario(s) {
+    const q = (sel) => $(sel, $('.cena'));
+    entrar(q('.selo'), [{ opacity: 0, transform: 'translateY(-30px) scale(.8)' }, { opacity: 1, transform: 'none' }], { duration: 520, easing: 'cubic-bezier(.2,1.2,.4,1)' });
+    entrar(q('.os-luz'), [{ opacity: 0 }, { opacity: 1 }], { duration: 500, delay: 100 });
+    entrar(q('.os-piso'), [{ opacity: 0, transform: 'scaleX(.3)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: 120, easing: 'ease-out' });
+    entrar(q('.os-carro'), [{ opacity: 0, transform: 'translateY(46px) scale(.92)' }, { opacity: 1, transform: 'translateY(-6px) scale(1.01)', offset: 0.7 }, { opacity: 1, transform: 'none' }], { duration: 700, delay: 180, easing: 'cubic-bezier(.2,.8,.3,1)' });
+    entrar(q('.os-chip'), [{ opacity: 0, transform: 'translateX(-40px)' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: 420, easing: 'ease-out' });
+    entrar(q('.placa'), [{ opacity: 0, transform: 'scale(1.35)' }, { opacity: 1, transform: 'scale(.97)', offset: 0.6 }, { opacity: 1, transform: 'none' }], { duration: 340, delay: 640, easing: 'ease-out' });
+    Som.V.clunk(0.66);
+    // Só opacidade: com `scale` animado, o Chrome pintava o <text> do SVG na
+    // escala do primeiro quadro (1,25x maior e deslocado), embora o layout
+    // estivesse certo. Quem dá vida à entrada é a varredura da agulha.
+    entrar(q('.tacometro'), [{ opacity: 0 }, { opacity: 1 }], { duration: 500, delay: 200, easing: 'ease-out' });
+    entrar(q('.aposta'), [{ opacity: 0, transform: 'translateX(60px)' }, { opacity: 1, transform: 'none' }], { duration: 460, delay: 520, easing: 'ease-out' });
+    Som.V.ronco(0.32, 1.3);
+    await pausa(360, s);
+    Tacometro.varredura(s).catch(() => {});
+    await Ajudas.entrarTodas(s);
+    await pausa(700, s);
+  }
+
+  /** A lâmina de luz: a transição única que o jogo inteiro usaria. */
+  async function lamina(s) {
+    const l = $('.lamina'), ab = $('.abertura');
+    if (MENOS) { ab.style.display = 'none'; return; }
+    l.style.opacity = '1';
+    const opcoes = { duration: 860, easing: 'cubic-bezier(.65,.05,.3,1)', fill: 'forwards' };
+    // A faixa inclina 10° (gradiente a 100deg): em cima ela está 95px à frente
+    // do centro, embaixo 95px atrás. O recorte da abertura segue a mesma reta.
+    l.animate([{ transform: 'translateX(-1300px)' }, { transform: 'translateX(1300px)' }], opcoes);
+    ab.animate([
+      { clipPath: 'polygon(-245px 0, 2400px 0, 2400px 1080px, -435px 1080px)' },
+      { clipPath: 'polygon(2355px 0, 2400px 0, 2400px 1080px, 2165px 1080px)' },
+    ], opcoes);
+    Som.V.whoosh(0, 0.7, 0.3);
+    await pausa(880, s);
+    ab.style.display = 'none';
+    l.style.opacity = '0';
+  }
+
+  async function roteiro(s) {
+    Luz.humor('normal');
+    estado = 'cenario';
+    await entrarCenario(s);
+    estado = 'posso';
+    await Locutor.possoPerguntar();
+    if (!vivo(s)) return;
+    estado = 'apresentando';
+    await Pergunta.abrir(s);
+    await Opcoes.entrar4(s);
+    Som.V.impacto(0.02, 0.9);
+    await Locutor.grito('VALENDO!', { tam: 170, y: 250, segura: 360 }, s);
+    Relogio.iniciar();
+    Trilha.iniciar();
+    estado = 'jogando';
+  }
+
+  async function tocarOpcao(i) {
+    if (estado !== 'jogando') return;
+    const s = sessao;
+    estado = 'travando';
+    Opcoes.travar(i);
+    Som.V.travar();
+    Trilha.abafar(true);
+    const sim = await Locutor.estaCertoDisso(i, Q.embaralhadas[i]);
+    if (!vivo(s) || estado !== 'travando') return;
+    if (!sim) {
+      Opcoes.destravar();
+      Trilha.abafar(false);
+      estado = 'jogando';
+      return;
+    }
+    try { await confirmar(i, s); } catch (e) { if (!(e instanceof Abortado)) throw e; }
+  }
+
+  function tocarAjuda(i, ficha) {
+    if (estado !== 'jogando' || !Ajudas.disponivel(ficha)) return;
+    const s = sessao;
+    estado = 'ajuda';
+    Ajudas.usar(i, ficha, s, { aoFechar: () => { if (estado === 'ajuda') estado = 'jogando'; } });
+  }
+
+  async function confirmar(i, s) {
+    estado = 'suspense';
+    Relogio.parar();
+    const gasto = 60000 - Relogio.restante;
+    Tacometro.definir(Relogio.restante);
+    Tacometro.parar();
+    Som.V.clunk();
+    Trilha.parar(0.25);
+    stage.style.setProperty('--tensao', 0);
+    Luz.humor('suspense');
+    const [cx, cy] = Opcoes.centro(i);
+    Luz.spot(cx, cy);
+    Camera.aproximar(cx, cy, 1.06, 2600);
+    const sus = Som.V.suspense(2.6);
+    sus.batidas.forEach((b) => setTimeout(() => vivo(s) && Opcoes.pulsar(i), b * 1000));
+    await pausa(2600, s);
+    sus.cortar(0.03);
+    // O fôlego: um instante de silêncio antes do veredito. É ele que faz a
+    // pancada seguinte parecer alta.
+    await pausa(150, s);
+    if (i === Q.gab) await acerto(i, gasto, s);
+    else await erro(i, s);
+  }
+
+  async function acerto(i, gasto, s) {
+    estado = 'revelado';
+    Luz.spotApagar();
+    Camera.soltar(520);
+    Camera.soco(1.022, 460);
+    Luz.flash('#fff', 0.8, 380);
+    Luz.humor('acerto');
+    Opcoes.certa(i);
+    Opcoes.esfriar([i]);
+    Som.V.impacto(0, 0.9);
+    Som.V.fanfarra(0.02);
+    Som.V.aplauso(0.3, 3.6);
+    Particulas.confete({ x: 40, y: 1080, angulo: -62 });
+    Particulas.confete({ x: 1880, y: 1080, angulo: -118 });
+    const [cx, cy] = Opcoes.centro(i);
+    Particulas.faiscas({ x: cx, y: cy, n: 46 });
+    const r = Locutor.raios();
+    const g = await Locutor.grito('CERTA RESPOSTA!', { tam: 124, y: 250, segura: 1300, fica: true }, s);
+    // O grito sobe e dá lugar ao que interessa: o tempo e o ranking.
+    g.animate([{ transform: 'none' }, { transform: E().gritoFinal }], { duration: 560, easing: 'cubic-bezier(.5,0,.2,1)', fill: 'forwards' });
+    apagarSelo();
+    r.animate([{ opacity: 1 }, { opacity: 0.35 }], { duration: 560, fill: 'forwards' });
+    await pausa(380, s);
+    await resultado(gasto, s);
+  }
+
+  async function resultado(gasto, s) {
+    const restante = 60000 - gasto;
+    const minha = posicao(restante);
+    const tempoNo = el('b', { text: '0,0 s' });
+    const lista = el('div', { class: 'lista' });
+    const ALT = 40;
+    const linhas = RANKING.map((v, k) => {
+      const n = el('div', { class: 'linha', style: `top:${k * ALT}px`, html: `<span class="p">${k + 1}º</span><span class="n">${v.nome}</span><span class="t">${decimal(60000 - v.tempo)} s</span>` });
+      lista.append(n);
+      return n;
+    });
+    Locutor.painel({
+      ...E().resultado,
+      conteudo: [
+        el('div', { class: 'tempo-final' }, el('small', { text: 'RESOLVIDO EM' }), tempoNo),
+        lista,
+        el('div', { class: 'painel-botoes', style: 'margin-top:14px' }, botao('JOGAR DE NOVO', { classe: 'menor', aoTocar: recomecar })),
+      ],
+    });
+    linhas.forEach((n, k) => entrar(n, [{ opacity: 0, transform: 'translateX(40px)' }, { opacity: 1, transform: 'none' }], { duration: 300, delay: 200 + k * 60, easing: 'ease-out' }));
+
+    // O odômetro: o tempo sobe até o valor final, estalando como marcador.
+    Som.V.rolagem(0.15, 18, 0.9);
+    const t0 = performance.now() + 150;
+    await new Promise((ok) => {
+      const passo = (agora) => {
+        if (!vivo(s)) return ok();
+        const u = entre((agora - t0) / 900, 0, 1);
+        tempoNo.textContent = `${decimal(gasto * (1 - Math.pow(1 - u, 3)))} s`;
+        if (u < 1) requestAnimationFrame(passo); else ok();
+      };
+      requestAnimationFrame(passo);
+    });
+    Som.V.sino(1046.5, 0, 0.1);
+    await pausa(350, s);
+
+    // O ranking abre espaço: quem está atrás desce uma linha, o último cai
+    // fora do top 5, e o jogador entra voando na vaga dele.
+    if (minha <= RANKING.length) {
+      linhas.forEach((n, k) => {
+        if (k < minha - 1) return;
+        const sai = k === linhas.length - 1;
+        const atraso = (k - minha + 1) * 50;
+        n.animate([{ transform: 'none', opacity: 1 }, { transform: `translateY(${ALT}px)`, opacity: sai ? 0 : 1 }], { duration: 380, delay: atraso, easing: 'cubic-bezier(.3,.9,.3,1)', fill: 'forwards' });
+        // Quem desceu perde um lugar, e o número vira na descida.
+        const p = $('.p', n);
+        setTimeout(() => {
+          if (!vivo(s)) return;
+          p.textContent = `${k + 2}º`;
+          if (!MENOS) p.animate([{ transform: 'rotateX(90deg)' }, { transform: 'none' }], { duration: 240, easing: 'ease-out' });
+        }, atraso + 160);
+      });
+      Som.V.whoosh(0, 0.35, 0.14);
+      await pausa(300, s);
+      const eu = el('div', { class: 'linha eu', style: `top:${(minha - 1) * ALT}px`, html: `<span class="p">${minha}º</span><span class="n">VOCÊ</span><span class="t">${decimal(gasto)} s</span>` });
+      lista.append(eu);
+      entrar(eu, [{ transform: 'translateX(620px) scale(1.15)', opacity: 0 }, { transform: 'translateX(-14px) scale(1.04)', opacity: 1, offset: 0.7 }, { transform: 'none', opacity: 1 }], { duration: 520, easing: 'cubic-bezier(.2,.9,.3,1)' });
+      Som.V.whoosh(0, 0.3, 0.16);
+      Som.V.sino(783.99, 0.35, 0.12);
+      Som.V.sino(1046.5, 0.47, 0.12);
+      Som.V.sino(1318.5, 0.59, 0.12);
+      await pausa(520, s);
+      const [ex, ey] = noPalco(eu);
+      Particulas.faiscas({ x: ex, y: ey, n: 36 });
+    }
+  }
+
+  async function erro(i, s) {
+    estado = 'revelado';
+    Luz.spotApagar();
+    Camera.soltar(300);
+    Luz.flash('#ff1a1a', 0.5, 420);
+    Camera.tremer(18, 520);
+    Opcoes.errada(i);
+    Som.V.derrota(0);
+    Luz.humor('erro');
+    await pausa(950, s);
+    Opcoes.esfriar([i, Q.gab]);
+    Opcoes.certa(Q.gab);
+    Som.V.sino(783.99, 0, 0.13);
+    Som.V.sino(1046.5, 0.12, 0.12);
+    await Locutor.grito('QUE PENA!', { cor: 'vermelho', tam: 124, y: 250, segura: 900 }, s);
+    licao('A CERTA ERA A ' + (Q.gab + 1));
+  }
+
+  async function esgotar() {
+    if (!['jogando', 'travando', 'ajuda'].includes(estado)) return;
+    const s = sessao;
+    estado = 'esgotado';
+    Relogio.parar();
+    Relogio.restante = 0;
+    Tacometro.definir(0);
+    Locutor.fecharTudo();
+    Ajudas.fechar();
+    Opcoes.destravar();
+    Trilha.parar(0.08);
+    stage.style.setProperty('--tensao', 0.35);
+    Tacometro.estourar();
+    const [gx, gy] = Tacometro.centro();
+    Particulas.fumaca({ x: gx, y: gy - 20 });
+    Particulas.faiscas({ x: gx, y: gy, n: 30, cores: ['#FFB35C', '#FF5A1F', '#FFFFFF'] });
+    Som.V.alarme(0);
+    Som.V.estouro(0.04);
+    Luz.flash('#ff2a1a', 0.45, 440);
+    Camera.tremer(12, 520);
+    Luz.humor('erro');
+    try {
+      await Locutor.grito('TEMPO ESGOTADO!', { cor: 'vermelho', tam: 112, y: 250, segura: 1000 }, s);
+      Opcoes.esfriar([Q.gab]);
+      Opcoes.certa(Q.gab);
+      Som.V.sino(783.99, 0, 0.13);
+      await pausa(500, s);
+      licao('A CERTA ERA A ' + (Q.gab + 1));
+    } catch (e) {
+      if (!(e instanceof Abortado)) throw e;
+    }
+  }
+
+  /** O selo sai de cena no fim: o painel do resultado e o grito ocupam o alto.
+   *  E o "ACERTAR AGORA" recua: depois do veredito ele já não vale nada. */
+  function apagarSelo() {
+    $('.cena .selo')?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: 'forwards' });
+    $('.cena .aposta')?.animate([{ opacity: 1 }, { opacity: 0.3 }], { duration: 400, fill: 'forwards' });
+  }
+
+  /** Quem errou leva embora a resposta — e onde aprender. É o ponto do jogo. */
+  function licao(titulo) {
+    apagarSelo();
+    Locutor.painel({
+      ...E().licao,
+      conteudo: [
+        el('div', { class: 'painel-titulo menor', text: titulo }),
+        el('div', { class: 'escolhida verde' }, el('b', { text: String(Q.gab + 1) }), el('span', { text: Q.embaralhadas[Q.gab] })),
+        el('div', { class: 'licao-tv' },
+          el('img', { src: IMG + 'TecnmotorTV.png', alt: 'TecnomotorTV' }),
+          el('div', {}, el('small', { text: 'APRENDA NO TECNOMOTOR TV' }), el('p', { text: Q.ajudas.tv }))),
+        el('div', { class: 'painel-botoes', style: 'margin-top:20px' }, botao('JOGAR DE NOVO', { aoTocar: recomecar })),
+      ],
+    });
+  }
+
+  /* ============================================================ o quadro */
+
+  let ultimoQuadro = performance.now();
+  function quadro(agora) {
+    const dt = Math.min(0.05, (agora - ultimoQuadro) / 1000);
+    ultimoQuadro = agora;
+    Luz.animar(dt);
+    Tacometro.animar(dt);
+    if (Relogio.rodando) {
+      const r = Relogio.atualizar();
+      Tacometro.definir(r);
+      Aposta.atualizar(r);
+      tensao(r);
+      marcarTique(r);
+      if (estado === 'jogando') {
+        ocioso += dt;
+        if (ocioso > 2.8) { ocioso = 0; Opcoes.brilhoOcioso(); }
+      }
+      if (r <= 0) esgotar();
+    }
+    requestAnimationFrame(quadro);
+  }
+
+  function tensao(r) {
+    Trilha.definirNivel(r > 30000 ? 0 : r > 15000 ? 1 : 2);
+    if (r <= 15000 && !retaFinal) {
+      retaFinal = true;
+      Luz.humor('reta');
+      Som.V.impacto(0, 0.5);
+      Luz.flash('#ff2a1a', 0.25, 500);
+    }
+    stage.style.setProperty('--tensao', (r > 15000 ? 0 : (1 - r / 15000) * 0.85).toFixed(3));
+  }
+
+  /** Os tiques dos últimos dez segundos, marcados no relógio do áudio na
+   *  divisa exata do segundo, e não no quadro que a mostra. */
+  function marcarTique(r) {
+    const divisa = Math.floor((r - 1) / 1000) * 1000;
+    if (divisa <= 0 || divisa > 10000 || divisa === ultimoTique) return;
+    const falta = r - divisa;
+    if (falta > 120) return;
+    ultimoTique = divisa;
+    const seg = divisa / 1000;
+    Som.V.tiqueEm(Som.audioEm(performance.now() + falta), 880 + (10 - seg) * 30, seg <= 3 ? 0.16 : 0.11);
+    if (seg <= 3) Som.V.bumbo(falta / 1000, 0.35, 120, 50, 0.25);
+    setTimeout(() => {
+      if (!MENOS) $('.pulso').animate([{ opacity: 0 }, { opacity: seg <= 3 ? 1 : 0.7, offset: 0.15 }, { opacity: 0 }], { duration: 620, easing: 'ease-out' });
+    }, falta);
+  }
+
+  /* ================================================================ início */
+
+  function montarAbertura() {
+    const ab = $('.abertura');
+    ab.style.display = '';
+    ab.getAnimations().forEach((a) => a.cancel());
+    ab.replaceChildren(
+      Selo.criar({ largura: 560 }),
+      el('h1', { text: 'A PERGUNTA, COM CARA DE AUDITÓRIO' }),
+      el('p', { html: 'Protótipo da proposta visual do TecnoGame, inspirada no Show do Milhão.<br>Tem som — vale ligar a caixa.' }),
+      botao('▶ COMEÇAR', { pulsa: true, aoTocar: comecar }),
+      el('div', { class: 'atalhos', html: '<kbd>E</kbd> troca o estilo: Palco ou Clássico SBT<br><kbd>1</kbd>–<kbd>4</kbd> escolhem · <kbd>Enter</kbd> confirma · <kbd>Esc</kbd> desiste · <kbd>R</kbd> recomeça · <kbd>F</kbd> pula para a reta final · <kbd>T</kbd> quase sem tempo · <kbd>M</kbd> som' }));
+  }
+
+  async function comecar() {
+    if (estado !== 'abertura') return;
+    Som.iniciar();
+    const s = ++sessao;
+    estado = 'lamina';
+    try {
+      await lamina(s);
+      await roteiro(s);
+    } catch (e) {
+      if (!(e instanceof Abortado)) throw e;
+    }
+  }
+
+  function limparTudo() {
+    sessao++;
+    Trilha.parar(0.05);
+    Particulas.limpar();
+    Camera.reset();
+    document.getAnimations().forEach((a) => { if (!a.effect?.target?.closest?.('.demo')) a.cancel(); });
+    Relogio.rodando = false;
+  }
+
+  function recomecar() {
+    if (estado === 'abertura') return;
+    limparTudo();
+    Som.iniciar();
+    montarCena();
+    const s = sessao;
+    estado = 'lamina';
+    Luz.humor('abertura');
+    // A lâmina de novo, agora de palco para palco.
+    const ab = $('.abertura');
+    ab.replaceChildren();
+    ab.style.display = '';
+    lamina(s).then(() => roteiro(s)).catch((e) => { if (!(e instanceof Abortado)) throw e; });
+  }
+
+  /* ------------------------------------------------------ barra e teclado */
+
+  /** Troca entre o palco (Milionário) e o clássico (Show do Milhão de 2000).
+   *  É outra partida: a cena inteira é remontada no arranjo novo. */
+  function trocarEstilo() {
+    estilo = estilo === 'palco' ? 'classico' : 'palco';
+    $('#botao-estilo').firstChild.textContent = `◧ Estilo: ${E().nome}`;
+    if (estado === 'abertura') { montarCena(); return; }
+    recomecar();
+  }
+
+  function acao(nome) {
+    if (nome === 'recomecar') recomecar();
+    else if (nome === 'estilo') trocarEstilo();
+    else if (nome === 'reta') { if (Relogio.rodando && Relogio.restante > 16000) Relogio.pular(16000); }
+    else if (nome === 'esgotar') { if (Relogio.rodando && Relogio.restante > 4500) Relogio.pular(4500); }
+    else if (nome === 'som') { const mudo = Som.alternarMudo(); $('[data-acao="som"]').setAttribute('aria-pressed', String(!mudo)); }
+    else if (nome === 'movimento') {
+      MENOS = !MENOS;
+      stage.classList.toggle('menos', MENOS);
+      $('[data-acao="movimento"]').setAttribute('aria-pressed', String(MENOS));
+    }
+  }
+  $('#demo').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) acao(b.dataset.acao); });
+  $('[data-acao="movimento"]').setAttribute('aria-pressed', String(MENOS));
+
+  addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    if (['1', '2', '3', '4'].includes(k)) tocarOpcao(Number(k) - 1);
+    else if (k === 'enter' || k === ' ') {
+      e.preventDefault();
+      if (estado === 'abertura') comecar();
+      else Locutor.aberto?.enter?.();
+    } else if (k === 'escape') Locutor.aberto?.esc?.();
+    else if (k === 'r') acao('recomecar');
+    else if (k === 'f') acao('reta');
+    else if (k === 't') acao('esgotar');
+    else if (k === 'm') acao('som');
+    else if (k === 'e') acao('estilo');
+  });
+
+  // A barra some depois de uns segundos parada, para não disputar o palco.
+  let sumir = null;
+  const mostrarBarra = () => { $('#demo').classList.remove('sumida'); clearTimeout(sumir); sumir = setTimeout(() => $('#demo').classList.add('sumida'), 4000); };
+  addEventListener('pointermove', mostrarBarra);
+  mostrarBarra();
+
+  // A fonte certa antes de medir texto: `caber` mede em pixel.
+  document.fonts.ready.then(() => {
+    Luz.montar();
+    Luz.humor('abertura');
+    montarCena();
+    montarAbertura();
+    requestAnimationFrame(quadro);
+  });
+})();
+</script>
+</body>
+</html>

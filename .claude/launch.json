@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "proposta-visual",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["node_modules/http-server/bin/http-server", ".", "-p", "8123", "-c-1", "-s"],
+      "port": 8123
+    }
+  ]
+}
