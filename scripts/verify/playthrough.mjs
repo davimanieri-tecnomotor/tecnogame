@@ -3,6 +3,7 @@
 // Screenshots each step and fails loudly on console errors.
 import puppeteer from 'puppeteer';
 import fs from 'node:fs';
+import { continuar, passarDaAbertura } from './_jogo.mjs';
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8099';
 // BASE may be an origin (http://host:port) or a full page URL
@@ -78,10 +79,17 @@ await page.evaluate(() => {
 const inputs = await page.$$('#pages input.ff-input');
 if (inputs.length !== 2) throw new Error(`expected 2 inputs, found ${inputs.length}`);
 await inputs[0].click();
-await inputs[0].type('Davi');
+// Com sobrenome, de propósito: o cadastro inteiro mora dentro de um InkWell (o
+// que capta o toque no fundo), e o `preventDefault` do Espaço dele engolia o
+// espaço digitado — "Davi Manieri" virava "DaviManieri". O anúncio "COM VOCÊS"
+// da 3.0 é que mostrou.
+await inputs[0].type('Davi Manieri');
 await inputs[1].click();
 await inputs[1].type('16997037115');
 await shot('01-typed');
+const nomeDigitado = await page.evaluate(() => document.querySelectorAll('#pages input.ff-input')[0].value);
+log(`   nome digitado -> "${nomeDigitado}"`);
+if (nomeDigitado !== 'Davi Manieri') throw new Error(`o espaço do nome foi engolido: ${JSON.stringify(nomeDigitado)}`);
 
 const masked = await page.evaluate(() => document.querySelectorAll('#pages input.ff-input')[1].value);
 log(`2. phone mask -> "${masked}"`);
@@ -134,18 +142,23 @@ void cadastro;
 await shot('03-instrucoes');
 
 // ---- skip instructions --------------------------------------------------
-// A TRANSICAO. Toda troca de tela esmaece — e quem decide e o router, nao a
-// tela (ver web/js/router.js). Como `render` dispara a saida na mesma batida do
-// clique, a animacao da pagina que sai ja esta correndo agora, e da para ler de
-// que ela e feita: se aparecer `transform`, alguem devolveu ao jogo uma segunda
-// gramatica de transicao.
+// A TRANSICAO. Toda troca de tela e a mesma — e quem decide e o router, nao a
+// tela (ver web/js/router.js). Desde a 3.0 ela e a LAMINA: a tela nova entra
+// POR BAIXO da que sai, e o recorte da que sai encolhe atras de uma faixa de
+// luz. Como `render` dispara a lamina na mesma batida do clique, a animacao da
+// pagina que sai ja esta correndo agora, e da para ler de que ela e feita: so
+// `clipPath`. Se aparecer `transform` ou `opacity`, alguem devolveu ao jogo uma
+// segunda gramatica de transicao.
+//
+// A que sai e a ULTIMA `.ff-page`: a nova foi inserida antes dela.
 //
 // A afirmacao mudou de lugar: no CONFIRMAR do cadastro a tela tem uma saida
 // PROPRIA antes de navegar (transicoes.js), entao ali a animacao do momento do
 // clique e das pecas, e nao da pagina. Aqui a navegacao e limpa.
 await clickText('Pular instruções');
 const saindo = await page.evaluate(() => {
-  const pagina = document.querySelector('#pages .ff-page');
+  const paginas = document.querySelectorAll('#pages .ff-page');
+  const pagina = paginas[paginas.length - 1];
   const props = new Set();
   for (const anim of pagina?.getAnimations() ?? []) {
     for (const quadro of anim.effect.getKeyframes()) {
@@ -154,11 +167,14 @@ const saindo = await page.evaluate(() => {
       }
     }
   }
-  return [...props];
+  const faixa = document.querySelector('#frente .palco-lamina');
+  return { props: [...props], paginas: paginas.length, faixa: faixa?.getAnimations().length ?? 0 };
 });
 log(`   transicao de saida anima: ${JSON.stringify(saindo)}`);
-if (!saindo.includes('opacity')) throw new Error(`a tela que sai deveria esmaecer; anima ${saindo}`);
-if (saindo.some((p) => p !== 'opacity')) throw new Error(`a transicao voltou a mexer em ${saindo}`);
+if (saindo.paginas !== 2) throw new Error(`durante a lamina deveria haver duas telas, a nova por baixo (ha ${saindo.paginas})`);
+if (!saindo.props.includes('clipPath')) throw new Error(`a tela que sai deveria ser recortada pela lamina; anima ${saindo.props}`);
+if (saindo.props.some((p) => p !== 'clipPath')) throw new Error(`a transicao voltou a mexer em ${saindo.props}`);
+if (!saindo.faixa) throw new Error('a faixa de luz da lamina nao atravessou o palco');
 await waitForRoute('telaVideoTransisao');
 log('5. transition video');
 await shot('04-transisao');
@@ -209,76 +225,63 @@ await shot('09-telaAcao');
 log('11. telaAcao');
 
 // ---- inspect the question panel -----------------------------------------
-const ANSWER_FINDER = `
-  [...document.querySelectorAll('#pages .ff-text')]
-    .filter((n) => /^[1-4]$/.test(n.textContent.trim()) && Math.round(parseFloat(getComputedStyle(n).fontSize)) === 55)
-    .map((n) => n.closest('.ff-stack'))
-`;
-const panel = await page.evaluate((finder) => {
-  // eslint-disable-next-line no-eval
-  const cards = eval(finder);
-  return {
-    answers: cards.length,
-    numbers: cards.map((c) => [...c.querySelectorAll('.ff-text')].pop().textContent.trim()),
-    timer: document.querySelector('#pages [data-family="pirulen"][style*="62px"]')?.textContent ?? null,
-    hints: document.querySelectorAll('#pages [data-hint]').length,
-    dicas: [...document.querySelectorAll('#pages .ff-text')].find((n) => /^\dX$/.test(n.textContent.trim()))
-      ?.textContent,
-  };
-}, ANSWER_FINDER);
+// A pergunta abre com o apresentador: o relogio so corre depois do PODE!.
+await passarDaAbertura(page);
+await shot('09b-jogando');
+const panel = await page.evaluate(() => ({
+  answers: document.querySelectorAll('#pages [data-alternativa]').length,
+  numbers: [...document.querySelectorAll('#pages [data-alternativa] .aud-opcao-num')].map((n) => n.textContent.trim()),
+  relogio: document.querySelector('#pages .aud-taco-leitura')?.textContent ?? null,
+  hints: document.querySelectorAll('#pages [data-ajuda]').length,
+  ajudas: document.querySelector('#pages .aud-aj-titulo')?.textContent ?? null,
+  aposta: document.querySelector('#pages .aud-ap-barra span')?.textContent ?? null,
+}));
 log(`12. panel: ${JSON.stringify(panel)}`);
+if (panel.answers !== 4) throw new Error(`a pergunta mostrou ${panel.answers} alternativas`);
+if (JSON.stringify(panel.numbers) !== '["1","2","3","4"]') throw new Error(`numeracao das alternativas: ${panel.numbers}`);
+if (panel.hints !== 7) throw new Error(`esperava as 7 fichas de ajuda, vieram ${panel.hints}`);
 
 // ---- use a support hint -------------------------------------------------
-await page.evaluate(() => document.querySelector('#pages [data-hint="apoio"] .ff-inkwell').click());
-await wait(1600);
-await shot('10-popup');
+await page.evaluate(() => document.querySelector('#pages [data-ajuda="apoio"]').click());
+// A dica chega como conversa: chamando, a foto, "digitando..." e o texto
+// digitado. Espera o TEXTO, e nao o botao: o ENTENDI ja existe (invisivel)
+// enquanto a dica esta sendo digitada.
+await page.waitForFunction(
+  () => (document.querySelector('[data-cartao-ajuda="apoio"] .aud-balao')?.textContent ?? '').length > 20,
+  { timeout: 15000 }
+);
+await wait(300);
+await shot('10-ajuda');
 const popupText = await page.evaluate(
-  () => document.querySelector('#overlays .ff-dialog .ff-text')?.textContent?.slice(0, 60) ?? null
+  () => document.querySelector('[data-cartao-ajuda="apoio"] .aud-balao')?.textContent?.slice(0, 60) ?? null
 );
-log(`13. hint popup: ${JSON.stringify(popupText)}`);
-// Fecha pelo ROTULO, e nao pela posicao na arvore: o `:last-of-type` que
-// estava aqui casava a antiga forma do popup e parou de achar o X quando ele
-// foi para o canto do cabecalho.
-await page.evaluate(() => document.querySelector('#overlays [aria-label="Fechar"]').click());
-await wait(800);
-const dicasAfter = await page.evaluate(
-  () => [...document.querySelectorAll('#pages .ff-text')].find((n) => /^\dX$/.test(n.textContent.trim()))?.textContent
-);
-log(`14. hints left after using one: ${dicasAfter}`);
+log(`13. hint card: ${JSON.stringify(popupText)}`);
+if (!popupText) throw new Error('o cartao da ajuda nao trouxe a dica');
+await page.evaluate(() => document.querySelector('[data-cartao-ajuda="apoio"] [data-acao="entendi"]').click());
+await wait(600);
+const dicasAfter = await page.evaluate(() => ({
+  titulo: document.querySelector('#pages .aud-aj-titulo')?.textContent ?? null,
+  usada: document.querySelector('#pages [data-ajuda="apoio"]')?.classList.contains('usada'),
+}));
+log(`14. hints left after using one: ${JSON.stringify(dicasAfter)}`);
+if (!dicasAfter.usada) throw new Error('a ficha usada nao virou');
+if (!/1 DISPON/.test(dicasAfter.titulo ?? '')) throw new Error(`a contagem de ajudas nao desceu: ${dicasAfter.titulo}`);
 
 // ---- answer -------------------------------------------------------------
-const expected = await page.evaluate(() => {
-  const slot = 0;
-  return { slot };
-});
-void expected;
-const answered = await page.evaluate((finder) => {
-  // eslint-disable-next-line no-eval
-  const cards = eval(finder);
-  if (!cards.length) return null;
-  const card = cards[0];
-  // Computado, nao inline: ver a nota em baralho.mjs sobre o piso de legibilidade.
-  const text = [...card.querySelectorAll('.ff-text')].find(
-    (n) => Math.round(parseFloat(getComputedStyle(n).fontSize)) === 24
-  )?.textContent;
-  card.querySelector('.ff-inkwell').click();
-  return text;
-}, ANSWER_FINDER);
+const answered = await page.evaluate(() => document.querySelector('#pages [data-alternativa="0"] .aud-opcao-texto')?.textContent ?? null);
 if (!answered) throw new Error('no answer cards found');
-log(`15. clicked answer 1: ${JSON.stringify(answered.slice(0, 60))}`);
-await wait(1200);
-await shot('11-confirmacao');
-const dialogText = await page.evaluate(
-  () => document.querySelector('#overlays .ff-dialog')?.textContent?.slice(0, 50) ?? null
-);
-log(`16. confirm dialog: ${JSON.stringify(dialogText)}`);
+log(`15. answer 1: ${JSON.stringify(answered.slice(0, 60))}`);
+await page.evaluate(() => document.querySelector('#pages [data-alternativa="0"]').click());
+await page.waitForSelector('[data-painel="certo"]', { visible: true, timeout: 8000 });
+await wait(500);
+await shot('11-esta-certo-disso');
+const dialogText = await page.evaluate(() => document.querySelector('[data-painel="certo"]')?.textContent?.slice(0, 60) ?? null);
+log(`16. esta certo disso: ${JSON.stringify(dialogText)}`);
+if (!/CERTO DISSO/.test(dialogText ?? '')) throw new Error('o "Esta certo disso?" nao abriu');
+await page.evaluate(() => document.querySelector('[data-painel="certo"] [data-acao="sim"]').click());
 
-await page.evaluate(() => {
-  const nodes = [...document.querySelectorAll('#overlays .ff-text')];
-  const hit = nodes.find((n) => n.textContent.trim() === 'Confirmar');
-  hit.closest('.ff-inkwell').click();
-});
-
+// O suspense (2,6s) e o veredito; depois o painel do resultado ou da licao.
+await continuar(page, 25000);
 const end = await Promise.race([
   waitForRoute('Ganhou', 15000).then(() => 'Ganhou'),
   waitForRoute('Perdeu', 15000).then(() => 'Perdeu'),
@@ -297,6 +300,11 @@ log(`    contatos: ${stored.contatos.length} -> ${JSON.stringify(stored.contatos
 if (!stored.usuarios.length) throw new Error('nenhum resultado gravado');
 if ('telefone' in stored.usuarios[0]) throw new Error('telefone vazou para a colecao do ranking');
 if (stored.contatos[0]?.telefone !== '(16) 99703-7115') throw new Error('telefone nao foi para contatos');
+if (stored.usuarios[0].nome !== 'Davi Manieri') throw new Error(`o nome gravado perdeu o espaco: ${stored.usuarios[0].nome}`);
+// Desde a 3.0 a partida diz QUAL pergunta caiu e QUAL resposta foi escolhida
+// (o numero original dela, 1 a 4) — e o que alimenta a ajuda Placas.
+if (!stored.usuarios[0].perguntaId) throw new Error('a partida nao gravou qual pergunta caiu');
+if (![1, 2, 3, 4].includes(stored.usuarios[0].alternativa)) throw new Error(`alternativa gravada: ${stored.usuarios[0].alternativa}`);
 
 // ---- restart ------------------------------------------------------------
 await clickText('REINICIAR');

@@ -4,7 +4,7 @@
 // the Dart used, so a browser that already has them keeps them; anything else
 // falls back to the values compiled into the app.
 
-import { carregarBaralho, perguntasAtivas, CAMPOS_QUESTAO } from './deck.js';
+import { carregarBaralho, perguntasAtivas, videoDaPergunta, CAMPOS_QUESTAO } from './deck.js';
 import { escolhaParaIndice } from './functions.js';
 
 /** CadastroStruct */
@@ -103,6 +103,12 @@ class FFAppStateClass {
      * embaralhados de `ordemNumeros`.
      */
     this.resultado = null;
+
+    /**
+     * A Pergunta do Milhão que o operador preparou no painel ("Na feira"):
+     * `{ slot, pergunta, jogador }`, ou null. Ver pages/milhao.js.
+     */
+    this.milhao = null;
   }
 
   /** initializePersistedState() */
@@ -160,6 +166,7 @@ class FFAppStateClass {
     this.cadastro = new CadastroStruct();
     this.ajuda = 0;
     this.resultado = null;
+    this.milhao = null;
   }
 
   /** Quantas rodadas o baralho tem — o número de fatias da roleta. */
@@ -243,6 +250,10 @@ function vistaPorIdioma(deck, lang, sorteio) {
       q.xtool = Boolean(escolhida.scanners?.xtool);
       q.pularEquipamento = escolhida.pularEquipamento === true;
       q.nome = slot.veiculo?.nome ?? '';
+      // Desde a 3.0 a partida grava QUAL pergunta caiu (a ajuda Placas soma as
+      // respostas por ela), e a lição mostra o QR do vídeo dela.
+      q.id = escolhida.id ?? '';
+      q.video = videoDaPergunta(escolhida);
       return q;
     });
   }

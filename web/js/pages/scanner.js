@@ -12,10 +12,10 @@
 // e "qual destes?", as opcoes chegando em sequencia sao o convite a escolher;
 // chegando juntas, sao uma imagem que apareceu.
 
-import { Align, Column, Container, Padding, Row, Txt, color, decorationImage, el, unfocus } from '../widgets.js';
+import { Align, Column, Container, Padding, Row, Txt, el, unfocus } from '../widgets.js';
 import { style } from '../theme.js';
 import { L } from '../i18n.js';
-import { FerramentaWidget } from '../components/ferramenta.js';
+import { FerramentaWidget, liberarEscolha } from '../components/ferramenta.js';
 import {
   AnimationInfo,
   AnimationTrigger,
@@ -64,6 +64,9 @@ const entradaDaFerramenta = (ordem) => {
 };
 
 export function ScannerWidget() {
+  // Uma escolha por visita à tela (ver `liberarEscolha` em ferramenta.js).
+  liberarEscolha();
+
   /**
    * Cada equipamento entra dentro de um involucro, e nao no proprio no.
    *
@@ -139,13 +142,13 @@ export function ScannerWidget() {
     ],
   });
 
+  // Sem arte de fundo: ela mora no palco (#fundo, ver palco.js), com a luz.
   const root = el(
     'div',
-    { class: 'ff-scaffold', style: { background: color(0xFF1D1D2B) } },
+    { class: 'ff-scaffold pg-scanner' },
     Container({
       width: Infinity,
       height: Infinity,
-      image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),
       child: Padding({
         padding: [0.0, 36.0, 0.0, 0.0],
         style: { flex: '1 1 auto', minHeight: 0 },

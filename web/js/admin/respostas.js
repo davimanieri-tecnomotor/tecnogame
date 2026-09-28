@@ -304,6 +304,12 @@ export const COLUNAS = [
   { chave: 'venceu', rotulo: 'Venceu' },
   { chave: 'tempo', rotulo: 'Tempo restante (s)' },
   { chave: 'invalido', rotulo: 'Respostas inválidas' },
+  // Desde a 3.0: qual pergunta caiu e qual resposta o jogador escolheu — o
+  // número ORIGINAL dela no baralho, e não a posição embaralhada na tela.
+  // Partidas de antes ficam em branco. `pergunta` é o nome legível que o
+  // painel monta a partir do `perguntaId` (ver `rotuloDaPergunta`, deck.js).
+  { chave: 'pergunta', rotulo: 'Pergunta' },
+  { chave: 'alternativa', rotulo: 'Alternativa escolhida' },
   { chave: 'data', rotulo: 'Quando' },
 ];
 

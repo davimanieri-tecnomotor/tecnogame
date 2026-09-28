@@ -98,7 +98,12 @@ for (const k of [0, 7]) {
   }, k);
   await wait(2200);
   await page.screenshot({ path: `${OUT}/carro-${k}.png` });
-  conferir(`carro ${nome}`, await grupo(['#pages .ff-carro-respira', `texto:${nome}`]));
+  // Desde a 3.0 o nome vem numa placa Mercosul: o grupo é a foto e a placa
+  // INTEIRA (a faixa azul e a borda contam na altura), e a placa tem de dizer
+  // o nome do veículo sorteado.
+  const naPlaca = await page.evaluate(() => document.querySelector('#pages .aud-placa-texto')?.textContent ?? null);
+  if (naPlaca !== nome) falhas.push(`a placa diz ${JSON.stringify(naPlaca)}, o veículo é ${JSON.stringify(nome)}`);
+  conferir(`carro ${nome}`, await grupo(['#pages .ff-carro-respira', '#pages .aud-placa']));
 }
 
 await browser.close();

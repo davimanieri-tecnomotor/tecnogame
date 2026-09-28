@@ -85,8 +85,15 @@ service cloud.firestore {
 
 // Valida o formato de um resultado de partida, para que a coleção não possa ser
 // usada como depósito de dados arbitrários.
+//
+// `perguntaId` e `alternativa` entraram na 3.0 (a ajuda Placas e a coluna
+// "qual resposta" da aba Respostas): qual pergunta caiu e o número ORIGINAL da
+// resposta escolhida, de 1 a 4. Nenhum dos dois é dado pessoal — o nome da
+// partida já estava aqui, e o telefone continua em `contatos`. O jogo grava de
+// novo sem eles se estas regras ainda não tiverem sido publicadas (ver
+// `CAMPOS_DA_3_0` em web/js/backend.js).
 function isPartidaValida(d) {
-  return d.keys().hasOnly(['nome', 'atuacao', 'venceu', 'tempo', 'equipamento', 'invalido', 'data'])
+  return d.keys().hasOnly(['nome', 'atuacao', 'venceu', 'tempo', 'equipamento', 'invalido', 'data', 'perguntaId', 'alternativa'])
     && d.keys().hasAll(['nome', 'venceu'])
     && d.nome is string && d.nome.size() > 0 && d.nome.size() <= 30
     && d.venceu is bool
@@ -94,7 +101,9 @@ function isPartidaValida(d) {
     && (!('equipamento' in d) || (d.equipamento is string && d.equipamento.size() <= 20))
     && (!('tempo' in d) || (d.tempo is number && d.tempo >= 0 && d.tempo <= 60000))
     && (!('invalido' in d) || (d.invalido is int && d.invalido >= 0 && d.invalido <= 100))
-    && (!('data' in d) || d.data is timestamp);
+    && (!('data' in d) || d.data is timestamp)
+    && (!('perguntaId' in d) || (d.perguntaId is string && d.perguntaId.size() > 0 && d.perguntaId.size() <= 64))
+    && (!('alternativa' in d) || (d.alternativa is int && d.alternativa >= 1 && d.alternativa <= 4));
 }
 
 // O documento do baralho: um campo `baralho` com uma lista de rodadas, mais o

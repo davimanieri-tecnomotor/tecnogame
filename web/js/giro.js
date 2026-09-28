@@ -23,7 +23,9 @@
 //
 // O sorteio não muda em nada. As voltas que este módulo acrescenta são
 // INTEIRAS, então a fatia que sobra debaixo da seta continua sendo a mesma que
-// `escolhaParaIndice` calcula — o jogo abre o carro que a seta mostra.
+// `escolhaParaIndice` calcula — o jogo abre o carro que a seta mostra. Vale
+// também para o giro com o dedo (3.0): a força do gesto muda quantas voltas
+// inteiras e quanto tempo, nunca a fatia (ver `giroDoGesto`).
 //
 // Tudo aqui sai quando o sistema pede menos movimento.
 
@@ -84,8 +86,67 @@ const VOLTAS_EXTRAS = 3;
 const PASSOS_GIRO = 140;
 const PASSOS_RECUO = 26;
 
-/** Quanto tempo o giro inteiro leva, do toque à roda parada. */
+/** Quanto tempo o giro inteiro leva, do toque à roda parada — o do botão GIRAR. */
 export const DURACAO_DO_GIRO = T_ARRANQUE + T_FREIO + T_RECUO;
+
+/**
+ * O GIRO COM O DEDO.
+ *
+ * Arrastar a roda e soltar é o gesto que toda roleta de prêmio pede. A força
+ * do gesto — a velocidade da roda no instante em que o dedo solta — escolhe
+ * quantas voltas INTEIRAS a mais ela dá, de 3 (o mesmo do botão) a 6, e quanto
+ * o trecho solto dura: um empurrão forte corre mais e freia mais longe.
+ *
+ * Voltas inteiras de novo, e pelo mesmo motivo de sempre (regra 4 do
+ * CLAUDE.md): a fatia que para sob a seta continua sendo a que
+ * `escolhaParaIndice` calcula. O sorteio não sabe do dedo; o dedo só decide o
+ * espetáculo.
+ */
+export const EXTRAS_MIN = VOLTAS_EXTRAS;
+export const EXTRAS_MAX = 6;
+/**
+ * Abaixo disto (voltas/s) o gesto foi um arrasto, e não um empurrão: a roda
+ * fica onde o dedo a deixou. 0,35 volta/s é mover a roda uns 20° num toque
+ * lento — ninguém faz isso querendo girar.
+ */
+export const EMPURRAO_MINIMO = 0.35;
+/** A velocidade (voltas/s) a partir da qual o gesto é o mais forte que conta. */
+const EMPURRAO_CHEIO = 3.2;
+
+/**
+ * O giro que um gesto pede.
+ *
+ * @param {number} velocidade voltas por segundo no instante em que o dedo solta
+ * @returns {{extras: number, freio: number} | null} null quando não é empurrão
+ */
+export function giroDoGesto(velocidade) {
+  const v = Math.abs(Number(velocidade) || 0);
+  if (v < EMPURRAO_MINIMO) return null;
+  const forca = entre((v - EMPURRAO_MINIMO) / (EMPURRAO_CHEIO - EMPURRAO_MINIMO), 0, 1);
+  return {
+    extras: Math.round(EXTRAS_MIN + forca * (EXTRAS_MAX - EXTRAS_MIN)),
+    // De 5,9s a 7,4s de trecho solto: mais voltas pedem mais tempo, senão a
+    // roda correria mais e a cauda lenta — onde está o suspense — encolheria.
+    freio: Math.round(T_FREIO + forca * 1500),
+  };
+}
+
+/** Quanto dura um giro com estas opções, do começo da animação à roda parada. */
+export const duracaoDoGiro = ({ freio = T_FREIO } = {}) => T_ARRANQUE + freio + T_RECUO;
+
+/**
+ * As opções de um giro, sempre com voltas inteiras e dentro da faixa: um valor
+ * torto que chegue aqui por engano não pode mudar a fatia sorteada.
+ */
+function opcoesDoGiro({ extras = VOLTAS_EXTRAS, freio = T_FREIO, inicio = 0 } = {}) {
+  return {
+    extras: entre(Math.round(Number(extras) || VOLTAS_EXTRAS), EXTRAS_MIN, EXTRAS_MAX),
+    freio: entre(Number(freio) || T_FREIO, 2000, 12000),
+    // Onde a roda está parada quando o giro começa, em voltas, entre 0 e 1 — o
+    // arrasto do dedo antes de soltar a deixa fora do zero.
+    inicio: sobra(Number(inicio) || 0, 1),
+  };
+}
 
 const entre = (v, min, max) => Math.max(min, Math.min(max, v));
 /** Módulo que devolve sempre positivo — `%` do JS guarda o sinal. */
@@ -101,7 +162,7 @@ const sobra = (v, m) => ((v % m) + m) % m;
 const recuoDaSeta = (fatias) => Math.min(0.022, 0.25 / Math.max(fatias || 1, 1));
 
 /** Quanto a roda já girou no instante `t`, em unidades de velocidade x ms. */
-function anguloCru(t) {
+function anguloCru(t, freio = T_FREIO) {
   if (t <= 0) return 0;
   if (t < T_ARRANQUE) {
     // A velocidade sobe por um smoothstep, que começa e termina sem solavanco;
@@ -109,8 +170,8 @@ function anguloCru(t) {
     const u = t / T_ARRANQUE;
     return T_ARRANQUE * (u ** 3 - u ** 4 / 2);
   }
-  const u = Math.min((t - T_ARRANQUE) / T_FREIO, 1);
-  return T_ARRANQUE / 2 + (T_FREIO / (EXPOENTE + 1)) * (1 - (1 - u) ** (EXPOENTE + 1));
+  const u = Math.min((t - T_ARRANQUE) / freio, 1);
+  return T_ARRANQUE / 2 + (freio / (EXPOENTE + 1)) * (1 - (1 - u) ** (EXPOENTE + 1));
 }
 
 /**
@@ -120,17 +181,23 @@ function anguloCru(t) {
  * É a fonte única do movimento. O motor de animação desenha estes trechos
  * (`efeitosDoGiro`) e os estalos saem deles (`estalosDoGiro`): som calculado
  * por uma conta paralela seria outra roda, girando noutro compasso.
+ *
+ * `opcoes` é o que o gesto do dedo muda (ver `giroDoGesto`): quantas voltas a
+ * mais, quanto dura o trecho solto e de onde a roda parte. O ALVO é sempre
+ * `voltas + extras`, com `extras` inteiro — é ele que decide a fatia.
  */
-function trajetoria(voltas, fatias) {
-  const alvo = (voltas ?? 1) + VOLTAS_EXTRAS;
+function trajetoria(voltas, fatias, opcoes = {}) {
+  const { extras, freio, inicio } = opcoesDoGiro(opcoes);
+  const alvo = (voltas ?? 1) + extras;
   const recuo = recuoDaSeta(fatias);
-  const fimDoFreio = T_ARRANQUE + T_FREIO;
+  const fimDoFreio = T_ARRANQUE + freio;
   // O trecho solto acaba PASSADO do alvo; o recuo é que fecha a conta em cima
-  // dele. `anguloCru` está em unidades cruas, então a escala traz para voltas.
-  const escala = (alvo + recuo) / anguloCru(fimDoFreio);
+  // dele. `anguloCru` está em unidades cruas, então a escala traz para voltas —
+  // o quanto falta andar a partir de onde a roda está.
+  const escala = (alvo + recuo - inicio) / anguloCru(fimDoFreio, freio);
 
   const trechos = [];
-  let anterior = 0;
+  let anterior = inicio;
   const trecho = (t0, t1, ate) => {
     trechos.push({ t0, t1, de: anterior, ate });
     anterior = ate;
@@ -138,7 +205,7 @@ function trajetoria(voltas, fatias) {
 
   for (let i = 1; i <= PASSOS_GIRO; i++) {
     const t = (i / PASSOS_GIRO) * fimDoFreio;
-    trecho(((i - 1) / PASSOS_GIRO) * fimDoFreio, t, anguloCru(t) * escala);
+    trecho(((i - 1) / PASSOS_GIRO) * fimDoFreio, t, inicio + anguloCru(t, freio) * escala);
   }
 
   // O recuo: uma oscilação amortecida que sai do ponto passado, cruza o alvo,
@@ -160,9 +227,10 @@ function trajetoria(voltas, fatias) {
  *
  * @param {number} voltas quantas voltas o sorteio pediu (`FFAppState.escolha`)
  * @param {number} fatias quantas rodadas o baralho tem
+ * @param {object} [opcoes] o que o gesto mudou (`giroDoGesto`) e de onde a roda parte
  */
-export function efeitosDoGiro(voltas, fatias) {
-  return trajetoria(voltas, fatias).map(({ t0, t1, de, ate }) =>
+export function efeitosDoGiro(voltas, fatias, opcoes = {}) {
+  return trajetoria(voltas, fatias, opcoes).map(({ t0, t1, de, ate }) =>
     RotateEffect({ curve: Curves.linear, delay: t0, duration: t1 - t0, begin: de, end: ate })
   );
 }
@@ -203,13 +271,16 @@ export function efeitosDoGiro(voltas, fatias) {
  *
  * @param {number} voltas quantas voltas o sorteio pediu (`FFAppState.escolha`)
  * @param {number} fatias quantas rodadas o baralho tem
+ * @param {object} [opcoes] as mesmas do `efeitosDoGiro` desse giro
  * @returns {number[]} em ordem crescente
  */
-export function estalosDoGiro(voltas, fatias) {
+export function estalosDoGiro(voltas, fatias, opcoes = {}) {
   const n = Math.max(fatias || 1, 1);
   const instantes = [];
-  let passadas = 0;
-  for (const { t0, t1, de, ate } of trajetoria(voltas, fatias)) {
+  // As divisas que já ficaram para trás de onde a roda parte não estalam de
+  // novo: a divisa j está em (j - 1/2)/N voltas.
+  let passadas = Math.floor(opcoesDoGiro(opcoes).inicio * n + 0.5);
+  for (const { t0, t1, de, ate } of trajetoria(voltas, fatias, opcoes)) {
     if (ate <= de) continue;
     for (let j = passadas + 1; (j - 0.5) / n <= ate; j++) {
       instantes.push(t0 + (((j - 0.5) / n - de) / (ate - de)) * (t1 - t0));
@@ -311,6 +382,18 @@ export function criarVida({ disco, eixo, pista, arte, seta, faisca, fatias, esta
   let marcados = 0;
   /** A animação do giro: é o relógio dela que a tela mostra. */
   let animacao = null;
+  /** Quanto dura o giro em curso — o do botão, ou o que o gesto pediu. */
+  let duracao = DURACAO_DO_GIRO;
+
+  /**
+   * 'giro' (a animação manda), 'arrasto' (o dedo manda) ou 'solto' (o dedo
+   * largou sem empurrão, e a seta só está assentando).
+   */
+  let modo = 'giro';
+  /** Quando o dedo largou, para a seta assentar antes de o laço dormir. */
+  let soltoEm = 0;
+  /** A última divisa que passou pela seta durante o arrasto. */
+  let divisaDoArrasto = 0;
 
   function criarEcos() {
     if (ecos.length || !arte) return;
@@ -392,13 +475,23 @@ export function criarVida({ disco, eixo, pista, arte, seta, faisca, fatias, esta
     // relógio do áudio (ver ANTECEDENCIA_DO_ESTALO). E o tempo da trajetória
     // conta da partida da ANIMAÇÃO, que começa um quadro ou dois depois do
     // toque — contar do toque adiantaria todos os estalos nessa medida.
-    if (estalos && marcados < agenda.length) {
+    if (modo === 'giro' && estalos && marcados < agenda.length) {
       estalos.acertar();
       const partida = animacao ? animacao.startTime : inicio;
       const ate = agora + ANTECEDENCIA_DO_ESTALO;
       while (partida != null && marcados < agenda.length && partida + agenda[marcados] <= ate) {
         estalos.estalar(partida + agenda[marcados]);
         marcados += 1;
+      }
+    } else if (modo === 'arrasto' && estalos) {
+      // No arrasto não há trajetória para ler adiante: quem move a roda é o
+      // dedo. O estalo sai no quadro em que a divisa passa — o ritmo de um dedo
+      // é lento e irregular, e 16ms de atraso ali não se ouve como manco.
+      const divisa = Math.floor(angulo / passoDaFatia + 0.5);
+      if (divisa !== divisaDoArrasto) {
+        divisaDoArrasto = divisa;
+        estalos.acertar();
+        estalos.estalar(agora);
       }
     }
 
@@ -434,15 +527,31 @@ export function criarVida({ disco, eixo, pista, arte, seta, faisca, fatias, esta
     // --- a luz -----------------------------------------------------------
     if (faisca && !pousou) faisca.style.opacity = (corrida * 0.85).toFixed(3);
 
+    if (modo === 'arrasto') {
+      quadro = requestAnimationFrame(passo);
+      return;
+    }
+    if (modo === 'solto') {
+      // Sem empurrão a roda fica onde o dedo deixou; só a seta assenta.
+      if (agora - soltoEm < 420) {
+        quadro = requestAnimationFrame(passo);
+        return;
+      }
+      quadro = 0;
+      tirarEcos();
+      if (faisca) faisca.style.opacity = '';
+      return;
+    }
+
     const decorrido = agora - inicio;
-    if (!pousou && decorrido >= DURACAO_DO_GIRO) {
+    if (!pousou && decorrido >= duracao) {
       pousou = true;
       pousar();
     }
     // A seta ainda está batendo quando a roda já parou: a última divisa a
     // segurou e a mola leva um tempinho para devolvê-la ao prumo. Sair do laço
     // junto com a roda travava a seta torta na tela.
-    if (decorrido < DURACAO_DO_GIRO + 420) {
+    if (decorrido < duracao + 420) {
       quadro = requestAnimationFrame(passo);
       return;
     }
@@ -474,32 +583,78 @@ export function criarVida({ disco, eixo, pista, arte, seta, faisca, fatias, esta
     setaVelocidade = 0;
   }
 
+  /** Onde a roda está, em graus acumulados a partir do repouso de fábrica. */
+  let absoluto = 0;
+
   return {
     /**
      * Começa a acompanhar o giro. Chamar logo depois do `forward()` da
      * animação: é a animação que ele cria que os estalos seguem.
      *
      * @param {number} voltas as mesmas que o `efeitosDoGiro` dessa animação recebeu
+     * @param {object} [opcoes] idem — o que o gesto mudou e de onde a roda parte
      */
-    girar(voltas) {
+    girar(voltas, opcoes = {}) {
       if (menosMovimento()) return;
       criarEcos();
+      modo = 'giro';
       pousou = false;
-      angulo = 0;
+      // A seta mede a divisa pelo ângulo ABSOLUTO da roda: depois de um
+      // arrasto ela não parte do zero.
+      angulo = sobra(Number(opcoes.inicio) || 0, 1) * 360;
       velocidade = 0;
       lido = anguloNaTela(disco);
       inicio = performance.now();
       ultimo = inicio;
+      duracao = duracaoDoGiro(opcoes);
       // A que o `forward()` acabou de criar é a mais nova do disco.
       const animacoes = disco.getAnimations?.() ?? [];
       animacao = animacoes[animacoes.length - 1] ?? null;
-      agenda = estalosDoGiro(voltas, fatias);
+      agenda = estalosDoGiro(voltas, fatias, opcoes);
       marcados = 0;
       estalos?.preparar();
       faisca?.classList.remove('roleta-faisca--parou');
       cancelAnimationFrame(quadro);
       quadro = requestAnimationFrame(passo);
     },
+
+    /**
+     * O dedo pegou a roda. Daqui até `soltar`, quem a move é a tela (com
+     * `seguir`), e a seta bate e estala em cada divisa que o dedo passa.
+     */
+    arrastar() {
+      if (menosMovimento()) return;
+      criarEcos();
+      modo = 'arrasto';
+      pousou = false;
+      angulo = absoluto;
+      velocidade = 0;
+      lido = anguloNaTela(disco);
+      divisaDoArrasto = Math.floor(angulo / passoDaFatia + 0.5);
+      ultimo = performance.now();
+      estalos?.preparar();
+      cancelAnimationFrame(quadro);
+      quadro = requestAnimationFrame(passo);
+    },
+
+    /** Leva a roda para `graus` (acumulados). Só durante o arrasto. */
+    seguir(graus) {
+      absoluto = graus;
+      disco.style.transform = `rotate(${graus.toFixed(2)}deg)`;
+    },
+
+    /** O dedo largou sem empurrão: a roda fica, a seta assenta. */
+    soltar() {
+      if (modo !== 'arrasto') return;
+      modo = 'solto';
+      soltoEm = performance.now();
+    },
+
+    /** Onde a roda ficou, em voltas de 0 a 1 — o `inicio` do giro seguinte. */
+    get posicao() {
+      return sobra(absoluto / 360, 1);
+    },
+
     /** A tela saiu no meio do giro. */
     parar() {
       cancelAnimationFrame(quadro);

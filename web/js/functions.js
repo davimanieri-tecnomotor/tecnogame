@@ -94,19 +94,28 @@ export function formatMillisecondsToTime(temp) {
 export function formatarTempoDeResposta(tempoRestante, separador = ',') {
   if (tempoRestante == null) return null;
   const gasto = Math.min(60000, Math.max(0, 60000 - Math.trunc(tempoRestante)));
+  return formatarSegundos(gasto, separador);
+}
+
+/**
+ * Uma duração em ms como o jogador a lê: `3,2 s`. É o formato do ranking, e o
+ * da folga da faixa ACERTAR AGORA ("vale o 2º lugar por mais 3,2 s").
+ */
+export function formatarSegundos(ms, separador = ',') {
   // Em décimos inteiros, e não em fração: `8.4` não existe em binário, e a
   // diferença aparece na hora de partir o número em duas metades.
-  const decimos = Math.round(gasto / 100);
+  const decimos = Math.round(Math.max(0, ms) / 100);
   return `${Math.floor(decimos / 10)}${separador}${decimos % 10} s`;
 }
 
 /**
  * Em que lugar o jogador ficou, na lista de vencedores que a tela de fim leu.
  *
- * A partida é GRAVADA depois da navegação (ver perguntas_erespostas.js), então
- * a linha do próprio jogador pode ainda não estar na lista quando a tela
- * pergunta. Quando está, vale a posição dela; quando não está, conta-se quantos
- * foram mais rápidos — o que dá a mesma resposta.
+ * A partida é gravada no veredito (ver pages/tela_acao.js), mas a lista que a
+ * tela de fim lê pode ter vindo da nuvem antes de a gravação chegar lá — a
+ * linha do próprio jogador pode ainda não estar nela. Quando está, vale a
+ * posição dela; quando não está, conta-se quantos foram mais rápidos — o que
+ * dá a mesma resposta.
  *
  * @param {Array<{nome?: string, tempo?: number}>} vencedores em ordem, o mais
  *   rápido primeiro.
@@ -147,6 +156,15 @@ export function embaralhaQuestoes() {
     [numeros[i], numeros[j]] = [numeros[j], numeros[i]];
   }
   return numeros;
+}
+
+/**
+ * O primeiro nome, como o apresentador chama: "COM VOCÊS: DAVI!". Nome
+ * comprido demais para o grito é cortado com reticências — o palco tem 1920px.
+ */
+export function primeiroNome(nome) {
+  const primeiro = String(nome ?? '').trim().split(/\s+/)[0] ?? '';
+  return primeiro.length > 14 ? `${primeiro.slice(0, 13)}…` : primeiro;
 }
 
 /** transformaNumero('(16) 99703-7115') -> '5516997037115' (digits only, +55). */

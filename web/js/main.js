@@ -5,6 +5,8 @@ import { FFAppState } from './state.js';
 import { defineRoute, startRouter, go } from './router.js';
 import { FFLocalizations, onLanguageChange } from './i18n.js';
 import { vigiarInatividade } from './inatividade.js';
+import { montarPalco } from './palco.js';
+import { ligarComandos } from './comandos.js';
 
 import { CadastroWidget } from './pages/cadastro.js';
 import { InstrucoesWidget } from './pages/instrucoes.js';
@@ -16,6 +18,7 @@ import { TelaVideoScannerWidget } from './pages/tela_video_scanner.js';
 import { TelaAcaoWidget } from './pages/tela_acao.js';
 import { GanhouWidget } from './pages/ganhou.js';
 import { PerdeuWidget } from './pages/perdeu.js';
+import { PerguntaDoMilhaoWidget } from './pages/milhao.js';
 import { PortaDoAdmWidget } from './admin/porta.js';
 
 // GoRouter's initialLocation is '/', which builds CadastroWidget - as does the
@@ -25,6 +28,9 @@ import { PortaDoAdmWidget } from './admin/porta.js';
 // documento (um endereco so, para o GitHub Pages). Ela nao desenha no palco --
 // levanta a propria camada por fora --, entao o builder devolve uma casca
 // vazia. Ver web/js/admin/porta.js.
+//
+// `/milhao` também não vem do Dart: é a Pergunta do Milhão do dia, que o
+// operador dispara pelo painel (ver pages/milhao.js).
 const ROUTES = [
   { name: '_initialize', path: '/', builder: CadastroWidget },
   { name: 'roleta', path: '/roleta', builder: RoletaWidget },
@@ -37,6 +43,7 @@ const ROUTES = [
   { name: 'telaVideoScanner', path: '/telaVideoScanner', builder: TelaVideoScannerWidget },
   { name: 'instrucoes', path: '/instrucoes', builder: InstrucoesWidget },
   { name: 'carroSleecionado', path: '/carro', builder: CarroSleecionadoWidget },
+  { name: 'milhao', path: '/milhao', builder: PerguntaDoMilhaoWidget },
   { name: 'adm', path: '/adm', builder: PortaDoAdmWidget },
 ];
 
@@ -47,6 +54,11 @@ function main() {
   window.__tecgameBooted = true;
 
   installStage();
+  // O palco com a luz (refletores, flash, lâmina) nasce antes da primeira tela:
+  // é ele que está por baixo de todas — ver palco.js.
+  montarPalco();
+  // Teclado, controle e os atalhos do operador — ver comandos.js.
+  ligarComandos();
 
   FFAppState.initializePersistedState();
   document.documentElement.lang = FFLocalizations.languageCode === 'pt' ? 'pt-BR' : FFLocalizations.languageCode;

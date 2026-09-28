@@ -39,6 +39,10 @@
        Google, e o totem de feira sem internet caia para a fonte do sistema. -->
   <link rel="stylesheet" href="css/fonts.css">
   <link rel="stylesheet" href="css/app.css">
+  <!-- A cara de auditório (3.0): o palco com a luz, a pergunta nova, o
+       apresentador, as fichas de ajuda, o fim como pódio. Depois de app.css de
+       propósito: onde as duas disputam o mesmo seletor, esta vence. -->
+  <link rel="stylesheet" href="css/auditorio.css">
   <!-- A administração mora neste mesmo documento (um endereço só, para o
        GitHub Pages). O CSS dela vive inteiro sob `.adm`, então não alcança o
        palco do jogo; ver o cabeçalho de css/admin.css. -->
@@ -50,14 +54,16 @@
        so every hard-coded size from the Dart source lands on the same pixel. -->
   <div id="viewport">
     <div id="stage">
-      <!-- O chão. Todas as dez telas desenham o mesmo BG_Seleo_Equipamento por
-           conta própria, e entre uma e outra o #pages fica vazio por um
-           instante: com transição de verdade (e não corte seco), esse instante
-           aparece como um piscar. Esta camada fica parada por baixo, com a
-           mesma arte no mesmo enquadramento, então o que atravessa é só o
-           conteúdo. -->
+      <!-- O chão, e desde a 3.0 o estúdio: a arte de fundo, uma só para todas
+           as telas, com os refletores e o "humor" da luz por cima (ver
+           js/palco.js). As telas deixaram de pintar a própria arte para a luz
+           aparecer; esta camada fica parada por baixo de todas, então o que
+           atravessa uma troca de tela é só o conteúdo. -->
       <div id="fundo" aria-hidden="true"></div>
       <div id="pages"></div>
+      <!-- Por cima das telas e por baixo dos diálogos: o flash dos vereditos,
+           o confete e a lâmina de luz que é a troca de tela. Não recebe toque. -->
+      <div id="frente" aria-hidden="true"></div>
       <div id="overlays"></div>
     </div>
     <!-- O jogo e 16:9 de tela cheia; em retrato a escala fica ilegivel. -->

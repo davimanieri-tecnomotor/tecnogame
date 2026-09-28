@@ -1,17 +1,21 @@
 // Port of lib/pages/tela_video_transisao/tela_video_transisao_widget.dart
 //
-// The Jaspion-scored intro sting. `tipo` decides where it goes after 4s:
+// The intro sting. `tipo` decides where it goes after 4s:
 //   0 -> cadastro (the restart from the end screens)
 //   1 -> roleta   (after the instructions)
+//
+// Até a 2.x tocava aqui o tema do Jaspion, por cima do vídeo. Saiu na 3.0 com
+// os outros mp3 de terceiros (ver audio.js): no lugar entra a vinheta
+// sintetizada do jogo — uma subida, três pancadas de metais e o acorde que
+// fica —, que cabe nos quatro segundos da tela.
 
 import { Container, VideoPlayer, decorationImage, el } from '../widgets.js';
 import { TH } from '../theme.js';
-import { playSound } from '../audio.js';
+import { Som } from '../som.js';
 import { goNamed } from '../router.js';
 import { delayed } from '../anim.js';
 
 export function TelaVideoTransisaoWidget({ params } = {}) {
-  const model = {};
   const tipo = params?.tipo != null ? Number.parseInt(params.tipo, 10) : null;
   let left = false;
 
@@ -34,7 +38,7 @@ export function TelaVideoTransisaoWidget({ params } = {}) {
 
   const next = (name) => goNamed(name);
 
-  playSound(model, 'soundPlayer', 'assets/audios/jaspion-theme_Ho7gr9uE.mp3', 0.5);
+  Som.vinheta(0.05);
 
   if (tipo === 0) {
     delayed(4000).then(() => {
@@ -49,7 +53,6 @@ export function TelaVideoTransisaoWidget({ params } = {}) {
 
   root.__dispose = () => {
     left = true;
-    model.soundPlayer?.stop();
   };
 
   return root;

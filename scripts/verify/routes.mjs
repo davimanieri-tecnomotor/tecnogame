@@ -27,6 +27,7 @@ const targets = routes.length
       'instrucoes:/instrucoes',
       'telaVideoTransisao:/telaVideoTransisao?tipo=1',
       'telaVideoScanner:/telaVideoScanner',
+      'milhao:/milhao',
     ];
 
 const browser = await puppeteer.launch({

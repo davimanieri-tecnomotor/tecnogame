@@ -22,8 +22,17 @@ const CONTACT_KEY = 'contatos';
 
 /* -------------------------------------------------------- UsuariosRecord -- */
 
-/** createUsuariosRecordData(...) - fields with a null value are omitted, which
- *  is what FlutterFlow's `createUsuariosRecordData` does. */
+/**
+ * createUsuariosRecordData(...) - fields with a null value are omitted, which
+ * is what FlutterFlow's `createUsuariosRecordData` does.
+ *
+ * `perguntaId` e `alternativa` entraram na 3.0: QUAL pergunta caiu e QUAL
+ * resposta o jogador escolheu — o número ORIGINAL dela no baralho (1 a 4), e
+ * não a posição embaralhada na tela, para as partidas somarem entre si. São
+ * eles que alimentam a ajuda Placas e respondem o que o time de treinamento
+ * queria saber: qual resposta errada é a mais comum. Tempo esgotado não tem
+ * alternativa, e o campo fica de fora.
+ */
 export function createUsuariosRecordData({
   nome = null,
   telefone = null,
@@ -33,13 +42,26 @@ export function createUsuariosRecordData({
   equipamento = null,
   data = null,
   invalido = null,
+  perguntaId = null,
+  alternativa = null,
 } = {}) {
-  const record = { nome, telefone, atuacao, venceu, tempo, equipamento, data, invalido };
+  const record = { nome, telefone, atuacao, venceu, tempo, equipamento, data, invalido, perguntaId, alternativa };
   for (const key of Object.keys(record)) {
     if (record[key] == null) delete record[key];
   }
   return record;
 }
+
+/**
+ * Os campos que a 3.0 acrescentou à partida. Um Firestore com as regras de
+ * antes RECUSA o documento inteiro por causa deles (`hasOnly` lista as chaves
+ * permitidas) — então, recusado, o jogo grava de novo sem eles. O jogo pode ir
+ * para o GitHub Pages antes de alguém publicar as regras novas, e a partida do
+ * jogador não pode sumir por isso.
+ */
+const CAMPOS_DA_3_0 = ['perguntaId', 'alternativa'];
+
+const recusado = (erro) => String(erro?.code ?? erro?.message ?? '').includes('permission-denied');
 
 /** Ranking local, já com a retenção de um ano aplicada (ver storage.js). */
 const readLocal = () => getRecords(LOCAL_KEY);
@@ -108,7 +130,13 @@ export async function addUsuario(record, { serverTimestamp = false } = {}) {
     const { db, fs } = alvo;
     const payload = { ...row };
     if (serverTimestamp) payload.data = fs.serverTimestamp();
-    await comPrazo(fs.addDoc(fs.collection(db, 'usuarios'), payload));
+    try {
+      await comPrazo(fs.addDoc(fs.collection(db, 'usuarios'), payload));
+    } catch (erro) {
+      if (!recusado(erro) || !CAMPOS_DA_3_0.some((c) => c in payload)) throw erro;
+      for (const c of CAMPOS_DA_3_0) delete payload[c];
+      await comPrazo(fs.addDoc(fs.collection(db, 'usuarios'), payload));
+    }
     if (contato) {
       const c = { ...contato };
       if (serverTimestamp) c.data = fs.serverTimestamp();
@@ -161,6 +189,38 @@ export async function queryUsuariosVencedores({ limit = 15 } = {}) {
 }
 
 /**
+ * As respostas já dadas a UMA pergunta — o que a ajuda Placas mostra.
+ *
+ * Nuvem quando dá, local quando não dá, e nunca as duas somadas: as partidas
+ * deste navegador já estão na nuvem, e somar contaria cada uma duas vezes (a
+ * mesma regra da aba Respostas). A consulta é por igualdade num campo só, que
+ * o Firestore indexa sozinho — não precisa de índice composto.
+ *
+ * @returns {Promise<Array<{alternativa?: number, venceu?: boolean}>>}
+ */
+export async function queryRespostasDaPergunta(perguntaId, { limit = 1000 } = {}) {
+  if (!perguntaId) return [];
+  if (CONFIG.rankingNaNuvem) {
+    try {
+      const alvo = await comPrazo(ensureFirestore());
+      if (alvo) {
+        const { db, fs } = alvo;
+        const snapshot = await comPrazo(
+          fs.getDocs(fs.query(fs.collection(db, 'usuarios'), fs.where('perguntaId', '==', perguntaId), fs.limit(limit)))
+        );
+        return snapshot.docs.map((doc) => normalize(doc.data()));
+      }
+    } catch (error) {
+      console.warn('Firestore não respondeu a tempo; as Placas usam as partidas locais.', error);
+    }
+  }
+  return readLocal()
+    .filter((row) => row.perguntaId === perguntaId)
+    .slice(-limit)
+    .map(normalize);
+}
+
+/**
  * UsuariosRecord's getters all default a missing field. `telefone` saiu de
  * proposito: o ranking nao o le mais (ver addUsuario).
  */
@@ -173,6 +233,8 @@ function normalize(row) {
     equipamento: row.equipamento ?? '',
     data: row.data ?? null,
     invalido: row.invalido ?? 0,
+    perguntaId: row.perguntaId ?? null,
+    alternativa: row.alternativa ?? null,
   };
 }
 

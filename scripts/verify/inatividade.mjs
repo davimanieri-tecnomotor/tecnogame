@@ -190,8 +190,10 @@ conferir(await waitForRoute('cadastro', PRAZO_NA_PAREDE_MS + FOLGA_MS + 2000), '
 const depoisDoFim = await partida();
 conferir(semPartida(depoisDoFim), `o resultado e o cadastro foram esquecidos (${JSON.stringify(depoisDoFim)})`);
 
-/* ------------------------- a escolha do equipamento, com um aviso aberto -- */
-log('--- escolha do equipamento com o aviso de equipamento inválido aberto');
+/* --------------------- a escolha do equipamento, com o carimbo na tela -- */
+// Desde a 3.0 o incompatível leva o carimbo "INCOMPATÍVEL" no próprio cartão,
+// e não um aviso por cima; o prazo continua valendo com ele na tela.
+log('--- escolha do equipamento com o carimbo de incompatível na tela');
 await largarPartidaEm('scanner');
 conferir(await waitForRoute('scanner'), 'a partida chegou na escolha do equipamento');
 // Os cinco pousam um a um; espera o último assentar antes de mirar.
@@ -200,10 +202,11 @@ const invalido = await page.$('#pages .ff-ferramenta-entra [style*="opacity: 0.2
 conferir(Boolean(invalido), 'há um equipamento que não resolve a pergunta desta rodada');
 if (invalido) await invalido.click();
 await wait(600);
-conferir((await avisos()).includes('EQUIPAMENTO INVÁLIDO'), 'o aviso de equipamento inválido está aberto');
-conferir(await waitForRoute('cadastro', PRAZO_NA_PAREDE_MS + FOLGA_MS + 2000), 'o aviso aberto não segurou a volta');
-await wait(300);
-conferir(!(await avisos()).includes('EQUIPAMENTO INVÁLIDO'), 'o aviso foi fechado junto');
+const carimbo = () => page.evaluate(() => document.querySelector('#pages [data-carimbo]')?.textContent ?? '');
+conferir((await carimbo()).includes('INCOMPATÍVEL'), 'o carimbo de incompatível está na tela');
+conferir(await waitForRoute('cadastro', PRAZO_NA_PAREDE_MS + FOLGA_MS + 2000), 'o carimbo não segurou a volta');
+await wait(900);
+conferir(!(await carimbo()), 'o carimbo saiu junto com a tela');
 
 /* ---------------------------------------------------- o cadastro vazio ---- */
 log('--- cadastro vazio: não há o que apagar, e o ranking do ocioso segue');
@@ -212,7 +215,7 @@ await page.evaluate(() => {
 });
 await wait(PRAZO_NA_PAREDE_MS + FOLGA_MS);
 conferir(Boolean(await page.$('.ff-page[data-marca="vazio"]')), 'passado o prazo, o cadastro vazio é o mesmo — não foi refeito');
-conferir((await avisos()).includes('Rank dos melhores'), 'o ranking do ocioso continua na tela');
+conferir((await avisos()).includes('Rank dos melhores'), 'o modo de atração (com o ranking) continua na tela');
 await shot('02-cadastro-vazio-com-ranking');
 
 /* ------------------------------------------- a ficha largada pela metade -- */

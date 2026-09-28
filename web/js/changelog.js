@@ -10,10 +10,26 @@
 
 import { readRaw, writeRaw } from './storage.js';
 
-export const VERSAO_DO_JOGO = '2.7.0';
+export const VERSAO_DO_JOGO = '3.0.0';
 
 /** Mais recente primeiro — é a ordem em que o painel lista. */
 export const NOTAS_DE_ATUALIZACAO = [
+  {
+    versao: '3.0.0',
+    data: '2026-09-25',
+    itens: [
+      'O jogo ganhou cara de programa de auditório. A pergunta agora é um palco com luz de estúdio: o apresentador pergunta "Posso perguntar?" e o relógio só começa quando o jogador aperta PODE!. Tocar numa alternativa pergunta "Está certo disso?", e a resposta tem suspense antes do veredito — festa e o ranking abrindo espaço no acerto, a resposta certa e onde aprender no erro.',
+      'Dois estilos para a tela da pergunta, escolhidos no painel em "Na feira": o Clássico (a coluna do Show do Milhão, padrão) e o Palco (os losangos do Milionário).',
+      'O relógio virou um conta-giros, e uma faixa ERRAR / RECORDE / ACERTAR AGORA mostra em que lugar do ranking o jogador entra se acertar naquele instante — e por quanto tempo ainda segura esse lugar.',
+      'Duas ajudas novas, dentro do limite de duas por partida: Cartas (o Rei não tira nada; o Ás, o 2 e o 3 tiram uma, duas ou três alternativas erradas) e Placas (o que os jogadores anteriores responderam naquela pergunta — aparece depois que três pessoas já responderam).',
+      'Todo o som do jogo agora é gerado pelo próprio jogo; as músicas de terceiros saíram. O volume se ajusta no painel ("Na feira") ou, no totem, com Ctrl+Alt+↑/↓ — Ctrl+Alt+M liga e desliga o som, e Ctrl+Alt+Home volta ao cadastro.',
+      'A Pergunta do Milhão do dia: no painel, em "Na feira", o operador chama o jogador mais rápido do dia de volta ao totem para uma pergunta extra, valendo brinde, sem ajudas. Ela não entra no ranking.',
+      'Cada pergunta pode ter o link do vídeo do TecnomotorTV (nas Regras da pergunta). Quem erra leva um QR code para ele, na tela da pergunta e na tela de fim.',
+      'A aba Respostas ganhou as colunas Pergunta e Alternativa escolhida: dá para saber qual resposta errada é a mais comum.',
+      'Mais: a roleta gira arrastando a roda com o dedo, e a fatia que ganhou acende com o nome do carro; o carro chega com placa Mercosul; o equipamento incompatível leva um carimbo em vez de um aviso que parava o jogo; o cadastro anuncia o jogador ("COM VOCÊS: ANA!"); a tela de fim virou pódio com a chamada para falar com um representante; e parado no cadastro o jogo entra em modo de atração. Teclado e botão de fliperama (1–4, Enter, Esc) também jogam.',
+      'Corrigido: não dava para digitar espaço no nome do cadastro — "Davi Manieri" ficava "DaviManieri".',
+    ],
+  },
   {
     versao: '2.7.0',
     data: '2026-09-25',
