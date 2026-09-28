@@ -6,6 +6,10 @@ src_game/
 # saída dos testes de navegador — tudo num lugar só
 shots/
 
+# worktrees de sessões do Claude Code — cada um é um checkout à parte,
+# com o próprio .git; nunca entra no repo principal
+.claude/worktrees/
+
 # lixo de sistema
 Thumbs.db
 .DS_Store
