@@ -1,5 +1,5 @@
 // As duas telas de fim (lib/fim/ganhou e lib/fim/perdeu no Dart), que na 3.0
-// viraram pódio e chamada para o estande.
+// viraram pódio.
 //
 // A festa mudou de lugar. O veredito agora é comemorado (ou lamentado) na
 // própria tela da pergunta — o canhão de luz, a fanfarra, o ranking abrindo
@@ -10,8 +10,6 @@
 //   - o pódio dos maiores campeões, com o lugar do jogador marcado;
 //   - para quem errou, a resposta certa e — se a pergunta tiver o link — o QR
 //     code do vídeo do TecnomotorTV que ensina aquilo;
-//   - a chamada para falar com um representante, que é o motivo de o jogo
-//     existir num estande;
 //   - REINICIAR, que manda a mensagem de WhatsApp (desligada, ver config.js),
 //     esquece a partida e recomeça pela vinheta.
 //
@@ -29,6 +27,7 @@ import { enviarMensagemZap, queryUsuariosVencedores } from '../backend.js';
 import { goNamed, serializeParam } from '../router.js';
 import { registrarComandos } from '../comandos.js';
 import { QrSvg } from '../qr.js';
+import { caber, quandoNaTela } from '../ajuste.js';
 import { BotaoDeAuditorio } from '../components/botao.js';
 
 /** Os três degraus do pódio: a altura de cada um e a ordem em que sobem (do 3º ao 1º). */
@@ -76,26 +75,35 @@ export function FimWidget(spec) {
         continue;
       }
       const souEu = minha === pos;
-      const nome = souEu
-        ? `${maybeHandleOverflow(v.nome, { maxChars: 9, replacement: '…' })} · ${T('voce')}`
-        : maybeHandleOverflow(v.nome, { maxChars: 12, replacement: '…' });
+      // O "VOCÊ" ia colado no nome ("DAVI MANI… · VOCÊ"), e com nome de gente
+      // de verdade a linha passava da largura do degrau e entrava por baixo do
+      // pedestal do lado. Agora ele é um selo dentro do próprio pedestal, e o
+      // nome desce de fonte até caber no degrau (ver `caber`).
+      const nomeNo = el('div', {
+        class: 'ff-text fim-degrau-nome',
+        text: maybeHandleOverflow(v.nome, { maxChars: 14, replacement: '…' }).toUpperCase(),
+        style: { fontSize: fonte(24) },
+      });
+      const tempoNo = el('div', { class: 'ff-text fim-degrau-tempo', text: valueOrDefault(formatarTempoDeResposta(v.tempo), '—'), style: { fontSize: fonte(22) } });
       const pedestal = el('div', { class: 'fim-pedestal', style: { height: `${DEGRAUS[pos].altura}px` } }, [
         el('b', { class: 'ff-text', text: `${pos}º`, style: { fontSize: fonte(pos === 1 ? 64 : 48) } }),
+        souEu ? el('span', { class: 'ff-text fim-voce', text: T('voce'), style: { fontSize: fonte(18) } }) : null,
       ]);
       const degrau = el('div', { class: ['fim-degrau', `fim-degrau--${pos}`, souEu ? 'fim-degrau--eu' : null], dataPosicao: String(pos) }, [
-        el('div', { class: 'ff-text fim-degrau-nome', text: nome.toUpperCase(), style: { fontSize: fonte(24) } }),
-        el('div', { class: 'ff-text fim-degrau-tempo', text: valueOrDefault(formatarTempoDeResposta(v.tempo), '—'), style: { fontSize: fonte(22) } }),
+        nomeNo,
+        tempoNo,
         pedestal,
       ]);
       bloco.appendChild(degrau);
+      quandoNaTela(nomeNo, () => caber(degrau, nomeNo, 24, 14));
       const atraso = 500 + DEGRAUS[pos].ordem * 260;
       entrar(pedestal, [{ transform: 'scaleY(0)' }, { transform: 'scaleY(1.04)', offset: 0.8 }, { transform: 'none' }], {
         duration: 520,
         delay: atraso,
         easing: 'cubic-bezier(.2,.9,.3,1)',
       });
-      entrar(degrau.firstChild, [{ opacity: 0, transform: 'translateY(20px)' }, { opacity: 1, transform: 'none' }], { duration: 300, delay: atraso + 380 });
-      entrar(degrau.children[1], [{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: atraso + 440 });
+      entrar(nomeNo, [{ opacity: 0, transform: 'translateY(20px)' }, { opacity: 1, transform: 'none' }], { duration: 300, delay: atraso + 380 });
+      entrar(tempoNo, [{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: atraso + 440 });
       Som.pop(atraso / 1000 + 0.3, 480 + (3 - pos) * 140);
     }
 
@@ -141,19 +149,6 @@ export function FimWidget(spec) {
         })()
       : null;
 
-  /* ------------------------------------------------ a chamada do estande -- */
-
-  const chamada = el('div', { class: 'fim-chamada' }, [
-    el('span', { class: 'fim-chamada-icone' }),
-    el('div', {}, [
-      el('div', { class: 'ff-text fim-chamada-titulo', text: T('faleComRepresentante'), style: { fontSize: fonte(26) } }),
-      el('div', { class: 'ff-text fim-chamada-sub', text: T('faleComRepresentanteSub'), style: { fontSize: fonte(18) } }),
-    ]),
-  ]);
-  chamada.firstChild.innerHTML =
-    '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="8" y="21" width="48" height="31" rx="5"/><path d="M24 21v-6h16v6"/><path d="M8 34h48"/><path d="M29 34v5h6v-5"/></svg>';
-  entrar(chamada, [{ opacity: 0, transform: 'translateY(30px)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: 1800, easing: 'ease-out' });
-
   const reiniciar = BotaoDeAuditorio(L(spec.buttonKey), { pulsa: true, acao: 'reiniciar', aoTocar: restart });
   reiniciar.classList.add('fim-reiniciar');
   entrar(reiniciar, [{ opacity: 0, transform: 'translateY(30px)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: 2200, easing: 'ease-out' });
@@ -163,7 +158,6 @@ export function FimWidget(spec) {
   const direita = el('div', { class: 'fim-direita' }, [
     FutureBuilder({ future: queryUsuariosVencedores({ limit: 5 }), builder: podio }),
     licao,
-    chamada,
   ]);
 
   const root = el('div', { class: ['ff-scaffold', 'pg-fim', resultado?.acertou ? 'pg-fim--ganhou' : 'pg-fim--perdeu'] }, [

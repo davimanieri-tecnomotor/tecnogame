@@ -332,6 +332,9 @@ chamada para o estande**:
 - a foto do anfitrião da Tecnomotor que já existe, com um balão curto;
 - a chamada "Fale com um representante".
 
+> **Na revisão da 3.0 (2026-09-28)** a chamada saiu: a tela de fim ficou com
+> o pódio, a lição (para quem errou) e o REINICIAR.
+
 **Para quem errou:**
 
 - a lição continua ali;
@@ -453,7 +456,8 @@ organizado.
 - `confirmacao.js` vira o "Está certo disso?", com a alternativa travando no
   lugar.
 - `router.js` ganha a lâmina.
-- `fim.js` passa a ser pódio e chamada para o estande.
+- `fim.js` passa a ser pódio (a chamada para o estande saiu na revisão; ver
+  §4.8).
 - `ranking.js` vira o modo de atração.
 
 **O roteiro da pergunta como máquina de estados:**

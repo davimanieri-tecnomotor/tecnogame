@@ -783,11 +783,17 @@ export function valueOrDefault(value, fallback) {
   return value == null || value === '' ? fallback : value;
 }
 
-/** `String.maybeHandleOverflow({maxChars, replacement})` */
+/**
+ * `String.maybeHandleOverflow({maxChars, replacement})`
+ *
+ * Com uma diferença do FlutterFlow: o espaço em que o corte cai sai antes das
+ * reticências. Nome é o que mais se corta aqui, e "Maria Eduarda Silva" em 14
+ * virava "MARIA EDUARDA …" no pódio.
+ */
 export function maybeHandleOverflow(value, { maxChars, replacement = '' }) {
   const text = value ?? '';
   if (maxChars == null || text.length <= maxChars) return text;
-  return text.substring(0, maxChars) + replacement;
+  return text.substring(0, maxChars).trimEnd() + replacement;
 }
 
 export const degrees = (d) => (d * Math.PI) / 180;

@@ -802,11 +802,17 @@
     return value == null || value === '' ? fallback : value;
   }
   
-  /** `String.maybeHandleOverflow({maxChars, replacement})` */
+  /**
+   * `String.maybeHandleOverflow({maxChars, replacement})`
+   *
+   * Com uma diferença do FlutterFlow: o espaço em que o corte cai sai antes das
+   * reticências. Nome é o que mais se corta aqui, e "Maria Eduarda Silva" em 14
+   * virava "MARIA EDUARDA …" no pódio.
+   */
   function maybeHandleOverflow(value, { maxChars, replacement = '' }) {
     const text = value ?? '';
     if (maxChars == null || text.length <= maxChars) return text;
-    return text.substring(0, maxChars) + replacement;
+    return text.substring(0, maxChars).trimEnd() + replacement;
   }
   
   const degrees = (d) => (d * Math.PI) / 180;
@@ -5753,12 +5759,6 @@
       en: 'Point your phone camera to watch the video for this question.',
       es: 'Apunta la cámara del celular y mira el video de esta pregunta.',
     },
-    faleComRepresentante: { pt: 'FALE COM UM REPRESENTANTE', en: 'TALK TO A SALES REP', es: 'HABLA CON UN REPRESENTANTE' },
-    faleComRepresentanteSub: {
-      pt: 'Ele está aqui no estande, agora.',
-      en: 'They are right here at the booth.',
-      es: 'Está aquí en el stand, ahora.',
-    },
     suaPosicao: { pt: 'SUA POSIÇÃO', en: 'YOUR RANK', es: 'TU POSICIÓN' },
   
     /* ------------------------------------------------ a atração e o cadastro -- */
@@ -7372,7 +7372,7 @@
       const linhas = vencedores.slice(0, 5).map((v, i) =>
         el('div', { class: ['atr-linha', MEDALHAS[i] ? `atr-linha--${MEDALHAS[i]}` : null] }, [
           el('span', { class: 'ff-text atr-pos', text: `${i + 1}º`, style: { fontSize: fonte(30) } }),
-          el('span', { class: 'ff-text atr-nome', text: maybeHandleOverflow(v.nome, { maxChars: 14, replacement: '…' }).toUpperCase(), style: { fontSize: fonte(30) } }),
+          el('span', { class: 'ff-text atr-nome', text: maybeHandleOverflow(v.nome, { maxChars: 14, replacement: '…' }), style: { fontSize: fonte(30) } }),
           el('span', { class: 'ff-text atr-tempo', text: valueOrDefault(formatarTempoDeResposta(v.tempo), '—'), style: { fontSize: fonte(28) } }),
         ])
       );
@@ -11687,7 +11687,7 @@
         'A Pergunta do Milhão do dia: no painel, em "Na feira", o operador chama o jogador mais rápido do dia de volta ao totem para uma pergunta extra, valendo brinde, sem ajudas. Ela não entra no ranking.',
         'Cada pergunta pode ter o link do vídeo do TecnomotorTV (nas Regras da pergunta). Quem erra leva um QR code para ele, na tela da pergunta e na tela de fim.',
         'A aba Respostas ganhou as colunas Pergunta e Alternativa escolhida: dá para saber qual resposta errada é a mais comum.',
-        'Mais: a roleta gira arrastando a roda com o dedo, e a fatia que ganhou acende com o nome do carro; o carro chega com placa Mercosul; o equipamento incompatível leva um carimbo em vez de um aviso que parava o jogo; o cadastro anuncia o jogador ("COM VOCÊS: ANA!"); a tela de fim virou pódio com a chamada para falar com um representante; e parado no cadastro o jogo entra em modo de atração. Teclado e botão de fliperama (1–4, Enter, Esc) também jogam.',
+        'Mais: a roleta gira arrastando a roda com o dedo, e a fatia que ganhou acende com o nome do carro; o carro chega com placa Mercosul; o equipamento incompatível leva um carimbo em vez de um aviso que parava o jogo; o cadastro anuncia o jogador ("COM VOCÊS: ANA!"); a tela de fim virou pódio; e parado no cadastro o jogo entra em modo de atração. Teclado e botão de fliperama (1–4, Enter, Esc) também jogam.',
         'Corrigido: não dava para digitar espaço no nome do cadastro — "Davi Manieri" ficava "DaviManieri".',
       ],
     },
@@ -17147,7 +17147,7 @@
   /* ===== pages/fim.js ===== */
   __define("pages/fim.js", function (__exports, __require) {
   // As duas telas de fim (lib/fim/ganhou e lib/fim/perdeu no Dart), que na 3.0
-  // viraram pódio e chamada para o estande.
+  // viraram pódio.
   //
   // A festa mudou de lugar. O veredito agora é comemorado (ou lamentado) na
   // própria tela da pergunta — o canhão de luz, a fanfarra, o ranking abrindo
@@ -17158,8 +17158,6 @@
   //   - o pódio dos maiores campeões, com o lugar do jogador marcado;
   //   - para quem errou, a resposta certa e — se a pergunta tiver o link — o QR
   //     code do vídeo do TecnomotorTV que ensina aquilo;
-  //   - a chamada para falar com um representante, que é o motivo de o jogo
-  //     existir num estande;
   //   - REINICIAR, que manda a mensagem de WhatsApp (desligada, ver config.js),
   //     esquece a partida e recomeça pela vinheta.
   //
@@ -17177,6 +17175,7 @@
   const { goNamed, serializeParam } = __require("router.js");
   const { registrarComandos } = __require("comandos.js");
   const { QrSvg } = __require("qr.js");
+  const { caber, quandoNaTela } = __require("ajuste.js");
   const { BotaoDeAuditorio } = __require("components/botao.js");
   
   /** Os três degraus do pódio: a altura de cada um e a ordem em que sobem (do 3º ao 1º). */
@@ -17224,26 +17223,35 @@
           continue;
         }
         const souEu = minha === pos;
-        const nome = souEu
-          ? `${maybeHandleOverflow(v.nome, { maxChars: 9, replacement: '…' })} · ${T('voce')}`
-          : maybeHandleOverflow(v.nome, { maxChars: 12, replacement: '…' });
+        // O "VOCÊ" ia colado no nome ("DAVI MANI… · VOCÊ"), e com nome de gente
+        // de verdade a linha passava da largura do degrau e entrava por baixo do
+        // pedestal do lado. Agora ele é um selo dentro do próprio pedestal, e o
+        // nome desce de fonte até caber no degrau (ver `caber`).
+        const nomeNo = el('div', {
+          class: 'ff-text fim-degrau-nome',
+          text: maybeHandleOverflow(v.nome, { maxChars: 14, replacement: '…' }).toUpperCase(),
+          style: { fontSize: fonte(24) },
+        });
+        const tempoNo = el('div', { class: 'ff-text fim-degrau-tempo', text: valueOrDefault(formatarTempoDeResposta(v.tempo), '—'), style: { fontSize: fonte(22) } });
         const pedestal = el('div', { class: 'fim-pedestal', style: { height: `${DEGRAUS[pos].altura}px` } }, [
           el('b', { class: 'ff-text', text: `${pos}º`, style: { fontSize: fonte(pos === 1 ? 64 : 48) } }),
+          souEu ? el('span', { class: 'ff-text fim-voce', text: T('voce'), style: { fontSize: fonte(18) } }) : null,
         ]);
         const degrau = el('div', { class: ['fim-degrau', `fim-degrau--${pos}`, souEu ? 'fim-degrau--eu' : null], dataPosicao: String(pos) }, [
-          el('div', { class: 'ff-text fim-degrau-nome', text: nome.toUpperCase(), style: { fontSize: fonte(24) } }),
-          el('div', { class: 'ff-text fim-degrau-tempo', text: valueOrDefault(formatarTempoDeResposta(v.tempo), '—'), style: { fontSize: fonte(22) } }),
+          nomeNo,
+          tempoNo,
           pedestal,
         ]);
         bloco.appendChild(degrau);
+        quandoNaTela(nomeNo, () => caber(degrau, nomeNo, 24, 14));
         const atraso = 500 + DEGRAUS[pos].ordem * 260;
         entrar(pedestal, [{ transform: 'scaleY(0)' }, { transform: 'scaleY(1.04)', offset: 0.8 }, { transform: 'none' }], {
           duration: 520,
           delay: atraso,
           easing: 'cubic-bezier(.2,.9,.3,1)',
         });
-        entrar(degrau.firstChild, [{ opacity: 0, transform: 'translateY(20px)' }, { opacity: 1, transform: 'none' }], { duration: 300, delay: atraso + 380 });
-        entrar(degrau.children[1], [{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: atraso + 440 });
+        entrar(nomeNo, [{ opacity: 0, transform: 'translateY(20px)' }, { opacity: 1, transform: 'none' }], { duration: 300, delay: atraso + 380 });
+        entrar(tempoNo, [{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: atraso + 440 });
         Som.pop(atraso / 1000 + 0.3, 480 + (3 - pos) * 140);
       }
   
@@ -17289,19 +17297,6 @@
           })()
         : null;
   
-    /* ------------------------------------------------ a chamada do estande -- */
-  
-    const chamada = el('div', { class: 'fim-chamada' }, [
-      el('span', { class: 'fim-chamada-icone' }),
-      el('div', {}, [
-        el('div', { class: 'ff-text fim-chamada-titulo', text: T('faleComRepresentante'), style: { fontSize: fonte(26) } }),
-        el('div', { class: 'ff-text fim-chamada-sub', text: T('faleComRepresentanteSub'), style: { fontSize: fonte(18) } }),
-      ]),
-    ]);
-    chamada.firstChild.innerHTML =
-      '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="8" y="21" width="48" height="31" rx="5"/><path d="M24 21v-6h16v6"/><path d="M8 34h48"/><path d="M29 34v5h6v-5"/></svg>';
-    entrar(chamada, [{ opacity: 0, transform: 'translateY(30px)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: 1800, easing: 'ease-out' });
-  
     const reiniciar = BotaoDeAuditorio(L(spec.buttonKey), { pulsa: true, acao: 'reiniciar', aoTocar: restart });
     reiniciar.classList.add('fim-reiniciar');
     entrar(reiniciar, [{ opacity: 0, transform: 'translateY(30px)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: 2200, easing: 'ease-out' });
@@ -17311,7 +17306,6 @@
     const direita = el('div', { class: 'fim-direita' }, [
       FutureBuilder({ future: queryUsuariosVencedores({ limit: 5 }), builder: podio }),
       licao,
-      chamada,
     ]);
   
     const root = el('div', { class: ['ff-scaffold', 'pg-fim', resultado?.acertou ? 'pg-fim--ganhou' : 'pg-fim--perdeu'] }, [

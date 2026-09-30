@@ -53,7 +53,9 @@ const iJobs = argv.findIndex((a) => a === '-j' || a === '--jobs');
 // risco de timeout por maquina afogada.
 const PADRAO_JOBS = Math.max(2, Math.min(6, Math.floor(os.cpus().length / 3)));
 const JOBS = Math.max(1, Number(iJobs >= 0 ? argv[iJobs + 1] : (process.env.JOBS ?? PADRAO_JOBS)) || 1);
-const filtros = argv.filter((a, i) => !a.startsWith('-') && i !== iJobs + 1);
+// Sem `-j`, `iJobs + 1` é 0: a exclusão do número de trabalhadores comia o
+// PRIMEIRO filtro, e `npm run verify -- corte` rodava a suíte inteira.
+const filtros = argv.filter((a, i) => !a.startsWith('-') && (iJobs < 0 || i !== iJobs + 1));
 const escolhidos = filtros.length ? TESTES.filter((t) => filtros.some((f) => t.includes(f))) : TESTES;
 
 if (!escolhidos.length) {

@@ -39,7 +39,7 @@ export function AtracaoWidget() {
     const linhas = vencedores.slice(0, 5).map((v, i) =>
       el('div', { class: ['atr-linha', MEDALHAS[i] ? `atr-linha--${MEDALHAS[i]}` : null] }, [
         el('span', { class: 'ff-text atr-pos', text: `${i + 1}º`, style: { fontSize: fonte(30) } }),
-        el('span', { class: 'ff-text atr-nome', text: maybeHandleOverflow(v.nome, { maxChars: 14, replacement: '…' }).toUpperCase(), style: { fontSize: fonte(30) } }),
+        el('span', { class: 'ff-text atr-nome', text: maybeHandleOverflow(v.nome, { maxChars: 14, replacement: '…' }), style: { fontSize: fonte(30) } }),
         el('span', { class: 'ff-text atr-tempo', text: valueOrDefault(formatarTempoDeResposta(v.tempo), '—'), style: { fontSize: fonte(28) } }),
       ])
     );

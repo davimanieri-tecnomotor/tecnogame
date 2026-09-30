@@ -16,6 +16,7 @@ import {
   posicaoNoRanking,
   transformaNumero,
 } from '../../web/js/functions.js';
+import { maybeHandleOverflow } from '../../web/js/widgets.js';
 
 /** Uma palavra da lista, escolhida em tempo de execução para não a transcrever. */
 const PALAVRA = OFFENSIVE_WORDS.find((p) => /^[a-zà-ÿ]{4,}$/.test(p));
@@ -79,6 +80,14 @@ test('o tempo do ranking é dito em segundos, com o décimo que desempata', () =
   assert.equal(formatarTempoDeResposta(-5000), '60,0 s', 'nem passa do minuto por baixo');
   assert.equal(formatarTempoDeResposta(null), null);
   assert.equal(formatarTempoDeResposta(51600, '.'), '8.4 s', 'o separador acompanha o idioma');
+});
+
+test('o nome cortado não deixa espaço antes das reticências', () => {
+  // O corte caía logo depois do espaço, e o pódio mostrava "MARIA EDUARDA …".
+  assert.equal(maybeHandleOverflow('Maria Eduarda Silva', { maxChars: 14, replacement: '…' }), 'Maria Eduarda…');
+  assert.equal(maybeHandleOverflow('Guilherme Henrique', { maxChars: 14, replacement: '…' }), 'Guilherme Henr…');
+  assert.equal(maybeHandleOverflow('Davi Manieri', { maxChars: 14, replacement: '…' }), 'Davi Manieri', 'o que cabe fica inteiro');
+  assert.equal(maybeHandleOverflow(null, { maxChars: 14, replacement: '…' }), '');
 });
 
 test('a posição do jogador sai certa com a gravação atrasada ou já chegada', () => {

@@ -153,12 +153,6 @@ const TEXTOS = {
     en: 'Point your phone camera to watch the video for this question.',
     es: 'Apunta la cámara del celular y mira el video de esta pregunta.',
   },
-  faleComRepresentante: { pt: 'FALE COM UM REPRESENTANTE', en: 'TALK TO A SALES REP', es: 'HABLA CON UN REPRESENTANTE' },
-  faleComRepresentanteSub: {
-    pt: 'Ele está aqui no estande, agora.',
-    en: 'They are right here at the booth.',
-    es: 'Está aquí en el stand, ahora.',
-  },
   suaPosicao: { pt: 'SUA POSIÇÃO', en: 'YOUR RANK', es: 'TU POSICIÓN' },
 
   /* ------------------------------------------------ a atração e o cadastro -- */

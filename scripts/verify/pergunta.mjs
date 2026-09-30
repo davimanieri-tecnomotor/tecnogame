@@ -77,18 +77,22 @@ await page.screenshot({ path: `${OUT}/02-jogando-classico.png` });
 
 /* ------------------------------------------------- 2. a faixa ----------- */
 log('--- 2. ACERTAR AGORA');
+// O relógio é lido JUNTO com a faixa, no mesmo evaluate. Comparar com o
+// `correndo` lá de cima errava pelo tempo da captura de tela no meio (~1,7s
+// com a suíte em paralelo), e a folga certa parecia errada.
 const faixa = await page.evaluate(() => ({
   posicao: document.querySelector('#pages .aud-ap-caixa--acertar .aud-ap-rolo')?.textContent ?? null,
   recorde: document.querySelector('#pages .aud-ap-caixa--recorde')?.textContent ?? null,
   folga: document.querySelector('#pages .aud-ap-barra span')?.textContent ?? null,
+  relogio: document.querySelector('#pages .aud-taco-leitura')?.textContent ?? null,
 }));
 log(`  faixa: ${JSON.stringify(faixa)}`);
 conferir(faixa.posicao === '1º', 'com ~58s sobrando, o jogador entraria em 1º (a Ana tem 52s)');
 conferir(/8,0 s/.test(faixa.recorde ?? '') && /ANA/.test(faixa.recorde ?? ''), 'o recorde é o da Ana, 8,0 s');
 // A folga do 1º lugar é o que falta para o relógio descer aos 52s da Ana.
 const folga = Number.parseFloat((faixa.folga ?? '').match(/(\d+,\d) s/)?.[1]?.replace(',', '.') ?? 'NaN');
-const sobra = Number.parseFloat((correndo ?? '').replace(',', '.'));
-conferir(Math.abs(folga - (sobra - 52)) < 1.5, `a folga (${folga}s) é o que sobra acima dos 52s da Ana (~${(sobra - 52).toFixed(1)}s)`);
+const sobra = Number.parseFloat((faixa.relogio ?? '').replace(',', '.'));
+conferir(Math.abs(folga - (sobra - 52)) < 0.6, `a folga (${folga}s) é o que sobra acima dos 52s da Ana (~${(sobra - 52).toFixed(1)}s)`);
 
 /* ------------------------------------------------- 3. o teclado --------- */
 log('--- 3. teclado');
@@ -110,6 +114,14 @@ await page.keyboard.press(String(certa + 1));
 await wait(400);
 await page.keyboard.press('Enter');
 // O suspense (2,6s) e o fôlego; a amostragem começa antes do veredito.
+//
+// Cada amostra guarda a opacidade do verde E o instante da própria piscada
+// (`currentTime` da animação de 1,2s) em que ela foi lida. Medir o intervalo
+// entre trocas pelo relógio da página não aguentava a suíte em paralelo: a
+// thread principal trava ~600ms no veredito (confete, ranking, som), o
+// `setInterval` perde trocas e depois conta duas em 51ms. Pelo tempo da
+// animação, um travamento só tira amostras — cada uma que fica continua
+// dizendo se a tela mostrava a cor que aquele instante manda.
 const amostras = await page.evaluate(
   (k) =>
     new Promise((ok) => {
@@ -117,28 +129,27 @@ const amostras = await page.evaluate(
       const lista = [];
       const t0 = performance.now();
       const id = setInterval(() => {
-        lista.push([Math.round(performance.now() - t0), Number(getComputedStyle(verde).opacity)]);
+        const piscada = verde.getAnimations().find((a) => a.effect?.getTiming().duration === 1200);
+        lista.push({ o: Number(getComputedStyle(verde).opacity), a: piscada ? Number(piscada.currentTime) : null });
         if (performance.now() - t0 > 5200) {
           clearInterval(id);
           ok(lista);
         }
-      }, 50);
+      }, 25);
     }),
   certa
 );
-const trocas = [];
-for (let i = 1; i < amostras.length; i++) {
-  const [t, o] = amostras[i];
-  if (Math.abs(o - amostras[i - 1][1]) > 0.5) trocas.push(t);
-}
-const intervalos = trocas.slice(1).map((t, i) => t - trocas[i]);
-log(`  trocas de cor em ${JSON.stringify(trocas)} (intervalos ${JSON.stringify(intervalos)})`);
-conferir(trocas.length >= 5, `a certa alterna travada ↔ verde (${trocas.length} trocas)`);
+const MEIA_VOLTA = 200;
+// Colado numa divisa, arredondamento de 1ms decide a cor; essas não contam.
+const naPiscada = amostras.filter((s) => s.a != null && s.a < 1200 && Math.min(s.a % MEIA_VOLTA, MEIA_VOLTA - (s.a % MEIA_VOLTA)) > 3);
+const fora = naPiscada.filter((s) => s.o !== (Math.floor(s.a / MEIA_VOLTA) % 2 === 0 ? 1 : 0));
+log(`  ${naPiscada.length} amostras dentro da piscada, ${fora.length} fora do compasso de ${MEIA_VOLTA}ms`);
+conferir(naPiscada.some((s) => s.o === 0) && naPiscada.some((s) => s.o === 1), 'a certa alterna travada ↔ verde');
 conferir(
-  intervalos.length > 0 && intervalos.every((d) => d >= 120 && d <= 320),
-  'cada meia volta dura ~0,2s (período de ~0,4s, abaixo das 3 piscadas/s do WCAG)'
+  naPiscada.length >= 6 && fora.length === 0,
+  'cada meia volta dura 0,2s (período de 0,4s, abaixo das 3 piscadas/s do WCAG)' + (fora.length ? `: ${JSON.stringify(fora.slice(0, 3))}` : '')
 );
-conferir(amostras[amostras.length - 1][1] === 1, 'e assenta no verde');
+conferir(amostras[amostras.length - 1].o === 1, 'e assenta no verde');
 await page.screenshot({ path: `${OUT}/03-certa-resposta.png` });
 
 log('--- 5. o que a partida grava');

@@ -26,7 +26,7 @@ export const NOTAS_DE_ATUALIZACAO = [
       'A Pergunta do Milhão do dia: no painel, em "Na feira", o operador chama o jogador mais rápido do dia de volta ao totem para uma pergunta extra, valendo brinde, sem ajudas. Ela não entra no ranking.',
       'Cada pergunta pode ter o link do vídeo do TecnomotorTV (nas Regras da pergunta). Quem erra leva um QR code para ele, na tela da pergunta e na tela de fim.',
       'A aba Respostas ganhou as colunas Pergunta e Alternativa escolhida: dá para saber qual resposta errada é a mais comum.',
-      'Mais: a roleta gira arrastando a roda com o dedo, e a fatia que ganhou acende com o nome do carro; o carro chega com placa Mercosul; o equipamento incompatível leva um carimbo em vez de um aviso que parava o jogo; o cadastro anuncia o jogador ("COM VOCÊS: ANA!"); a tela de fim virou pódio com a chamada para falar com um representante; e parado no cadastro o jogo entra em modo de atração. Teclado e botão de fliperama (1–4, Enter, Esc) também jogam.',
+      'Mais: a roleta gira arrastando a roda com o dedo, e a fatia que ganhou acende com o nome do carro; o carro chega com placa Mercosul; o equipamento incompatível leva um carimbo em vez de um aviso que parava o jogo; o cadastro anuncia o jogador ("COM VOCÊS: ANA!"); a tela de fim virou pódio; e parado no cadastro o jogo entra em modo de atração. Teclado e botão de fliperama (1–4, Enter, Esc) também jogam.',
       'Corrigido: não dava para digitar espaço no nome do cadastro — "Davi Manieri" ficava "DaviManieri".',
     ],
   },

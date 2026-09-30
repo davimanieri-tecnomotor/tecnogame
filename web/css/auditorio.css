@@ -2252,6 +2252,10 @@
   left: 990px;
   top: 40px;
   width: 880px;
+  /* O `.ff-scaffold > *` a esticava a 1080px de altura a partir do top 40: a
+     tela passava 40px do palco (verify:corte). A coluna tem o tamanho do que
+     leva — o pódio e, para quem errou, a lição. */
+  height: auto;
   display: flex;
   flex-direction: column;
   gap: 22px;
@@ -2308,8 +2312,9 @@
 .fim-pedestal {
   width: 100%;
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   padding-top: 14px;
   border-radius: 14px 14px 0 0;
   background: linear-gradient(180deg, #2b5fd6, #0c2a78);
@@ -2349,6 +2354,16 @@
 
 .fim-degrau--eu .fim-pedestal {
   box-shadow: 0 0 0 4px #ffd84d, 0 0 40px rgba(255, 216, 77, 0.6);
+}
+
+/* O selo VOCÊ, dentro do pedestal: escuro com letra dourada, que se lê sobre o
+   ouro, a prata e o bronze. */
+.fim-degrau--eu .fim-pedestal .ff-text.fim-voce {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(10, 16, 32, 0.78);
+  color: #ffd84d;
+  letter-spacing: 2px;
 }
 
 .ff-text.fim-vazio {
@@ -2422,38 +2437,6 @@
 
 .fim-qr svg {
   display: block;
-}
-
-.fim-chamada {
-  display: flex;
-  align-items: center;
-  gap: 22px;
-  padding: 18px 26px;
-  border-radius: 18px;
-  background: linear-gradient(90deg, rgba(0, 81, 255, 0.9), rgba(14, 116, 144, 0.9));
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
-}
-
-.fim-chamada-icone svg {
-  display: block;
-  width: 64px;
-  height: 64px;
-  fill: none;
-  stroke: #fff;
-  stroke-width: 2.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.ff-text.fim-chamada-titulo {
-  font-family: 'pirulen', sans-serif;
-  letter-spacing: 2px;
-  color: #fff;
-}
-
-.ff-text.fim-chamada-sub {
-  font-family: 'Open Sans', sans-serif;
-  color: #dbe6ff;
 }
 
 .pg-fim .fim-reiniciar {
@@ -2615,6 +2598,9 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* Caixa-alta no desenho, e não no texto: o nome continua sendo o que o
+     jogador digitou para quem o lê do DOM (verify:dialogs procura "Ana"). */
+  text-transform: uppercase;
 }
 
 .atr-linha--ouro {
