@@ -71,11 +71,22 @@ await page.evaluate(() => {
   const hit = [...document.querySelectorAll('#pages .ff-text')].find((n) => n.textContent.trim() === 'CONFIRMAR');
   hit.closest('.ff-inkwell').click();
 });
-await wait(1800);
-const rota = await page.evaluate(() => document.querySelector('.ff-page')?.dataset.route);
+// Desde a 3.0 o CONFIRMAR anuncia o jogador ("COM VOCÊS: DAVI!") e tem saída
+// própria antes de navegar: as instruções chegam ~2,5 s depois do toque. Olhar
+// num instante fixo (eram 1,8 s) pegava o cadastro ainda na tela e, logo depois,
+// a troca de tela no meio da leitura seguinte.
+let rota = null;
+for (let t = 0; t < 50 && rota !== 'instrucoes'; t++) {
+  await wait(200);
+  rota = await page.evaluate(() => document.querySelector('.ff-page')?.dataset.route);
+}
 if (rota !== 'instrucoes') falhas.push(`nao avancou apos CONFIRMAR (rota=${rota})`);
 await page.goto(pageUrl('/cadastro'), { waitUntil: 'networkidle2' });
-await wait(2600);
+await page.waitForFunction(
+  () => document.querySelector('.ff-page')?.dataset.route === 'cadastro' && document.querySelectorAll('#pages .ff-dropdown').length >= 2,
+  { timeout: 10000 }
+);
+await wait(1200);
 const limpo = await snapshot();
 console.log('novo jogador ->', JSON.stringify(limpo));
 if (limpo.inputs[0] !== '' || limpo.inputs[1] !== '') falhas.push('formulario nao limpou para o proximo jogador');

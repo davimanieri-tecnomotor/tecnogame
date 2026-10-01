@@ -102,7 +102,9 @@ await page.reload({ waitUntil: 'networkidle2' });
 await wait(2000);
 
 // Quatro toques no selo nao abrem nada.
-const selo = 'img[src*="Selo_2"]';
+// Desde a 3.0 o selo é um <div> com a arte de fundo e as lâmpadas por cima
+// (components/selo.js), e não mais o <img> do Selo_2.png.
+const selo = '#pages .aud-selo';
 await page.waitForSelector(selo, { timeout: 10000 });
 for (let i = 0; i < 4; i++) await page.click(selo);
 await wait(400);
