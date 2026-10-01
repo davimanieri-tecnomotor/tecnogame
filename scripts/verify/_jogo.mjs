@@ -30,7 +30,11 @@ export async function esperarEstado(page, estados, timeout = 20000) {
 
 /** Espera um seletor aparecer e clica nele — com o clique do próprio elemento. */
 export async function clicarQuandoAparecer(page, seletor, timeout = 20000) {
-  await page.waitForSelector(seletor, { timeout, visible: true });
+  // O handle que o waitForSelector devolve segura o elemento no navegador até
+  // ser descartado — e, com ele, a tela inteira. Num teste de muitas partidas
+  // (scripts/desempenho/partidas.mjs) isso parecia vazamento do jogo.
+  const handle = await page.waitForSelector(seletor, { timeout, visible: true });
+  await handle?.dispose();
   await page.evaluate((s) => document.querySelector(s).click(), seletor);
 }
 

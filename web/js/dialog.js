@@ -16,6 +16,7 @@
 // `showDialog` in the Dart runs at the same moment here.
 
 import { el, unfocus } from './widgets.js';
+import { encerrarAnimacoes } from './anim.js';
 
 const stack = [];
 
@@ -62,6 +63,9 @@ export function pop(result, entry = stack[stack.length - 1]) {
   const done = () => {
     if (settled) return;
     settled = true;
+    // Um laço no conteúdo prenderia o diálogo inteiro na memória (ver
+    // `encerrarAnimacoes` em anim.js).
+    encerrarAnimacoes(entry.barrier);
     entry.barrier.remove();
     entry.resolve(result);
   };

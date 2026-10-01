@@ -244,6 +244,23 @@ export function animateOnActionTrigger(node, info, effects = null) {
 export const delayed = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 /**
+ * Cancela toda animação Web de `no` e dos filhos. Chamar ANTES de tirar uma
+ * tela (ou um diálogo) do documento.
+ *
+ * Animação feita com `element.animate()` não morre quando o elemento sai da
+ * página: a linha do tempo do documento a segura enquanto ela "toca" — e uma
+ * em laço (`loop: true`, acima) toca para sempre. Ela segura o elemento, o
+ * elemento segura a tela inteira, e a tela segura os ouvintes e o modelo dela.
+ * Foi assim que o cadastro (o selo e o CONFIRMAR pulsando) ficava inteiro na
+ * memória a cada partida: ~115 nós e 31 ouvintes por partida, medidos com
+ * scripts/desempenho/partidas.mjs. Animação de CSS não tem esse problema — o
+ * navegador a encerra junto com o elemento.
+ */
+export function encerrarAnimacoes(no) {
+  for (const animacao of no?.getAnimations?.({ subtree: true }) ?? []) animacao.cancel();
+}
+
+/**
  * A entrada das peças da 3.0 — fora do motor do flutter_animate de propósito.
  *
  * `fill: 'backwards'`: o quadro 0 vale só durante o atraso e, quando a

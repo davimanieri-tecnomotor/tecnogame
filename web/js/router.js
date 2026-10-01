@@ -7,7 +7,7 @@
 
 import { popAllDialogs } from './dialog.js';
 import { unfocus } from './widgets.js';
-import { menosMovimento } from './anim.js';
+import { encerrarAnimacoes, menosMovimento } from './anim.js';
 import { lamina, repousar } from './palco.js';
 import { Som } from './som.js';
 
@@ -118,7 +118,12 @@ async function render(path, { comFade }) {
       // Por baixo da que sai: é a faixa que a revela.
       container.insertBefore(node, previous.node);
     } else {
-      if (previous) previous.node.remove();
+      // Sem cancelar as animações, a que sai fica presa na memória por um
+      // laço que não para (ver `encerrarAnimacoes`).
+      if (previous) {
+        encerrarAnimacoes(previous.node);
+        previous.node.remove();
+      }
       container.appendChild(node);
     }
 
@@ -142,6 +147,7 @@ async function render(path, { comFade }) {
       // tela nova, e um segundo toque na velha navegaria duas vezes.
       previous.node.style.pointerEvents = 'none';
       await lamina(previous.node);
+      encerrarAnimacoes(previous.node);
       previous.node.remove();
     } else if (comFade) {
       await esmaecer(node, 0, 1);
