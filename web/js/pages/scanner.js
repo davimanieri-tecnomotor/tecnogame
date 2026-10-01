@@ -3,6 +3,10 @@
 // "ESCOLHA O EQUIPAMENTO IDEAL" - three scanners on the first row, two on the
 // second. Which of them are valid depends on the current question.
 //
+// Desde a 3.1 são seis, três e três: o Rasther 4 entrou. Em cima ficam os
+// aparelhos de mão da Tecnomotor (4, 3S e ST); embaixo o BOX e os dois Xtool. A
+// altura não mudou — a segunda fileira já existia —, só ganhou o terceiro.
+//
 // A ENTRADA. O Dart escalava o bloco inteiro de [-1, -1] ate [1, 1] — escala
 // negativa e ESPELHAMENTO, entao os cinco equipamentos nasciam invertidos,
 // encolhiam ate sumir num ponto e voltavam desvirados, os cinco de uma vez. Era
@@ -114,11 +118,11 @@ export function ScannerWidget() {
             alignment: [0.0, 0.0],
             child: Padding({
               padding: [1.0, 0.0, 0.0, 0.0],
-              child: pousando(FerramentaWidget({ ferramenta: '3s', util: true })),
+              child: pousando(FerramentaWidget({ ferramenta: '4s', util: true })),
             }),
           }),
+          pousando(FerramentaWidget({ ferramenta: '3s', util: true })),
           pousando(FerramentaWidget({ ferramenta: 'rts', util: true })),
-          pousando(FerramentaWidget({ ferramenta: 'td90', util: false })),
         ],
       }),
       Padding({
@@ -135,6 +139,7 @@ export function ScannerWidget() {
                 child: pousando(FerramentaWidget({ ferramenta: 'rb', util: true })),
               }),
             }),
+            pousando(FerramentaWidget({ ferramenta: 'td90', util: false })),
             pousando(FerramentaWidget({ ferramenta: 'td80', util: true })),
           ],
         }),

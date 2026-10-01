@@ -21,15 +21,17 @@ import { el, fonte } from '../widgets.js';
  * @param {string}  [opcoes.tipo] 'ouro' (padrão) ou 'prata'
  * @param {boolean} [opcoes.pulsa] respira em loop — o botão que o jogo espera
  * @param {boolean} [opcoes.menor] a versão baixa, para painéis cheios
+ * @param {boolean} [opcoes.grande] a versão de tela inteira, para o botão que é
+ *   a única ação da tela (o REINICIAR do fim)
  * @param {string}  [opcoes.acao] vai para `data-acao`, o gancho dos testes e do teclado
  * @returns {HTMLElement} o envelope; o botão é `envelope.botao`
  */
-export function BotaoDeAuditorio(texto, { aoTocar = null, tipo = 'ouro', pulsa = false, menor = false, acao = null } = {}) {
-  const rotulo = el('span', { class: 'ff-text aud-botao-texto', text: texto, style: { fontSize: fonte(menor ? 25 : 29) } });
+export function BotaoDeAuditorio(texto, { aoTocar = null, tipo = 'ouro', pulsa = false, menor = false, grande = false, acao = null } = {}) {
+  const rotulo = el('span', { class: 'ff-text aud-botao-texto', text: texto, style: { fontSize: fonte(grande ? 44 : menor ? 25 : 29) } });
   const botao = el(
     'div',
     {
-      class: ['ff-inkwell', 'aud-botao', `aud-botao--${tipo}`, menor ? 'aud-botao--menor' : null],
+      class: ['ff-inkwell', 'aud-botao', `aud-botao--${tipo}`, menor ? 'aud-botao--menor' : null, grande ? 'aud-botao--grande' : null],
       role: 'button',
       tabindex: '0',
       'aria-label': texto,

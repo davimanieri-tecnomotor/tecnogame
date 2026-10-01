@@ -8,7 +8,7 @@
 // a roda já na tela.
 //
 // Só que ninguém cai na roleta de surpresa: entre o CONFIRMAR do cadastro e ela
-// há o vídeo de instruções (13s) e a vinheta (4s). Dezessete segundos de sobra
+// há a tela de instruções (15s) e a vinheta (4s). Dezenove segundos de sobra
 // para pedir as imagens antes — e é isso que este arquivo faz.
 //
 // Pedir é tudo o que é preciso: o navegador guarda no cache, e o `<image>` do
@@ -61,7 +61,7 @@ export function imagensDaRoleta(baralho) {
 }
 
 /**
- * Adianta a roleta e a tela do carro sorteado.
+ * Adianta as instruções, a roleta e a tela do carro sorteado.
  *
  * Chamado da tela de cadastro, que é onde o jogador passa mais tempo parado e
  * onde o baralho publicado acaba de ser relido. Em espera ociosa: a primeira
@@ -69,6 +69,9 @@ export function imagensDaRoleta(baralho) {
  */
 export function adiantarOPercurso(baralho) {
   const pedir = () => {
+    // A tela de instruções vem logo depois do CONFIRMAR, e o monitor dela é
+    // uma captura: sem ela pedida antes, ele abre vazio na rede da feira.
+    precarregar(['assets/images/Como_Funciona_Pergunta.jpg']);
     precarregar(imagensDaRoleta(baralho));
     // A tela do carro sorteado mostra a foto do veículo em tamanho grande, e a
     // da pergunta repete a mesma foto — as duas vêm de graça junto com a roda

@@ -1,19 +1,19 @@
-// Os números que o jogo mostra sobre o próprio jogo: o ranking que a faixa
-// ACERTAR AGORA precisa desde o primeiro segundo, os votos das Placas e os
-// números do dia do modo de atração.
+// Os números que o jogo mostra sobre o próprio jogo: o ranking do painel do
+// resultado, os votos das Placas e os números do dia do modo de atração.
 //
-// O RANKING É PEDIDO ANTES DA HORA. A faixa ERRAR / RECORDE / ACERTAR (ver
-// components/aposta.js) diz em que lugar o jogador entra se acertar AGORA, e
-// para isso precisa dos vencedores no instante em que o relógio começa. Uma
-// consulta ao Firestore sem rede não falha — fica pendente —, então a tela da
-// pergunta não pode ser a primeira a pedir: a roleta pede (`adiantarRanking`)
-// enquanto a roda gira, e quando a pergunta abre o ranking já está em mãos.
-// `queryUsuariosVencedores` já tem prazo e cai no ranking local.
+// O RANKING É PEDIDO ANTES DA HORA. Quem acerta vê o ranking abrir espaço para
+// ele no painel do resultado, e quem acerta rápido chega lá em poucos
+// segundos. Uma consulta ao Firestore sem rede não falha — fica pendente —,
+// então a tela da pergunta não pode ser a primeira a pedir: a roleta pede
+// (`adiantarRanking`) enquanto a roda gira, e quando a pergunta abre o ranking
+// já está em mãos. `queryUsuariosVencedores` já tem prazo e cai no ranking
+// local. (Até a 3.0 quem precisava dele desde o primeiro segundo era a faixa
+// ERRAR / RECORDE / ACERTAR AGORA, que saiu na 3.1.)
 
 import { queryRespostasDaPergunta, queryUsuariosVencedores } from './backend.js';
 import { getRecords } from './storage.js';
 
-/** Quantos vencedores a faixa e o fim olham: o pódio e mais dois. */
+/** Quantos vencedores o resultado e o fim olham: o pódio e mais dois. */
 export const TOPO_DO_RANKING = 5;
 
 /**

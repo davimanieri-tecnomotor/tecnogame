@@ -2,7 +2,10 @@
 //
 //  1. "Posso perguntar?": o relógio NÃO corre antes do PODE! — antes ele
 //     começava com as alternativas ainda entrando;
-//  2. a faixa ACERTAR AGORA diz a posição e a folga que o ranking dá;
+//  2. o tempo na tela é um só, o do cronômetro: a faixa ERRAR / RECORDE /
+//     ACERTAR AGORA saiu na 3.1 (o "vale o 1º lugar por mais 6,4 s" dela era
+//     lido como o tempo para responder), e os segundos do cronômetro batem com
+//     o relógio da pergunta;
 //  3. o teclado joga: 1–4 trava, Esc desiste, Enter confirma;
 //  4. a certa ALTERNA travada ↔ verde, amostrada no tempo — período de ~0,4s,
 //     três vezes, e assenta no verde (medido no programa; abaixo das 3
@@ -11,11 +14,12 @@
 //     resposta, e não a posição na tela);
 //  6. Cartas: o 3 tira três erradas e nunca a certa;
 //  7. Placas: a porcentagem na tela é a dos votos gravados, na ordem da tela;
-//  8. os dois estilos se desenham (e a foto de cada um fica em OUT);
-//  9. a Pergunta do Milhão: sem ajudas, e não entra no ranking.
+//  8. os dois estilos se desenham (e a foto de cada um fica em OUT); quem
+//     erra recebe a lição — e a tela de fim não repete a resposta certa;
+//  9. a Pergunta do Milhão: sem ajudas, sem faixa, e não entra no ranking.
 import fs from 'node:fs';
 import puppeteer from 'puppeteer';
-import { alternativasNaTela, esperarEstado, estadoDaPergunta, passarDaAbertura, posicaoDaCerta, responder } from './_jogo.mjs';
+import { alternativasNaTela, continuar, esperarEstado, estadoDaPergunta, passarDaAbertura, posicaoDaCerta, responder } from './_jogo.mjs';
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8099';
 const OUT = process.env.OUT ?? 'shots/pergunta';
@@ -58,7 +62,7 @@ async function abrirPergunta({ busca = '', semear = null } = {}) {
   await page.goto(pageUrl('/telaAcao', busca), { waitUntil: 'networkidle2' });
 }
 
-const relogio = () => page.evaluate(() => document.querySelector('#pages .aud-taco-leitura')?.textContent ?? null);
+const relogio = () => page.evaluate(() => document.querySelector('#pages .aud-crono-int')?.textContent ?? null);
 
 /* ------------------------------------------------ 1. posso perguntar? ---- */
 log('--- 1. o relógio espera o PODE!');
@@ -67,32 +71,35 @@ await esperarEstado(page, 'posso', 25000);
 const antes = await relogio();
 await wait(2000);
 const depois = await relogio();
-conferir(antes === '60,0' && depois === '60,0', `parado no "Posso perguntar?": ${antes} e, 2s depois, ${depois}`);
+conferir(antes === '60' && depois === '60', `parado no "Posso perguntar?": ${antes} e, 2s depois, ${depois}`);
 await page.screenshot({ path: `${OUT}/01-posso-classico.png` });
 await passarDaAbertura(page);
 await wait(1200);
 const correndo = await relogio();
-conferir(correndo !== '60,0', `depois do PODE! o relógio corre (${correndo})`);
+conferir(correndo !== '60', `depois do PODE! o relógio corre (${correndo})`);
 await page.screenshot({ path: `${OUT}/02-jogando-classico.png` });
 
-/* ------------------------------------------------- 2. a faixa ----------- */
-log('--- 2. ACERTAR AGORA');
-// O relógio é lido JUNTO com a faixa, no mesmo evaluate. Comparar com o
-// `correndo` lá de cima errava pelo tempo da captura de tela no meio (~1,7s
-// com a suíte em paralelo), e a folga certa parecia errada.
-const faixa = await page.evaluate(() => ({
-  posicao: document.querySelector('#pages .aud-ap-caixa--acertar .aud-ap-rolo')?.textContent ?? null,
-  recorde: document.querySelector('#pages .aud-ap-caixa--recorde')?.textContent ?? null,
-  folga: document.querySelector('#pages .aud-ap-barra span')?.textContent ?? null,
-  relogio: document.querySelector('#pages .aud-taco-leitura')?.textContent ?? null,
-}));
-log(`  faixa: ${JSON.stringify(faixa)}`);
-conferir(faixa.posicao === '1º', 'com ~58s sobrando, o jogador entraria em 1º (a Ana tem 52s)');
-conferir(/8,0 s/.test(faixa.recorde ?? '') && /ANA/.test(faixa.recorde ?? ''), 'o recorde é o da Ana, 8,0 s');
-// A folga do 1º lugar é o que falta para o relógio descer aos 52s da Ana.
-const folga = Number.parseFloat((faixa.folga ?? '').match(/(\d+,\d) s/)?.[1]?.replace(',', '.') ?? 'NaN');
-const sobra = Number.parseFloat((faixa.relogio ?? '').replace(',', '.'));
-conferir(Math.abs(folga - (sobra - 52)) < 0.6, `a folga (${folga}s) é o que sobra acima dos 52s da Ana (~${(sobra - 52).toFixed(1)}s)`);
+/* ------------------------------------------------- 2. um tempo só ------ */
+log('--- 2. o cronômetro é o único tempo na tela');
+// Os segundos do cronômetro são lidos JUNTO com o relógio de verdade da
+// pergunta, no mesmo evaluate: comparar com o `correndo` lá de cima errava pelo
+// tempo da captura de tela no meio (~1,7s com a suíte em paralelo).
+const tempo = await page.evaluate(async () => {
+  const textoDaCena = document.querySelector('#pages .pg-cena')?.textContent ?? '';
+  return {
+    segundos: Number(document.querySelector('#pages .aud-crono-int')?.textContent),
+    anel: document.querySelector('#pages .aud-crono-anel')?.getAttribute('d') ?? '',
+    faixa: Boolean(document.querySelector('#pages [data-aposta], #pages .aud-aposta')),
+    // Qualquer "s" de segundos fora do cronômetro seria um segundo relógio.
+    outrosTempos: textoDaCena.match(/\d+,\d\s?s\b/g) ?? [],
+    falaDeLugar: /ACERTAR AGORA|RECORDE|vale o \d/i.test(textoDaCena),
+  };
+});
+log(`  ${JSON.stringify(tempo)}`);
+conferir(!tempo.faixa && !tempo.falaDeLugar, 'a faixa ERRAR / RECORDE / ACERTAR AGORA não está mais na tela');
+conferir(tempo.outrosTempos.length === 0, `nenhum outro tempo na cena (${JSON.stringify(tempo.outrosTempos)})`);
+conferir(tempo.segundos >= 50 && tempo.segundos <= 59, `o cronômetro conta os segundos que faltam (${tempo.segundos})`);
+conferir(/^M[\d.]+ [\d.]+A/.test(tempo.anel), 'o anel do cronômetro está desenhado');
 
 /* ------------------------------------------------- 3. o teclado --------- */
 log('--- 3. teclado');
@@ -238,6 +245,28 @@ await wait(5200);
 await page.screenshot({ path: `${OUT}/08-licao-palco.png` });
 conferir(Boolean(await page.$('[data-painel="licao"]')), 'quem erra recebe a lição');
 
+// A certa é dita na lição; a tela de fim não a repete desde a 3.1, e o
+// REINICIAR, que é a única coisa a fazer ali, ficou grande.
+const certaNaLicao = await page.evaluate(() => document.querySelector('[data-painel="licao"] .aud-escolhida span')?.textContent ?? '');
+await continuar(page, 20000);
+const naTelaDeFim = async () => (await page.evaluate(() => document.querySelector('.ff-page')?.dataset.route)) === 'Perdeu';
+for (let t = 0; t < 60 && !(await naTelaDeFim()); t++) await wait(200);
+await wait(2800);
+const fim = await page.evaluate(() => {
+  const botao = document.querySelector('#pages [data-acao="reiniciar"]')?.getBoundingClientRect();
+  return {
+    texto: document.querySelector('#pages .pg-fim')?.innerText ?? '',
+    licao: Boolean(document.querySelector('#pages [data-licao]')),
+    botao: botao ? [Math.round(botao.width), Math.round(botao.height)] : null,
+  };
+});
+log(`  fim: botão ${JSON.stringify(fim.botao)}, bloco do vídeo ${fim.licao}`);
+conferir(certaNaLicao.length > 10 && !fim.texto.includes(certaNaLicao), 'a tela de fim não repete a resposta certa');
+conferir(!/RESPOSTA CERTA|VOCÊ RESPONDEU/i.test(fim.texto), 'nem o "A resposta certa" / "Você respondeu"');
+conferir(!fim.licao, 'sem link de vídeo na pergunta, não há bloco de QR');
+conferir(fim.botao && fim.botao[1] >= 120 && fim.botao[0] >= 520, `o REINICIAR é o botão grande (${JSON.stringify(fim.botao)})`);
+await page.screenshot({ path: `${OUT}/08b-fim-perdeu.png` });
+
 /* ------------------------------------------------ 9. a pergunta do milhão -- */
 log('--- 9. a Pergunta do Milhão');
 await page.goto(pageUrl('/cadastro'), { waitUntil: 'networkidle2' });
@@ -249,12 +278,13 @@ await page.goto(pageUrl('/milhao'), { waitUntil: 'networkidle2' });
 await passarDaAbertura(page);
 const milhao = await page.evaluate(() => ({
   fichas: document.querySelectorAll('#pages [data-ajuda]').length,
-  aposta: document.querySelector('#pages [data-aposta]')?.dataset.aposta,
+  faixa: Boolean(document.querySelector('#pages [data-aposta], #pages .aud-aposta')),
+  cronometro: Boolean(document.querySelector('#pages .aud-cronometro')),
   humor: document.getElementById('stage').dataset.humor,
 }));
 log(`  ${JSON.stringify(milhao)}`);
 conferir(milhao.fichas === 0, 'sem ajudas');
-conferir(milhao.aposta === 'milhao', 'a faixa vale brinde, e não posição');
+conferir(!milhao.faixa && milhao.cronometro, 'sem faixa: o tempo é o do cronômetro, como na pergunta normal');
 await page.screenshot({ path: `${OUT}/09-milhao.png` });
 await responder(page, 0);
 await wait(4000);

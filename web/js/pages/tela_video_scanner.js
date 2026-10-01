@@ -9,6 +9,7 @@ import { L } from '../i18n.js';
 import { FFAppState } from '../state.js';
 import { CONFIG } from '../config.js';
 import { goNamed } from '../router.js';
+import { readRaw, writeRaw } from '../storage.js';
 import {
   AnimationInfo,
   AnimationTrigger,
@@ -44,6 +45,34 @@ function videoFor(scannerEscolhido) {
     return LOCAL_VIDEOS[scannerEscolhido] ?? LOCAL_VIDEOS['Rasther 3'];
   }
   return VIDEOS[scannerEscolhido] ?? DEFAULT_VIDEO;
+}
+
+/* ------------------------------------------------- pular esta tela ------- */
+
+/**
+ * O operador pode tirar esta tela do caminho, no painel ("Na feira"). Os
+ * clipes ainda apontam para o bucket do FlutterFlow, que responde 402 (ver
+ * `useLocalScannerVideos` em config.js): sem as cópias locais, são 14 segundos
+ * de tela escura entre o equipamento e a pergunta — e fila parada.
+ *
+ * Fica guardado neste navegador, como o estilo da pergunta: cada totem decide.
+ */
+const CHAVE_PULAR = 'scanner.pularVideo';
+
+export const pulaVideoDoEquipamento = () => readRaw(CHAVE_PULAR) === '1';
+
+export const definirPularVideoDoEquipamento = (pular) => writeRaw(CHAVE_PULAR, pular ? '1' : '0');
+
+/**
+ * Para onde o jogo vai depois que o jogador escolhe o equipamento.
+ *
+ * O Rasther 4 entrou na 3.1 sem vídeo demonstrativo: cair no clipe padrão
+ * mostraria o 3S como se fosse ele. Sem vídeo próprio, a tela não tem o que
+ * apresentar, e o jogo segue direto para a pergunta.
+ */
+export function telaDepoisDoEquipamento(scannerEscolhido) {
+  const temVideo = scannerEscolhido in (CONFIG.useLocalScannerVideos ? LOCAL_VIDEOS : VIDEOS);
+  return pulaVideoDoEquipamento() || !temVideo ? 'telaAcao' : 'telaVideoScanner';
 }
 
 export function TelaVideoScannerWidget() {

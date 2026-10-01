@@ -316,6 +316,16 @@
   height: 72px;
 }
 
+/* O botão que é a única ação da tela. As pontas crescem junto, senão o
+   losango vira retângulo com o canto cortado. */
+.ff-inkwell.aud-botao--grande {
+  height: 132px;
+  min-width: 560px;
+  padding: 0 90px;
+  letter-spacing: 5px;
+  clip-path: polygon(40px 0, calc(100% - 40px) 0, 100% 50%, calc(100% - 40px) 100%, 40px 100%, 0 50%);
+}
+
 .ff-inkwell.aud-botao:focus-visible {
   outline: none;
   filter: brightness(1.12);
@@ -325,7 +335,9 @@
   position: relative;
   z-index: 1;
   white-space: nowrap;
-  line-height: 1;
+  /* A Pirulen desenha ~10% acima de 1em: com `line-height: 1` o texto passava
+     da própria caixa (o verify:sizes acusava "PODE!" e "REINICIAR" cortados). */
+  line-height: 1.15;
 }
 
 /* O brilho que passa. Por `background-position`, e não movendo uma faixa por
@@ -1127,7 +1139,9 @@
   white-space: pre-line;
   font-family: 'Open Sans', sans-serif;
   font-weight: 800;
-  line-height: 1.15;
+  /* A Open Sans desenha ~1,3em de altura: com 1.15 a legenda passava da caixa
+     quando o piso de legibilidade aumenta a fonte (verify:sizes, retrato). */
+  line-height: 1.3;
   letter-spacing: 1px;
   color: #dbe6ff;
 }
@@ -1513,116 +1527,127 @@
   box-shadow: inset 0 0 0 3px #fff;
 }
 
-/* --------------------------------------------------------- o conta-giros -- */
+/* ------------------------------------------------------------ o cronômetro -- */
+/* Ver components/cronometro.js: o que era conta-giros, e por que deixou de ser. */
 
-.aud-tacometro {
+.aud-cronometro {
   position: absolute;
   filter: drop-shadow(0 16px 30px rgba(0, 0, 0, 0.55));
 }
 
-.aud-tacometro svg {
+.aud-cronometro svg {
   display: block;
   overflow: visible;
 }
 
-.aud-taco-zona {
-  fill: none;
-  stroke: #ff2a2a;
-  stroke-width: 7;
-  opacity: 0.9;
-}
-
-.aud-taco-risco {
-  stroke: rgba(255, 255, 255, 0.5);
-  stroke-width: 2;
-}
-
-.aud-taco-risco.medio {
+.aud-crono-risco {
+  stroke: rgba(255, 255, 255, 0.7);
   stroke-width: 3;
-  stroke: rgba(255, 255, 255, 0.8);
+  stroke-linecap: round;
+  transition: opacity 300ms ease;
 }
 
-.aud-taco-risco.maior {
-  stroke-width: 4.5;
+.aud-crono-risco.maior {
   stroke: #fff;
+  stroke-width: 6;
 }
 
-.aud-taco-risco.quente {
-  stroke: #ff5a4f;
+/* O segundo que já passou apaga: o mostrador inteiro diz quanto sobrou. */
+.aud-crono-risco.gasto {
+  opacity: 0.15;
 }
 
-.aud-taco-num {
-  font: 26px 'pirulen', sans-serif;
-  fill: #dfe8ff;
-  text-anchor: middle;
-}
-
-.aud-taco-num.quente {
-  fill: #ff6b61;
-}
-
-.aud-taco-trilho {
+.aud-crono-trilho {
   fill: none;
   stroke: rgba(255, 255, 255, 0.08);
-  stroke-width: 12;
-  stroke-linecap: round;
+  stroke-width: 26;
 }
 
-.aud-taco-arco {
+.aud-crono-anel {
   fill: none;
-  stroke-width: 12;
+  stroke-width: 26;
   stroke-linecap: round;
   transition: stroke 500ms ease;
 }
 
-.ff-text.aud-taco-leitura {
-  position: absolute;
-  left: 0;
-  right: 0;
-  text-align: center;
-  font-family: 'pirulen', sans-serif;
-  line-height: 1;
-  color: #fff;
-  white-space: nowrap;
+/* A faísca na ponta do anel: é ela que faz o anel parecer andar, e não só encolher. */
+.aud-crono-ponta {
+  fill: #fff;
+  filter: drop-shadow(0 0 6px #fff) drop-shadow(0 0 14px rgba(255, 220, 140, 0.9));
 }
 
-.aud-taco-dec {
+.aud-crono-trinca {
+  opacity: 0;
+  fill: none;
+  stroke: rgba(235, 245, 255, 0.85);
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* A coroa gira em torno de si mesma quando salta, e não do canto do SVG. */
+.aud-crono-coroa {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+
+.ff-text.aud-crono-miolo {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.aud-crono-int {
+  display: block;
+  font-family: 'pirulen', sans-serif;
+  color: #fff;
+  text-shadow: 0 0 24px rgba(120, 180, 255, 0.55);
+  transition: color 300ms ease;
+}
+
+.aud-crono-rotulo {
+  display: block;
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 800;
+  letter-spacing: 4px;
   color: #9fb7e8;
 }
 
-.ff-text.aud-taco-rotulo {
-  position: absolute;
-  left: 0;
-  right: 0;
-  text-align: center;
-  font-family: 'Open Sans', sans-serif;
-  font-weight: 700;
-  letter-spacing: 4px;
-  line-height: 1;
-  color: #7f95c2;
+/* A reta final: o cronômetro pulsa em vermelho. */
+.aud-crono--reta {
+  animation: aud-crono-quente 1s ease-in-out infinite;
 }
 
-.aud-taco--reta {
-  animation: aud-taco-quente 1s ease-in-out infinite;
-}
-
-@keyframes aud-taco-quente {
+@keyframes aud-crono-quente {
   50% {
-    filter: drop-shadow(0 16px 30px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 36px rgba(255, 40, 40, 0.8));
+    filter: drop-shadow(0 16px 30px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 40px rgba(255, 40, 40, 0.85));
   }
 }
 
-.aud-taco--reta .aud-taco-int,
-.aud-taco--estourou .aud-taco-int {
+.aud-crono--reta .aud-crono-int,
+.aud-crono--estourou .aud-crono-int {
   color: #ff6b61;
+  text-shadow: 0 0 26px rgba(255, 60, 40, 0.7);
 }
 
-.aud-taco--estourou {
+.aud-crono--estourou {
   animation: none;
   filter: drop-shadow(0 0 44px rgba(255, 40, 40, 0.95));
 }
 
-.aud-taco--parado .aud-taco-leitura {
+.aud-crono--estourou .aud-crono-trinca {
+  opacity: 1;
+  transition: opacity 120ms ease-out;
+}
+
+.aud-crono--parado .aud-crono-miolo {
   animation: aud-piscar 260ms steps(2, jump-none) 3;
 }
 
@@ -1630,136 +1655,6 @@
   50% {
     opacity: 0.15;
   }
-}
-
-/* -------------------------------------- ERRAR / RECORDE / ACERTAR AGORA --- */
-
-.aud-aposta {
-  position: absolute;
-}
-
-.aud-ap-caixas {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
-
-.aud-ap-caixa {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-}
-
-.aud-ap-caixa > b {
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 56px;
-  border-radius: 10px;
-  font: 23px/1 'pirulen', sans-serif;
-  font-weight: normal;
-  background: rgba(8, 24, 62, 0.9);
-  color: #dbe6ff;
-  box-shadow: inset 0 0 0 2px rgba(160, 200, 255, 0.3);
-}
-
-.aud-ap-caixa small {
-  max-width: 100%;
-  font-family: 'Open Sans', sans-serif;
-  font-style: italic;
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: 1.5px;
-  color: #cfe0ff;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow: hidden;
-}
-
-.aud-ap-caixa--erro > b {
-  color: #ff9a94;
-  box-shadow: inset 0 0 0 2px rgba(255, 90, 79, 0.45);
-}
-
-.aud-ap-caixa--acertar > b {
-  background: linear-gradient(180deg, #fff1b8, #ffc21a 50%, #e88a00);
-  color: #231500;
-  box-shadow: 0 0 22px rgba(255, 190, 0, 0.45);
-}
-
-.aud-ap-caixa--acertar small {
-  color: #ffd84d;
-}
-
-.aud-ap-rolo {
-  display: inline-grid;
-  height: 34px;
-  align-items: center;
-  overflow: hidden;
-  overflow: clip;
-}
-
-.aud-ap-rolo > i {
-  grid-area: 1 / 1;
-  font-style: normal;
-  font-size: 30px;
-  line-height: 34px;
-}
-
-.aud-ap-barra {
-  position: relative;
-  height: 24px;
-  margin-top: 8px;
-  border-radius: 12px;
-  overflow: hidden;
-  overflow: clip;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.aud-ap-barra > i {
-  position: absolute;
-  inset: 0;
-  transform-origin: 0 50%;
-  background: linear-gradient(90deg, rgba(255, 180, 0, 0.45), rgba(255, 216, 77, 0.9));
-}
-
-.aud-ap-barra > span {
-  position: relative;
-  display: block;
-  text-align: center;
-  font-family: 'Open Sans', sans-serif;
-  font-weight: 600;
-  line-height: 24px;
-  color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
-  white-space: nowrap;
-}
-
-[data-estilo-pergunta='classico'] .aud-ap-caixas {
-  gap: 30px;
-}
-
-[data-estilo-pergunta='classico'] .aud-ap-caixa > b {
-  height: 70px;
-  font-size: 30px;
-  background: linear-gradient(180deg, #fff0a0, #fad742 45%, #e6b800);
-  color: #ba1c01;
-  box-shadow: inset 0 0 0 3px #fff6c8, 0 6px 14px rgba(0, 0, 0, 0.4);
-}
-
-[data-estilo-pergunta='classico'] .aud-ap-caixa small {
-  color: #fff;
-  letter-spacing: 3px;
-}
-
-[data-estilo-pergunta='classico'] .aud-ap-caixa--acertar > b {
-  box-shadow: inset 0 0 0 3px #fff6c8, 0 0 30px rgba(250, 215, 66, 0.7);
-}
-
-[data-estilo-pergunta='classico'] .aud-ap-barra {
-  margin-top: 10px;
 }
 
 /* ------------------------------------------------- a ordem de serviço ----- */
@@ -1975,7 +1870,8 @@
 }
 
 .ff-text.aud-painel-titulo {
-  font: 50px/1.05 'pirulen', sans-serif;
+  /* 1.15, e não 1.05: ver `.aud-botao-texto`. */
+  font: 50px/1.15 'pirulen', sans-serif;
   letter-spacing: 3px;
   color: #fff;
   text-shadow: 0 0 26px rgba(255, 216, 77, 0.45);
@@ -2395,7 +2291,9 @@
   padding: 20px 26px;
   border-radius: 16px;
   background: rgba(0, 14, 36, 0.78);
-  border: 2px solid #ff5963;
+  /* Dourado, e não o vermelho do erro: desde a 3.1 o bloco é só o convite
+     para o vídeo, e não mais o gabarito de quem errou. */
+  border: 2px solid rgba(255, 216, 77, 0.55);
 }
 
 .fim-licao-texto {
@@ -2409,23 +2307,13 @@
 .ff-text.fim-licao-titulo {
   font-family: 'pirulen', sans-serif;
   letter-spacing: 2px;
-  color: #ff9a94;
-}
-
-.ff-text.fim-licao-certa {
-  font-family: 'Open Sans', sans-serif;
-  color: #fff;
-}
-
-.ff-text.fim-licao-escolhida {
-  font-family: 'Open Sans', sans-serif;
-  color: #b9c6da;
+  color: #ffd84d;
 }
 
 .ff-text.fim-licao-aponte {
   font-family: 'Open Sans', sans-serif;
   font-weight: 700;
-  color: #ffd84d;
+  color: #fff;
 }
 
 .fim-qr {
@@ -2446,6 +2334,357 @@
   /* O `.ff-scaffold > *` do porte estica todo filho direto da tela a 100%. */
   width: auto;
   height: auto;
+}
+
+/* ================================================== como funciona ======= */
+/* Ver pages/instrucoes.js: a captura da pergunta num monitor, e os passos. */
+
+/* O `.ff-scaffold > *` do porte estica todo filho direto a 100%. */
+.pg-instrucoes > * {
+  position: absolute;
+  width: auto;
+  height: auto;
+}
+
+.ff-text.ins-titulo {
+  left: 0;
+  right: 0;
+  top: 40px;
+  text-align: center;
+  font-family: 'pirulen', sans-serif;
+  letter-spacing: 6px;
+  /* Ver `.aud-botao-texto`: a Pirulen passa de 1em. */
+  line-height: 1.15;
+  color: #fff;
+  text-shadow: 0 0 26px rgba(120, 180, 255, 0.5);
+  white-space: nowrap;
+}
+
+.ins-caminho {
+  left: 0;
+  right: 0;
+  top: 128px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 18px;
+}
+
+.ff-text.ins-caminho-item {
+  padding: 8px 20px;
+  border-radius: 999px;
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 800;
+  letter-spacing: 2px;
+  line-height: 1;
+  color: #cfe0ff;
+  background: rgba(8, 24, 62, 0.75);
+  box-shadow: inset 0 0 0 2px rgba(160, 200, 255, 0.3);
+  white-space: nowrap;
+}
+
+/* A pergunta é o que a captura mostra: o passo em que o jogador vai estar. */
+.ff-text.ins-caminho-item--aqui {
+  color: #231500;
+  background: linear-gradient(180deg, #fff1b8, #ffc21a 50%, #e88a00);
+  box-shadow: 0 0 22px rgba(255, 190, 0, 0.45);
+}
+
+.ins-caminho-seta {
+  font: 34px/1 'Open Sans', sans-serif;
+  color: #7f95c2;
+}
+
+.ins-passos {
+  left: 64px;
+  top: 222px;
+  width: 712px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ins-passo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 14px 20px 14px 16px;
+  border-radius: 18px;
+  transition: background 300ms ease, box-shadow 300ms ease, filter 300ms ease;
+}
+
+.ins-passo.ins-ativo {
+  background: linear-gradient(90deg, rgba(8, 24, 62, 0.92), rgba(8, 24, 62, 0.55));
+  box-shadow: inset 6px 0 0 var(--cor), 0 12px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* O passo que já passou continua legível, só sai do centro da atenção. */
+.ins-passo.ins-visto {
+  filter: saturate(0.7) brightness(0.75);
+}
+
+.ff-text.ins-passo-num {
+  flex: none;
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-family: 'pirulen', sans-serif;
+  font-weight: normal;
+  line-height: 1;
+  color: #fff;
+  background: var(--cor);
+  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.85), 0 0 24px var(--cor);
+}
+
+.ins-passo-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ff-text.ins-passo-titulo {
+  font-family: 'pirulen', sans-serif;
+  letter-spacing: 2px;
+  line-height: 1.15;
+  color: var(--cor);
+}
+
+.ff-text.ins-passo-sub {
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #e6eeff;
+}
+
+/* O monitor: o mesmo enquadramento do vídeo antigo, que o público conhecia. */
+.ins-monitor {
+  padding: 14px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, #3a4560, #121828 60%, #0b0f1a);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6), inset 0 0 0 2px rgba(160, 200, 255, 0.25);
+}
+
+.ins-tela {
+  position: relative;
+  overflow: hidden;
+  overflow: clip;
+  border-radius: 10px;
+  background: #02060f;
+}
+
+.ins-tela > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ins-monitor-pe {
+  position: absolute;
+  left: calc(50% - 90px);
+  top: 100%;
+  width: 180px;
+  height: 52px;
+  clip-path: polygon(22% 0, 78% 0, 100% 100%, 0 100%);
+  background: linear-gradient(180deg, #2a3346, #121828);
+}
+
+.ins-monitor-base {
+  position: absolute;
+  left: calc(50% - 160px);
+  top: calc(100% + 50px);
+  width: 320px;
+  height: 16px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #3a4560, #0b0f1a);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+}
+
+/* A peça de que o passo fala: contorno na cor dele, e o resto da tela escurece
+   — a sombra enorme é recortada pela tela do monitor. */
+.ins-destaque {
+  position: absolute;
+  border: 4px solid var(--cor);
+  border-radius: 12px;
+  pointer-events: none;
+  transition: box-shadow 400ms ease, border-color 400ms ease;
+}
+
+.ins-destaque.ins-ativo {
+  box-shadow: 0 0 0 2000px rgba(2, 6, 18, 0.55), 0 0 26px var(--cor), inset 0 0 18px var(--cor);
+  animation: ins-pulsa 1.1s ease-in-out infinite;
+}
+
+.ins-destaque.ins-visto {
+  border-width: 3px;
+}
+
+@keyframes ins-pulsa {
+  50% {
+    border-color: #fff;
+  }
+}
+
+/* O número da peça, no meio da borda esquerda: o mesmo círculo do passo. */
+.ff-text.ins-destaque-num {
+  position: absolute;
+  left: -24px;
+  top: calc(50% - 22px);
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-family: 'pirulen', sans-serif;
+  font-weight: normal;
+  line-height: 1;
+  color: #fff;
+  background: var(--cor);
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.85);
+}
+
+.ins-pular {
+  right: 60px;
+  bottom: 40px;
+}
+
+/* ========================================================= o cadastro ==== */
+
+/* O cartão atrás da ficha: vidro escuro, borda fria e um fio de ouro em cima.
+   Separa o formulário do cenário quadriculado, que atravessava os campos.
+   Sem `backdrop-filter`: desfocar o fundo é um passe de GPU a cada quadro dos
+   refletores, num totem ligado o dia inteiro, e o escuro sozinho já separa. */
+.cad-formulario {
+  position: relative;
+  isolation: isolate;
+}
+
+.cad-ficha {
+  position: absolute;
+  inset: -34px -60px -26px;
+  z-index: -1;
+  border-radius: 34px;
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgba(40, 110, 255, 0.2), transparent 70%),
+    linear-gradient(180deg, rgba(5, 20, 60, 0.84), rgba(2, 9, 30, 0.9));
+  border: 2px solid rgba(120, 175, 255, 0.26);
+  box-shadow:
+    0 40px 90px rgba(0, 0, 0, 0.5),
+    0 0 70px rgba(20, 100, 255, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  pointer-events: none;
+}
+
+.cad-ficha::before {
+  content: '';
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: -2px;
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, transparent, #ffc21a 30%, #fff1b8 50%, #ffc21a 70%, transparent);
+  box-shadow: 0 0 18px rgba(255, 194, 26, 0.75);
+}
+
+/* O losango de ouro antes do rótulo — o desenho dos botões de decisão. */
+.ff-text.cad-rotulo::before {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin: 0 16px 0 2px;
+  vertical-align: 0.18em;
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, #fff1b8, #ffc21a 55%, #e88a00);
+  box-shadow: 0 0 10px rgba(255, 194, 26, 0.7);
+}
+
+/* O foco é do campo inteiro, em ouro. O anel do porte (app.css) desenhava em
+   volta só do texto, por dentro da caixa. Por `outline` com recuo, e não pela
+   cor da borda: a borda vem inline do porte, e a folha não a alcança. */
+.pg-cadastro .ff-input:focus-visible {
+  outline: none;
+}
+
+.pg-cadastro .ff-field {
+  transition: box-shadow 160ms ease;
+}
+
+.pg-cadastro .ff-field:focus-within {
+  outline: 2px solid #ffc21a;
+  outline-offset: -2px;
+  box-shadow:
+    0 0 0 4px rgba(255, 194, 26, 0.16),
+    0 0 26px rgba(255, 194, 26, 0.32);
+}
+
+/* O CONFIRMAR em ouro, com o halo respirando como o do botão do apresentador
+   (`.aud-botao-env--pulsa`). O relevo é de sombra interna: o fundo é inline. */
+.cad-confirmar {
+  box-shadow:
+    0 0 22px rgba(255, 190, 0, 0.45),
+    inset 0 -5px 0 rgba(120, 60, 0, 0.35),
+    inset 0 2px 0 rgba(255, 255, 255, 0.65);
+  animation: cad-halo 1.3s ease-in-out infinite;
+}
+
+@keyframes cad-halo {
+  50% {
+    box-shadow:
+      0 0 48px rgba(255, 190, 0, 0.9),
+      inset 0 -5px 0 rgba(120, 60, 0, 0.35),
+      inset 0 2px 0 rgba(255, 255, 255, 0.65);
+  }
+}
+
+/* A saída (transicoes.js): a onda que sai do botão apertado, */
+.cad-onda {
+  position: absolute;
+  border: 4px solid #ffd84d;
+  border-radius: 16px;
+  box-shadow:
+    0 0 26px rgba(255, 200, 60, 0.8),
+    inset 0 0 18px rgba(255, 200, 60, 0.45);
+  pointer-events: none;
+}
+
+/* o palco escurecendo em volta de onde o nome pousa, */
+.cad-holofote {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 48% 42% at 50% 50%, rgba(0, 0, 0, 0) 0%, rgba(0, 4, 18, 0.35) 55%, rgba(0, 3, 14, 0.74) 100%);
+}
+
+/* o clarão do pouso, atrás do nome (por `screen`: luz acende, não cobre), */
+.cad-clarao {
+  position: absolute;
+  left: 50%;
+  width: 1400px;
+  height: 760px;
+  margin: -380px 0 0 -700px;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  background: radial-gradient(ellipse at center, rgba(255, 236, 170, 0.95) 0%, rgba(255, 196, 60, 0.5) 22%, rgba(255, 150, 0, 0.12) 45%, transparent 66%);
+}
+
+/* e o nome em voo: a faixa escura atrás dele só abre no pouso, e o brilho que
+   atravessa a palavra espera ela chegar (no `.aud-grito` ele passa aos 250ms). */
+.aud-grito.cad-nome-voo::before {
+  transform: translateY(-50%) scaleX(0);
+  transition: transform 380ms cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+.aud-grito.cad-nome-voo.pousou::before {
+  transform: translateY(-50%) scaleX(1);
+}
+
+.aud-grito.cad-nome-voo span::after {
+  animation-delay: 0.8s;
 }
 
 /* ================================================== o modo de atração ==== */
@@ -2884,10 +3123,12 @@
   .aud-ficha-face::after,
   .aud-botao::after,
   .aud-brilho::after,
+  .cad-confirmar,
   .aud-raios,
   .aud-botao-env--pulsa,
   .aud-opcao.travada,
-  .aud-taco--reta,
+  .aud-crono--reta,
+  .ins-destaque.ins-ativo,
   .aud-chamando::before,
   .aud-digitando i,
   .aud-opcao.glitch .aud-opcao-conteudo,

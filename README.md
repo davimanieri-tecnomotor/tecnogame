@@ -72,12 +72,12 @@ host estático:
 | --- | --- | --- |
 | `/` | `#/` | cadastro |
 | `/cadastro` | `#/cadastro` | cadastro |
-| `/instrucoes` | `#/instrucoes` | vídeo de instruções |
+| `/instrucoes` | `#/instrucoes` | como funciona: a tela da pergunta com os passos acendendo cada peça |
 | `/telaVideoTransisao?tipo=0\|1` | `#/telaVideoTransisao?tipo=1` | vinheta de transição |
 | `/roleta` | `#/roleta` | roleta |
 | `/carro` | `#/carro` | carro sorteado |
 | `/scanner` | `#/scanner` | escolha do equipamento |
-| `/telaVideoScanner` | `#/telaVideoScanner` | vídeo do scanner |
+| `/telaVideoScanner` | `#/telaVideoScanner` | vídeo do scanner (o Rasther 4 não tem; o painel pode pular) |
 | `/telaAcao` | `#/telaAcao` | pergunta e respostas |
 | `/ganhou` | `#/ganhou` | vitória |
 | `/perdeu` | `#/perdeu` | derrota |
@@ -96,7 +96,7 @@ escolher — e é de propósito.
 
 **A pergunta pode dispensar a escolha do equipamento.** É uma marca do baralho,
 por pergunta (`pularEquipamento`, ligada na administração): há pergunta que não
-depende de scanner nenhum, e para essa a tela dos cinco é uma parada sem decisão
+depende de scanner nenhum, e para essa a tela dos seis é uma parada sem decisão
 — em feira cheia, é a fila parada. Quando ela está ligada o jogo vai do veículo
 **direto** para a pergunta, com a tela do equipamento padrão (o Rasther 3S, em
 `EQUIPAMENTO_PADRAO`) e sem o vídeo demonstrativo de 14s — que é a apresentação
@@ -109,8 +109,8 @@ escolhe, e uma etapa que não aconteceu não é preferência.
 **As imagens da roleta são pedidas no cadastro.** A roleta é a tela mais pesada
 do jogo — a arte pronta, ou uma foto por fatia quando o baralho não é o de
 fábrica — e ela mostrava as fatias se preenchendo já na tela. Como ninguém cai
-nela de surpresa (entre o CONFIRMAR e a roleta passam o vídeo de instruções e a
-vinheta, ~17s), `js/precarga.js` pede tudo assim que o cadastro abre. Medido num
+nela de surpresa (entre o CONFIRMAR e a roleta passam a tela de instruções e a
+vinheta, ~19s), `js/precarga.js` pede tudo assim que o cadastro abre. Medido num
 link de 4 Mbps: **4,7s → 9ms** com a arte pronta, **2,7s → 5ms** com dez fotos
 na roda desenhada.
 
@@ -535,9 +535,12 @@ trate-o como exposto e **rotacione-o** no painel da z-api (é o pendente nº 1 d
 
 - **Vídeos dos scanners.** As cinco URLs do Firebase Storage foram mantidas
   como estavam, mas o bucket hoje responde `402 Payment Required` — ou seja,
-  não tocam no app Flutter também. A tela continua avançando depois dos 14s.
-  Para exibi-los, coloque os `.mp4` em `web/assets/videos/scanners/` e ligue
-  `useLocalScannerVideos` em `config.js`.
+  não tocam no app Flutter também. A tela continua avançando depois dos 14s —
+  e pode sair do caminho: no painel, em **Na feira**, a marca **Pular o vídeo
+  demonstrativo do equipamento** (guardada no navegador) leva da escolha
+  direto para a pergunta. O Rasther 4, que entrou na 3.1, não tem vídeo e
+  sempre vai direto. Para exibi-los, coloque os `.mp4` em
+  `web/assets/videos/scanners/` e ligue `useLocalScannerVideos` em `config.js`.
 - **`Text('Hello World')` e a contagem de documentos** no cadastro são restos
   do scaffold do FlutterFlow. Estão reproduzidos porque ocupam altura no
   layout.
@@ -566,10 +569,11 @@ mudança. `npm test` roda os testes de **unidade** (`scripts/unidade/`) com o
 corte de um ano da retenção, a junção de `usuarios` com `contatos`, o escape do
 CSV, quantos estalos a roleta dá e quando, quando o prazo de inatividade vence,
 o que cada recusa do login do Firebase quer
-dizer, as funções que vieram do Dart. Sem navegador, sem servidor, sem `bundle`.
+dizer, o número do cronômetro e para onde o jogo vai depois do equipamento, as
+funções que vieram do Dart. Sem navegador, sem servidor, sem `bundle`.
 
 `npm run verify` roda a checagem estática, **os testes de unidade**, regera o
-bundle e passa os catorze testes de navegador nos **dois transportes** — 28
+bundle e passa os dezessete testes de navegador nos **dois transportes** — 34
 execuções. Sobe o `http-server` se a porta 8099 estiver livre e reaproveita o
 que já estiver de pé.
 
@@ -580,7 +584,7 @@ afirmado num nível **não se repete no outro**: a conversão de baralho v1 para
 v2, por exemplo, mora no `verify:baralho`, com o jogo rodando, e não tem cópia
 em `scripts/unidade/`.
 
-As 28 execuções correm **em paralelo** (4 de cada vez por padrão). Cada teste
+As 34 execuções correm **em paralelo** (um terço dos núcleos, no máximo 6). Cada teste
 sobe o próprio Chrome e só lê do servidor, então não disputam nada entre si; o
 que os prendia era o laço sequencial do `all.mjs`. A saída de cada um sai
 inteira quando ele termina, e no fim vem o tempo de cada execução — é assim que
@@ -605,10 +609,13 @@ em outro terminal, ou de `BASE=` apontando para o `file://`):
 | Comando | O que afirma |
 | --- | --- |
 | `npm run check` | todo import resolve, é usado, e o bundle está atualizado |
-| `npm test` | lógica pura, sem navegador: validação do baralho, retenção, junção de respostas, CSV, estalos da roleta, prazo de inatividade, funções do Dart |
+| `npm test` | lógica pura, sem navegador: validação do baralho, retenção, junção de respostas, CSV, estalos da roleta, prazo de inatividade, cronômetro e caminho do equipamento, funções do Dart |
 | `npm run verify:routes` | as 11 rotas: erro de console, imagem faltando, algo fora do palco |
 | `npm run verify:corte` | nada **recortado** dentro do palco (texto que não cabe no próprio container) |
 | `npm run verify:play` | uma partida completa, ponta a ponta |
+| `npm run verify:pergunta` | o roteiro da pergunta: o relógio espera o PODE!, o cronômetro é o único tempo na tela, teclado, a revelação, Cartas e Placas, os dois estilos, a tela de fim sem repetir a resposta certa, a Pergunta do Milhão |
+| `npm run verify:equipamento` | os seis equipamentos na escolha; o Rasther 4 vai direto para a pergunta; o vídeo demonstrativo sai do caminho pela marca do painel |
+| `npm run verify:instrucoes` | "Como funciona": a captura carrega nos dois transportes, cada passo acende a peça dele na cor dele, e a tela segue sozinha em 15 s |
 | `npm run verify:dialogs` | diálogos, i18n, ranking de inatividade, vitória |
 | `npm run verify:idioma` | trocar de idioma não apaga o formulário |
 | `npm run verify:teclado` | os alvos são alcançáveis e acionáveis por teclado |
@@ -643,3 +650,33 @@ com `Clip.hardEdge`, e isso é legítimo), e essa regra escondeu dois bugs que
 deixavam o jogo **injogável**: as alternativas colapsavam para 300px e
 apareciam cortadas no meio da palavra, e a fileira de scanners saía espalhada
 com dois cards cortados.
+
+### Desempenho: o jogo depois de muitas partidas
+
+Nenhum teste de uma partida só vê o que acontece na partida 80 de um dia de
+feira sem recarregar a página. Para isso há dois medidores, fora da suíte
+porque são longos (precisam do `npm start` rodando):
+
+```bash
+npm run desempenho:partidas        # 30 partidas seguidas (PARTIDAS=60 para mais), ~1 min cada
+npm run desempenho:armazenamento   # o custo de gravar e ler com 1 mil a 20 mil partidas guardadas
+```
+
+O de **partidas** joga pelo caminho real — cadastro, instruções, roleta,
+equipamento, pergunta (acerto, erro e tempo esgotado, com uma ajuda a cada
+três), fim, REINICIAR — e, de volta ao cadastro, força a coleta de lixo e mede
+heap, nós do DOM (contando os destacados), ouvintes, animações vivas,
+intervalos vivos e o tempo de quadro na pergunta. Falha se algum deles crescer
+de forma sustentada; com `DIAGNOSTICO=1` lista, no fim, as árvores soltas que
+ainda têm dono, agrupadas pela tela de onde vieram.
+
+O de **armazenamento** semeia o `localStorage` com N partidas no formato do
+jogo e cronometra a gravação do veredito (`putRecord`, síncrona), o ranking
+local, as Placas e os números do dia; e mede a cota do navegador. Cada partida
+deixa ~260 caracteres em `usuarios` + `contatos`, por um ano (a retenção da
+política de privacidade), e a cota do Chrome é de ~5 milhões: a base local
+enche por volta de **20 mil partidas** no mesmo navegador. Cheia, a gravação
+local falha em silêncio (`writeRaw` devolve `false`, e `addUsuario` segue) — a
+partida só vai para o Firestore, e a cópia local que o jogo promete, "grave
+local primeiro", deixa de existir. Com 10 mil guardadas a gravação do veredito
+já custa ~16 ms, e com 20 mil ~36 ms (dois quadros, no início do suspense).

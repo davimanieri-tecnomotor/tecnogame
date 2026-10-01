@@ -61,7 +61,6 @@ export function garantirGradientes() {
     '<linearGradient id="lz-reflexo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".26"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>' +
     '<linearGradient id="lz-cromo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f7fb"/><stop offset=".48" stop-color="#8f9bb0"/><stop offset=".53" stop-color="#e9eef6"/><stop offset="1" stop-color="#5b667a"/></linearGradient>' +
     '<radialGradient id="lz-face" cx=".5" cy=".42" r=".62"><stop offset="0" stop-color="#11275a"/><stop offset=".7" stop-color="#050c22"/><stop offset="1" stop-color="#02060f"/></radialGradient>' +
-    '<linearGradient id="lz-agulha" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ffb35c"/><stop offset="1" stop-color="#ff2d12"/></linearGradient>' +
     '</defs>';
   document.body.appendChild(svg);
 }

@@ -133,14 +133,7 @@ const largarPartidaEm = (tela) =>
     const { goNamed } = await carregar('router.js');
     FFAppState.cadastro = new CadastroStruct({ nome: 'Largou', telefone: '(16) 99999-0000', atuacao: 'x' });
     FFAppState.scannerEscolhido = 'RB';
-    FFAppState.resultado = {
-      acertou: false,
-      tempo: 0,
-      numeroCerto: 1,
-      textoCerto: 'a certa',
-      numeroEscolhido: 2,
-      textoEscolhido: 'a escolhida',
-    };
+    FFAppState.resultado = { acertou: false, tempo: 0, esgotou: false };
     goNamed(destino);
   }, tela);
 
@@ -196,7 +189,7 @@ conferir(semPartida(depoisDoFim), `o resultado e o cadastro foram esquecidos (${
 log('--- escolha do equipamento com o carimbo de incompatível na tela');
 await largarPartidaEm('scanner');
 conferir(await waitForRoute('scanner'), 'a partida chegou na escolha do equipamento');
-// Os cinco pousam um a um; espera o último assentar antes de mirar.
+// Os seis pousam um a um; espera o último assentar antes de mirar.
 await wait(1400);
 const invalido = await page.$('#pages .ff-ferramenta-entra [style*="opacity: 0.2"] .ff-inkwell');
 conferir(Boolean(invalido), 'há um equipamento que não resolve a pergunta desta rodada');

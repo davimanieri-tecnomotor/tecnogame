@@ -14,7 +14,7 @@ npm start          # http://localhost:8099
 npm run bundle     # DEPOIS de qualquer mudança em web/js/ — ver abaixo
 npm run check      # imports resolvem, nada morto, bundle em dia (0,1s)
 npm test           # lógica pura, sem navegador (0,3s) — a volta mais curta
-npm run verify     # a suíte inteira, 28 execuções, ~4min
+npm run verify     # a suíte inteira, 34 execuções, ~5min
 npm run verify:rapido   # só HTTP, ~110s — a volta do dia a dia
 ```
 
@@ -70,6 +70,7 @@ web/js/            os módulos ES — a fonte
 web/js/bundle.js   GERADO. Não editar.
 scripts/unidade/   testes de lógica pura (node --test), um arquivo por assunto
 scripts/verify/    a suíte (puppeteer), um arquivo por afirmação
+scripts/desempenho/ muitas partidas seguidas e o armazenamento envelhecido — fora da suíte
 firebase/          regras e índices do Firestore
 ```
 
@@ -148,9 +149,20 @@ tamanho dos filhos. O CSS não tem altura ilimitada: `.ff-main-max` é `height:
 do meio a roleta e o carro sorteado (`verify:centro`). Onde o Flutter encolheria,
 escreva `min`; o `SingleChildScrollView` já faz isso sozinho.
 
+**Animação Web em laço prende a tela inteira na memória.** `element.animate()`
+não morre quando o elemento sai da página: a linha do tempo do documento a
+segura enquanto ela toca, e uma com `iterations: Infinity` (o `loop: true` de
+`anim.js`) toca para sempre — segurando o elemento, a tela e os ouvintes dela.
+O cadastro pulsando vazava ~115 nós e 31 ouvintes por partida. O roteador e o
+`pop` dos diálogos chamam `encerrarAnimacoes` antes de tirar o nó; quem remover
+na mão um nó com laço de WAAPI faz o mesmo. Animação de CSS não tem o problema.
+E ao medir isso: **handle do Puppeteer também segura** (`waitForSelector`,
+`page.$`) — descarte com `dispose()`, senão o teste mede o próprio rastro
+(`scripts/desempenho/partidas.mjs`).
+
 ## Antes de dizer que está pronto
 
-- `npm run verify` — **28 de 28**, nos dois transportes.
+- `npm run verify` — **34 de 34**, nos dois transportes.
 - **Olhe a tela.** Um probe que devolve números pode passar com a tela quebrada:
   o bug da resposta que sumia passou por um probe verde porque eu li o JSON e
   não abri a captura. Ponha um `page.screenshot` e leia a imagem.

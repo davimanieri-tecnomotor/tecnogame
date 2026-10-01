@@ -93,14 +93,11 @@ class FFAppStateClass {
 
     /**
      * O que a partida terminou decidindo, para a tela de fim poder contar.
+     * Fica `null` fora de uma partida. Ver `registrar` em pages/tela_acao.js:
+     * `{ acertou, tempo, esgotou, perguntaId, video, dica, milhao }`.
      *
-     * O jogo julgava e ia embora sem nunca dizer qual era a resposta certa —
-     * num jogo feito para ensinar técnico a usar scanner, era justamente o
-     * pedaço que faltava. Fica `null` fora de uma partida.
-     *
-     * `{ acertou, numeroCerto, textoCerto, numeroEscolhido, textoEscolhido }`,
-     * onde os números são os que o jogador vê na tela (1 a 4), e não os índices
-     * embaralhados de `ordemNumeros`.
+     * A resposta certa é dita na própria pergunta, na lição de quem errou; a
+     * tela de fim parou de repeti-la na 3.1, e o registro parou de levá-la.
      */
     this.resultado = null;
 

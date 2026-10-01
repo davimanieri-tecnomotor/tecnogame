@@ -10,10 +10,23 @@
 
 import { readRaw, writeRaw } from './storage.js';
 
-export const VERSAO_DO_JOGO = '3.0.0';
+export const VERSAO_DO_JOGO = '3.1.0';
 
 /** Mais recente primeiro — é a ordem em que o painel lista. */
 export const NOTAS_DE_ATUALIZACAO = [
+  {
+    versao: '3.1.0',
+    data: '2026-10-01',
+    itens: [
+      'O Rasther 4 entrou na escolha do equipamento: agora são seis, três em cima e três embaixo. Ele vale para as perguntas marcadas como "Rasther 4 / ST" no painel e, como não tem vídeo demonstrativo, vai direto para a pergunta.',
+      'O relógio da pergunta virou um cronômetro: os segundos que faltam em número grande, num anel que esvazia. A faixa ERRAR / RECORDE / ACERTAR AGORA e o "vale o 1º lugar por mais…" saíram — eram lidos como o tempo para responder. Continua tudo o que avisava o fim: a luz vermelha nos últimos 15 segundos, o cronômetro tremendo nos últimos 5 e o estouro no zero.',
+      'Nova tela "Como funciona o jogo", com a pergunta de agora: os passos aparecem um a um e acendem a parte da tela de que falam. Segue sozinha em 15 segundos, ou em "Pular instruções".',
+      'No painel, em "Na feira": "Pular o vídeo demonstrativo do equipamento" tira os 14 segundos entre a escolha do equipamento e a pergunta.',
+      'Na tela de fim, quem errou não vê mais a resposta certa de novo (ela já aparece na pergunta) — fica só o QR code do vídeo, quando a pergunta tem um. E o botão REINICIAR ficou bem maior.',
+      'O cadastro ficou com outra cara: a ficha num cartão escuro, os campos com a dica mais apagada (o campo vazio parecia preenchido) e o CONFIRMAR maior, em amarelo-ouro. Ao confirmar, o nome que o jogador digitou sai do campo e voa até o centro do palco — "COM VOCÊS: ANA!" —, e o jogo segue mais rápido para as instruções.',
+      'Corrigido: o jogo guardava na memória um pedaço de cada partida jogada (o cadastro, a tela do vídeo e a das instruções nunca eram liberados). Num dia inteiro de feira sem recarregar a página, isso só crescia; agora a memória fica estável partida após partida.',
+    ],
+  },
   {
     versao: '3.0.0',
     data: '2026-09-25',

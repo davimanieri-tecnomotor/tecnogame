@@ -131,9 +131,38 @@ if (!LOCAL_FILE) {
 }
 
 // validation: submit with a good name should advance
+//
+// E a saída é o jogador chamado ao palco (web/js/transicoes.js): o nome
+// anunciado é o PRIMEIRO nome digitado — ele sai do campo voando —, e o jogo
+// segue com o anúncio ainda na tela. A saída da 3.0 deixava ~450ms de palco
+// vazio antes do anúncio e outro tanto depois, e trocava de tela ~2,7s depois
+// do toque (medido aqui, com ela de volta). A de agora troca aos ~2,0s; o teto
+// é 2,5s.
+// Medido DENTRO da página (a tela nova nasce com `data-route`): de fora, o
+// intervalo do `waitForRoute` e a ida e volta do puppeteer somavam ~300ms.
+await page.evaluate(() => {
+  window.__tocouEm = performance.now();
+  const olhar = new MutationObserver(() => {
+    if (!document.querySelector('#pages .ff-page[data-route="instrucoes"]')) return;
+    window.__instrucoesEm = performance.now();
+    olhar.disconnect();
+  });
+  olhar.observe(document.getElementById('pages'), { childList: true, subtree: true });
+});
 await clickText('CONFIRMAR');
+const anunciado = await page
+  .waitForFunction(() => document.querySelector('#pages [data-grito="nome"]')?.textContent, { timeout: 4000 })
+  .then(async (h) => {
+    const texto = await h.jsonValue();
+    await h.dispose();
+    return texto;
+  });
+log(`   anunciado -> "${anunciado}"`);
+if (anunciado !== 'DAVI!') throw new Error(`o anúncio devia chamar o primeiro nome digitado, e chamou ${JSON.stringify(anunciado)}`);
 await waitForRoute('instrucoes');
-log('4. instrucoes reached (validation passed, cadastro stored)');
+const ateAsInstrucoes = await page.evaluate(() => Math.round(window.__instrucoesEm - window.__tocouEm));
+log(`4. instrucoes reached (validation passed, cadastro stored) — ${ateAsInstrucoes} ms depois do toque`);
+if (!(ateAsInstrucoes <= 2500)) throw new Error(`a saída do cadastro levou ${ateAsInstrucoes} ms (teto: 2500)`);
 const cadastro = await page.evaluate(() => {
   // eslint-disable-next-line no-undef
   return window.__ff_state ? null : null;
@@ -196,10 +225,14 @@ await wait(2200);
 await shot('07-scanner');
 
 // ---- pick the first enabled scanner ------------------------------------
+// Desde a 3.1 são seis — o Rasther 4 entrou. Ele não tem vídeo demonstrativo e
+// vai direto para a pergunta (ver verify/equipamento.mjs); este percurso quer
+// passar pelo vídeo, então escolhe o primeiro compatível que tem um.
+const cartoes = await page.evaluate(() => [...document.querySelectorAll('#pages .eq-stack')].map((n) => n.dataset.ferramenta));
+log(`   equipamentos na tela: ${JSON.stringify(cartoes)}`);
+if (cartoes.length !== 6 || !cartoes.includes('4s')) throw new Error(`a escolha deveria mostrar os seis, com o Rasther 4: ${cartoes}`);
 const picked = await page.evaluate(() => {
-  const tools = [...document.querySelectorAll('#pages .ff-stack')].filter((n) =>
-    n.querySelector('img[src*="Rasther"], img[src*="TD_"]')
-  );
+  const tools = [...document.querySelectorAll('#pages .eq-stack')].filter((n) => n.dataset.ferramenta !== '4s');
   for (const tool of tools) {
     const opacity = tool.querySelector('[style*="opacity"]');
     if (opacity && Number(opacity.style.opacity) === 1) {
@@ -231,10 +264,9 @@ await shot('09b-jogando');
 const panel = await page.evaluate(() => ({
   answers: document.querySelectorAll('#pages [data-alternativa]').length,
   numbers: [...document.querySelectorAll('#pages [data-alternativa] .aud-opcao-num')].map((n) => n.textContent.trim()),
-  relogio: document.querySelector('#pages .aud-taco-leitura')?.textContent ?? null,
+  relogio: document.querySelector('#pages .aud-crono-int')?.textContent ?? null,
   hints: document.querySelectorAll('#pages [data-ajuda]').length,
   ajudas: document.querySelector('#pages .aud-aj-titulo')?.textContent ?? null,
-  aposta: document.querySelector('#pages .aud-ap-barra span')?.textContent ?? null,
 }));
 log(`12. panel: ${JSON.stringify(panel)}`);
 if (panel.answers !== 4) throw new Error(`a pergunta mostrou ${panel.answers} alternativas`);

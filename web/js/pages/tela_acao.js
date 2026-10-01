@@ -6,8 +6,8 @@
 // cronômetro digital `00:58.27`. Funcionava, e parecia aplicativo. Agora a
 // tela é um palco, e a pergunta é um roteiro, na ordem em que o jogador vive:
 //
-//   1. o painel liga — o cenário entra, o conta-giros varre a escala e volta,
-//      e se ouve um motor dando a partida;
+//   1. o painel liga — o cenário entra, o anel do cronômetro enche, e se
+//      ouve um motor dando a partida;
 //   2. "POSSO PERGUNTAR?" — o relógio só começa quando o jogador diz PODE!;
 //      antes ele começava enquanto as alternativas ainda entravam;
 //   3. a pergunta entra sozinha, e as alternativas chegam uma a uma;
@@ -18,6 +18,13 @@
 //      alternativa, e 2,6s de batimento antes do veredito;
 //   7. o veredito: acerto (festa, e o ranking abrindo espaço para o jogador),
 //      erro (a lição: a certa e onde aprender) ou tempo esgotado.
+//
+// O RELÓGIO É UM CRONÔMETRO, E SÓ ELE DIZ TEMPO NA TELA. Na 3.0 havia também a
+// faixa ERRAR / RECORDE / ACERTAR AGORA, com "vale o 1º lugar por mais 6,4 s"
+// embaixo — e na feira esse era o número que todo mundo lia como o tempo para
+// responder. Na 3.1 a faixa saiu inteira, e o conta-giros virou cronômetro
+// (ver components/cronometro.js). A posição no ranking continua aparecendo,
+// mas DEPOIS do acerto, no painel do resultado.
 //
 // Dois estilos, escolhidos pelo operador no painel (ver palco.js):
 //
@@ -43,7 +50,7 @@ import { T, Tf } from '../textos.js';
 import { FFAppState } from '../state.js';
 import { goNamed } from '../router.js';
 import { addUsuario, createUsuariosRecordData } from '../backend.js';
-import { formatarSegundos, formatarTempoDeResposta } from '../functions.js';
+import { formatarSegundos, formatarTempoDeResposta, posicaoNoRanking } from '../functions.js';
 import { tique } from '../audio.js';
 import { Som, Trilha, audioEm } from '../som.js';
 import { aproximar, estiloDaPergunta, estiloEmCena, flash, humor, soco, tremer } from '../palco.js';
@@ -57,8 +64,7 @@ import { putRecord } from '../storage.js';
 import { QrSvg } from '../qr.js';
 import { SeloComLampadas } from '../components/selo.js';
 import { OrdemDeServico } from '../components/ordem_de_servico.js';
-import { Tacometro } from '../components/tacometro.js';
-import { Aposta, posicaoAgora } from '../components/aposta.js';
+import { Cronometro } from '../components/cronometro.js';
 import { Alternativas, QuadroDaPergunta } from '../components/alternativas.js';
 import { Ajudas } from '../components/ajudas.js';
 import { BotaoDeAuditorio } from '../components/botao.js';
@@ -91,11 +97,15 @@ const RESPOSTA_FIELD = { 1: 'respostaUm', 2: 'respostaDois', 3: 'respostaTres', 
 export const ESTILOS = {
   classico: {
     selo: { x: 425, y: 10, largura: 230 },
-    pergunta: { x: 60, y: 226, w: 960, h: 214, ponta: 0, raio: 22, trilhos: false, texto: [30, 22] },
-    opcoes: { w: 960, h: 94, ponta: 0, raio: 16, pos: [[60, 462], [60, 566], [60, 670], [60, 774]], trilhos: false, texto: [26, 18], lados: false },
-    aposta: { x: 60, y: 894, largura: 960 },
+    // A coluna desceu até onde ficava a faixa ERRAR / RECORDE / ACERTAR AGORA
+    // (y 894 a 1016), que saiu na 3.1: pergunta e alternativas mais altas, com
+    // o pé na mesma linha das ajudas, do outro lado.
+    pergunta: { x: 60, y: 226, w: 960, h: 236, ponta: 0, raio: 22, trilhos: false, texto: [32, 22] },
+    opcoes: { w: 960, h: 110, ponta: 0, raio: 16, pos: [[60, 486], [60, 614], [60, 742], [60, 870]], trilhos: false, texto: [28, 18], lados: false },
     os: { x: 1100, y: 236, escala: 1.22 },
-    tacometro: { x: 1566, y: 14, tamanho: 296 },
+    // 290 de largura e 319 de altura (a coroa): o pé fica acima do teto da
+    // cabine do VW 24-280 no pedestal (conferido na tela).
+    cronometro: { x: 1584, y: 4, tamanho: 290 },
     ajudas: { x: 1104, y: 846, largura: 800 },
     spot: [760, 200],
     painel: { x: 1440, ponta: 0, raio: 30 },
@@ -111,9 +121,9 @@ export const ESTILOS = {
     selo: { x: 842, y: 18, largura: 236 },
     pergunta: { x: 150, y: 568, w: 1620, h: 184, ponta: 44, raio: 0, trilhos: true, texto: [34, 24] },
     opcoes: { w: 795, h: 110, ponta: 38, raio: 0, pos: [[150, 782], [975, 782], [150, 914], [975, 914]], trilhos: true, texto: [27, 19], lados: true },
-    aposta: { x: 1402, y: 404, largura: 400 },
     os: { x: 64, y: 58, escala: 1 },
-    tacometro: { x: 1416, y: 28, tamanho: 370 },
+    // Desceu e cresceu no lugar da faixa que ficava embaixo dele (y 404 a 510).
+    cronometro: { x: 1440, y: 40, tamanho: 390 },
     ajudas: { x: 632, y: 236, largura: 772 },
     spot: [560, 250],
     painel: { x: 960, ponta: 60, raio: 0 },
@@ -230,15 +240,8 @@ export function montarPergunta(rodada, { aoTerminar = null } = {}) {
   Object.assign(selo.style, { left: `${E.selo.x}px`, top: `${E.selo.y}px` });
 
   const os = OrdemDeServico({ veiculo: rodada.veiculo, equipamento: rodada.equipamento, medidas: E.os, semEquipamento: milhao });
-  const tac = Tacometro({ tamanho: E.tacometro.tamanho });
-  Object.assign(tac.no.style, { left: `${E.tacometro.x}px`, top: `${E.tacometro.y}px` });
-
-  let aposta = null;
-  const montarAposta = () => {
-    aposta = Aposta({ ranking, milhao, aoTrocarPosicao: () => Som.blip(0, false) });
-    Object.assign(aposta.no.style, { left: `${E.aposta.x}px`, top: `${E.aposta.y}px`, width: `${E.aposta.largura}px` });
-    return aposta.no;
-  };
+  const crono = Cronometro({ tamanho: E.cronometro.tamanho });
+  Object.assign(crono.no.style, { left: `${E.cronometro.x}px`, top: `${E.cronometro.y}px` });
 
   const quadro = QuadroDaPergunta({ texto: rodada.enunciado, medidas: E.pergunta });
   const alt = Alternativas({ textos: rodada.respostas, medidas: E.opcoes, estilo, aoTocar: (i) => tocarOpcao(i) });
@@ -262,7 +265,7 @@ export function montarPergunta(rodada, { aoTerminar = null } = {}) {
         eliminar: (indices) => alt.eliminar(indices),
       });
 
-  cena.append(selo, os.no, tac.no, quadro.no, ...alt.trilhos, ...alt.nos);
+  cena.append(selo, os.no, crono.no, quadro.no, ...alt.trilhos, ...alt.nos);
   if (aj) cena.append(aj.no);
 
   quandoNaTela(root, () => {
@@ -278,18 +281,11 @@ export function montarPergunta(rodada, { aoTerminar = null } = {}) {
       easing: 'cubic-bezier(.2,1.2,.4,1)',
     });
     os.entrar();
-    // Só opacidade no mostrador: ver o cabeçalho de tacometro.js.
-    entrar(tac.no, [{ opacity: 0 }, { opacity: 1 }], { duration: 500, delay: 200, easing: 'ease-out' });
-    if (aposta) {
-      entrar(aposta.no, [{ opacity: 0, transform: 'translateX(60px)' }, { opacity: 1, transform: 'none' }], {
-        duration: 460,
-        delay: 520,
-        easing: 'ease-out',
-      });
-    }
+    // Só opacidade no mostrador: ver o cabeçalho de cronometro.js.
+    entrar(crono.no, [{ opacity: 0 }, { opacity: 1 }], { duration: 500, delay: 200, easing: 'ease-out' });
     Som.ronco(0.32, 1.3);
     await roteiro.pausa(360);
-    tac.varredura(roteiro).catch(soInterrupcao);
+    crono.varredura(roteiro).catch(soInterrupcao);
     if (aj) await aj.entrar(roteiro);
     await roteiro.pausa(milhao ? 400 : 700);
   }
@@ -323,26 +319,15 @@ export function montarPergunta(rodada, { aoTerminar = null } = {}) {
 
   async function roteiroDeAbertura() {
     try {
-      // O ranking chega antes: a roleta o pediu (ver estatisticas.js). Sem ele
-      // em 600ms, a faixa nasce com o que houver — e se ele chegar depois, ela
-      // se corrige.
+      // O ranking é do painel do resultado, que o mostra abrindo espaço para
+      // quem acertou. A roleta já o pediu (ver estatisticas.js); a abertura não
+      // espera por ele — se não tiver chegado até o resultado, o painel sai
+      // com o que houver.
       if (!milhao) {
-        const pedido = rankingAdiantado();
-        let chegou = false;
-        ranking = await roteiro.aguardar(
-          Promise.race([pedido.then((r) => ((chegou = true), r)), new Promise((ok) => setTimeout(() => ok([]), 600))])
-        );
-        if (!chegou) {
-          pedido.then((r) => {
-            if (!roteiro.vivo || !Array.isArray(r) || !r.length) return;
-            // Depois do veredito a faixa já recuou, e o resultado usa o que havia.
-            if (['suspense', 'revelado', 'esgotado', 'saindo'].includes(estado)) return;
-            ranking = r;
-            aposta?.trocarRanking(r);
-          });
-        }
+        rankingAdiantado().then((r) => {
+          if (roteiro.vivo && Array.isArray(r)) ranking = r;
+        });
       }
-      cena.appendChild(montarAposta());
       await entrarCenario();
       if (milhao && rodada.jogador) {
         // A Pergunta do Milhão chama o jogador de volta ao palco pelo nome.
@@ -429,7 +414,7 @@ export function montarPergunta(rodada, { aoTerminar = null } = {}) {
         ]),
       ];
       // No palco, 890 de largura: mais que isso a ponta direita cobre o
-      // "ACERTAR AGORA", que é justamente o que o jogador deve olhar agora.
+      // cronômetro, que é justamente o que o jogador deve olhar agora.
       const p = painel(locutor, { x: E.painel.x, ...E.certo, ponta: E.painel.ponta, raio: E.painel.raio, conteudo, chave: 'certo' });
       fecharPergunta = responder;
       aoPrincipal = () => responder(true);
@@ -441,7 +426,7 @@ export function montarPergunta(rodada, { aoTerminar = null } = {}) {
   function pararRelogio() {
     if (correndo) restante = restanteEm(performance.now());
     correndo = false;
-    tac.definir(restante);
+    crono.definir(restante);
   }
 
   async function confirmar(i) {
@@ -452,7 +437,7 @@ export function montarPergunta(rodada, { aoTerminar = null } = {}) {
     // O resultado está decidido: grava JÁ, antes do suspense. Se a tela sair no
     // meio da festa (o prazo de inatividade, o operador), a partida fica.
     registrar({ acertou, escolhida: i });
-    tac.parar();
+    crono.parar();
     Som.clunk();
     Trilha.parar(0.25);
     root.style.setProperty('--tensao', '0');
@@ -527,15 +512,15 @@ export function montarPergunta(rodada, { aoTerminar = null } = {}) {
     mudar('esgotado');
     correndo = false;
     restante = 0;
-    tac.definir(0);
+    crono.definir(0);
     fecharPergunta?.(false);
     aj?.fechar();
     aj?.travar();
     alt.destravar();
     Trilha.parar(0.08);
     root.style.setProperty('--tensao', '0.35');
-    tac.estourar();
-    const [gx, gy] = noPalco(tac.no.querySelector('.aud-taco-face') ?? tac.no);
+    crono.estourar();
+    const [gx, gy] = noPalco(crono.face);
     fumaca({ x: gx, y: gy - 20 });
     faiscas({ x: gx, y: gy, n: 30, cores: ['#FFB35C', '#FF5A1F', '#FFFFFF'] });
     Som.alarme(0);
@@ -556,10 +541,9 @@ export function montarPergunta(rodada, { aoTerminar = null } = {}) {
     }
   }
 
-  /** O selo e a faixa saem de cena: o painel do resultado e o grito ocupam o alto. */
+  /** O selo sai de cena: o painel do resultado e o grito ocupam o alto. */
   function recuarCenario() {
     selo.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: 'forwards' });
-    aposta?.recuar();
   }
 
   /* --------------------------------------------------- gravar a partida --- */
@@ -570,15 +554,10 @@ export function montarPergunta(rodada, { aoTerminar = null } = {}) {
    * da festa. E escreve `FFAppState.resultado`, que a tela de fim lê.
    */
   function registrar({ acertou, escolhida }) {
-    const certo = rodada.slotCerto;
     FFAppState.resultado = {
       acertou,
       tempo: restante,
       esgotou: escolhida == null,
-      numeroCerto: certo >= 0 ? certo + 1 : null,
-      textoCerto: certo >= 0 ? rodada.respostas[certo] : null,
-      numeroEscolhido: escolhida != null ? escolhida + 1 : null,
-      textoEscolhido: escolhida != null ? rodada.respostas[escolhida] : null,
       perguntaId: rodada.perguntaId,
       video: rodada.video,
       dica: rodada.ajudas.ajudaTecnomotorTv ?? '',
@@ -637,7 +616,7 @@ export function montarPergunta(rodada, { aoTerminar = null } = {}) {
   }
 
   async function resultado(gasto) {
-    const minha = milhao ? null : posicaoAgora(ranking, TOTAL_MS - gasto);
+    const minha = milhao ? null : posicaoNoRanking(ranking, { tempo: TOTAL_MS - gasto });
     const tempoNo = el('b', { class: 'ff-text', text: '0,0 s', style: { fontSize: fonte(56) } });
     const lista = el('div', { class: 'aud-lista' });
     const ALT = 40;
@@ -763,11 +742,10 @@ export function montarPergunta(rodada, { aoTerminar = null } = {}) {
     const agora = performance.now();
     const dt = Math.min(0.05, Math.max(0, (agora - ultimoQuadro) / 1000));
     ultimoQuadro = agora;
-    tac.animar(dt);
+    crono.animar(dt);
     if (correndo) {
       restante = restanteEm(agora);
-      tac.definir(restante);
-      aposta?.atualizar(restante);
+      crono.definir(restante);
       tensao(restante);
       marcarTique(restante);
       if (estado === 'jogando') {

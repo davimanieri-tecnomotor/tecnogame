@@ -151,7 +151,7 @@ export function CarroSleecionadoWidget() {
     //
     // É uma marca do baralho, por pergunta (`pularEquipamento`, ver deck.js):
     // há pergunta que não depende de scanner nenhum, e para essa a tela dos
-    // cinco equipamentos é uma parada sem decisão — em feira cheia, é a fila
+    // seis equipamentos é uma parada sem decisão — em feira cheia, é a fila
     // parada. Quem pula joga com o equipamento padrão, que é o que dá ao painel
     // da pergunta uma pele inteira em vez do cinza de reserva, e não vê o vídeo
     // demonstrativo: ele é a apresentação do equipamento ESCOLHIDO, e aqui não

@@ -42,7 +42,8 @@ export const EQUIPAMENTOS = {
   'Rasther 3': { foto: 'assets/images/Rasther_CANFD_(1).png', recorte: 'inset(4.6% 22.4% 4.6% 22.4%)', nome: 'RASTHER 3S' },
   RB: { foto: 'assets/images/Rasther---box,-3s---mensal-box---android.png', recorte: 'inset(31.7% 17.8% 24.2% 27.5%)', nome: 'RASTHER BOX' },
   RST: { foto: 'assets/images/Rasther_ST_+_VCI.png', recorte: 'inset(19.6% 8.3% 24.1% 12%)', nome: 'RASTHER ST' },
-  'Rasther 4': { foto: 'assets/images/Rasther_ST_+_VCI.png', recorte: 'inset(19.6% 8.3% 24.1% 12%)', nome: 'RASTHER 4' },
+  // O recorte pega só o aparelho de mão: a VCI que vem na foto, com ele, encolheria o Rasther 4 na etiqueta.
+  'Rasther 4': { foto: 'assets/images/Rasther_4_+_VCI.png', recorte: 'inset(10.9% 17% 15.5% 9.1%)', nome: 'RASTHER 4' },
   Td90: { foto: 'assets/images/TD_90_(2).png', recorte: 'inset(15.2% 3.3% 19.4% 2.1%)', nome: 'TD90' },
   Td80: { foto: 'assets/images/TD_80__Final_(1).png', recorte: 'inset(20.3% 4.5% 20.3% 4%)', nome: 'TD80' },
 };

@@ -8,12 +8,17 @@
 //   -----------+---------------------------+-----------+-----------------
 //   '3s'       | Rasther_3s_Claro.png      | raster3S  | 'Rasther 3'
 //   'td90'     | TD_90_Claro.png           | xtool     | 'Td90'
-//   '4s'       | Rasther_3s_Claro.png      | rasher4   | 'Rasther 4'
+//   '4s'       | Rasther_4_Claro.png       | rasher4   | 'Rasther 4'
 //   'rb'       | Rasther_Box_Claro.png     | raster3S  | 'RB'
 //   'td80'     | TD_90_Claro_(1).png       | xtool     | 'Td80'
 //   'rts'      | Rasther_ST_Claro.png      | rasher4   | 'RST'
 //
 // A disabled scanner is drawn at 0.2 opacity.
+//
+// O '4s' existia no Dart, mas nenhuma tela o mostrava, e apontava para a foto
+// do 3S. Desde a 3.1 ele está na escolha, com o cartão próprio — montado no
+// mesmo molde dos outros (o paralelogramo e o rótulo medidos no do Rasther BOX).
+// Divide a marca `rasher4` com o ST: no painel é "Rasther 4 / ST".
 //
 // NA 3.0 o cartão ganhou corpo:
 //
@@ -30,6 +35,7 @@ import { Som } from '../som.js';
 import { T } from '../textos.js';
 import { goNamed } from '../router.js';
 import { noPalco } from '../particulas.js';
+import { telaDepoisDoEquipamento } from '../pages/tela_video_scanner.js';
 import {
   AnimationInfo,
   AnimationTrigger,
@@ -52,7 +58,7 @@ export const EQUIPAMENTO_PULADO = 'não escolhido';
 const TOOLS = {
   '3s': { image: 'assets/images/Rasther_3s_Claro.png', flag: 'raster3S', escolhido: 'Rasther 3' },
   td90: { image: 'assets/images/TD_90_Claro.png', flag: 'xtool', escolhido: 'Td90' },
-  '4s': { image: 'assets/images/Rasther_3s_Claro.png', flag: 'rasher4', escolhido: 'Rasther 4' },
+  '4s': { image: 'assets/images/Rasther_4_Claro.png', flag: 'rasher4', escolhido: 'Rasther 4' },
   rb: { image: 'assets/images/Rasther_Box_Claro.png', flag: 'raster3S', escolhido: 'RB' },
   td80: { image: 'assets/images/TD_90_Claro_(1).png', flag: 'xtool', escolhido: 'Td80' },
   rts: { image: 'assets/images/Rasther_ST_Claro.png', flag: 'rasher4', escolhido: 'RST' },
@@ -191,7 +197,9 @@ export function FerramentaWidget({ ferramenta, util } = {}) {
     FFAppState.equipamentoPulado = false;
     root.closest('.ff-page')?.classList.add('eq-escolhendo');
     await voarELigar();
-    goNamed('telaVideoScanner');
+    // O vídeo demonstrativo pode sair do caminho: pelo painel, ou porque o
+    // equipamento não tem um (ver `telaDepoisDoEquipamento`).
+    goNamed(telaDepoisDoEquipamento(tool.escolhido));
   };
 
   // A inclinação: o ponteiro sobre o cartão vira um ângulo em cada eixo.

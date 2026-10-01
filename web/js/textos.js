@@ -29,8 +29,6 @@ import { FFLocalizations } from './i18n.js';
 
 const TEXTOS = {
   alternativa: { pt: 'Alternativa', en: 'Answer', es: 'Alternativa' },
-  respostaCerta: { pt: 'A resposta certa', en: 'The right answer', es: 'La respuesta correcta' },
-  voceRespondeu: { pt: 'Você respondeu', en: 'You answered', es: 'Respondiste' },
 
   /* ------------------------------------------- correções de translations.js -- */
 
@@ -87,17 +85,6 @@ const TEXTOS = {
   problemaDoCliente: { pt: 'problema do cliente', en: "customer's complaint", es: 'problema del cliente' },
   voceEstaUsando: { pt: 'VOCÊ ESTÁ USANDO', en: 'YOU ARE USING', es: 'ESTÁS USANDO' },
   segundos: { pt: 'SEGUNDOS', en: 'SECONDS', es: 'SEGUNDOS' },
-  errar: { pt: 'ERRAR', en: 'MISS', es: 'FALLAR' },
-  recorde: { pt: 'RECORDE', en: 'RECORD', es: 'RÉCORD' },
-  acertarAgora: { pt: 'ACERTAR AGORA', en: 'HIT IT NOW', es: 'ACERTAR AHORA' },
-  fora: { pt: 'FORA', en: 'OUT', es: 'FUERA' },
-  valeLugar: {
-    pt: 'vale o {p}º lugar por mais {s}',
-    en: 'worth #{p} for {s} more',
-    es: 'vale el {p}º lugar por {s} más',
-  },
-  aindaEntra: { pt: 'ainda entra no ranking', en: 'still makes the ranking', es: 'todavía entra en el ranking' },
-  sejaOPrimeiro: { pt: 'o 1º lugar é de quem acertar', en: 'first place goes to whoever gets it', es: 'el 1º lugar es de quien acierte' },
 
   /* ---------------------------------------------------------- as ajudas -- */
 
@@ -174,11 +161,46 @@ const TEXTOS = {
     es: 'Este equipo no hace esta función. Elige otro.',
   },
 
+  /* ---------------------------------------------- como funciona (3.1) -- */
+
+  comoFunciona: { pt: 'COMO FUNCIONA O JOGO', en: 'HOW THE GAME WORKS', es: 'CÓMO FUNCIONA EL JUEGO' },
+  comoCaminhoRoleta: { pt: 'GIRE A ROLETA', en: 'SPIN THE WHEEL', es: 'GIRA LA RULETA' },
+  comoCaminhoEquipamento: { pt: 'ESCOLHA O EQUIPAMENTO', en: 'PICK THE SCAN TOOL', es: 'ELIGE EL EQUIPO' },
+  comoCaminhoDefeito: { pt: 'RESOLVA O DEFEITO', en: 'FIX THE FAULT', es: 'RESUELVE LA FALLA' },
+  comoPassoDefeito: { pt: 'LEIA O DEFEITO', en: 'READ THE FAULT', es: 'LEE LA FALLA' },
+  comoPassoDefeitoSub: {
+    pt: 'Um veículo chegou com um problema para você resolver.',
+    en: 'A vehicle came in with a problem for you to solve.',
+    es: 'Llegó un vehículo con un problema para que lo resuelvas.',
+  },
+  comoPassoResposta: { pt: 'TOQUE NA CERTA', en: 'TAP THE RIGHT ONE', es: 'TOCA LA CORRECTA' },
+  comoPassoRespostaSub: {
+    pt: 'São 4 alternativas, e só uma resolve. Toque e confirme.',
+    en: 'Four answers, and only one fixes it. Tap it and confirm.',
+    es: 'Son 4 alternativas, y solo una lo resuelve. Toca y confirma.',
+  },
+  comoPassoAjudas: { pt: 'ATÉ 2 AJUDAS', en: 'UP TO 2 LIFELINES', es: 'HASTA 2 AYUDAS' },
+  comoPassoAjudasSub: {
+    pt: 'Apoio técnico, cursos, TecnomotorTV, comunidade e mais.',
+    en: 'Tech support, courses, TecnomotorTV, community and more.',
+    es: 'Soporte técnico, cursos, TecnomotorTV, comunidad y más.',
+  },
+  comoPassoTempo: { pt: '60 SEGUNDOS', en: '60 SECONDS', es: '60 SEGUNDOS' },
+  comoPassoTempoSub: {
+    pt: 'O cronômetro só começa quando você diz PODE! Se zerar, estoura.',
+    en: 'The clock only starts when you say GO! If it hits zero, it blows.',
+    es: 'El cronómetro empieza cuando dices ¡ADELANTE! Si llega a cero, explota.',
+  },
+  comoPassoRanking: { pt: 'QUANTO MAIS RÁPIDO, MELHOR', en: 'THE FASTER, THE BETTER', es: 'CUANTO MÁS RÁPIDO, MEJOR' },
+  comoPassoRankingSub: {
+    pt: 'Acertou? Seu tempo disputa o pódio dos maiores campeões.',
+    en: 'Got it right? Your time goes for the champions podium.',
+    es: '¿Acertaste? Tu tiempo compite por el podio de campeones.',
+  },
+
   /* ------------------------------------------------- a pergunta do milhão -- */
 
   perguntaDoMilhao: { pt: 'PERGUNTA DO MILHÃO', en: 'THE MILLION QUESTION', es: 'LA PREGUNTA DEL MILLÓN' },
-  valendoBrinde: { pt: 'VALENDO BRINDE', en: 'FOR A PRIZE', es: 'POR UN PREMIO' },
-  brinde: { pt: 'BRINDE', en: 'PRIZE', es: 'PREMIO' },
   ganhouOBrinde: { pt: 'GANHOU O BRINDE!', en: 'YOU WON THE PRIZE!', es: '¡GANASTE EL PREMIO!' },
   voltarAoJogo: { pt: 'VOLTAR AO JOGO', en: 'BACK TO THE GAME', es: 'VOLVER AL JUEGO' },
   semAjudasNoMilhao: {
@@ -196,7 +218,7 @@ export function T(chave) {
 }
 
 /**
- * `Tf('valeLugar', { p: 2, s: '3,2 s' })` — o texto com as lacunas `{x}`
+ * `Tf('aCertaEra', { n: 3 })` — o texto com as lacunas `{x}`
  * preenchidas. As lacunas ficam no texto, e não em concatenação no ponto de
  * uso, porque cada idioma põe o número num lugar diferente da frase.
  */

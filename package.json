@@ -1,6 +1,6 @@
 {
   "name": "tecgame-web",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "private": true,
   "description": "TecGame - porte HTML/CSS/JS do projeto FlutterFlow tec_game",
   "type": "module",
@@ -27,7 +27,11 @@
     "verify:login": "node scripts/verify/login.mjs",
     "verify:inatividade": "node scripts/verify/inatividade.mjs",
     "verify:sizes": "node scripts/verify/sizes.mjs",
-    "verify:pergunta": "node scripts/verify/pergunta.mjs"
+    "verify:pergunta": "node scripts/verify/pergunta.mjs",
+    "verify:equipamento": "node scripts/verify/equipamento.mjs",
+    "verify:instrucoes": "node scripts/verify/instrucoes.mjs",
+    "desempenho:partidas": "node scripts/desempenho/partidas.mjs",
+    "desempenho:armazenamento": "node scripts/desempenho/armazenamento.mjs"
   },
   "devDependencies": {
     "http-server": "^14.1.1",

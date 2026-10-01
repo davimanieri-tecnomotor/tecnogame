@@ -32,6 +32,7 @@ import { FFAppState } from '../state.js';
 import { getRecords } from '../storage.js';
 import { goNamed } from '../router.js';
 import { milhaoAutomatico } from '../pages/milhao.js';
+import { definirPularVideoDoEquipamento, pulaVideoDoEquipamento } from '../pages/tela_video_scanner.js';
 import { rotuloDaPergunta } from '../deck.js';
 import {
   BARALHO_ORIGINAL,
@@ -644,6 +645,7 @@ function alternarAberto(i) {
  * para ESTE navegador, na hora, sem Salvar.
  *
  *   - o estilo da tela da pergunta (clássico ou palco — ver palco.js);
+ *   - pular o vídeo demonstrativo do equipamento (ver tela_video_scanner.js);
  *   - o volume do som, porque a feira barulhenta e o auditório silencioso
  *     pedem volumes diferentes, e ele era cravado no código;
  *   - a Pergunta do Milhão do dia: chamar o mais rápido de volta ao totem
@@ -662,6 +664,21 @@ function naFeira() {
       aviso(`A próxima pergunta já sai no estilo ${v === 'palco' ? 'Palco' : 'Clássico'}.`);
     },
   });
+
+  const campoPularVideo = el('div', { class: 'campo', 'data-campo': 'pular-video' }, [
+    caixaDeMarcar({
+      rotulo: 'Pular o vídeo demonstrativo do equipamento',
+      marcado: pulaVideoDoEquipamento(),
+      onChange: (v) => {
+        definirPularVideoDoEquipamento(v);
+        aviso(v ? 'A partir da próxima partida, o jogo vai do equipamento direto para a pergunta.' : 'O vídeo do equipamento volta a passar antes da pergunta.');
+      },
+    }),
+    el('span', {
+      class: 'campo-dica',
+      text: 'Tira os 14 segundos entre a escolha do equipamento e a pergunta. O Rasther 4 não tem vídeo e sempre vai direto.',
+    }),
+  ]);
 
   const faixa = el('input', { type: 'range', min: '0', max: '100', step: '5', class: 'volume-faixa', 'aria-label': 'Volume do som do jogo' });
   faixa.value = String(Math.round(volumeAtual() * 100));
@@ -710,6 +727,7 @@ function naFeira() {
     el('h3', { text: 'Na feira' }),
     el('p', { class: 'nota', text: 'Vale só para este navegador, na hora — não precisa Salvar.' }),
     campoEstilo,
+    campoPularVideo,
     el('div', { class: 'campo' }, [
       el('span', { class: 'campo-rotulo', text: 'Volume do som' }),
       el('div', { class: 'volume-linha' }, [faixa, valor, botao('Testar', { onClick: () => Som.fanfarra(0), titulo: 'Toca a fanfarra do acerto no volume escolhido' })]),

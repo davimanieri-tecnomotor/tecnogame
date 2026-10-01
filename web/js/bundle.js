@@ -2584,14 +2584,11 @@
   
       /**
        * O que a partida terminou decidindo, para a tela de fim poder contar.
+       * Fica `null` fora de uma partida. Ver `registrar` em pages/tela_acao.js:
+       * `{ acertou, tempo, esgotou, perguntaId, video, dica, milhao }`.
        *
-       * O jogo julgava e ia embora sem nunca dizer qual era a resposta certa —
-       * num jogo feito para ensinar técnico a usar scanner, era justamente o
-       * pedaço que faltava. Fica `null` fora de uma partida.
-       *
-       * `{ acertou, numeroCerto, textoCerto, numeroEscolhido, textoEscolhido }`,
-       * onde os números são os que o jogador vê na tela (1 a 4), e não os índices
-       * embaralhados de `ordemNumeros`.
+       * A resposta certa é dita na própria pergunta, na lição de quem errou; a
+       * tela de fim parou de repeti-la na 3.1, e o registro parou de levá-la.
        */
       this.resultado = null;
   
@@ -2754,100 +2751,6 @@
   const FFAppState = new FFAppStateClass();
   Object.defineProperty(__exports, "CadastroStruct", { get: () => CadastroStruct, enumerable: true });
   Object.defineProperty(__exports, "FFAppState", { get: () => FFAppState, enumerable: true });
-  });
-
-  /* ===== dialog.js ===== */
-  __define("dialog.js", function (__exports, __require) {
-  // showDialog / Navigator.pop, matching the Dart call sites:
-  //
-  //   await showDialog(
-  //     context: context,
-  //     barrierColor: ...,            // optional
-  //     builder: (dialogContext) => Dialog(
-  //       elevation: 0,
-  //       insetPadding: EdgeInsets.zero,
-  //       backgroundColor: Colors.transparent,
-  //       alignment: AlignmentDirectional(0.0, 0.0),
-  //       child: <widget>,
-  //     ),
-  //   );
-  //
-  // The await resolves when the dialog is popped, so the code that follows a
-  // `showDialog` in the Dart runs at the same moment here.
-  
-  const { el, unfocus } = __require("widgets.js");
-  
-  const stack = [];
-  
-  /**
-   * @param {object}   options
-   * @param {Function} options.builder  returns the dialog content node
-   * @param {string}   [options.barrierColor]
-   * @param {boolean}  [options.barrierDismissible] Flutter's default is true
-   * @returns {Promise<any>} the value passed to `Navigator.pop(context, value)`
-   */
-  function showDialog({ builder, barrierColor = null, barrierDismissible = true } = {}) {
-    const overlays = document.getElementById('overlays');
-  
-    return new Promise((resolve) => {
-      const barrier = el('div', { class: 'ff-barrier' });
-      if (barrierColor) barrier.style.background = barrierColor;
-  
-      const entry = { barrier, resolve, closed: false };
-  
-      const dialog = el('div', { class: 'ff-dialog' }, builder(entry));
-      barrier.appendChild(dialog);
-  
-      if (barrierDismissible) {
-        barrier.addEventListener('click', (event) => {
-          if (event.target === barrier) pop(undefined, entry);
-        });
-      }
-  
-      stack.push(entry);
-      overlays.appendChild(barrier);
-      unfocus();
-    });
-  }
-  
-  /** `Navigator.pop(context)` - closes the topmost dialog. */
-  function pop(result, entry = stack[stack.length - 1]) {
-    if (!entry || entry.closed) return;
-    entry.closed = true;
-    const index = stack.indexOf(entry);
-    if (index >= 0) stack.splice(index, 1);
-  
-    entry.barrier.classList.add('ff-closing');
-    let settled = false;
-    const done = () => {
-      if (settled) return;
-      settled = true;
-      entry.barrier.remove();
-      entry.resolve(result);
-    };
-  
-    // Only the barrier's and the dialog's own exit animations matter. Waiting on
-    // the whole subtree would hang on the looping "pulse" animations that some
-    // dialog contents run forever.
-    const closing = [entry.barrier, ...entry.barrier.children]
-      .flatMap((node) => node.getAnimations())
-      .filter((animation) => animation.effect?.getTiming().iterations !== Infinity);
-  
-    if (closing.length) {
-      Promise.all(closing.map((animation) => animation.finished.catch(() => {}))).then(done);
-      // Belt and braces: never let a stalled animation strand the caller.
-      setTimeout(done, 400);
-    } else {
-      setTimeout(done, 75);
-    }
-  }
-  
-  function popAllDialogs() {
-    while (stack.length) pop(undefined, stack[stack.length - 1]);
-  }
-  Object.defineProperty(__exports, "showDialog", { get: () => showDialog, enumerable: true });
-  Object.defineProperty(__exports, "pop", { get: () => pop, enumerable: true });
-  Object.defineProperty(__exports, "popAllDialogs", { get: () => popAllDialogs, enumerable: true });
   });
 
   /* ===== anim.js ===== */
@@ -3098,6 +3001,23 @@
   const delayed = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
   
   /**
+   * Cancela toda animação Web de `no` e dos filhos. Chamar ANTES de tirar uma
+   * tela (ou um diálogo) do documento.
+   *
+   * Animação feita com `element.animate()` não morre quando o elemento sai da
+   * página: a linha do tempo do documento a segura enquanto ela "toca" — e uma
+   * em laço (`loop: true`, acima) toca para sempre. Ela segura o elemento, o
+   * elemento segura a tela inteira, e a tela segura os ouvintes e o modelo dela.
+   * Foi assim que o cadastro (o selo e o CONFIRMAR pulsando) ficava inteiro na
+   * memória a cada partida: ~115 nós e 31 ouvintes por partida, medidos com
+   * scripts/desempenho/partidas.mjs. Animação de CSS não tem esse problema — o
+   * navegador a encerra junto com o elemento.
+   */
+  function encerrarAnimacoes(no) {
+    for (const animacao of no?.getAnimations?.({ subtree: true }) ?? []) animacao.cancel();
+  }
+  
+  /**
    * A entrada das peças da 3.0 — fora do motor do flutter_animate de propósito.
    *
    * `fill: 'backwards'`: o quadro 0 vale só durante o atraso e, quando a
@@ -3129,7 +3049,106 @@
   Object.defineProperty(__exports, "animateOnPageLoad", { get: () => animateOnPageLoad, enumerable: true });
   Object.defineProperty(__exports, "animateOnActionTrigger", { get: () => animateOnActionTrigger, enumerable: true });
   Object.defineProperty(__exports, "delayed", { get: () => delayed, enumerable: true });
+  Object.defineProperty(__exports, "encerrarAnimacoes", { get: () => encerrarAnimacoes, enumerable: true });
   Object.defineProperty(__exports, "entrar", { get: () => entrar, enumerable: true });
+  });
+
+  /* ===== dialog.js ===== */
+  __define("dialog.js", function (__exports, __require) {
+  // showDialog / Navigator.pop, matching the Dart call sites:
+  //
+  //   await showDialog(
+  //     context: context,
+  //     barrierColor: ...,            // optional
+  //     builder: (dialogContext) => Dialog(
+  //       elevation: 0,
+  //       insetPadding: EdgeInsets.zero,
+  //       backgroundColor: Colors.transparent,
+  //       alignment: AlignmentDirectional(0.0, 0.0),
+  //       child: <widget>,
+  //     ),
+  //   );
+  //
+  // The await resolves when the dialog is popped, so the code that follows a
+  // `showDialog` in the Dart runs at the same moment here.
+  
+  const { el, unfocus } = __require("widgets.js");
+  const { encerrarAnimacoes } = __require("anim.js");
+  
+  const stack = [];
+  
+  /**
+   * @param {object}   options
+   * @param {Function} options.builder  returns the dialog content node
+   * @param {string}   [options.barrierColor]
+   * @param {boolean}  [options.barrierDismissible] Flutter's default is true
+   * @returns {Promise<any>} the value passed to `Navigator.pop(context, value)`
+   */
+  function showDialog({ builder, barrierColor = null, barrierDismissible = true } = {}) {
+    const overlays = document.getElementById('overlays');
+  
+    return new Promise((resolve) => {
+      const barrier = el('div', { class: 'ff-barrier' });
+      if (barrierColor) barrier.style.background = barrierColor;
+  
+      const entry = { barrier, resolve, closed: false };
+  
+      const dialog = el('div', { class: 'ff-dialog' }, builder(entry));
+      barrier.appendChild(dialog);
+  
+      if (barrierDismissible) {
+        barrier.addEventListener('click', (event) => {
+          if (event.target === barrier) pop(undefined, entry);
+        });
+      }
+  
+      stack.push(entry);
+      overlays.appendChild(barrier);
+      unfocus();
+    });
+  }
+  
+  /** `Navigator.pop(context)` - closes the topmost dialog. */
+  function pop(result, entry = stack[stack.length - 1]) {
+    if (!entry || entry.closed) return;
+    entry.closed = true;
+    const index = stack.indexOf(entry);
+    if (index >= 0) stack.splice(index, 1);
+  
+    entry.barrier.classList.add('ff-closing');
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      // Um laço no conteúdo prenderia o diálogo inteiro na memória (ver
+      // `encerrarAnimacoes` em anim.js).
+      encerrarAnimacoes(entry.barrier);
+      entry.barrier.remove();
+      entry.resolve(result);
+    };
+  
+    // Only the barrier's and the dialog's own exit animations matter. Waiting on
+    // the whole subtree would hang on the looping "pulse" animations that some
+    // dialog contents run forever.
+    const closing = [entry.barrier, ...entry.barrier.children]
+      .flatMap((node) => node.getAnimations())
+      .filter((animation) => animation.effect?.getTiming().iterations !== Infinity);
+  
+    if (closing.length) {
+      Promise.all(closing.map((animation) => animation.finished.catch(() => {}))).then(done);
+      // Belt and braces: never let a stalled animation strand the caller.
+      setTimeout(done, 400);
+    } else {
+      setTimeout(done, 75);
+    }
+  }
+  
+  function popAllDialogs() {
+    while (stack.length) pop(undefined, stack[stack.length - 1]);
+  }
+  Object.defineProperty(__exports, "showDialog", { get: () => showDialog, enumerable: true });
+  Object.defineProperty(__exports, "pop", { get: () => pop, enumerable: true });
+  Object.defineProperty(__exports, "popAllDialogs", { get: () => popAllDialogs, enumerable: true });
   });
 
   /* ===== palco.js ===== */
@@ -4540,7 +4559,7 @@
   
   const { popAllDialogs } = __require("dialog.js");
   const { unfocus } = __require("widgets.js");
-  const { menosMovimento } = __require("anim.js");
+  const { encerrarAnimacoes, menosMovimento } = __require("anim.js");
   const { lamina, repousar } = __require("palco.js");
   const { Som } = __require("som.js");
   
@@ -4651,7 +4670,12 @@
         // Por baixo da que sai: é a faixa que a revela.
         container.insertBefore(node, previous.node);
       } else {
-        if (previous) previous.node.remove();
+        // Sem cancelar as animações, a que sai fica presa na memória por um
+        // laço que não para (ver `encerrarAnimacoes`).
+        if (previous) {
+          encerrarAnimacoes(previous.node);
+          previous.node.remove();
+        }
         container.appendChild(node);
       }
   
@@ -4675,6 +4699,7 @@
         // tela nova, e um segundo toque na velha navegaria duas vezes.
         previous.node.style.pointerEvents = 'none';
         await lamina(previous.node);
+        encerrarAnimacoes(previous.node);
         previous.node.remove();
       } else if (comFade) {
         await esmaecer(node, 0, 1);
@@ -5635,8 +5660,6 @@
   
   const TEXTOS = {
     alternativa: { pt: 'Alternativa', en: 'Answer', es: 'Alternativa' },
-    respostaCerta: { pt: 'A resposta certa', en: 'The right answer', es: 'La respuesta correcta' },
-    voceRespondeu: { pt: 'Você respondeu', en: 'You answered', es: 'Respondiste' },
   
     /* ------------------------------------------- correções de translations.js -- */
   
@@ -5693,17 +5716,6 @@
     problemaDoCliente: { pt: 'problema do cliente', en: "customer's complaint", es: 'problema del cliente' },
     voceEstaUsando: { pt: 'VOCÊ ESTÁ USANDO', en: 'YOU ARE USING', es: 'ESTÁS USANDO' },
     segundos: { pt: 'SEGUNDOS', en: 'SECONDS', es: 'SEGUNDOS' },
-    errar: { pt: 'ERRAR', en: 'MISS', es: 'FALLAR' },
-    recorde: { pt: 'RECORDE', en: 'RECORD', es: 'RÉCORD' },
-    acertarAgora: { pt: 'ACERTAR AGORA', en: 'HIT IT NOW', es: 'ACERTAR AHORA' },
-    fora: { pt: 'FORA', en: 'OUT', es: 'FUERA' },
-    valeLugar: {
-      pt: 'vale o {p}º lugar por mais {s}',
-      en: 'worth #{p} for {s} more',
-      es: 'vale el {p}º lugar por {s} más',
-    },
-    aindaEntra: { pt: 'ainda entra no ranking', en: 'still makes the ranking', es: 'todavía entra en el ranking' },
-    sejaOPrimeiro: { pt: 'o 1º lugar é de quem acertar', en: 'first place goes to whoever gets it', es: 'el 1º lugar es de quien acierte' },
   
     /* ---------------------------------------------------------- as ajudas -- */
   
@@ -5780,11 +5792,46 @@
       es: 'Este equipo no hace esta función. Elige otro.',
     },
   
+    /* ---------------------------------------------- como funciona (3.1) -- */
+  
+    comoFunciona: { pt: 'COMO FUNCIONA O JOGO', en: 'HOW THE GAME WORKS', es: 'CÓMO FUNCIONA EL JUEGO' },
+    comoCaminhoRoleta: { pt: 'GIRE A ROLETA', en: 'SPIN THE WHEEL', es: 'GIRA LA RULETA' },
+    comoCaminhoEquipamento: { pt: 'ESCOLHA O EQUIPAMENTO', en: 'PICK THE SCAN TOOL', es: 'ELIGE EL EQUIPO' },
+    comoCaminhoDefeito: { pt: 'RESOLVA O DEFEITO', en: 'FIX THE FAULT', es: 'RESUELVE LA FALLA' },
+    comoPassoDefeito: { pt: 'LEIA O DEFEITO', en: 'READ THE FAULT', es: 'LEE LA FALLA' },
+    comoPassoDefeitoSub: {
+      pt: 'Um veículo chegou com um problema para você resolver.',
+      en: 'A vehicle came in with a problem for you to solve.',
+      es: 'Llegó un vehículo con un problema para que lo resuelvas.',
+    },
+    comoPassoResposta: { pt: 'TOQUE NA CERTA', en: 'TAP THE RIGHT ONE', es: 'TOCA LA CORRECTA' },
+    comoPassoRespostaSub: {
+      pt: 'São 4 alternativas, e só uma resolve. Toque e confirme.',
+      en: 'Four answers, and only one fixes it. Tap it and confirm.',
+      es: 'Son 4 alternativas, y solo una lo resuelve. Toca y confirma.',
+    },
+    comoPassoAjudas: { pt: 'ATÉ 2 AJUDAS', en: 'UP TO 2 LIFELINES', es: 'HASTA 2 AYUDAS' },
+    comoPassoAjudasSub: {
+      pt: 'Apoio técnico, cursos, TecnomotorTV, comunidade e mais.',
+      en: 'Tech support, courses, TecnomotorTV, community and more.',
+      es: 'Soporte técnico, cursos, TecnomotorTV, comunidad y más.',
+    },
+    comoPassoTempo: { pt: '60 SEGUNDOS', en: '60 SECONDS', es: '60 SEGUNDOS' },
+    comoPassoTempoSub: {
+      pt: 'O cronômetro só começa quando você diz PODE! Se zerar, estoura.',
+      en: 'The clock only starts when you say GO! If it hits zero, it blows.',
+      es: 'El cronómetro empieza cuando dices ¡ADELANTE! Si llega a cero, explota.',
+    },
+    comoPassoRanking: { pt: 'QUANTO MAIS RÁPIDO, MELHOR', en: 'THE FASTER, THE BETTER', es: 'CUANTO MÁS RÁPIDO, MEJOR' },
+    comoPassoRankingSub: {
+      pt: 'Acertou? Seu tempo disputa o pódio dos maiores campeões.',
+      en: 'Got it right? Your time goes for the champions podium.',
+      es: '¿Acertaste? Tu tiempo compite por el podio de campeones.',
+    },
+  
     /* ------------------------------------------------- a pergunta do milhão -- */
   
     perguntaDoMilhao: { pt: 'PERGUNTA DO MILHÃO', en: 'THE MILLION QUESTION', es: 'LA PREGUNTA DEL MILLÓN' },
-    valendoBrinde: { pt: 'VALENDO BRINDE', en: 'FOR A PRIZE', es: 'POR UN PREMIO' },
-    brinde: { pt: 'BRINDE', en: 'PRIZE', es: 'PREMIO' },
     ganhouOBrinde: { pt: 'GANHOU O BRINDE!', en: 'YOU WON THE PRIZE!', es: '¡GANASTE EL PREMIO!' },
     voltarAoJogo: { pt: 'VOLTAR AO JOGO', en: 'BACK TO THE GAME', es: 'VOLVER AL JUEGO' },
     semAjudasNoMilhao: {
@@ -5802,7 +5849,7 @@
   }
   
   /**
-   * `Tf('valeLugar', { p: 2, s: '3,2 s' })` — o texto com as lacunas `{x}`
+   * `Tf('aCertaEra', { n: 3 })` — o texto com as lacunas `{x}`
    * preenchidas. As lacunas ficam no texto, e não em concatenação no ponto de
    * uso, porque cada idioma põe o número num lugar diferente da frase.
    */
@@ -5811,281 +5858,6 @@
   }
   Object.defineProperty(__exports, "T", { get: () => T, enumerable: true });
   Object.defineProperty(__exports, "Tf", { get: () => Tf, enumerable: true });
-  });
-
-  /* ===== components/losango.js ===== */
-  __define("components/losango.js", function (__exports, __require) {
-  // A caixa da pergunta, das alternativas e dos painéis do apresentador.
-  //
-  // Dois desenhos, uma peça só:
-  //
-  //   - com `ponta`, o losango do Milionário — um hexágono alongado, de pontas
-  //     laterais (estilo "palco");
-  //   - com `ponta` 0, a caixa de cantos redondos do Show do Milhão de 2000, de
-  //     raio `raio` (estilo "clássico").
-  //
-  // Em SVG, e em CAMADAS, porque cada estado mora numa camada só dele:
-  //
-  //   l-base     a cor de sempre
-  //   l-estado   a cor de travada (ouro no palco, laranja no clássico) ou a da errada
-  //   l-verde    o verde da certa, POR CIMA da de travada
-  //   l-reflexo  o brilho de vidro na metade de cima
-  //   l-borda    o contorno
-  //   l-risco    a luz que corre pela borda
-  //
-  // O verde numa camada própria é o que deixa a revelação ALTERNAR travada ↔
-  // verde, como no programa, animando só a opacidade dela — `fill` não se anima,
-  // e trocar a cor por classe a cada 200ms seria piscar por JavaScript.
-  //
-  // Os gradientes vivem num `<svg>` escondido, criado uma vez (`url(#lz-...)`
-  // casa com o primeiro do documento).
-  
-  const { menosMovimento } = __require("anim.js");
-  
-  const NS = 'http://www.w3.org/2000/svg';
-  
-  /** [id, topo, meio, base] — tons de cima para baixo. */
-  const GRADIENTES = [
-    ['lz-base', '#15408f', '#0a2463', '#050f33'],
-    ['lz-ouro', '#FFEFB0', '#FFC21A', '#E07B00'],
-    ['lz-verde', '#8DFFC4', '#1FD37A', '#0B7F45'],
-    ['lz-vermelho', '#FFA59F', '#FF3B30', '#9E0F0A'],
-    // Estilo clássico: tons amostrados do Show do Milhão de 30/03/2000 (pergunta
-    // #BA1C01, alternativa #912100), com margem de ±10% por serem de vídeo
-    // comprimido.
-    ['lz-perg-cl', '#e2380f', '#BA1C01', '#7a1100'],
-    ['lz-opcao-cl', '#b83208', '#912100', '#591300'],
-    ['lz-trava-cl', '#ff6a2b', '#e03a06', '#a51f00'],
-    // A Pergunta do Milhão: ouro escuro, para o palco inteiro dizer "especial".
-    ['lz-milhao', '#8a6400', '#5c3f00', '#2e1f00'],
-  ];
-  
-  /** Cria, uma vez, as definições que as caixas referenciam por `url(#...)`. */
-  function garantirGradientes() {
-    if (document.getElementById('lz-defs')) return;
-    const svg = document.createElementNS(NS, 'svg');
-    svg.setAttribute('id', 'lz-defs');
-    svg.setAttribute('width', '0');
-    svg.setAttribute('height', '0');
-    svg.setAttribute('aria-hidden', 'true');
-    svg.style.position = 'absolute';
-    const lineares = GRADIENTES.map(
-      ([id, a, b, c]) =>
-        `<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${a}"/><stop offset=".5" stop-color="${b}"/><stop offset="1" stop-color="${c}"/></linearGradient>`
-    ).join('');
-    svg.innerHTML =
-      `<defs>${lineares}` +
-      '<linearGradient id="lz-reflexo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".26"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>' +
-      '<linearGradient id="lz-cromo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f7fb"/><stop offset=".48" stop-color="#8f9bb0"/><stop offset=".53" stop-color="#e9eef6"/><stop offset="1" stop-color="#5b667a"/></linearGradient>' +
-      '<radialGradient id="lz-face" cx=".5" cy=".42" r=".62"><stop offset="0" stop-color="#11275a"/><stop offset=".7" stop-color="#050c22"/><stop offset="1" stop-color="#02060f"/></radialGradient>' +
-      '<linearGradient id="lz-agulha" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ffb35c"/><stop offset="1" stop-color="#ff2d12"/></linearGradient>' +
-      '</defs>';
-    document.body.appendChild(svg);
-  }
-  
-  const hexagono = (w, h, d, o = 0) =>
-    `M${o + d} ${o}L${o + w - d} ${o}L${o + w} ${o + h / 2}L${o + w - d} ${o + h}L${o + d} ${o + h}L${o} ${o + h / 2}Z`;
-  
-  const caixa = (w, h, r, o = 0) =>
-    `M${o + r} ${o}H${o + w - r}A${r} ${r} 0 0 1 ${o + w} ${o + r}V${o + h - r}A${r} ${r} 0 0 1 ${o + w - r} ${o + h}` +
-    `H${o + r}A${r} ${r} 0 0 1 ${o} ${o + h - r}V${o + r}A${r} ${r} 0 0 1 ${o + r} ${o}Z`;
-  
-  /**
-   * Uma caixa em SVG, do tamanho pedido.
-   *
-   * @param {object} medidas
-   * @param {number} medidas.largura
-   * @param {number} medidas.altura
-   * @param {number} [medidas.ponta] o recuo das pontas laterais; 0 = caixa redonda
-   * @param {number} [medidas.raio] o raio dos cantos, quando `ponta` é 0
-   * @param {string} [medidas.classe]
-   */
-  function Losango({ largura: w, altura: h, ponta: d = 0, raio = 0, classe = '' }) {
-    garantirGradientes();
-    const redonda = d === 0;
-    const base = redonda ? caixa(w, h, raio) : hexagono(w, h, d);
-    const borda = redonda ? caixa(w - 4, h - 4, Math.max(0, raio - 2), 2) : hexagono(w - 4, h - 4, d - 1.2, 2);
-    const reflexo = redonda
-      ? `M${raio} 0H${w - raio}A${raio} ${raio} 0 0 1 ${w} ${raio}V${h / 2}H0V${raio}A${raio} ${raio} 0 0 1 ${raio} 0Z`
-      : `M${d} 0L${w - d} 0L${w} ${h / 2}L0 ${h / 2}Z`;
-    const svg = document.createElementNS(NS, 'svg');
-    svg.setAttribute('class', `lz ${classe}`.trim());
-    svg.setAttribute('width', String(w));
-    svg.setAttribute('height', String(h));
-    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-    svg.setAttribute('aria-hidden', 'true');
-    // Os caminhos são números calculados aqui, nunca texto do baralho: o
-    // innerHTML não carrega nada que alguém de fora escreva.
-    svg.innerHTML =
-      `<path class="l-base" d="${base}"/><path class="l-estado" d="${base}"/><path class="l-verde" d="${base}"/>` +
-      `<path class="l-reflexo" d="${reflexo}"/><path class="l-borda" d="${borda}"/>` +
-      `<path class="l-risco" d="${borda}" pathLength="100"/>`;
-    return svg;
-  }
-  
-  /**
-   * A luz que corre pela borda, uma volta: é o "ding" visual de cada peça que
-   * entra, e o brilho ocioso que lembra o jogador de que a tela está viva.
-   */
-  function correrBorda(svg, { ms = 700, delay = 0 } = {}) {
-    const risco = svg?.querySelector?.('.l-risco');
-    if (!risco || menosMovimento()) return;
-    risco.animate(
-      [
-        { strokeDashoffset: 0, opacity: 0 },
-        { opacity: 1, offset: 0.1 },
-        { opacity: 1, offset: 0.8 },
-        { strokeDashoffset: -100, opacity: 0 },
-      ],
-      { duration: ms, delay, easing: 'cubic-bezier(.4,0,.2,1)' }
-    );
-  }
-  Object.defineProperty(__exports, "garantirGradientes", { get: () => garantirGradientes, enumerable: true });
-  Object.defineProperty(__exports, "Losango", { get: () => Losango, enumerable: true });
-  Object.defineProperty(__exports, "correrBorda", { get: () => correrBorda, enumerable: true });
-  });
-
-  /* ===== locutor.js ===== */
-  __define("locutor.js", function (__exports, __require) {
-  // O apresentador: as frases que entram grandes na tela e os painéis em que ele
-  // pergunta alguma coisa ao jogador.
-  //
-  // Programa de auditório é ritmo — "Posso perguntar?", "Valendo!", "Está certo
-  // disso?", "Certa resposta!". Cada frase é uma batida do roteiro, e é por elas
-  // que o jogador sabe em que ponto está sem precisar ler instrução nenhuma.
-  // São bordões do gênero; nada aqui imita a voz ou o jeito de ninguém.
-  //
-  // Tudo entra numa camada que a tela dá (`camada`), e morre com ela.
-  
-  const { el, fonte } = __require("widgets.js");
-  const { entrar, menosMovimento } = __require("anim.js");
-  const { Losango, correrBorda } = __require("components/losango.js");
-  
-  /**
-   * A frase do apresentador, grande, entrando como pancada: vem de 1,9x com
-   * desfoque, passa um pouco do tamanho e assenta — 420ms. Um brilho atravessa a
-   * palavra depois de ela assentar.
-   *
-   * Por trás, uma faixa escura: por cima do palco cheio (carro, fichas, relógio)
-   * o ouro sozinho se perdia.
-   *
-   * @param {HTMLElement} camada
-   * @param {string} texto
-   * @param {object} [opcoes]
-   * @param {string} [opcoes.cor] '' (ouro), 'vermelho' ou 'branco'
-   * @param {number} [opcoes.y] a altura da linha, em px do palco
-   * @param {number} [opcoes.tam] o tamanho da letra
-   * @param {number} [opcoes.segura] quanto tempo fica depois de assentar
-   * @param {boolean} [opcoes.fica] não sai sozinha: devolve o nó para quem chamou
-   * @param {string} [opcoes.chave] vai para `data-grito`, o gancho dos testes
-   * @param {object} roteiro o roteiro da tela (roteiro.js): sai dela, a frase para
-   * @returns {Promise<HTMLElement|null>}
-   */
-  async function grito(camada, texto, opcoes = {}, roteiro) {
-    const { cor = '', y = 262, tam = 150, segura = 520, fica = false, chave = null } = opcoes;
-    const palavra = el('span', { text: texto, 'data-t': texto });
-    const no = el(
-      'div',
-      { class: ['aud-grito', cor ? `aud-grito--${cor}` : null], dataGrito: chave, style: { top: `${y}px`, fontSize: fonte(tam) } },
-      palavra
-    );
-    camada.appendChild(no);
-    entrar(
-      no,
-      [
-        { transform: 'scale(1.9)', opacity: 0, filter: 'blur(14px)' },
-        { transform: 'scale(.96)', opacity: 1, filter: 'blur(0)', offset: 0.6 },
-        { transform: 'none', opacity: 1, filter: 'blur(0)' },
-      ],
-      { duration: 420, easing: 'cubic-bezier(.2,.8,.3,1)' }
-    );
-    await roteiro.pausa(420 + segura);
-    if (fica) return no;
-    await no
-      .animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.86) translateY(-24px)' }], {
-        duration: 260,
-        easing: 'ease-in',
-        fill: 'forwards',
-      })
-      .finished.catch(() => {});
-    no.remove();
-    return null;
-  }
-  
-  /** Os raios dourados girando atrás do grito do acerto. */
-  function raios(camada, { x = 960, y = 300 } = {}) {
-    const no = el('div', { class: 'aud-raios', style: { left: `${x}px`, top: `${y}px` } });
-    camada.appendChild(no);
-    entrar(no, [{ opacity: 0, scale: '.6' }, { opacity: 1, scale: '1' }], { duration: 700, easing: 'ease-out' });
-    return no;
-  }
-  
-  /**
-   * Um painel do apresentador: a caixa do estilo em vigor, com o conteúdo no meio.
-   * Entra abrindo na horizontal a partir de uma faixa, e uma luz corre a borda.
-   *
-   * @param {HTMLElement} camada
-   * @param {object} medidas
-   * @param {number} medidas.x o centro do painel, em px do palco
-   * @param {number} medidas.y o topo
-   * @param {number} medidas.largura
-   * @param {number} medidas.altura
-   * @param {number} [medidas.ponta] 0 = caixa redonda (clássico)
-   * @param {number} [medidas.raio]
-   * @param {Array<Node>} medidas.conteudo
-   * @param {string} [medidas.classe]
-   * @param {string} [medidas.chave] vai para `data-painel`
-   * @returns {{no: HTMLElement, fechar: Function}}
-   */
-  function painel(camada, { x, y, largura, altura, ponta = 0, raio = 30, conteudo, classe = '', chave = null }) {
-    const no = el(
-      'div',
-      {
-        class: ['aud-painel', classe || null],
-        dataPainel: chave,
-        role: 'dialog',
-        style: { left: `${x - largura / 2}px`, top: `${y}px`, width: `${largura}px`, height: `${altura}px` },
-      },
-      [Losango({ largura, altura, ponta, raio }), el('div', { class: 'aud-painel-conteudo' }, conteudo)]
-    );
-    camada.appendChild(no);
-    entrar(
-      no,
-      [
-        { transform: 'scaleX(.15) scaleY(.6)', opacity: 0 },
-        { transform: 'scaleX(1.02) scaleY(1)', opacity: 1, offset: 0.7 },
-        { transform: 'none', opacity: 1 },
-      ],
-      { duration: 440, easing: 'cubic-bezier(.2,.9,.25,1)' }
-    );
-    correrBorda(no.querySelector('.lz'), { ms: 1000, delay: 250 });
-  
-    let fechado = false;
-    return {
-      no,
-      fechar() {
-        if (fechado) return;
-        fechado = true;
-        // Sai do caminho do toque na hora: um segundo toque no botão de um
-        // painel que está sumindo não pode valer.
-        no.style.pointerEvents = 'none';
-        const sair = menosMovimento()
-          ? no.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, fill: 'forwards' })
-          : no.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(1.06)' }], {
-              duration: 200,
-              easing: 'ease-in',
-              fill: 'forwards',
-            });
-        sair.finished.then(
-          () => no.remove(),
-          () => no.remove()
-        );
-      },
-    };
-  }
-  Object.defineProperty(__exports, "grito", { get: () => grito, enumerable: true });
-  Object.defineProperty(__exports, "raios", { get: () => raios, enumerable: true });
-  Object.defineProperty(__exports, "painel", { get: () => painel, enumerable: true });
   });
 
   /* ===== roteiro.js ===== */
@@ -6828,22 +6600,22 @@
 
   /* ===== estatisticas.js ===== */
   __define("estatisticas.js", function (__exports, __require) {
-  // Os números que o jogo mostra sobre o próprio jogo: o ranking que a faixa
-  // ACERTAR AGORA precisa desde o primeiro segundo, os votos das Placas e os
-  // números do dia do modo de atração.
+  // Os números que o jogo mostra sobre o próprio jogo: o ranking do painel do
+  // resultado, os votos das Placas e os números do dia do modo de atração.
   //
-  // O RANKING É PEDIDO ANTES DA HORA. A faixa ERRAR / RECORDE / ACERTAR (ver
-  // components/aposta.js) diz em que lugar o jogador entra se acertar AGORA, e
-  // para isso precisa dos vencedores no instante em que o relógio começa. Uma
-  // consulta ao Firestore sem rede não falha — fica pendente —, então a tela da
-  // pergunta não pode ser a primeira a pedir: a roleta pede (`adiantarRanking`)
-  // enquanto a roda gira, e quando a pergunta abre o ranking já está em mãos.
-  // `queryUsuariosVencedores` já tem prazo e cai no ranking local.
+  // O RANKING É PEDIDO ANTES DA HORA. Quem acerta vê o ranking abrir espaço para
+  // ele no painel do resultado, e quem acerta rápido chega lá em poucos
+  // segundos. Uma consulta ao Firestore sem rede não falha — fica pendente —,
+  // então a tela da pergunta não pode ser a primeira a pedir: a roleta pede
+  // (`adiantarRanking`) enquanto a roda gira, e quando a pergunta abre o ranking
+  // já está em mãos. `queryUsuariosVencedores` já tem prazo e cai no ranking
+  // local. (Até a 3.0 quem precisava dele desde o primeiro segundo era a faixa
+  // ERRAR / RECORDE / ACERTAR AGORA, que saiu na 3.1.)
   
   const { queryRespostasDaPergunta, queryUsuariosVencedores } = __require("backend.js");
   const { getRecords } = __require("storage.js");
   
-  /** Quantos vencedores a faixa e o fim olham: o pódio e mais dois. */
+  /** Quantos vencedores o resultado e o fim olham: o pódio e mais dois. */
   const TOPO_DO_RANKING = 5;
   
   /**
@@ -8456,6 +8228,144 @@
   Object.defineProperty(__exports, "noPalco", { get: () => noPalco, enumerable: true });
   });
 
+  /* ===== pages/tela_video_scanner.js ===== */
+  __define("pages/tela_video_scanner.js", function (__exports, __require) {
+  // Port of lib/pages/tela_video_scanner/tela_video_scanner_widget.dart
+  //
+  // A 14s demo clip of the chosen scanner, then straight into the action screen.
+  // The clips are the same public Firebase Storage URLs the Dart used.
+  
+  const { Column, Container, Padding, Stack, StackAlign, Txt, VideoPlayer, color, decorationImage, el } = __require("widgets.js");
+  const { TH, style } = __require("theme.js");
+  const { L } = __require("i18n.js");
+  const { FFAppState } = __require("state.js");
+  const { CONFIG } = __require("config.js");
+  const { goNamed } = __require("router.js");
+  const { readRaw, writeRaw } = __require("storage.js");
+  const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnPageLoad, delayed } = __require("anim.js");
+  
+  const BASE = 'https://firebasestorage.googleapis.com/v0/b/projeto-assis-3qcf6v.appspot.com/o/videoScanners';
+  
+  const VIDEOS = {
+    Td80: `${BASE}%2FTD80.mp4?alt=media&token=65d0550d-7aa6-4cc1-beec-806b1db9b034`,
+    Td90: `${BASE}%2FTD90.mp4?alt=media&token=618b753c-dfe1-44b4-a38c-c51f6b43aaa9`,
+    'Rasther 3': `${BASE}%2F3S%20(1).mp4?alt=media&token=2223d09b-e65f-4e71-80d2-44f544b47626`,
+    RB: `${BASE}%2FRasther%20BOX.mp4?alt=media&token=6a029d9f-0d8f-48bc-a18c-cb9e0865fe5f`,
+    RST: `${BASE}%2FRasther%20ST.mp4?alt=media&token=bd84db8d-674c-48c1-8fc0-00556944d16a`,
+  };
+  
+  const DEFAULT_VIDEO = VIDEOS['Rasther 3'];
+  
+  /** Optional local copies - see CONFIG.useLocalScannerVideos in config.js. */
+  const LOCAL_VIDEOS = {
+    Td80: 'assets/videos/scanners/TD80.mp4',
+    Td90: 'assets/videos/scanners/TD90.mp4',
+    'Rasther 3': 'assets/videos/scanners/3S.mp4',
+    RB: 'assets/videos/scanners/RastherBOX.mp4',
+    RST: 'assets/videos/scanners/RastherST.mp4',
+  };
+  
+  function videoFor(scannerEscolhido) {
+    if (CONFIG.useLocalScannerVideos) {
+      return LOCAL_VIDEOS[scannerEscolhido] ?? LOCAL_VIDEOS['Rasther 3'];
+    }
+    return VIDEOS[scannerEscolhido] ?? DEFAULT_VIDEO;
+  }
+  
+  /* ------------------------------------------------- pular esta tela ------- */
+  
+  /**
+   * O operador pode tirar esta tela do caminho, no painel ("Na feira"). Os
+   * clipes ainda apontam para o bucket do FlutterFlow, que responde 402 (ver
+   * `useLocalScannerVideos` em config.js): sem as cópias locais, são 14 segundos
+   * de tela escura entre o equipamento e a pergunta — e fila parada.
+   *
+   * Fica guardado neste navegador, como o estilo da pergunta: cada totem decide.
+   */
+  const CHAVE_PULAR = 'scanner.pularVideo';
+  
+  const pulaVideoDoEquipamento = () => readRaw(CHAVE_PULAR) === '1';
+  
+  const definirPularVideoDoEquipamento = (pular) => writeRaw(CHAVE_PULAR, pular ? '1' : '0');
+  
+  /**
+   * Para onde o jogo vai depois que o jogador escolhe o equipamento.
+   *
+   * O Rasther 4 entrou na 3.1 sem vídeo demonstrativo: cair no clipe padrão
+   * mostraria o 3S como se fosse ele. Sem vídeo próprio, a tela não tem o que
+   * apresentar, e o jogo segue direto para a pergunta.
+   */
+  function telaDepoisDoEquipamento(scannerEscolhido) {
+    const temVideo = scannerEscolhido in (CONFIG.useLocalScannerVideos ? LOCAL_VIDEOS : VIDEOS);
+    return pulaVideoDoEquipamento() || !temVideo ? 'telaAcao' : 'telaVideoScanner';
+  }
+  
+  function TelaVideoScannerWidget() {
+    let left = false;
+  
+    const animationsMap = {
+      textOnPageLoadAnimation: new AnimationInfo({
+        loop: true,
+        reverse: true,
+        trigger: AnimationTrigger.onPageLoad,
+        effectsBuilder: () => [
+          ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [1.0, 1.0], end: [1.02, 1.02] }),
+        ],
+      }),
+    };
+  
+    const label = Txt(
+      L('islas0rw') /* Vídeo demonstrativo * */,
+      style('bodyMedium', { fontFamily: 'pirulen', color: color(0xFFFFBC00), fontSize: 32.0 })
+    );
+    animateOnPageLoad(label, animationsMap.textOnPageLoadAnimation);
+  
+    const root = el(
+      'div',
+      { class: 'ff-scaffold', style: { background: TH.primaryBackground } },
+      Stack({
+        children: [
+          Container({
+            width: Infinity,
+            height: Infinity,
+            image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),
+            child: Column({
+              mainAxisSize: 'max',
+              children: [
+                VideoPlayer({
+                  path: videoFor(FFAppState.scannerEscolhido),
+                  autoPlay: true,
+                  looping: true,
+                  showControls: false,
+                }),
+              ],
+            }),
+          }),
+          StackAlign({
+            alignment: [-1.0, -1.0],
+            child: Padding({ padding: [32.0, 32.0, 0.0, 0.0], child: label }),
+          }),
+        ],
+      })
+    );
+  
+    delayed(14000).then(() => {
+      if (left || !root.isConnected) return;
+      goNamed('telaAcao');
+    });
+  
+    root.__dispose = () => {
+      left = true;
+    };
+  
+    return root;
+  }
+  Object.defineProperty(__exports, "pulaVideoDoEquipamento", { get: () => pulaVideoDoEquipamento, enumerable: true });
+  Object.defineProperty(__exports, "definirPularVideoDoEquipamento", { get: () => definirPularVideoDoEquipamento, enumerable: true });
+  Object.defineProperty(__exports, "telaDepoisDoEquipamento", { get: () => telaDepoisDoEquipamento, enumerable: true });
+  Object.defineProperty(__exports, "TelaVideoScannerWidget", { get: () => TelaVideoScannerWidget, enumerable: true });
+  });
+
   /* ===== components/ferramenta.js ===== */
   __define("components/ferramenta.js", function (__exports, __require) {
   // Port of lib/pages/components/ferramenta/ferramenta_widget.dart
@@ -8468,12 +8378,17 @@
   //   -----------+---------------------------+-----------+-----------------
   //   '3s'       | Rasther_3s_Claro.png      | raster3S  | 'Rasther 3'
   //   'td90'     | TD_90_Claro.png           | xtool     | 'Td90'
-  //   '4s'       | Rasther_3s_Claro.png      | rasher4   | 'Rasther 4'
+  //   '4s'       | Rasther_4_Claro.png       | rasher4   | 'Rasther 4'
   //   'rb'       | Rasther_Box_Claro.png     | raster3S  | 'RB'
   //   'td80'     | TD_90_Claro_(1).png       | xtool     | 'Td80'
   //   'rts'      | Rasther_ST_Claro.png      | rasher4   | 'RST'
   //
   // A disabled scanner is drawn at 0.2 opacity.
+  //
+  // O '4s' existia no Dart, mas nenhuma tela o mostrava, e apontava para a foto
+  // do 3S. Desde a 3.1 ele está na escolha, com o cartão próprio — montado no
+  // mesmo molde dos outros (o paralelogramo e o rótulo medidos no do Rasther BOX).
+  // Divide a marca `rasher4` com o ST: no painel é "Rasther 4 / ST".
   //
   // NA 3.0 o cartão ganhou corpo:
   //
@@ -8490,6 +8405,7 @@
   const { T } = __require("textos.js");
   const { goNamed } = __require("router.js");
   const { noPalco } = __require("particulas.js");
+  const { telaDepoisDoEquipamento } = __require("pages/tela_video_scanner.js");
   const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnActionTrigger, menosMovimento } = __require("anim.js");
   
   /**
@@ -8505,7 +8421,7 @@
   const TOOLS = {
     '3s': { image: 'assets/images/Rasther_3s_Claro.png', flag: 'raster3S', escolhido: 'Rasther 3' },
     td90: { image: 'assets/images/TD_90_Claro.png', flag: 'xtool', escolhido: 'Td90' },
-    '4s': { image: 'assets/images/Rasther_3s_Claro.png', flag: 'rasher4', escolhido: 'Rasther 4' },
+    '4s': { image: 'assets/images/Rasther_4_Claro.png', flag: 'rasher4', escolhido: 'Rasther 4' },
     rb: { image: 'assets/images/Rasther_Box_Claro.png', flag: 'raster3S', escolhido: 'RB' },
     td80: { image: 'assets/images/TD_90_Claro_(1).png', flag: 'xtool', escolhido: 'Td80' },
     rts: { image: 'assets/images/Rasther_ST_Claro.png', flag: 'rasher4', escolhido: 'RST' },
@@ -8644,7 +8560,9 @@
       FFAppState.equipamentoPulado = false;
       root.closest('.ff-page')?.classList.add('eq-escolhendo');
       await voarELigar();
-      goNamed('telaVideoScanner');
+      // O vídeo demonstrativo pode sair do caminho: pelo painel, ou porque o
+      // equipamento não tem um (ver `telaDepoisDoEquipamento`).
+      goNamed(telaDepoisDoEquipamento(tool.escolhido));
     };
   
     // A inclinação: o ponteiro sobre o cartão vira um ângulo em cada eixo.
@@ -8697,6 +8615,280 @@
   Object.defineProperty(__exports, "EQUIPAMENTO_PULADO", { get: () => EQUIPAMENTO_PULADO, enumerable: true });
   Object.defineProperty(__exports, "liberarEscolha", { get: () => liberarEscolha, enumerable: true });
   Object.defineProperty(__exports, "FerramentaWidget", { get: () => FerramentaWidget, enumerable: true });
+  });
+
+  /* ===== components/losango.js ===== */
+  __define("components/losango.js", function (__exports, __require) {
+  // A caixa da pergunta, das alternativas e dos painéis do apresentador.
+  //
+  // Dois desenhos, uma peça só:
+  //
+  //   - com `ponta`, o losango do Milionário — um hexágono alongado, de pontas
+  //     laterais (estilo "palco");
+  //   - com `ponta` 0, a caixa de cantos redondos do Show do Milhão de 2000, de
+  //     raio `raio` (estilo "clássico").
+  //
+  // Em SVG, e em CAMADAS, porque cada estado mora numa camada só dele:
+  //
+  //   l-base     a cor de sempre
+  //   l-estado   a cor de travada (ouro no palco, laranja no clássico) ou a da errada
+  //   l-verde    o verde da certa, POR CIMA da de travada
+  //   l-reflexo  o brilho de vidro na metade de cima
+  //   l-borda    o contorno
+  //   l-risco    a luz que corre pela borda
+  //
+  // O verde numa camada própria é o que deixa a revelação ALTERNAR travada ↔
+  // verde, como no programa, animando só a opacidade dela — `fill` não se anima,
+  // e trocar a cor por classe a cada 200ms seria piscar por JavaScript.
+  //
+  // Os gradientes vivem num `<svg>` escondido, criado uma vez (`url(#lz-...)`
+  // casa com o primeiro do documento).
+  
+  const { menosMovimento } = __require("anim.js");
+  
+  const NS = 'http://www.w3.org/2000/svg';
+  
+  /** [id, topo, meio, base] — tons de cima para baixo. */
+  const GRADIENTES = [
+    ['lz-base', '#15408f', '#0a2463', '#050f33'],
+    ['lz-ouro', '#FFEFB0', '#FFC21A', '#E07B00'],
+    ['lz-verde', '#8DFFC4', '#1FD37A', '#0B7F45'],
+    ['lz-vermelho', '#FFA59F', '#FF3B30', '#9E0F0A'],
+    // Estilo clássico: tons amostrados do Show do Milhão de 30/03/2000 (pergunta
+    // #BA1C01, alternativa #912100), com margem de ±10% por serem de vídeo
+    // comprimido.
+    ['lz-perg-cl', '#e2380f', '#BA1C01', '#7a1100'],
+    ['lz-opcao-cl', '#b83208', '#912100', '#591300'],
+    ['lz-trava-cl', '#ff6a2b', '#e03a06', '#a51f00'],
+    // A Pergunta do Milhão: ouro escuro, para o palco inteiro dizer "especial".
+    ['lz-milhao', '#8a6400', '#5c3f00', '#2e1f00'],
+  ];
+  
+  /** Cria, uma vez, as definições que as caixas referenciam por `url(#...)`. */
+  function garantirGradientes() {
+    if (document.getElementById('lz-defs')) return;
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('id', 'lz-defs');
+    svg.setAttribute('width', '0');
+    svg.setAttribute('height', '0');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.style.position = 'absolute';
+    const lineares = GRADIENTES.map(
+      ([id, a, b, c]) =>
+        `<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${a}"/><stop offset=".5" stop-color="${b}"/><stop offset="1" stop-color="${c}"/></linearGradient>`
+    ).join('');
+    svg.innerHTML =
+      `<defs>${lineares}` +
+      '<linearGradient id="lz-reflexo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".26"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>' +
+      '<linearGradient id="lz-cromo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f7fb"/><stop offset=".48" stop-color="#8f9bb0"/><stop offset=".53" stop-color="#e9eef6"/><stop offset="1" stop-color="#5b667a"/></linearGradient>' +
+      '<radialGradient id="lz-face" cx=".5" cy=".42" r=".62"><stop offset="0" stop-color="#11275a"/><stop offset=".7" stop-color="#050c22"/><stop offset="1" stop-color="#02060f"/></radialGradient>' +
+      '</defs>';
+    document.body.appendChild(svg);
+  }
+  
+  const hexagono = (w, h, d, o = 0) =>
+    `M${o + d} ${o}L${o + w - d} ${o}L${o + w} ${o + h / 2}L${o + w - d} ${o + h}L${o + d} ${o + h}L${o} ${o + h / 2}Z`;
+  
+  const caixa = (w, h, r, o = 0) =>
+    `M${o + r} ${o}H${o + w - r}A${r} ${r} 0 0 1 ${o + w} ${o + r}V${o + h - r}A${r} ${r} 0 0 1 ${o + w - r} ${o + h}` +
+    `H${o + r}A${r} ${r} 0 0 1 ${o} ${o + h - r}V${o + r}A${r} ${r} 0 0 1 ${o + r} ${o}Z`;
+  
+  /**
+   * Uma caixa em SVG, do tamanho pedido.
+   *
+   * @param {object} medidas
+   * @param {number} medidas.largura
+   * @param {number} medidas.altura
+   * @param {number} [medidas.ponta] o recuo das pontas laterais; 0 = caixa redonda
+   * @param {number} [medidas.raio] o raio dos cantos, quando `ponta` é 0
+   * @param {string} [medidas.classe]
+   */
+  function Losango({ largura: w, altura: h, ponta: d = 0, raio = 0, classe = '' }) {
+    garantirGradientes();
+    const redonda = d === 0;
+    const base = redonda ? caixa(w, h, raio) : hexagono(w, h, d);
+    const borda = redonda ? caixa(w - 4, h - 4, Math.max(0, raio - 2), 2) : hexagono(w - 4, h - 4, d - 1.2, 2);
+    const reflexo = redonda
+      ? `M${raio} 0H${w - raio}A${raio} ${raio} 0 0 1 ${w} ${raio}V${h / 2}H0V${raio}A${raio} ${raio} 0 0 1 ${raio} 0Z`
+      : `M${d} 0L${w - d} 0L${w} ${h / 2}L0 ${h / 2}Z`;
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('class', `lz ${classe}`.trim());
+    svg.setAttribute('width', String(w));
+    svg.setAttribute('height', String(h));
+    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    svg.setAttribute('aria-hidden', 'true');
+    // Os caminhos são números calculados aqui, nunca texto do baralho: o
+    // innerHTML não carrega nada que alguém de fora escreva.
+    svg.innerHTML =
+      `<path class="l-base" d="${base}"/><path class="l-estado" d="${base}"/><path class="l-verde" d="${base}"/>` +
+      `<path class="l-reflexo" d="${reflexo}"/><path class="l-borda" d="${borda}"/>` +
+      `<path class="l-risco" d="${borda}" pathLength="100"/>`;
+    return svg;
+  }
+  
+  /**
+   * A luz que corre pela borda, uma volta: é o "ding" visual de cada peça que
+   * entra, e o brilho ocioso que lembra o jogador de que a tela está viva.
+   */
+  function correrBorda(svg, { ms = 700, delay = 0 } = {}) {
+    const risco = svg?.querySelector?.('.l-risco');
+    if (!risco || menosMovimento()) return;
+    risco.animate(
+      [
+        { strokeDashoffset: 0, opacity: 0 },
+        { opacity: 1, offset: 0.1 },
+        { opacity: 1, offset: 0.8 },
+        { strokeDashoffset: -100, opacity: 0 },
+      ],
+      { duration: ms, delay, easing: 'cubic-bezier(.4,0,.2,1)' }
+    );
+  }
+  Object.defineProperty(__exports, "garantirGradientes", { get: () => garantirGradientes, enumerable: true });
+  Object.defineProperty(__exports, "Losango", { get: () => Losango, enumerable: true });
+  Object.defineProperty(__exports, "correrBorda", { get: () => correrBorda, enumerable: true });
+  });
+
+  /* ===== locutor.js ===== */
+  __define("locutor.js", function (__exports, __require) {
+  // O apresentador: as frases que entram grandes na tela e os painéis em que ele
+  // pergunta alguma coisa ao jogador.
+  //
+  // Programa de auditório é ritmo — "Posso perguntar?", "Valendo!", "Está certo
+  // disso?", "Certa resposta!". Cada frase é uma batida do roteiro, e é por elas
+  // que o jogador sabe em que ponto está sem precisar ler instrução nenhuma.
+  // São bordões do gênero; nada aqui imita a voz ou o jeito de ninguém.
+  //
+  // Tudo entra numa camada que a tela dá (`camada`), e morre com ela.
+  
+  const { el, fonte } = __require("widgets.js");
+  const { entrar, menosMovimento } = __require("anim.js");
+  const { Losango, correrBorda } = __require("components/losango.js");
+  
+  /**
+   * A frase do apresentador, grande, entrando como pancada: vem de 1,9x com
+   * desfoque, passa um pouco do tamanho e assenta — 420ms. Um brilho atravessa a
+   * palavra depois de ela assentar.
+   *
+   * Por trás, uma faixa escura: por cima do palco cheio (carro, fichas, relógio)
+   * o ouro sozinho se perdia.
+   *
+   * @param {HTMLElement} camada
+   * @param {string} texto
+   * @param {object} [opcoes]
+   * @param {string} [opcoes.cor] '' (ouro), 'vermelho' ou 'branco'
+   * @param {number} [opcoes.y] a altura da linha, em px do palco
+   * @param {number} [opcoes.tam] o tamanho da letra
+   * @param {number} [opcoes.segura] quanto tempo fica depois de assentar
+   * @param {boolean} [opcoes.fica] não sai sozinha: devolve o nó para quem chamou
+   * @param {string} [opcoes.chave] vai para `data-grito`, o gancho dos testes
+   * @param {object} roteiro o roteiro da tela (roteiro.js): sai dela, a frase para
+   * @returns {Promise<HTMLElement|null>}
+   */
+  async function grito(camada, texto, opcoes = {}, roteiro) {
+    const { cor = '', y = 262, tam = 150, segura = 520, fica = false, chave = null } = opcoes;
+    const palavra = el('span', { text: texto, 'data-t': texto });
+    const no = el(
+      'div',
+      { class: ['aud-grito', cor ? `aud-grito--${cor}` : null], dataGrito: chave, style: { top: `${y}px`, fontSize: fonte(tam) } },
+      palavra
+    );
+    camada.appendChild(no);
+    entrar(
+      no,
+      [
+        { transform: 'scale(1.9)', opacity: 0, filter: 'blur(14px)' },
+        { transform: 'scale(.96)', opacity: 1, filter: 'blur(0)', offset: 0.6 },
+        { transform: 'none', opacity: 1, filter: 'blur(0)' },
+      ],
+      { duration: 420, easing: 'cubic-bezier(.2,.8,.3,1)' }
+    );
+    await roteiro.pausa(420 + segura);
+    if (fica) return no;
+    await no
+      .animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.86) translateY(-24px)' }], {
+        duration: 260,
+        easing: 'ease-in',
+        fill: 'forwards',
+      })
+      .finished.catch(() => {});
+    no.remove();
+    return null;
+  }
+  
+  /** Os raios dourados girando atrás do grito do acerto. */
+  function raios(camada, { x = 960, y = 300 } = {}) {
+    const no = el('div', { class: 'aud-raios', style: { left: `${x}px`, top: `${y}px` } });
+    camada.appendChild(no);
+    entrar(no, [{ opacity: 0, scale: '.6' }, { opacity: 1, scale: '1' }], { duration: 700, easing: 'ease-out' });
+    return no;
+  }
+  
+  /**
+   * Um painel do apresentador: a caixa do estilo em vigor, com o conteúdo no meio.
+   * Entra abrindo na horizontal a partir de uma faixa, e uma luz corre a borda.
+   *
+   * @param {HTMLElement} camada
+   * @param {object} medidas
+   * @param {number} medidas.x o centro do painel, em px do palco
+   * @param {number} medidas.y o topo
+   * @param {number} medidas.largura
+   * @param {number} medidas.altura
+   * @param {number} [medidas.ponta] 0 = caixa redonda (clássico)
+   * @param {number} [medidas.raio]
+   * @param {Array<Node>} medidas.conteudo
+   * @param {string} [medidas.classe]
+   * @param {string} [medidas.chave] vai para `data-painel`
+   * @returns {{no: HTMLElement, fechar: Function}}
+   */
+  function painel(camada, { x, y, largura, altura, ponta = 0, raio = 30, conteudo, classe = '', chave = null }) {
+    const no = el(
+      'div',
+      {
+        class: ['aud-painel', classe || null],
+        dataPainel: chave,
+        role: 'dialog',
+        style: { left: `${x - largura / 2}px`, top: `${y}px`, width: `${largura}px`, height: `${altura}px` },
+      },
+      [Losango({ largura, altura, ponta, raio }), el('div', { class: 'aud-painel-conteudo' }, conteudo)]
+    );
+    camada.appendChild(no);
+    entrar(
+      no,
+      [
+        { transform: 'scaleX(.15) scaleY(.6)', opacity: 0 },
+        { transform: 'scaleX(1.02) scaleY(1)', opacity: 1, offset: 0.7 },
+        { transform: 'none', opacity: 1 },
+      ],
+      { duration: 440, easing: 'cubic-bezier(.2,.9,.25,1)' }
+    );
+    correrBorda(no.querySelector('.lz'), { ms: 1000, delay: 250 });
+  
+    let fechado = false;
+    return {
+      no,
+      fechar() {
+        if (fechado) return;
+        fechado = true;
+        // Sai do caminho do toque na hora: um segundo toque no botão de um
+        // painel que está sumindo não pode valer.
+        no.style.pointerEvents = 'none';
+        const sair = menosMovimento()
+          ? no.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, fill: 'forwards' })
+          : no.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(1.06)' }], {
+              duration: 200,
+              easing: 'ease-in',
+              fill: 'forwards',
+            });
+        sair.finished.then(
+          () => no.remove(),
+          () => no.remove()
+        );
+      },
+    };
+  }
+  Object.defineProperty(__exports, "grito", { get: () => grito, enumerable: true });
+  Object.defineProperty(__exports, "raios", { get: () => raios, enumerable: true });
+  Object.defineProperty(__exports, "painel", { get: () => painel, enumerable: true });
   });
 
   /* ===== ajuste.js ===== */
@@ -9214,7 +9406,8 @@
     'Rasther 3': { foto: 'assets/images/Rasther_CANFD_(1).png', recorte: 'inset(4.6% 22.4% 4.6% 22.4%)', nome: 'RASTHER 3S' },
     RB: { foto: 'assets/images/Rasther---box,-3s---mensal-box---android.png', recorte: 'inset(31.7% 17.8% 24.2% 27.5%)', nome: 'RASTHER BOX' },
     RST: { foto: 'assets/images/Rasther_ST_+_VCI.png', recorte: 'inset(19.6% 8.3% 24.1% 12%)', nome: 'RASTHER ST' },
-    'Rasther 4': { foto: 'assets/images/Rasther_ST_+_VCI.png', recorte: 'inset(19.6% 8.3% 24.1% 12%)', nome: 'RASTHER 4' },
+    // O recorte pega só o aparelho de mão: a VCI que vem na foto, com ele, encolheria o Rasther 4 na etiqueta.
+    'Rasther 4': { foto: 'assets/images/Rasther_4_+_VCI.png', recorte: 'inset(10.9% 17% 15.5% 9.1%)', nome: 'RASTHER 4' },
     Td90: { foto: 'assets/images/TD_90_(2).png', recorte: 'inset(15.2% 3.3% 19.4% 2.1%)', nome: 'TD90' },
     Td80: { foto: 'assets/images/TD_80__Final_(1).png', recorte: 'inset(20.3% 4.5% 20.3% 4%)', nome: 'TD80' },
   };
@@ -9300,349 +9493,267 @@
   Object.defineProperty(__exports, "OrdemDeServico", { get: () => OrdemDeServico, enumerable: true });
   });
 
-  /* ===== components/tacometro.js ===== */
-  __define("components/tacometro.js", function (__exports, __require) {
-  // O relógio da pergunta, que virou conta-giros.
+  /* ===== components/cronometro.js ===== */
+  __define("components/cronometro.js", function (__exports, __require) {
+  // O relógio da pergunta: um cronômetro.
   //
-  // Vai de 60 a 0 segundos; a faixa vermelha começa nos 15, que é onde a reta
-  // final começa. O arco muda de azul para âmbar na metade e para vermelho no
-  // último quarto. E o ponteiro tem MASSA: uma mola levemente subamortecida
-  // persegue o alvo, e no vermelho ele treme, como ponteiro de motor no limite.
-  // No zero o motor estoura — o ponteiro bate no fim da escala e volta.
+  // Na 3.0 o relógio virou conta-giros, e na feira ele não se leu como relógio.
+  // A escala ia de 60 a 0 da esquerda para a direita, os segundos ficavam
+  // pequenos no pé do mostrador — e o único tempo GRANDE na tela era o "vale o 1º
+  // lugar por mais 6,4 s" da faixa ERRAR / RECORDE / ACERTAR AGORA. Todo mundo
+  // achou que ESSE era o tempo para responder. Na 3.1 a faixa saiu e o mostrador
+  // virou o que qualquer um reconhece como tempo sem legenda: um cronômetro, com
+  // a coroa em cima, os segundos que faltam em número grande no meio e um anel
+  // que esvazia no sentido do relógio, com uma faísca na ponta.
   //
-  // Os números grandes do meio são HTML, e não `<text>` do SVG, por dois
-  // motivos medidos no protótipo:
+  // Do conta-giros ficou o que funcionava: a cor que muda (azul; âmbar na
+  // metade; vermelho no último quarto, onde começa a reta final), o calor da reta
+  // final e o estouro no zero — agora o vidro trinca e a coroa salta. E nos
+  // últimos cinco segundos ele treme, cada vez mais: é a bomba avisando.
   //
-  //   - o Chrome pintava `<text>` de SVG com `scale` animado na escala do
-  //     primeiro quadro (1,25x maior e deslocado), embora o layout estivesse
-  //     certo — por isso também a entrada do mostrador é só opacidade;
-  //   - texto de SVG não passa pelo piso de legibilidade (`fonte()`), e o rótulo
-  //     SEGUNDOS chegava a 6px de tela num notebook.
+  // Os segundos do meio são HTML, e não `<text>` do SVG, pelos motivos que o
+  // conta-giros mediu: o Chrome pintava `<text>` de SVG com `scale` animado na
+  // escala do primeiro quadro, e texto de SVG não passa pelo piso de
+  // legibilidade (`fonte()`).
   //
-  // Os números da escala continuam no SVG, com tamanho que já passa do piso na
-  // menor tela atendida (26 unidades num mostrador de 296px: 19px de palco,
-  // 12,8px de tela a 0,667).
+  // O número é o teto dos segundos: com 59,3 s sobrando ele diz 60, e só diz 0
+  // quando o tempo acabou de fato — é a convenção de toda contagem regressiva, e
+  // é o que faz o "0" coincidir com o estouro.
   
   const { el, fonte } = __require("widgets.js");
   const { menosMovimento } = __require("anim.js");
   const { garantirGradientes } = __require("components/losango.js");
   const { T } = __require("textos.js");
   
-  const C = 200;
-  const A0 = -135;
-  const A1 = 135;
   const TOTAL = 60000;
   const RETA = 15000;
+  /** Nos últimos 5 s o cronômetro treme; a amplitude cresce até o zero. */
+  const TREME = 5000;
+  /** O "painel ligando": quanto o anel leva para encher na abertura. */
+  const VARREDURA_MS = 620;
   
-  const angDe = (restante) => A0 + (1 - restante / TOTAL) * (A1 - A0);
+  /** O desenho mora num viewBox de 400x440: o mostrador e, acima dele, a coroa. */
+  const LARG = 400;
+  const ALT = 440;
+  const CX = 200;
+  const CY = 240;
+  const R_ANEL = 132;
+  
   const polar = (r, a) => {
     const rad = (a * Math.PI) / 180;
-    return [C + r * Math.sin(rad), C - r * Math.cos(rad)];
+    return [CX + r * Math.sin(rad), CY - r * Math.cos(rad)];
   };
+  
+  /** Um arco no sentido do relógio, de `a0` a `a1` graus (0 = meio-dia). */
   const arcoD = (r, a0, a1) => {
     const [x0, y0] = polar(r, a0);
     const [x1, y1] = polar(r, a1);
     return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
   };
   
-  /** O tempo como o mostrador escreve: inteiro e décimo, separados. */
-  function partes(restante) {
-    const d = Math.round(Math.max(0, restante) / 100);
-    return [String(Math.floor(d / 10)), `,${d % 10}`];
-  }
+  /** Os segundos que o mostrador escreve: o teto, de 60 a 0. */
+  const segundosNoMostrador = (restante) => Math.max(0, Math.ceil(Math.max(0, restante) / 1000));
+  
+  /** A cor do anel pela fração que sobra — as mesmas faixas do conta-giros. */
+  const corDoAnel = (frac) => (frac > 0.5 ? '#3E8BFF' : frac > 0.25 ? '#FFB400' : '#FF3B30');
   
   /**
    * @param {object} [opcoes]
-   * @param {number} [opcoes.tamanho] a largura do mostrador, em px do palco
+   * @param {number} [opcoes.tamanho] a largura do cronômetro, em px do palco (a
+   *   altura é 1,1 vez isso, por causa da coroa)
    */
-  function Tacometro({ tamanho = 370 } = {}) {
+  function Cronometro({ tamanho = 370 } = {}) {
     garantirGradientes();
+    const k = tamanho / LARG;
   
-    let s = `<svg viewBox="0 0 400 400" width="${tamanho}" height="${tamanho}" aria-hidden="true">`;
-    s += '<circle cx="200" cy="200" r="197" fill="url(#lz-cromo)"/><circle cx="200" cy="200" r="186" fill="#050b1c"/>';
-    s += '<circle class="aud-taco-face" cx="200" cy="200" r="182" fill="url(#lz-face)"/>';
-    s += `<path class="aud-taco-zona" d="${arcoD(176, angDe(RETA), A1)}"/>`;
-    for (let seg = 0; seg <= 60; seg++) {
-      const a = angDe(seg * 1000);
-      const maior = seg % 10 === 0;
-      const medio = seg % 5 === 0;
-      const [x0, y0] = polar(maior ? 144 : medio ? 152 : 158, a);
-      const [x1, y1] = polar(168, a);
-      const classe = `aud-taco-risco${maior ? ' maior' : medio ? ' medio' : ''}${seg * 1000 <= RETA ? ' quente' : ''}`;
-      s += `<line class="${classe}" x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}"/>`;
-      if (maior) {
-        const [lx, ly] = polar(121, a);
-        s += `<text class="aud-taco-num${seg * 1000 <= RETA ? ' quente' : ''}" x="${lx.toFixed(1)}" y="${(ly + 9).toFixed(1)}">${seg}</text>`;
-      }
+    // A coroa e os dois botões laterais são o que diz "cronômetro" de longe.
+    let s = `<svg viewBox="0 0 ${LARG} ${ALT}" width="${tamanho}" height="${Math.round(tamanho * (ALT / LARG))}" aria-hidden="true">`;
+    for (const lado of [-40, 40]) {
+      s += `<g transform="rotate(${lado} ${CX} ${CY})"><rect x="187" y="34" width="26" height="24" rx="5" fill="url(#lz-cromo)"/></g>`;
     }
-    s += `<path class="aud-taco-trilho" d="${arcoD(92, A0, A1)}"/><path class="aud-taco-arco" d="${arcoD(92, A0, A0 + 0.01)}"/>`;
     s +=
-      `<g class="aud-taco-agulha" transform="rotate(${A0} 200 200)">` +
-      '<polygon points="194.5,214 205.5,214 201.6,38 198.4,38" fill="url(#lz-agulha)"/>' +
-      '<circle cx="200" cy="200" r="22" fill="url(#lz-cromo)"/><circle cx="200" cy="200" r="10" fill="#0b0f18"/></g>';
-    s += '<ellipse cx="200" cy="112" rx="150" ry="66" fill="#fff" opacity=".05"/></svg>';
+      '<g class="aud-crono-coroa">' +
+      '<rect x="186" y="24" width="28" height="32" rx="4" fill="url(#lz-cromo)"/>' +
+      '<rect x="158" y="4" width="84" height="26" rx="9" fill="url(#lz-cromo)"/>' +
+      '<rect x="164" y="8" width="72" height="6" rx="3" fill="#fff" opacity=".5"/></g>';
+    s += `<circle cx="${CX}" cy="${CY}" r="190" fill="url(#lz-cromo)"/><circle cx="${CX}" cy="${CY}" r="178" fill="#050b1c"/>`;
+    s += `<circle class="aud-crono-face" cx="${CX}" cy="${CY}" r="174" fill="url(#lz-face)"/>`;
+    for (let seg = 0; seg < 60; seg++) {
+      const maior = seg % 5 === 0;
+      const [x0, y0] = polar(maior ? 150 : 156, seg * 6);
+      const [x1, y1] = polar(166, seg * 6);
+      s += `<line class="aud-crono-risco${maior ? ' maior' : ''}" data-seg="${seg}" x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}"/>`;
+    }
+    s += `<circle class="aud-crono-trilho" cx="${CX}" cy="${CY}" r="${R_ANEL}"/>`;
+    s += `<path class="aud-crono-anel" d=""/>`;
+    s += `<circle class="aud-crono-ponta" r="13" cx="${CX}" cy="${CY - R_ANEL}"/>`;
+    // O vidro trincado do estouro: nasce invisível, e só o `estourar` o mostra.
+    s +=
+      '<g class="aud-crono-trinca">' +
+      '<path d="M252 184L286 140L312 130M286 140L292 104M252 184L306 206L346 200M306 206L318 246M252 184L240 246L252 300L246 338' +
+      'M240 246L206 270M252 184L204 160L166 174L140 160M204 160L198 118M252 184L268 112"/>' +
+      '<circle cx="252" cy="184" r="12"/></g>';
+    s += `<ellipse cx="${CX}" cy="${CY - 92}" rx="140" ry="58" fill="#fff" opacity=".05"/></svg>`;
   
-    const k = tamanho / 400;
-    const inteiro = el('span', { class: 'aud-taco-int', text: '60', style: { fontSize: fonte(Math.round(52 * k * 1.05)) } });
-    const decimo = el('span', { class: 'aud-taco-dec', text: ',0', style: { fontSize: fonte(Math.round(26 * k * 1.05)) } });
-    const leitura = el('div', { class: 'ff-text aud-taco-leitura', style: { top: `${Math.round(300 * k)}px` } }, [inteiro, decimo]);
-    const rotulo = el('div', {
-      class: 'ff-text aud-taco-rotulo',
-      text: T('segundos'),
-      style: { top: `${Math.round(362 * k)}px`, fontSize: fonte(Math.round(14 * k * 1.1)) },
+    const inteiro = el('span', { class: 'aud-crono-int', text: '60', style: { fontSize: fonte(Math.round(108 * k)) } });
+    const rotulo = el('span', { class: 'aud-crono-rotulo', text: T('segundos'), style: { fontSize: fonte(Math.round(17 * k)) } });
+    const miolo = el(
+      'div',
+      {
+        class: 'ff-text aud-crono-miolo',
+        style: {
+          left: `${Math.round((CX - 118) * k)}px`,
+          top: `${Math.round((CY - 118) * k)}px`,
+          width: `${Math.round(236 * k)}px`,
+          height: `${Math.round(236 * k)}px`,
+        },
+      },
+      [inteiro, rotulo]
+    );
+  
+    const raiz = el('div', {
+      class: 'aud-cronometro aud-oculta',
+      role: 'timer',
+      'aria-label': T('segundos'),
+      style: { width: `${tamanho}px`, height: `${Math.round(tamanho * (ALT / LARG))}px` },
     });
-  
-    const raiz = el('div', { class: 'aud-tacometro aud-oculta', style: { width: `${tamanho}px`, height: `${tamanho}px` } });
     raiz.innerHTML = s; // só números calculados aqui; nenhum texto de fora
-    raiz.append(leitura, rotulo);
+    raiz.append(miolo);
   
-    const agulha = raiz.querySelector('.aud-taco-agulha');
-    const arco = raiz.querySelector('.aud-taco-arco');
+    const anel = raiz.querySelector('.aud-crono-anel');
+    const ponta = raiz.querySelector('.aud-crono-ponta');
+    const coroa = raiz.querySelector('.aud-crono-coroa');
+    const riscos = [...raiz.querySelectorAll('.aud-crono-risco')];
   
-    let alvo = A0;
-    let ang = A0;
-    let vAng = 0;
-    let t = 0;
     let restanteAtual = TOTAL;
+    let fracReal = 1;
+    // O anel nasce vazio e a varredura o enche; sem movimento, já nasce cheio.
+    let fracMostrada = menosMovimento() ? 1 : 0;
+    let varredura = null;
+    let desenhada = -1;
+    let ultimoSegundo = 60;
+    let t = 0;
+  
+    function desenhar(frac) {
+      if (Math.abs(frac - desenhada) < 0.0004) return;
+      desenhada = frac;
+      // O que falta vai da ponta até o meio-dia, no sentido do relógio: a ponta
+      // anda como o ponteiro de um relógio e vai "comendo" o anel.
+      const a = 360 * (1 - frac);
+      anel.setAttribute('d', frac <= 0.0005 ? '' : arcoD(R_ANEL, a, Math.min(359.99, 360)));
+      anel.style.stroke = corDoAnel(frac);
+      const [px, py] = polar(R_ANEL, a);
+      ponta.setAttribute('cx', px.toFixed(2));
+      ponta.setAttribute('cy', py.toFixed(2));
+      ponta.style.opacity = frac <= 0.0005 ? '0' : '';
+    }
   
     function definir(restante) {
       restanteAtual = restante;
-      alvo = angDe(Math.max(0, restante));
-      const [i, d] = partes(restante);
-      if (inteiro.textContent !== i) inteiro.textContent = i;
-      if (decimo.textContent !== d) decimo.textContent = d;
-      arco.setAttribute('d', arcoD(92, A0, Math.max(A0 + 0.01, alvo)));
-      const frac = restante / TOTAL;
-      arco.style.stroke = frac > 0.5 ? '#3E8BFF' : frac > 0.25 ? '#FFB400' : '#FF3B30';
-      raiz.classList.toggle('aud-taco--reta', restante <= RETA && restante > 0);
+      fracReal = Math.max(0, Math.min(1, restante / TOTAL));
+      // Quem define o tempo de verdade encerra a varredura que ainda estiver no
+      // meio: o relógio correndo manda no anel.
+      if (!varredura) fracMostrada = fracReal;
+      const seg = segundosNoMostrador(restante);
+      if (seg !== ultimoSegundo) {
+        inteiro.textContent = String(seg);
+        // Os riscos dos segundos que já passaram apagam: o mostrador inteiro diz
+        // quanto sobrou, e não só o anel.
+        const gastos = 60 - seg;
+        riscos.forEach((r, i) => r.classList.toggle('gasto', i < gastos));
+        // Nos últimos dez, o número dá um salto a cada segundo, junto com o tique.
+        if (seg > 0 && seg <= 10 && seg < ultimoSegundo && !menosMovimento()) {
+          inteiro.animate([{ scale: '1.28' }, { scale: '1' }], { duration: 320, easing: 'cubic-bezier(.2,.9,.3,1)' });
+        }
+        ultimoSegundo = seg;
+      }
+      raiz.classList.toggle('aud-crono--reta', restante <= RETA && restante > 0);
+      if (!varredura) desenhar(fracMostrada);
     }
   
     /**
-     * Um passo da mola do ponteiro. Rigidez 170 e atrito 17: ~2 Hz, com um
-     * pouquinho de passagem do ponto — o bastante para o ponteiro parecer peça, e
-     * pouco para ele não ficar balançando na leitura. No vermelho, dois senos
-     * rápidos (47 e 83 rad/s) somados ao alvo fazem a tremida de motor no limite.
+     * Um passo por quadro: a varredura da abertura e a tremida dos últimos
+     * segundos. A tremida é `translate` — propriedade separada de `transform` e
+     * de `scale` —, para não disputar com a entrada nem com o tranco do estouro.
      */
     function animar(dt) {
       t += dt;
-      let alvoVivo = alvo;
-      if (!menosMovimento() && raiz.classList.contains('aud-taco--reta')) {
-        alvoVivo += Math.sin(t * 47) * 0.9 + Math.sin(t * 83) * 0.5;
+      if (varredura) {
+        const u = Math.min(1, (performance.now() - varredura.t0) / VARREDURA_MS);
+        fracMostrada = fracReal * (1 - Math.pow(1 - u, 3));
+        desenhar(fracMostrada);
+        if (u >= 1) {
+          varredura.pronto();
+          varredura = null;
+        }
       }
-      vAng += (170 * (alvoVivo - ang) - 17 * vAng) * dt;
-      ang += vAng * dt;
-      if (menosMovimento()) ang = alvoVivo;
-      agulha.setAttribute('transform', `rotate(${ang.toFixed(2)} 200 200)`);
+      if (!menosMovimento() && restanteAtual > 0 && restanteAtual <= TREME) {
+        // 1 px no começo dos cinco segundos, 6 px no fim. Dois senos de
+        // frequências que não se casam (53 e 71 rad/s): a tremida não vira um
+        // balanço regular, que o olho leria como enfeite.
+        const amp = 1 + 5 * (1 - restanteAtual / TREME);
+        raiz.style.translate = `${(Math.sin(t * 53) * amp).toFixed(2)}px ${(Math.cos(t * 71) * amp * 0.6).toFixed(2)}px`;
+      } else if (raiz.style.translate) {
+        raiz.style.translate = '';
+      }
     }
   
     definir(TOTAL);
   
     return {
       no: raiz,
+      /** O mostrador: é dali que saem a fumaça e as faíscas do estouro. */
+      face: raiz.querySelector('.aud-crono-face'),
       definir,
       animar,
       get restante() {
         return restanteAtual;
       },
-      /** O "painel ligando": o ponteiro varre a escala inteira e volta. */
+      /** O "painel ligando": o anel enche no sentido do relógio, de vazio a cheio. */
       async varredura(roteiro) {
-        if (menosMovimento()) return;
-        const guardado = alvo;
-        alvo = A1;
-        await roteiro.pausa(620);
-        alvo = guardado;
-      },
-      /** O motor estourou: o ponteiro bate além do fim e volta ao fim. */
-      estourar() {
-        alvo = A1 + 7;
-        vAng = 900;
-        raiz.classList.remove('aud-taco--reta');
-        raiz.classList.add('aud-taco--estourou');
-        setTimeout(() => {
-          alvo = A1;
-        }, 280);
-      },
-      /** O relógio parou: a leitura pisca três vezes. */
-      parar() {
-        raiz.classList.remove('aud-taco--parado');
-        void raiz.offsetWidth;
-        raiz.classList.add('aud-taco--parado');
-      },
-    };
-  }
-  Object.defineProperty(__exports, "Tacometro", { get: () => Tacometro, enumerable: true });
-  });
-
-  /* ===== components/aposta.js ===== */
-  __define("components/aposta.js", function (__exports, __require) {
-  // A faixa ERRAR / RECORDE / ACERTAR AGORA.
-  //
-  // É a faixa de três caixas do Show do Milhão (ERRAR / PARAR / ACERTAR), com o
-  // PARAR trocado pelo RECORDE: aqui não se para, e o que está em jogo não é
-  // dinheiro, é a posição no ranking — que CAI enquanto o relógio anda. É o que
-  // dá sentido ao relógio: sem ela, 30 segundos e 50 segundos eram a mesma
-  // vitória para quem joga.
-  //
-  //   ERRAR          sai sem posição
-  //   RECORDE        o tempo mais rápido de todos, e de quem
-  //   ACERTAR AGORA  o lugar que o jogador pegaria se confirmasse neste instante
-  //
-  // E embaixo, a folga: quanto tempo falta para o jogador de trás passar à
-  // frente. "vale o 2º lugar por mais 3,2 s" é o aperto que o relógio sozinho
-  // não diz.
-  //
-  // O ranking chega PRONTO: a tela da pergunta o pede enquanto a roleta gira
-  // (estatisticas.js), porque o Firestore sem rede não falha — fica pendente — e
-  // esta faixa tem de valer desde o primeiro segundo.
-  
-  const { el, fonte, maybeHandleOverflow } = __require("widgets.js");
-  const { menosMovimento } = __require("anim.js");
-  const { formatarSegundos, formatarTempoDeResposta } = __require("functions.js");
-  const { T, Tf } = __require("textos.js");
-  
-  const entre = (v, a, b) => Math.max(a, Math.min(b, v));
-  
-  /**
-   * A posição que o jogador pegaria com `restante` no relógio — a mesma conta de
-   * `posicaoNoRanking`: um a mais que o número de vencedores mais rápidos.
-   */
-  const posicaoAgora = (ranking, restante) => 1 + ranking.filter((v) => (v?.tempo ?? -Infinity) > restante).length;
-  
-  /**
-   * Quanto tempo o jogador ainda segura a posição `p`: até o relógio descer ao
-   * tempo de quem está logo atrás. Devolve `{folga, janela}` em ms, ou null
-   * quando não há ninguém atrás — a posição não cai mais.
-   *
-   * `janela` é o tamanho do degrau inteiro, para a barra saber quanto dele sobra.
-   */
-  function folgaDaPosicao(ranking, restante, p = posicaoAgora(ranking, restante)) {
-    const atras = ranking[p - 1];
-    if (!atras) return null;
-    const teto = p === 1 ? 60000 : ranking[p - 2].tempo;
-    return { folga: Math.max(0, restante - atras.tempo), janela: Math.max(1, teto - atras.tempo) };
-  }
-  
-  /**
-   * @param {object} opcoes
-   * @param {Array<{nome: string, tempo: number}>} opcoes.ranking o mais rápido primeiro
-   * @param {boolean} [opcoes.milhao] a Pergunta do Milhão: vale brinde, não posição
-   * @param {Function} [opcoes.aoTrocarPosicao] toca quando a posição cai
-   */
-  function Aposta({ ranking: rankingInicial = [], milhao = false, aoTrocarPosicao = null } = {}) {
-    let ranking = rankingInicial;
-  
-    const caixa = (classe, valor, rotulo) => {
-      const rotuloNo = el('small', { class: 'ff-text', text: rotulo, style: { fontSize: fonte(13) } });
-      const no = el('div', { class: `aud-ap-caixa aud-ap-caixa--${classe}` }, [el('b', { class: 'ff-text' }, valor), rotuloNo]);
-      no._rotulo = rotuloNo;
-      return no;
-    };
-  
-    const rolo = el('span', { class: 'aud-ap-rolo' }, el('i', { text: '1º' }));
-    const barra = el('i');
-    const barraTexto = el('span', { class: 'ff-text', style: { fontSize: fonte(14) } });
-    const valorDoRecorde = el('span');
-  
-    const escreverRecorde = (caixaRecorde) => {
-      const recorde = ranking[0];
-      valorDoRecorde.textContent = recorde ? formatarTempoDeResposta(recorde.tempo) : '—';
-      caixaRecorde._rotulo.textContent = recorde
-        ? `${T('recorde')} · ${maybeHandleOverflow((recorde.nome ?? '').toUpperCase(), { maxChars: 10, replacement: '…' })}`
-        : T('recorde');
-    };
-  
-    const caixaRecorde = milhao
-      ? caixa('recorde', el('span', { text: T('brinde'), style: { fontSize: fonte(22) } }), T('valendoBrinde'))
-      : caixa('recorde', valorDoRecorde, '');
-    if (!milhao) escreverRecorde(caixaRecorde);
-  
-    const caixas = milhao
-      ? [caixa('erro', el('span', { text: '—' }), T('errar')), caixaRecorde, caixa('acertar', el('span', { text: '★' }), T('acertarAgora'))]
-      : [caixa('erro', el('span', { text: T('fora') }), T('errar')), caixaRecorde, caixa('acertar', rolo, T('acertarAgora'))];
-  
-    const raiz = el('div', { class: 'aud-aposta aud-oculta', dataAposta: milhao ? 'milhao' : 'ranking' }, [
-      el('div', { class: 'aud-ap-caixas' }, caixas),
-      el('div', { class: 'aud-ap-barra' }, [barra, barraTexto]),
-    ]);
-  
-    let pos = null;
-    let ultimoRestante = 60000;
-  
-    function trocar(p, animar) {
-      const novo = el('i', { text: `${p}º` });
-      if (!animar || menosMovimento()) {
-        rolo.replaceChildren(novo);
-        return;
-      }
-      const velho = rolo.firstElementChild;
-      rolo.append(novo);
-      velho
-        ?.animate([{ transform: 'translateY(0)', opacity: 1 }, { transform: 'translateY(-100%)', opacity: 0 }], {
-          duration: 260,
-          easing: 'cubic-bezier(.5,0,.75,0)',
-          fill: 'forwards',
-        })
-        .finished.then(
-          () => velho.remove(),
-          () => velho.remove()
+        if (menosMovimento()) {
+          fracMostrada = fracReal;
+          desenhar(fracMostrada);
+          return;
+        }
+        await roteiro.aguardar(
+          new Promise((pronto) => {
+            varredura = { t0: performance.now(), pronto };
+          })
         );
-      novo.animate([{ transform: 'translateY(100%)', opacity: 0 }, { transform: 'translateY(0)', opacity: 1 }], {
-        duration: 380,
-        delay: 110,
-        easing: 'cubic-bezier(.2,1.4,.4,1)',
-        fill: 'backwards',
-      });
-      raiz.querySelector('.aud-ap-caixa--acertar > b')?.animate([{ filter: 'brightness(1.9)' }, { filter: 'brightness(1)' }], {
-        duration: 520,
-      });
-      aoTrocarPosicao?.(p);
-    }
-  
-    function atualizar(restante, { som = true } = {}) {
-      ultimoRestante = restante;
-      if (milhao) {
-        // Na Pergunta do Milhão não há posição a perder: a barra é só o tempo
-        // escorrendo, e fala por si.
-        barra.style.transform = `scaleX(${entre(restante / 60000, 0, 1).toFixed(3)})`;
-        barraTexto.textContent = '';
-        return;
-      }
-      const p = posicaoAgora(ranking, restante);
-      if (p !== pos) {
-        trocar(p, pos != null && som);
-        pos = p;
-      }
-      const folga = folgaDaPosicao(ranking, restante, p);
-      if (folga) {
-        barra.style.transform = `scaleX(${entre(folga.folga / folga.janela, 0, 1).toFixed(3)})`;
-        barraTexto.textContent = Tf('valeLugar', { p, s: formatarSegundos(folga.folga) });
-      } else {
-        barra.style.transform = 'scaleX(0)';
-        barraTexto.textContent = ranking.length ? T('aindaEntra') : T('sejaOPrimeiro');
-      }
-    }
-  
-    atualizar(60000, { som: false });
-  
-    return {
-      no: raiz,
-      atualizar,
-      /** O ranking chegou atrasado: a faixa se corrige sem piscar. */
-      trocarRanking(novo) {
-        if (milhao) return;
-        ranking = novo;
-        escreverRecorde(caixaRecorde);
-        atualizar(ultimoRestante, { som: false });
       },
-      /** Depois do veredito a faixa já não vale nada: recua. */
-      recuar() {
-        raiz.animate([{ opacity: 1 }, { opacity: 0.3 }], { duration: 400, fill: 'forwards' });
+      /** O tempo acabou: o vidro trinca, a coroa salta, e o cronômetro dá um tranco. */
+      estourar() {
+        varredura?.pronto();
+        varredura = null;
+        definir(0);
+        raiz.style.translate = '';
+        raiz.classList.remove('aud-crono--reta');
+        raiz.classList.add('aud-crono--estourou');
+        if (menosMovimento()) return;
+        raiz.animate([{ scale: '1' }, { scale: '1.14', offset: 0.25 }, { scale: '.95', offset: 0.6 }, { scale: '1' }], {
+          duration: 520,
+          easing: 'ease-out',
+        });
+        coroa.animate(
+          [
+            { transform: 'none', opacity: 1 },
+            { transform: 'translate(46px, -70px) rotate(38deg)', opacity: 1, offset: 0.35 },
+            { transform: 'translate(96px, 160px) rotate(150deg)', opacity: 0 },
+          ],
+          { duration: 1100, easing: 'cubic-bezier(.3,.6,.6,1)', fill: 'forwards' }
+        );
+      },
+      /** O relógio parou: os segundos piscam três vezes. */
+      parar() {
+        raiz.classList.remove('aud-crono--parado');
+        void raiz.offsetWidth;
+        raiz.classList.add('aud-crono--parado');
       },
     };
   }
-  Object.defineProperty(__exports, "posicaoAgora", { get: () => posicaoAgora, enumerable: true });
-  Object.defineProperty(__exports, "folgaDaPosicao", { get: () => folgaDaPosicao, enumerable: true });
-  Object.defineProperty(__exports, "Aposta", { get: () => Aposta, enumerable: true });
+  Object.defineProperty(__exports, "segundosNoMostrador", { get: () => segundosNoMostrador, enumerable: true });
+  Object.defineProperty(__exports, "Cronometro", { get: () => Cronometro, enumerable: true });
   });
 
   /* ===== components/alternativas.js ===== */
@@ -9984,15 +10095,17 @@
    * @param {string}  [opcoes.tipo] 'ouro' (padrão) ou 'prata'
    * @param {boolean} [opcoes.pulsa] respira em loop — o botão que o jogo espera
    * @param {boolean} [opcoes.menor] a versão baixa, para painéis cheios
+   * @param {boolean} [opcoes.grande] a versão de tela inteira, para o botão que é
+   *   a única ação da tela (o REINICIAR do fim)
    * @param {string}  [opcoes.acao] vai para `data-acao`, o gancho dos testes e do teclado
    * @returns {HTMLElement} o envelope; o botão é `envelope.botao`
    */
-  function BotaoDeAuditorio(texto, { aoTocar = null, tipo = 'ouro', pulsa = false, menor = false, acao = null } = {}) {
-    const rotulo = el('span', { class: 'ff-text aud-botao-texto', text: texto, style: { fontSize: fonte(menor ? 25 : 29) } });
+  function BotaoDeAuditorio(texto, { aoTocar = null, tipo = 'ouro', pulsa = false, menor = false, grande = false, acao = null } = {}) {
+    const rotulo = el('span', { class: 'ff-text aud-botao-texto', text: texto, style: { fontSize: fonte(grande ? 44 : menor ? 25 : 29) } });
     const botao = el(
       'div',
       {
-        class: ['ff-inkwell', 'aud-botao', `aud-botao--${tipo}`, menor ? 'aud-botao--menor' : null],
+        class: ['ff-inkwell', 'aud-botao', `aud-botao--${tipo}`, menor ? 'aud-botao--menor' : null, grande ? 'aud-botao--grande' : null],
         role: 'button',
         tabindex: '0',
         'aria-label': texto,
@@ -10544,8 +10657,8 @@
   // cronômetro digital `00:58.27`. Funcionava, e parecia aplicativo. Agora a
   // tela é um palco, e a pergunta é um roteiro, na ordem em que o jogador vive:
   //
-  //   1. o painel liga — o cenário entra, o conta-giros varre a escala e volta,
-  //      e se ouve um motor dando a partida;
+  //   1. o painel liga — o cenário entra, o anel do cronômetro enche, e se
+  //      ouve um motor dando a partida;
   //   2. "POSSO PERGUNTAR?" — o relógio só começa quando o jogador diz PODE!;
   //      antes ele começava enquanto as alternativas ainda entravam;
   //   3. a pergunta entra sozinha, e as alternativas chegam uma a uma;
@@ -10556,6 +10669,13 @@
   //      alternativa, e 2,6s de batimento antes do veredito;
   //   7. o veredito: acerto (festa, e o ranking abrindo espaço para o jogador),
   //      erro (a lição: a certa e onde aprender) ou tempo esgotado.
+  //
+  // O RELÓGIO É UM CRONÔMETRO, E SÓ ELE DIZ TEMPO NA TELA. Na 3.0 havia também a
+  // faixa ERRAR / RECORDE / ACERTAR AGORA, com "vale o 1º lugar por mais 6,4 s"
+  // embaixo — e na feira esse era o número que todo mundo lia como o tempo para
+  // responder. Na 3.1 a faixa saiu inteira, e o conta-giros virou cronômetro
+  // (ver components/cronometro.js). A posição no ranking continua aparecendo,
+  // mas DEPOIS do acerto, no painel do resultado.
   //
   // Dois estilos, escolhidos pelo operador no painel (ver palco.js):
   //
@@ -10581,7 +10701,7 @@
   const { FFAppState } = __require("state.js");
   const { goNamed } = __require("router.js");
   const { addUsuario, createUsuariosRecordData } = __require("backend.js");
-  const { formatarSegundos, formatarTempoDeResposta } = __require("functions.js");
+  const { formatarSegundos, formatarTempoDeResposta, posicaoNoRanking } = __require("functions.js");
   const { tique } = __require("audio.js");
   const { Som, Trilha, audioEm } = __require("som.js");
   const { aproximar, estiloDaPergunta, estiloEmCena, flash, humor, soco, tremer } = __require("palco.js");
@@ -10595,8 +10715,7 @@
   const { QrSvg } = __require("qr.js");
   const { SeloComLampadas } = __require("components/selo.js");
   const { OrdemDeServico } = __require("components/ordem_de_servico.js");
-  const { Tacometro } = __require("components/tacometro.js");
-  const { Aposta, posicaoAgora } = __require("components/aposta.js");
+  const { Cronometro } = __require("components/cronometro.js");
   const { Alternativas, QuadroDaPergunta } = __require("components/alternativas.js");
   const { Ajudas } = __require("components/ajudas.js");
   const { BotaoDeAuditorio } = __require("components/botao.js");
@@ -10629,11 +10748,15 @@
   const ESTILOS = {
     classico: {
       selo: { x: 425, y: 10, largura: 230 },
-      pergunta: { x: 60, y: 226, w: 960, h: 214, ponta: 0, raio: 22, trilhos: false, texto: [30, 22] },
-      opcoes: { w: 960, h: 94, ponta: 0, raio: 16, pos: [[60, 462], [60, 566], [60, 670], [60, 774]], trilhos: false, texto: [26, 18], lados: false },
-      aposta: { x: 60, y: 894, largura: 960 },
+      // A coluna desceu até onde ficava a faixa ERRAR / RECORDE / ACERTAR AGORA
+      // (y 894 a 1016), que saiu na 3.1: pergunta e alternativas mais altas, com
+      // o pé na mesma linha das ajudas, do outro lado.
+      pergunta: { x: 60, y: 226, w: 960, h: 236, ponta: 0, raio: 22, trilhos: false, texto: [32, 22] },
+      opcoes: { w: 960, h: 110, ponta: 0, raio: 16, pos: [[60, 486], [60, 614], [60, 742], [60, 870]], trilhos: false, texto: [28, 18], lados: false },
       os: { x: 1100, y: 236, escala: 1.22 },
-      tacometro: { x: 1566, y: 14, tamanho: 296 },
+      // 290 de largura e 319 de altura (a coroa): o pé fica acima do teto da
+      // cabine do VW 24-280 no pedestal (conferido na tela).
+      cronometro: { x: 1584, y: 4, tamanho: 290 },
       ajudas: { x: 1104, y: 846, largura: 800 },
       spot: [760, 200],
       painel: { x: 1440, ponta: 0, raio: 30 },
@@ -10649,9 +10772,9 @@
       selo: { x: 842, y: 18, largura: 236 },
       pergunta: { x: 150, y: 568, w: 1620, h: 184, ponta: 44, raio: 0, trilhos: true, texto: [34, 24] },
       opcoes: { w: 795, h: 110, ponta: 38, raio: 0, pos: [[150, 782], [975, 782], [150, 914], [975, 914]], trilhos: true, texto: [27, 19], lados: true },
-      aposta: { x: 1402, y: 404, largura: 400 },
       os: { x: 64, y: 58, escala: 1 },
-      tacometro: { x: 1416, y: 28, tamanho: 370 },
+      // Desceu e cresceu no lugar da faixa que ficava embaixo dele (y 404 a 510).
+      cronometro: { x: 1440, y: 40, tamanho: 390 },
       ajudas: { x: 632, y: 236, largura: 772 },
       spot: [560, 250],
       painel: { x: 960, ponta: 60, raio: 0 },
@@ -10768,15 +10891,8 @@
     Object.assign(selo.style, { left: `${E.selo.x}px`, top: `${E.selo.y}px` });
   
     const os = OrdemDeServico({ veiculo: rodada.veiculo, equipamento: rodada.equipamento, medidas: E.os, semEquipamento: milhao });
-    const tac = Tacometro({ tamanho: E.tacometro.tamanho });
-    Object.assign(tac.no.style, { left: `${E.tacometro.x}px`, top: `${E.tacometro.y}px` });
-  
-    let aposta = null;
-    const montarAposta = () => {
-      aposta = Aposta({ ranking, milhao, aoTrocarPosicao: () => Som.blip(0, false) });
-      Object.assign(aposta.no.style, { left: `${E.aposta.x}px`, top: `${E.aposta.y}px`, width: `${E.aposta.largura}px` });
-      return aposta.no;
-    };
+    const crono = Cronometro({ tamanho: E.cronometro.tamanho });
+    Object.assign(crono.no.style, { left: `${E.cronometro.x}px`, top: `${E.cronometro.y}px` });
   
     const quadro = QuadroDaPergunta({ texto: rodada.enunciado, medidas: E.pergunta });
     const alt = Alternativas({ textos: rodada.respostas, medidas: E.opcoes, estilo, aoTocar: (i) => tocarOpcao(i) });
@@ -10800,7 +10916,7 @@
           eliminar: (indices) => alt.eliminar(indices),
         });
   
-    cena.append(selo, os.no, tac.no, quadro.no, ...alt.trilhos, ...alt.nos);
+    cena.append(selo, os.no, crono.no, quadro.no, ...alt.trilhos, ...alt.nos);
     if (aj) cena.append(aj.no);
   
     quandoNaTela(root, () => {
@@ -10816,18 +10932,11 @@
         easing: 'cubic-bezier(.2,1.2,.4,1)',
       });
       os.entrar();
-      // Só opacidade no mostrador: ver o cabeçalho de tacometro.js.
-      entrar(tac.no, [{ opacity: 0 }, { opacity: 1 }], { duration: 500, delay: 200, easing: 'ease-out' });
-      if (aposta) {
-        entrar(aposta.no, [{ opacity: 0, transform: 'translateX(60px)' }, { opacity: 1, transform: 'none' }], {
-          duration: 460,
-          delay: 520,
-          easing: 'ease-out',
-        });
-      }
+      // Só opacidade no mostrador: ver o cabeçalho de cronometro.js.
+      entrar(crono.no, [{ opacity: 0 }, { opacity: 1 }], { duration: 500, delay: 200, easing: 'ease-out' });
       Som.ronco(0.32, 1.3);
       await roteiro.pausa(360);
-      tac.varredura(roteiro).catch(soInterrupcao);
+      crono.varredura(roteiro).catch(soInterrupcao);
       if (aj) await aj.entrar(roteiro);
       await roteiro.pausa(milhao ? 400 : 700);
     }
@@ -10861,26 +10970,15 @@
   
     async function roteiroDeAbertura() {
       try {
-        // O ranking chega antes: a roleta o pediu (ver estatisticas.js). Sem ele
-        // em 600ms, a faixa nasce com o que houver — e se ele chegar depois, ela
-        // se corrige.
+        // O ranking é do painel do resultado, que o mostra abrindo espaço para
+        // quem acertou. A roleta já o pediu (ver estatisticas.js); a abertura não
+        // espera por ele — se não tiver chegado até o resultado, o painel sai
+        // com o que houver.
         if (!milhao) {
-          const pedido = rankingAdiantado();
-          let chegou = false;
-          ranking = await roteiro.aguardar(
-            Promise.race([pedido.then((r) => ((chegou = true), r)), new Promise((ok) => setTimeout(() => ok([]), 600))])
-          );
-          if (!chegou) {
-            pedido.then((r) => {
-              if (!roteiro.vivo || !Array.isArray(r) || !r.length) return;
-              // Depois do veredito a faixa já recuou, e o resultado usa o que havia.
-              if (['suspense', 'revelado', 'esgotado', 'saindo'].includes(estado)) return;
-              ranking = r;
-              aposta?.trocarRanking(r);
-            });
-          }
+          rankingAdiantado().then((r) => {
+            if (roteiro.vivo && Array.isArray(r)) ranking = r;
+          });
         }
-        cena.appendChild(montarAposta());
         await entrarCenario();
         if (milhao && rodada.jogador) {
           // A Pergunta do Milhão chama o jogador de volta ao palco pelo nome.
@@ -10967,7 +11065,7 @@
           ]),
         ];
         // No palco, 890 de largura: mais que isso a ponta direita cobre o
-        // "ACERTAR AGORA", que é justamente o que o jogador deve olhar agora.
+        // cronômetro, que é justamente o que o jogador deve olhar agora.
         const p = painel(locutor, { x: E.painel.x, ...E.certo, ponta: E.painel.ponta, raio: E.painel.raio, conteudo, chave: 'certo' });
         fecharPergunta = responder;
         aoPrincipal = () => responder(true);
@@ -10979,7 +11077,7 @@
     function pararRelogio() {
       if (correndo) restante = restanteEm(performance.now());
       correndo = false;
-      tac.definir(restante);
+      crono.definir(restante);
     }
   
     async function confirmar(i) {
@@ -10990,7 +11088,7 @@
       // O resultado está decidido: grava JÁ, antes do suspense. Se a tela sair no
       // meio da festa (o prazo de inatividade, o operador), a partida fica.
       registrar({ acertou, escolhida: i });
-      tac.parar();
+      crono.parar();
       Som.clunk();
       Trilha.parar(0.25);
       root.style.setProperty('--tensao', '0');
@@ -11065,15 +11163,15 @@
       mudar('esgotado');
       correndo = false;
       restante = 0;
-      tac.definir(0);
+      crono.definir(0);
       fecharPergunta?.(false);
       aj?.fechar();
       aj?.travar();
       alt.destravar();
       Trilha.parar(0.08);
       root.style.setProperty('--tensao', '0.35');
-      tac.estourar();
-      const [gx, gy] = noPalco(tac.no.querySelector('.aud-taco-face') ?? tac.no);
+      crono.estourar();
+      const [gx, gy] = noPalco(crono.face);
       fumaca({ x: gx, y: gy - 20 });
       faiscas({ x: gx, y: gy, n: 30, cores: ['#FFB35C', '#FF5A1F', '#FFFFFF'] });
       Som.alarme(0);
@@ -11094,10 +11192,9 @@
       }
     }
   
-    /** O selo e a faixa saem de cena: o painel do resultado e o grito ocupam o alto. */
+    /** O selo sai de cena: o painel do resultado e o grito ocupam o alto. */
     function recuarCenario() {
       selo.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: 'forwards' });
-      aposta?.recuar();
     }
   
     /* --------------------------------------------------- gravar a partida --- */
@@ -11108,15 +11205,10 @@
      * da festa. E escreve `FFAppState.resultado`, que a tela de fim lê.
      */
     function registrar({ acertou, escolhida }) {
-      const certo = rodada.slotCerto;
       FFAppState.resultado = {
         acertou,
         tempo: restante,
         esgotou: escolhida == null,
-        numeroCerto: certo >= 0 ? certo + 1 : null,
-        textoCerto: certo >= 0 ? rodada.respostas[certo] : null,
-        numeroEscolhido: escolhida != null ? escolhida + 1 : null,
-        textoEscolhido: escolhida != null ? rodada.respostas[escolhida] : null,
         perguntaId: rodada.perguntaId,
         video: rodada.video,
         dica: rodada.ajudas.ajudaTecnomotorTv ?? '',
@@ -11175,7 +11267,7 @@
     }
   
     async function resultado(gasto) {
-      const minha = milhao ? null : posicaoAgora(ranking, TOTAL_MS - gasto);
+      const minha = milhao ? null : posicaoNoRanking(ranking, { tempo: TOTAL_MS - gasto });
       const tempoNo = el('b', { class: 'ff-text', text: '0,0 s', style: { fontSize: fonte(56) } });
       const lista = el('div', { class: 'aud-lista' });
       const ALT = 40;
@@ -11301,11 +11393,10 @@
       const agora = performance.now();
       const dt = Math.min(0.05, Math.max(0, (agora - ultimoQuadro) / 1000));
       ultimoQuadro = agora;
-      tac.animar(dt);
+      crono.animar(dt);
       if (correndo) {
         restante = restanteEm(agora);
-        tac.definir(restante);
-        aposta?.atualizar(restante);
+        crono.definir(restante);
         tensao(restante);
         marcarTique(restante);
         if (estado === 'jogando') {
@@ -11671,10 +11762,23 @@
   
   const { readRaw, writeRaw } = __require("storage.js");
   
-  const VERSAO_DO_JOGO = '3.0.0';
+  const VERSAO_DO_JOGO = '3.1.0';
   
   /** Mais recente primeiro — é a ordem em que o painel lista. */
   const NOTAS_DE_ATUALIZACAO = [
+    {
+      versao: '3.1.0',
+      data: '2026-10-01',
+      itens: [
+        'O Rasther 4 entrou na escolha do equipamento: agora são seis, três em cima e três embaixo. Ele vale para as perguntas marcadas como "Rasther 4 / ST" no painel e, como não tem vídeo demonstrativo, vai direto para a pergunta.',
+        'O relógio da pergunta virou um cronômetro: os segundos que faltam em número grande, num anel que esvazia. A faixa ERRAR / RECORDE / ACERTAR AGORA e o "vale o 1º lugar por mais…" saíram — eram lidos como o tempo para responder. Continua tudo o que avisava o fim: a luz vermelha nos últimos 15 segundos, o cronômetro tremendo nos últimos 5 e o estouro no zero.',
+        'Nova tela "Como funciona o jogo", com a pergunta de agora: os passos aparecem um a um e acendem a parte da tela de que falam. Segue sozinha em 15 segundos, ou em "Pular instruções".',
+        'No painel, em "Na feira": "Pular o vídeo demonstrativo do equipamento" tira os 14 segundos entre a escolha do equipamento e a pergunta.',
+        'Na tela de fim, quem errou não vê mais a resposta certa de novo (ela já aparece na pergunta) — fica só o QR code do vídeo, quando a pergunta tem um. E o botão REINICIAR ficou bem maior.',
+        'O cadastro ficou com outra cara: a ficha num cartão escuro, os campos com a dica mais apagada (o campo vazio parecia preenchido) e o CONFIRMAR maior, em amarelo-ouro. Ao confirmar, o nome que o jogador digitou sai do campo e voa até o centro do palco — "COM VOCÊS: ANA!" —, e o jogo segue mais rápido para as instruções.',
+        'Corrigido: o jogo guardava na memória um pedaço de cada partida jogada (o cadastro, a tela do vídeo e a das instruções nunca eram liberados). Num dia inteiro de feira sem recarregar a página, isso só crescia; agora a memória fica estável partida após partida.',
+      ],
+    },
     {
       versao: '3.0.0',
       data: '2026-09-25',
@@ -12192,6 +12296,7 @@
   const { getRecords } = __require("storage.js");
   const { goNamed } = __require("router.js");
   const { milhaoAutomatico } = __require("pages/milhao.js");
+  const { definirPularVideoDoEquipamento, pulaVideoDoEquipamento } = __require("pages/tela_video_scanner.js");
   const { rotuloDaPergunta } = __require("deck.js");
   const { BARALHO_ORIGINAL, SLOTS_ORIGINAIS, carregarBaralho, novoIdDePergunta, perguntaVazia, publicarBaralho, restaurarOriginal, slotVazio, temBaralhoPublicado, usaArteOriginal, validarBaralho } = __require("deck.js");
   const { motivoDaFalha, removerChave } = __require("storage.js");
@@ -12782,6 +12887,7 @@
    * para ESTE navegador, na hora, sem Salvar.
    *
    *   - o estilo da tela da pergunta (clássico ou palco — ver palco.js);
+   *   - pular o vídeo demonstrativo do equipamento (ver tela_video_scanner.js);
    *   - o volume do som, porque a feira barulhenta e o auditório silencioso
    *     pedem volumes diferentes, e ele era cravado no código;
    *   - a Pergunta do Milhão do dia: chamar o mais rápido de volta ao totem
@@ -12800,6 +12906,21 @@
         aviso(`A próxima pergunta já sai no estilo ${v === 'palco' ? 'Palco' : 'Clássico'}.`);
       },
     });
+  
+    const campoPularVideo = el('div', { class: 'campo', 'data-campo': 'pular-video' }, [
+      caixaDeMarcar({
+        rotulo: 'Pular o vídeo demonstrativo do equipamento',
+        marcado: pulaVideoDoEquipamento(),
+        onChange: (v) => {
+          definirPularVideoDoEquipamento(v);
+          aviso(v ? 'A partir da próxima partida, o jogo vai do equipamento direto para a pergunta.' : 'O vídeo do equipamento volta a passar antes da pergunta.');
+        },
+      }),
+      el('span', {
+        class: 'campo-dica',
+        text: 'Tira os 14 segundos entre a escolha do equipamento e a pergunta. O Rasther 4 não tem vídeo e sempre vai direto.',
+      }),
+    ]);
   
     const faixa = el('input', { type: 'range', min: '0', max: '100', step: '5', class: 'volume-faixa', 'aria-label': 'Volume do som do jogo' });
     faixa.value = String(Math.round(volumeAtual() * 100));
@@ -12848,6 +12969,7 @@
       el('h3', { text: 'Na feira' }),
       el('p', { class: 'nota', text: 'Vale só para este navegador, na hora — não precisa Salvar.' }),
       campoEstilo,
+      campoPularVideo,
       el('div', { class: 'campo' }, [
         el('span', { class: 'campo-rotulo', text: 'Volume do som' }),
         el('div', { class: 'volume-linha' }, [faixa, valor, botao('Testar', { onClick: () => Som.fanfarra(0), titulo: 'Toca a fanfarra do acerto no volume escolhido' })]),
@@ -13621,7 +13743,7 @@
   // a roda já na tela.
   //
   // Só que ninguém cai na roleta de surpresa: entre o CONFIRMAR do cadastro e ela
-  // há o vídeo de instruções (13s) e a vinheta (4s). Dezessete segundos de sobra
+  // há a tela de instruções (15s) e a vinheta (4s). Dezenove segundos de sobra
   // para pedir as imagens antes — e é isso que este arquivo faz.
   //
   // Pedir é tudo o que é preciso: o navegador guarda no cache, e o `<image>` do
@@ -13674,7 +13796,7 @@
   }
   
   /**
-   * Adianta a roleta e a tela do carro sorteado.
+   * Adianta as instruções, a roleta e a tela do carro sorteado.
    *
    * Chamado da tela de cadastro, que é onde o jogador passa mais tempo parado e
    * onde o baralho publicado acaba de ser relido. Em espera ociosa: a primeira
@@ -13682,6 +13804,9 @@
    */
   function adiantarOPercurso(baralho) {
     const pedir = () => {
+      // A tela de instruções vem logo depois do CONFIRMAR, e o monitor dela é
+      // uma captura: sem ela pedida antes, ele abre vazio na rede da feira.
+      precarregar(['assets/images/Como_Funciona_Pergunta.jpg']);
       precarregar(imagensDaRoleta(baralho));
       // A tela do carro sorteado mostra a foto do veículo em tamanho grande, e a
       // da pergunta repete a mesma foto — as duas vêm de graça junto com a roda
@@ -13699,163 +13824,335 @@
 
   /* ===== transicoes.js ===== */
   __define("transicoes.js", function (__exports, __require) {
-  // EXPERIMENTO — a saída do cadastro, para o vídeo de instruções.
+  // A saída do cadastro: o jogador é chamado ao palco.
   //
-  // A troca de tela do jogo é uma só e mora no router: a que sai apaga, a que
-  // entra acende. Isto aqui não a substitui — acontece ANTES dela, e é da tela do
-  // cadastro, não do roteador. O CONFIRMAR é o único momento do jogo em que o
-  // jogador acabou de FAZER alguma coisa (preencher uma ficha) e a tela seguinte
-  // é um vídeo: é o lugar onde uma passagem com personalidade cabe.
+  // A troca de tela do jogo é uma só e mora no router (a lâmina). Isto acontece
+  // ANTES dela, e é do cadastro: o CONFIRMAR é o único momento do jogo em que o
+  // jogador acabou de FAZER alguma coisa — escrever o próprio nome —, e é ali
+  // que uma passagem com personalidade cabe.
   //
-  // A IDEIA: A FICHA É LIDA E DESMONTADA.
-  // Uma linha de leitura sobe pela tela, como a de um scanner passando sobre o
-  // formulário. Cada bloco que ela alcança é arrancado para um lado — alternando,
-  // com um giro curto e acelerando para fora, como papel puxado —, de baixo para
-  // cima, na ordem em que a linha chega neles. O selo é o último e não sai de
-  // lado: vem para a frente e estoura em luz, que é a deixa do vídeo.
+  // A IDEIA: O NOME QUE ELE DIGITOU É O NOME QUE O APRESENTADOR CHAMA.
+  // A ficha se desfaz em volta do campo do nome; o nome sai do campo, cresce e
+  // voa até o centro do palco, onde pousa com pancada, aplauso e os raios
+  // dourados — "COM VOCÊS: DAVI!". Não há corte entre o formulário e o anúncio:
+  // o jogador vê a própria palavra virar a manchete.
   //
-  // O som acompanha sem asset novo: cada peça que sai emite um tique meio tom
-  // acima do anterior (o mesmo sintetizador do relógio da pergunta), então a
-  // leitura também se ouve subindo.
+  // A versão anterior (a 3.0) desmontava a ficha peça por peça para os lados,
+  // com uma linha de leitura subindo e um clarão no fim. Filmada quadro a quadro,
+  // ela tinha três defeitos que se viam na feira: as peças rodopiando para os
+  // dois lados pareciam a tela quebrando, o clarão era uma mancha azul-clara do
+  // tamanho do palco, e entre ele e o anúncio sobravam ~450ms de palco vazio. E o
+  // anúncio, quando vinha, nascia do nada — nada ligava o "DAVI!" à ficha.
   //
-  // Com `prefers-reduced-motion` nada disso roda: a tela sai pela transição
-  // comum do roteador.
+  // A saída termina com o anúncio NA TELA: quem chama navega em seguida, e a
+  // lâmina do router leva o anúncio junto com o cadastro. Sem palco vazio no
+  // meio.
+  //
+  // Com `prefers-reduced-motion` nada voa: a ficha esmaece e o anúncio aparece
+  // parado, pelo tempo de ser lido.
   
-  const { el } = __require("widgets.js");
+  const { el, fonte } = __require("widgets.js");
   const { menosMovimento } = __require("anim.js");
-  const { tique } = __require("audio.js");
+  const { T } = __require("textos.js");
+  const { Som } = __require("som.js");
+  const { humor } = __require("palco.js");
+  const { grito, raios } = __require("locutor.js");
+  const { faiscas } = __require("particulas.js");
+  const { soInterrupcao } = __require("roteiro.js");
   
-  /** Quanto cada peça leva para sair, e o intervalo entre uma e a seguinte. */
-  const SAIDA_MS = 340;
-  const PASSO_MS = 55;
-  /** A linha de leitura atravessa o palco inteiro um pouco antes das peças. */
-  const LEITURA_MS = 460;
+  /**
+   * Os tempos, em ms a partir do toque já validado. Medidos na tela, filmando a
+   * saída quadro a quadro (30 por segundo):
+   *
+   * - a ficha leva ~420ms para se desfazer — 300 por peça, 30 entre uma e a
+   *   seguinte. Mais rápido que isso ela "pisca" e some; mais devagar, o nome já
+   *   chegou e o formulário ainda está lá;
+   * - o voo do nome dura 640ms: abaixo de ~500 o olho perde a ligação entre o
+   *   campo e a manchete, acima de ~800 vira espera;
+   * - o "COM VOCÊS" entra aos 320ms, com a ficha já quase apagada: aos 220 ele
+   *   caía por cima dos rótulos ainda legíveis, e a tela embolava;
+   * - o anúncio fica 1050ms parado depois do pouso — o "COM VOCÊS" e o nome
+   *   leem-se com folga, e a lâmina ainda os mostra saindo.
+   */
+  const PECA_MS = 300;
+  const ENTRE_PECAS_MS = 30;
+  const DECOLA_MS = 160;
+  const VOO_MS = 640;
+  const COM_VOCES_MS = 320;
+  const SEGURA_MS = 1050;
   
-  const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+  /** A altura (topo da linha) e o tamanho do nome anunciado, em px do palco. */
+  const NOME_Y = 450;
+  const NOME_TAM = 150;
+  /** O nome mais largo que cabe, com folga dos refletores nas bordas. */
+  const NOME_LARGURA_MAX = 1640;
   
-  /** A banda de luz que sobe pelo palco. */
-  function linhaDeLeitura(raiz) {
-    const linha = el('div', {
-      style: {
-        position: 'absolute',
-        left: '0',
-        right: '0',
-        top: '0',
-        height: '220px',
-        pointerEvents: 'none',
-        // `screen` para a banda ACENDER o que está embaixo em vez de cobrir.
-        mixBlendMode: 'screen',
-        background:
-          'linear-gradient(to bottom,' +
-          'rgba(0,170,255,0) 0%,' +
-          'rgba(0,170,255,0.08) 40%,' +
-          'rgba(130,230,255,0.75) 49%,' +
-          'rgba(255,255,255,0.95) 50%,' +
-          'rgba(130,230,255,0.75) 51%,' +
-          'rgba(0,170,255,0.08) 60%,' +
-          'rgba(0,170,255,0) 100%)',
-        willChange: 'transform',
-      },
-    });
-    raiz.appendChild(linha);
-    linha.animate(
-      [{ transform: 'translateY(1180px)' }, { transform: 'translateY(-260px)' }],
-      { duration: LEITURA_MS, easing: 'cubic-bezier(.2,.6,.2,1)', fill: 'both' }
+  const W = 1920;
+  
+  /** Um retângulo de `no` em px do palco, qualquer que seja a escala da janela. */
+  function retangulo(no) {
+    const palco = document.getElementById('stage')?.getBoundingClientRect();
+    const b = no.getBoundingClientRect();
+    const k = palco ? palco.width / W || 1 : 1;
+    return {
+      x: (b.left - (palco?.left ?? 0)) / k,
+      y: (b.top - (palco?.top ?? 0)) / k,
+      w: b.width / k,
+      h: b.height / k,
+    };
+  }
+  
+  /**
+   * Onde, dentro do campo, está escrita a primeira palavra do que foi digitado —
+   * é dali que o nome decola. Mede com a fonte do próprio campo, num canvas: o
+   * `<input>` não tem nó de texto para medir.
+   */
+  function ondeEstaONome(input) {
+    const caixa = retangulo(input);
+    const cs = getComputedStyle(input);
+    const ctx = document.createElement('canvas').getContext('2d');
+    if (!ctx) return caixa;
+    ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const valor = input.value;
+    const antes = valor.length - valor.trimStart().length;
+    const palavra = valor.trim().split(/\s+/)[0] ?? '';
+    const x = caixa.x + ctx.measureText(valor.slice(0, antes)).width;
+    const w = Math.max(1, ctx.measureText(palavra).width);
+    const h = parseFloat(cs.fontSize) * 1.2;
+    return { x, y: caixa.y + (caixa.h - h) / 2, w, h };
+  }
+  
+  /** O tamanho da letra para o nome caber no palco (a Pirulen tem ~0,8em por letra). */
+  const tamanhoDoNome = (texto) => Math.min(NOME_TAM, Math.floor(NOME_LARGURA_MAX / (texto.length * 0.8)));
+  
+  /** Uma peça da ficha se desfaz: afunda um pouco, desfoca e apaga. */
+  function desfazer(no, atraso) {
+    return no.animate(
+      [
+        { opacity: 1, translate: '0 0', filter: 'blur(0px)' },
+        { opacity: 0, translate: '0 22px', filter: 'blur(8px)' },
+      ],
+      { duration: PECA_MS, delay: atraso, easing: 'cubic-bezier(.4,0,.7,.4)', fill: 'forwards' }
     );
-    return linha;
   }
   
-  /** O estouro de luz no fim, que é onde o vídeo entra. */
-  function estouro(raiz) {
-    const luz = el('div', {
+  /**
+   * O botão apertado responde antes de tudo: acende, cresce e some, e uma onda
+   * de ouro sai dele. É o "foi" visual do toque.
+   */
+  function dispararBotao(camada, botao) {
+    if (!botao) return;
+    const r = retangulo(botao);
+    const cx = r.x + r.w / 2;
+    const cy = r.y + r.h / 2;
+    // A onda tem a forma do botão: o tamanho dele sem a inclinação (o retângulo
+    // medido já é a caixa do paralelogramo, mais larga) e a mesma inclinação.
+    const w = botao.offsetWidth || r.w;
+    const h = botao.offsetHeight || r.h;
+    const onda = el('div', {
+      class: 'cad-onda',
       style: {
-        position: 'absolute',
-        inset: '0',
-        pointerEvents: 'none',
-        background: 'radial-gradient(circle at 50% 42%, #eaf7ff 0%, #9fdcff 45%, rgba(0,60,120,0) 72%)',
-        opacity: '0',
-        mixBlendMode: 'screen',
+        left: `${cx - w / 2}px`,
+        top: `${cy - h / 2}px`,
+        width: `${w}px`,
+        height: `${h}px`,
+        transform: botao.dataset.baseTransform || null,
       },
     });
-    raiz.appendChild(luz);
-    return luz.animate(
+    camada.appendChild(onda);
+    onda
+      .animate(
+        [
+          { opacity: 0.95, scale: '1' },
+          { opacity: 0, scale: '1.55 2.2' },
+        ],
+        { duration: 520, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'forwards' }
+      )
+      .finished.then(() => onda.remove(), () => {});
+    faiscas({ x: cx, y: cy, n: 26, forca: 760 });
+    botao.animate(
       [
-        { opacity: 0, transform: 'scale(0.6)', offset: 0, easing: 'cubic-bezier(.2,.8,.3,1)' },
-        { opacity: 0.95, transform: 'scale(1.05)', offset: 0.45, easing: 'ease-out' },
-        { opacity: 0, transform: 'scale(1.2)', offset: 1 },
+        { scale: '1', opacity: 1, filter: 'brightness(1)' },
+        { scale: '1.06', opacity: 1, filter: 'brightness(1.7)', offset: 0.3 },
+        { scale: '0.92', opacity: 0, filter: 'brightness(1.2)' },
       ],
-      { duration: 420, fill: 'both' }
-    ).finished;
+      { duration: 420, easing: 'ease-out', fill: 'forwards' }
+    );
   }
   
   /**
-   * Arranca uma peça para fora.
-   *
-   * `lado` é -1 (esquerda) ou 1 (direita), e a alternância é o que faz a coisa
-   * parecer DESMONTADA e não empurrada. A saída acelera (a curva sai devagar e
-   * termina rápido): puxão, não deslize.
+   * O clarão do pouso, atrás do nome e só nele. O `flash` dos vereditos
+   * (palco.js) cobre o palco inteiro, e em ouro por cima do azul-escuro ele
+   * deixava a tela cor de oliva por um instante — filmado, parecia defeito.
    */
-  function arrancar(no, { atraso, lado, giro }) {
-    return no.animate(
-      [
-        { transform: 'translate(0px, 0px) rotate(0deg) scale(1)', opacity: 1 },
-        {
-          transform: `translate(${lado * 1500}px, -60px) rotate(${giro}deg) scale(0.9)`,
-          opacity: 0,
-        },
-      ],
-      { duration: SAIDA_MS, delay: atraso, easing: 'cubic-bezier(.45,0,.9,.35)', fill: 'both' }
-    ).finished;
-  }
-  
-  /** O selo não sai de lado: vem para a frente e some na luz. */
-  function aproximar(no, { atraso }) {
-    return no.animate(
-      [
-        { transform: 'scale(1)', opacity: 1, filter: 'brightness(1)' },
-        { transform: 'scale(1.45)', opacity: 0, filter: 'brightness(2.2)' },
-      ],
-      { duration: SAIDA_MS + 80, delay: atraso, easing: 'cubic-bezier(.5,0,.85,.4)', fill: 'both' }
-    ).finished;
+  function clarao(camada, holofote) {
+    const luz = el('div', { class: 'cad-clarao', style: { top: `${NOME_Y + 85}px` } });
+    camada.insertBefore(luz, holofote.nextSibling);
+    luz
+      .animate(
+        [
+          { opacity: 0, scale: '0.35' },
+          { opacity: 1, scale: '1', offset: 0.25 },
+          { opacity: 0, scale: '1.35' },
+        ],
+        { duration: 700, easing: 'ease-out', fill: 'forwards' }
+      )
+      .finished.then(() => luz.remove(), () => {});
   }
   
   /**
-   * Desmonta a tela do cadastro e resolve quando não há mais o que ver.
+   * O nome voando do campo ao centro do palco.
    *
-   * @param {HTMLElement} raiz o `.ff-scaffold` da página — é onde a linha de
-   *   leitura e o estouro entram, porque ele é o palco inteiro.
-   * @param {Array<HTMLElement|null>} pecas os blocos, DE BAIXO PARA CIMA: é a
-   *   ordem em que a linha de leitura chega neles.
-   * @param {HTMLElement|null} selo o logo, que sai por último e por outro caminho.
+   * O nó já nasce onde o anúncio fica (a mesma caixa do `grito`), e é o TEXTO
+   * dentro dele que viaja, por `transform`, a partir da caixa do campo: assim o
+   * pouso cai exatamente no pixel do anúncio, sem medir duas vezes. O caminho
+   * desce um pouco no meio — passa por baixo do "COM VOCÊS", que já está na
+   * tela —, e o fim passa de 1 e volta: o pouso tem peso.
+   *
+   * A palavra na Pirulen é mais larga que a digitada; ela decola com a largura
+   * da digitada e por isso nasce mais baixa. Os primeiros 14% do voo a acendem
+   * por cima do campo, que apaga ao mesmo tempo — não se vê a troca de letra.
    */
-  async function desmontarOCadastro({ raiz, pecas, selo }) {
-    if (menosMovimento() || !raiz) return;
+  function voarONome(camada, texto, origem, roteiro) {
+    const tam = tamanhoDoNome(texto);
+    const palavra = el('span', { text: texto, 'data-t': texto });
+    const no = el('div', {
+      class: 'aud-grito cad-nome-voo',
+      dataGrito: 'nome',
+      style: { top: `${NOME_Y}px`, fontSize: fonte(tam) },
+    }, palavra);
+    camada.appendChild(no);
   
-    // A tela sai de campo no primeiro quadro: peça a caminho da borda continua
-    // clicável enquanto não desaparece de verdade (`opacity: 0` não tira o toque),
-    // e um segundo dedo no CONFIRMAR mandaria o jogo navegar duas vezes.
+    const fim = retangulo(palavra);
+    const s0 = Math.min(origem.w / fim.w, origem.h / fim.h);
+    const dx = origem.x + origem.w / 2 - (fim.x + fim.w / 2);
+    const dy = origem.y + origem.h / 2 - (fim.y + fim.h / 2);
+    // O `skewX` é o da folha (.aud-grito span): animar `transform` o apagaria.
+    const t = (x, y, s) => `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${s.toFixed(3)}) skewX(-7deg)`;
+  
+    Som.whoosh(0, VOO_MS / 1000, 0.2, true);
+    const voo = palavra.animate(
+      [
+        { transform: t(dx, dy, s0), opacity: 0, easing: 'ease-out' },
+        { transform: t(dx, dy - 8, s0 * 1.12), opacity: 1, offset: 0.14, easing: 'cubic-bezier(.55,0,.35,1)' },
+        { transform: t(dx * 0.32, 70, 0.66), opacity: 1, offset: 0.62, easing: 'cubic-bezier(.3,0,.25,1)' },
+        { transform: t(0, 0, 1.13), opacity: 1, offset: 0.86, easing: 'cubic-bezier(.3,0,.3,1)' },
+        { transform: t(0, 0, 1), opacity: 1 },
+      ],
+      { duration: VOO_MS, fill: 'forwards' }
+    );
+    // O borrão de quem passa depressa, no meio do caminho e só nele.
+    no.animate(
+      [{ filter: 'blur(0px)' }, { filter: 'blur(2.5px)', offset: 0.45 }, { filter: 'blur(0px)', offset: 0.8 }, { filter: 'blur(0px)' }],
+      { duration: VOO_MS }
+    );
+  
+    // Cancelado (a tela saiu no meio do voo), o `finished` rejeita: quem decide
+    // se o resto acontece é o roteiro, não a animação.
+    return roteiro.aguardar(voo.finished.catch(() => {})).then(() => no);
+  }
+  
+  /**
+   * Chama o jogador ao palco e resolve com o anúncio ainda na tela — quem chama
+   * navega em seguida, e a lâmina leva o anúncio embora junto com o cadastro.
+   *
+   * @param {object} cena
+   * @param {HTMLElement} cena.raiz o `.ff-scaffold` do cadastro: é o palco inteiro
+   * @param {HTMLInputElement|null} cena.campoDoNome de onde o nome decola
+   * @param {string} cena.nome o primeiro nome, como será anunciado; vazio, a ficha
+   *   só se desfaz
+   * @param {Array<HTMLElement|null>} cena.pecas o que se desfaz, DE BAIXO PARA
+   *   CIMA — a ordem em que somem
+   * @param {HTMLElement|null} cena.ficha o cartão atrás do formulário
+   * @param {HTMLElement|null} cena.selo o logo, que sobe e sai
+   * @param {HTMLElement|null} cena.botao o CONFIRMAR, que responde ao toque
+   * @param {object} cena.roteiro o roteiro do cadastro (roteiro.js): se a tela
+   *   sair no meio, o resto não acontece
+   */
+  async function chamarAoPalco({ raiz, campoDoNome, nome, pecas, ficha, selo, botao, roteiro }) {
+    if (!raiz) return;
+    // A tela sai de campo no primeiro quadro: peça a caminho de sumir continua
+    // clicável enquanto não desaparece de verdade (`opacity: 0` não tira o
+    // toque), e um segundo dedo no CONFIRMAR mandaria o jogo navegar duas vezes.
     raiz.style.pointerEvents = 'none';
   
-    linhaDeLeitura(raiz);
+    const camada = el('div', { class: 'pg-locutor' });
+    raiz.appendChild(camada);
+    const texto = nome ? `${nome.toUpperCase()}!` : '';
   
-    const vivas = pecas.filter(Boolean);
-    const saidas = vivas.map((no, i) => {
-      const atraso = i * PASSO_MS;
-      // O tique sobe meio tom por peça: a leitura também se ouve subindo.
-      setTimeout(() => tique({ frequencia: 520 + i * 90, duracao: 0.06, volume: 0.12 }), atraso);
-      return arrancar(no, { atraso, lado: i % 2 === 0 ? 1 : -1, giro: (i % 2 === 0 ? 1 : -1) * (4 + i) });
-    });
+    try {
+      if (menosMovimento()) {
+        for (const no of [...pecas, ficha, selo, botao].filter(Boolean)) {
+          no.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, fill: 'forwards' });
+        }
+        await roteiro.pausa(200);
+        if (!texto) return;
+        humor('atracao');
+        Som.aplauso(0, 1.6, 0.6);
+        grito(camada, T('comVoces'), { cor: 'branco', tam: 64, y: 360, fica: true, chave: 'comVoces' }, roteiro).catch(soInterrupcao);
+        await grito(camada, texto, { tam: tamanhoDoNome(texto), y: NOME_Y, fica: true, chave: 'nome' }, roteiro);
+        await roteiro.pausa(SEGURA_MS);
+        return;
+      }
   
-    const atrasoDoSelo = vivas.length * PASSO_MS;
-    if (selo) {
-      setTimeout(() => tique({ frequencia: 520 + vivas.length * 90, duracao: 0.12, volume: 0.14 }), atrasoDoSelo);
-      saidas.push(aproximar(selo, { atraso: atrasoDoSelo }));
+      humor('atracao');
+      dispararBotao(camada, botao);
+  
+      // O holofote: o palco escurece em volta do centro, onde o nome vai pousar.
+      const holofote = el('div', { class: 'cad-holofote' });
+      camada.prepend(holofote);
+      holofote.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 520, delay: 80, easing: 'ease-out', fill: 'both' });
+  
+      // O cartão afunda por último, debaixo das peças que estão nele.
+      const vivas = pecas.filter(Boolean);
+      vivas.forEach((no, i) => desfazer(no, 40 + i * ENTRE_PECAS_MS));
+      ficha?.animate(
+        [
+          { opacity: 1, scale: '1', filter: 'blur(0px)' },
+          { opacity: 0, scale: '0.96', filter: 'blur(6px)' },
+        ],
+        { duration: 380, delay: 120, easing: 'cubic-bezier(.4,0,.7,.4)', fill: 'forwards' }
+      );
+      // O logo sobe e sai do quadro: é o "pano" abrindo para o anúncio.
+      selo?.animate(
+        [
+          { opacity: 1, translate: '0 0', scale: '1' },
+          { opacity: 0, translate: '0 -150px', scale: '0.8' },
+        ],
+        { duration: 420, delay: 60, easing: 'cubic-bezier(.5,0,.75,0)', fill: 'forwards' }
+      );
+  
+      if (!texto) {
+        await roteiro.pausa(40 + vivas.length * ENTRE_PECAS_MS + PECA_MS);
+        return;
+      }
+  
+      const origem = campoDoNome ? ondeEstaONome(campoDoNome) : { x: W / 2 - 40, y: 520, w: 80, h: 40 };
+      roteiro.depois(COM_VOCES_MS, () => {
+        grito(camada, T('comVoces'), { cor: 'branco', tam: 64, y: 360, fica: true, chave: 'comVoces' }, roteiro).catch(soInterrupcao);
+      });
+  
+      await roteiro.pausa(DECOLA_MS);
+      // O texto digitado apaga enquanto a cópia acende por cima dele.
+      campoDoNome?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 90, fill: 'forwards' });
+      const anunciado = await voarONome(camada, texto, origem, roteiro);
+  
+      // O pouso: pancada, raios, faíscas, a faixa escura abrindo atrás do nome.
+      anunciado.classList.add('pousou');
+      // Os raios vão logo acima do holofote, e não por cima das frases.
+      camada.insertBefore(raios(camada, { y: NOME_Y + 90 }), holofote.nextSibling);
+      Som.impacto(0, 0.6);
+      Som.fanfarra(0);
+      Som.aplauso(0.1, 1.8, 0.7);
+      clarao(camada, holofote);
+      faiscas({ x: W / 2, y: NOME_Y + 85, n: 70, forca: 1100 });
+  
+      await roteiro.pausa(SEGURA_MS);
+    } catch (erro) {
+      soInterrupcao(erro);
     }
-  
-    await espera(atrasoDoSelo + 120);
-    await Promise.all([estouro(raiz), ...saidas]).catch(() => {});
   }
-  Object.defineProperty(__exports, "desmontarOCadastro", { get: () => desmontarOCadastro, enumerable: true });
+  Object.defineProperty(__exports, "chamarAoPalco", { get: () => chamarAoPalco, enumerable: true });
   });
 
   /* ===== timer.js ===== */
@@ -14698,11 +14995,16 @@
   // E o prazo de inatividade do jogo inteiro (quatro minutos, inatividade.js)
   // passa por aqui também: uma ficha começada e largada é apagada.
   //
-  // NA 3.0: o selo ganhou as lâmpadas acesas correndo (components/selo.js), o
-  // CONFIRMAR ganhou o brilho passando, e confirmar a ficha tem anúncio — "COM
-  // VOCÊS: DAVI!", com aplauso, antes do vídeo de instruções. Custa um segundo e
-  // meio e personaliza a partida inteira. Os 45s parados abrem o modo de atração
-  // (components/atracao.js) no lugar da lista de nomes rolando.
+  // NA 3.0: o selo ganhou as lâmpadas acesas correndo (components/selo.js), e
+  // os 45s parados abrem o modo de atração (components/atracao.js) no lugar da
+  // lista de nomes rolando.
+  //
+  // NA 3.1: a ficha virou um cartão de vidro escuro no palco, com o CONFIRMAR em
+  // ouro — a cor dos botões de decisão do jogo inteiro (components/botao.js). O
+  // azul de antes era o mesmo dos campos, e o botão se perdia entre eles. As
+  // peças entram subindo em ~1,2s (eram 2,6s vindo da esquerda). E confirmar
+  // chama o jogador ao palco: o nome digitado voa do campo e vira o "COM VOCÊS:
+  // DAVI!" (ver transicoes.js).
   
   const { Align, Column, Container, Icon, InkWell, Opacity, Padding, Stack, StackAlign, Txt, TransformSkew, color, divide, el, unfocus, SW, SH } = __require("widgets.js");
   const { TH, style } = __require("theme.js");
@@ -14712,8 +15014,7 @@
   const { embaralhaQuestoes, nomeOfensivo, primeiroNome } = __require("functions.js");
   const { Som } = __require("som.js");
   const { humor } = __require("palco.js");
-  const { grito, raios } = __require("locutor.js");
-  const { criarRoteiro, soInterrupcao } = __require("roteiro.js");
+  const { criarRoteiro } = __require("roteiro.js");
   const { showDialog } = __require("dialog.js");
   const { NomeOfensivoWidget } = __require("components/nome_ofensivo.js");
   const { PoliticaPrivacidadeWidget } = __require("components/politica_privacidade.js");
@@ -14722,21 +15023,36 @@
   const { registrarToqueSecreto } = __require("admin/porta.js");
   const { sincronizarBaralho } = __require("nuvem.js");
   const { adiantarOPercurso } = __require("precarga.js");
-  const { desmontarOCadastro } = __require("transicoes.js");
+  const { chamarAoPalco } = __require("transicoes.js");
   const { go, goNamed } = __require("router.js");
-  const { AnimationInfo, AnimationTrigger, Curves, FadeEffect, MoveEffect, ScaleEffect, animateOnActionTrigger, animateOnPageLoad } = __require("anim.js");
+  const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnActionTrigger, animateOnPageLoad, entrar } = __require("anim.js");
   const { FlutterFlowTimer, FlutterFlowTimerController, InstantTimer, StopWatchMode, StopWatchTimer } = __require("timer.js");
   const { FlutterFlowDropDown, FlutterFlowLanguageSelector, FormFieldController, FormState, MaskTextInputFormatter, TextEditingController, TextFormField } = __require("forms.js");
   
-  /** The four staggered slide-ins; only the delay and duration differ. */
-  const slideIn = (delay, duration) =>
-    new AnimationInfo({
-      trigger: AnimationTrigger.onPageLoad,
-      effectsBuilder: () => [
-        MoveEffect({ curve: Curves.easeInOut, delay, duration, begin: [-100.0, 0.0], end: [0.0, 0.0] }),
-        FadeEffect({ curve: Curves.easeInOut, delay, duration, begin: 0.0, end: 1.0 }),
+  /**
+   * A entrada das peças: sobem 36px e acendem, uma depois da outra.
+   *
+   * No Dart elas vinham da esquerda com atrasos de 500 a 2000ms e 1200ms cada —
+   * o CONFIRMAR só aparecia 2,6s depois de a tela abrir. Agora a ficha inteira
+   * está de pé em ~1,2s. `translate` e `scale` (e não `transform`): o selo e o CONFIRMAR têm
+   * animação própria em `transform`, e propriedades separadas não disputam com ela.
+   */
+  const subir = (no, delay) =>
+    entrar(
+      no,
+      [
+        { opacity: 0, translate: '0 36px', filter: 'blur(6px)' },
+        { opacity: 1, translate: '0 0', filter: 'blur(0px)' },
       ],
-    });
+      { duration: 520, delay, easing: 'cubic-bezier(.2,.8,.25,1)' }
+    );
+  
+  /** A cor do texto de dica: clara o bastante para ler, apagada o bastante para não parecer resposta. */
+  const COR_DA_DICA = '#94AEDA';
+  
+  /** O fundo e a borda dos campos — os mesmos para os quatro, idioma incluso. */
+  const CAMPO_FUNDO = 'rgba(0, 26, 80, 0.78)';
+  const CAMPO_BORDA = 'rgba(120, 175, 255, 0.42)';
   
   /** The dropdown options, in the order the Dart lists them. */
   const OFICINA_KEYS = [
@@ -14819,10 +15135,6 @@
           ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [0.98, 0.98], end: [1.0, 1.0] }),
         ],
       }),
-      columnOnPageLoadAnimation1: slideIn(500.0, 1200.0),
-      columnOnPageLoadAnimation2: slideIn(1000.0, 1200.0),
-      columnOnPageLoadAnimation3: slideIn(1500.0, 1200.0),
-      columnOnPageLoadAnimation4: slideIn(2000.0, 600.0),
       transformOnActionTriggerAnimation: new AnimationInfo({
         trigger: AnimationTrigger.onActionTrigger,
         applyInitialState: true,
@@ -14831,16 +15143,6 @@
           ScaleEffect({ curve: Curves.easeInOut, delay: 200.0, duration: 200.0, begin: [0.9, 0.9], end: [1.0, 1.0] }),
         ],
       }),
-      transformOnPageLoadAnimation: new AnimationInfo({
-        loop: true,
-        reverse: true,
-        trigger: AnimationTrigger.onPageLoad,
-        applyInitialState: true,
-        effectsBuilder: () => [
-          ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [1.0, 1.0], end: [1.01, 1.01] }),
-        ],
-      }),
-      textOnPageLoadAnimation: slideIn(2000.0, 600.0),
     };
   
     /** Every interaction on this page restarts the idle countdown. */
@@ -14854,30 +15156,33 @@
     // Recebe o TEXTO, e nao a chave: os rotulos deste formulario deixaram de sair
     // de `translations.js`, que os trazia com a anotacao "( Teclado )"/"( Tela )"
     // do projeto Dart colada no fim. Ver o cabecalho de textos.js.
-    const fieldLabel = (texto) =>
-      Padding({
-        padding: [0.0, 0.0, 0.0, 16.0],
-        child: Txt(
-          texto,
-          style('bodyMedium', {
-            fontFamily: 'pirulen',
-            color: '#FFFFFF',
-            fontSize: 24.0,
-            letterSpacing: 3.0,
-            fontWeight: 400,
-          })
-        ),
-      });
+    const fieldLabel = (texto) => {
+      const rotulo = Txt(
+        texto,
+        style('bodyMedium', {
+          fontFamily: 'pirulen',
+          color: '#DCE8FF',
+          fontSize: 24.0,
+          letterSpacing: 3.0,
+          fontWeight: 400,
+        })
+      );
+      // O losango de ouro antes do rótulo (auditorio.css) é o mesmo dos botões.
+      rotulo.classList.add('cad-rotulo');
+      return Padding({ padding: [0.0, 0.0, 0.0, 14.0], child: rotulo });
+    };
   
     const nomeField = TextFormField({
       controller: model.textFieldNomeTextController,
       hintText: L('b4pv213k') /* Digite aqui seu nome */,
-      hintStyle: style('labelMedium', { color: '#FFFFFF', fontSize: 23.0 }),
+      // A dica era branca como o texto digitado: o campo vazio parecia preenchido.
+      hintStyle: style('labelMedium', { color: COR_DA_DICA, fontSize: 23.0 }),
       errorStyle: style('bodyMedium', { color: TH.error, fontSize: 23.0 }),
       style: style('bodyMedium', { color: '#FFFFFF', fontSize: 32.0 }),
-      fillColor: color(0xFF0053B6),
-      borderRadius: 8.0,
-      borderColor: color(0x00000000),
+      fillColor: CAMPO_FUNDO,
+      borderRadius: 12.0,
+      borderColor: CAMPO_BORDA,
+      borderWidth: 2,
       errorColor: TH.error,
       maxLength: 30,
       cursorColor: TH.primaryText,
@@ -14891,12 +15196,13 @@
     const whatsField = TextFormField({
       controller: model.textFieldWhatsTextController,
       hintText: L('559rlm5s') /* Digite o seu número */,
-      hintStyle: style('labelMedium', { color: '#FFFFFF', fontSize: 23.0 }),
+      hintStyle: style('labelMedium', { color: COR_DA_DICA, fontSize: 23.0 }),
       errorStyle: style('bodyMedium', { color: TH.error, fontSize: 23.0 }),
       style: style('bodyMedium', { color: '#FFFFFF', fontSize: 32.0 }),
-      fillColor: color(0xFF0053B6),
-      borderRadius: 8.0,
-      borderColor: color(0x00000000),
+      fillColor: CAMPO_FUNDO,
+      borderRadius: 12.0,
+      borderColor: CAMPO_BORDA,
+      borderWidth: 2,
       errorColor: TH.error,
       maxLength: 20,
       keyboardType: 'number',
@@ -14924,19 +15230,30 @@
         // Guarda a chave, não o rótulo traduzido, para a escolha atravessar a
         // troca de idioma (ver formState no topo).
         formState.oficinaKey = OFICINA_KEYS[index] ?? null;
+        pintarOficina();
         Som.clique();
         restartIdleTimer();
       },
       height: 70.0,
       textStyle: style('bodyMedium', { fontSize: 23.0 }),
       hintText: L('6rvdt37x') /* Escolha o seu seguimento */,
-      icon: Icon('keyboard_arrow_down_rounded', { color: TH.secondaryText, size: 62.0 }),
-      fillColor: color(0xFF0053B6),
-      borderColor: 'transparent',
-      borderWidth: 0.0,
-      borderRadius: 8.0,
+      icon: Icon('keyboard_arrow_down_rounded', { color: '#FFC21A', size: 62.0 }),
+      fillColor: CAMPO_FUNDO,
+      // A lista aberta passa por cima dos outros campos: com o fundo translúcido
+      // do campo, os rótulos de trás apareciam através das opções.
+      menuColor: '#06205E',
+      borderColor: CAMPO_BORDA,
+      borderWidth: 2.0,
+      borderRadius: 12.0,
       margin: [12.0, 0.0, 12.0, 0.0],
     });
+    // A dica do dropdown sai no mesmo estilo da escolha (é o mesmo rótulo), e
+    // por isso é pintada à mão: apagada enquanto nada foi escolhido.
+    const rotuloDaOficina = oficinaDropdown.querySelector('.ff-dropdown > .ff-text');
+    function pintarOficina() {
+      if (rotuloDaOficina) rotuloDaOficina.style.color = formState.oficinaKey ? '#FFFFFF' : COR_DA_DICA;
+    }
+    pintarOficina();
   
     /* ------------------------------------------------------ confirm button -- */
   
@@ -14950,6 +15267,9 @@
     // Por fora, o alvo passa a ser exatamente a forma azul que se vê (o
     // `TransformSkew` é o pai, então a inclinação vale para o acerto também), e o
     // afundar do `.ff-press` passa a ser do botão inteiro em vez de só da palavra.
+    //
+    // Em ouro desde a 3.1, e maior (88px de altura; era 76): é a cor de decisão
+    // do jogo inteiro, e o azul de antes era o dos campos — o botão se perdia.
     let caixaDoConfirmar = null;
     const confirmar = TransformSkew({
       ax: -0.5,
@@ -14985,22 +15305,27 @@
             // próximo jogador encontra a tela em branco.
             resetFormState();
   
-            // A ficha preenchida é lida e desmontada antes de o vídeo entrar —
-            // ver transicoes.js. De baixo para cima, que é o caminho da linha.
-            await desmontarOCadastro({
+            // O nome digitado voa do campo e vira o "COM VOCÊS: DAVI!" — ver
+            // transicoes.js. Resolve com o anúncio na tela, e a lâmina o leva.
+            await chamarAoPalco({
               raiz: root,
+              campoDoNome: grupoNome.querySelector('input'),
+              nome: primeiroNome(FFAppState.cadastro.nome),
               pecas: [privacyText, blocoConfirmar, grupoOficina, grupoWhats, grupoNome, seletorDeIdioma],
+              ficha,
               selo,
+              botao: confirmar,
+              roteiro,
             });
-  
-            await anunciar(FFAppState.cadastro.nome);
             if (left) return;
             goNamed('instrucoes');
           },
         child: caixaDoConfirmar = Container({
-          width: SW * 0.25,
-          height: SH * 0.07,
-          color: color(0xFF0053B6),
+          width: SW * 0.29,
+          height: 88.0,
+          // `gradient`, e não `color`: a abreviação `background` que `color`
+          // escreve inline zeraria o degradê (ver o CLAUDE.md).
+          gradient: 'linear-gradient(180deg, #fff1b8 0%, #ffc21a 50%, #e88a00 100%)',
           borderRadius: 16.0,
           alignment: [0.0, 0.0],
           child: TransformSkew({
@@ -15013,8 +15338,8 @@
                   L('kn0wcjje') /* CONFIRMAR */,
                   style('bodyMedium', {
                     fontFamily: 'pirulen',
-                    color: '#FFFFFF',
-                    fontSize: 24.0,
+                    color: '#231500',
+                    fontSize: 28.0,
                     letterSpacing: 5.0,
                     fontWeight: 400,
                   })
@@ -15025,36 +15350,12 @@
         }),
       }),
     });
-    animateOnPageLoad(confirmar, animationsMap.transformOnPageLoadAnimation);
     animateOnActionTrigger(confirmar, animationsMap.transformOnActionTriggerAnimation);
     // O brilho que passa pelo botão, como nos botões do apresentador: diz "é
-    // aqui" sem piscar. Mora num ::after (auditorio.css), porque o fundo do
-    // Container é escrito inline e uma regra de folha não o alcançaria.
-    caixaDoConfirmar.classList.add('aud-brilho');
-  
-    /**
-     * "COM VOCÊS: DAVI!" — o apresentador chama o jogador pelo primeiro nome,
-     * com aplauso, no palco já vazio da ficha desmontada. Um segundo e meio.
-     */
-    async function anunciar(nome) {
-      const quem = primeiroNome(nome);
-      if (!quem) return;
-      const camada = el('div', { class: 'pg-locutor' });
-      root.appendChild(camada);
-      try {
-        humor('atracao');
-        const r = raios(camada, { y: 540 });
-        Som.impacto(0, 0.6);
-        Som.aplauso(0.1, 1.8, 0.7);
-        grito(camada, T('comVoces'), { cor: 'branco', tam: 64, y: 360, segura: 1100, chave: 'comVoces' }, roteiro).catch(soInterrupcao);
-        await roteiro.pausa(180);
-        Som.fanfarra(0);
-        await grito(camada, `${quem.toUpperCase()}!`, { tam: 150, y: 450, segura: 900, chave: 'nome' }, roteiro);
-        r.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, fill: 'forwards' });
-      } catch (erro) {
-        soInterrupcao(erro);
-      }
-    }
+    // aqui" sem piscar. Mora num ::after (auditorio.css). E o halo que respira
+    // em volta é de CSS (`.cad-confirmar`), e não o laço de escala do Dart: laço
+    // de WAAPI segura a tela na memória (ver `encerrarAnimacoes`).
+    caixaDoConfirmar.classList.add('aud-brilho', 'cad-confirmar');
   
     /* -------------------------------------------------------------- privacy -- */
   
@@ -15075,7 +15376,6 @@
         style('bodyMedium', { color: '#CFE3FF', fontSize: 17.0, decoration: 'underline' })
       ),
     });
-    animateOnPageLoad(privacyText, animationsMap.textOnPageLoadAnimation);
   
     /* ---------------------------------------------------------- hidden bits -- */
     // O cronometro conta a inatividade e nao e para ser visto: fica num
@@ -15108,52 +15408,40 @@
     const grupoNome = Padding({
       padding: [0.0, 16.0, 0.0, 0.0],
       style: { alignSelf: 'stretch' },
-      child: animateOnPageLoad(
-        Column({
-          mainAxisSize: 'min',
-          crossAxisAlignment: 'start',
-          width: Infinity,
-          children: [
-            fieldLabel(T('rotuloNome')),
-            Container({ width: SW * 1.0, child: nomeField }),
-          ],
-        }),
-        animationsMap.columnOnPageLoadAnimation1
-      ),
+      child: Column({
+        mainAxisSize: 'min',
+        crossAxisAlignment: 'start',
+        width: Infinity,
+        children: [
+          fieldLabel(T('rotuloNome')),
+          Container({ width: SW * 1.0, child: nomeField }),
+        ],
+      }),
     });
   
     const grupoWhats = Padding({
       padding: [0.0, 16.0, 0.0, 0.0],
       style: { alignSelf: 'stretch' },
-      child: animateOnPageLoad(
-        Column({
-          mainAxisSize: 'min',
-          crossAxisAlignment: 'start',
-          width: Infinity,
-          children: [fieldLabel(T('rotuloWhatsapp')), whatsField],
-        }),
-        animationsMap.columnOnPageLoadAnimation2
-      ),
+      child: Column({
+        mainAxisSize: 'min',
+        crossAxisAlignment: 'start',
+        width: Infinity,
+        children: [fieldLabel(T('rotuloWhatsapp')), whatsField],
+      }),
     });
   
     const grupoOficina = Padding({
-      padding: [0.0, 16.0, 0.0, 32.0],
+      padding: [0.0, 16.0, 0.0, 24.0],
       style: { alignSelf: 'stretch' },
-      child: animateOnPageLoad(
-        Column({
-          mainAxisSize: 'min',
-          crossAxisAlignment: 'start',
-          width: Infinity,
-          children: [fieldLabel(T('rotuloOficina')), oficinaDropdown],
-        }),
-        animationsMap.columnOnPageLoadAnimation3
-      ),
+      child: Column({
+        mainAxisSize: 'min',
+        crossAxisAlignment: 'start',
+        width: Infinity,
+        children: [fieldLabel(T('rotuloOficina')), oficinaDropdown],
+      }),
     });
   
-    const blocoConfirmar = animateOnPageLoad(
-      Column({ mainAxisSize: 'max', children: [confirmar] }),
-      animationsMap.columnOnPageLoadAnimation4
-    );
+    const blocoConfirmar = Column({ mainAxisSize: 'max', children: [confirmar] });
   
     const groups = [grupoNome, grupoWhats, grupoOficina, blocoConfirmar, privacyText];
   
@@ -15175,15 +15463,65 @@
     const seletorDeIdioma = FlutterFlowLanguageSelector({
       width: 358.57,
       height: 61.2,
-      backgroundColor: color(0xFF0053B6),
-      borderColor: 'transparent',
+      backgroundColor: CAMPO_FUNDO,
+      borderColor: CAMPO_BORDA,
       dropdownColor: color(0xFF171212),
-      dropdownIconColor: TH.secondaryText,
+      dropdownIconColor: '#FFC21A',
       borderRadius: 23.0,
       textStyle: style('bodyMedium', { fontSize: 23.0 }),
       currentLanguage: FFLocalizations.languageCode,
       languages: LANGUAGES,
       onChanged: (lang) => setAppLanguage(lang),
+    });
+  
+    // O cartão atrás da ficha. É irmão das peças, e não pai: uma caixa pintada
+    // por fora dos campos contaria como "botão" no verify:teclado, que mede se o
+    // alvo de toque cobre a caixa pintada em volta dele.
+    const ficha = el('div', { class: 'cad-ficha', 'aria-hidden': 'true' });
+    const formulario = Container({
+      width: SW * 0.574,
+      child: Column({
+        mainAxisSize: 'max',
+        mainAxisAlignment: 'spaceBetween',
+        children: divide(groups, 16.0),
+      }),
+    });
+    formulario.classList.add('cad-formulario');
+    formulario.prepend(ficha);
+  
+    // A entrada: o selo desce, o cartão abre, as peças sobem uma a uma, e o
+    // CONFIRMAR chega por último, saltando — é o que o jogador tem de achar.
+    entrar(
+      selo,
+      [
+        { opacity: 0, translate: '0 -70px', scale: '0.86' },
+        { opacity: 1, translate: '0 6px', scale: '1.02', offset: 0.7 },
+        { opacity: 1, translate: '0 0', scale: '1' },
+      ],
+      { duration: 700, easing: 'cubic-bezier(.2,.8,.25,1)' }
+    );
+    entrar(ficha, [{ opacity: 0, scale: '0.95' }, { opacity: 1, scale: '1' }], {
+      duration: 560,
+      delay: 120,
+      easing: 'cubic-bezier(.2,.8,.25,1)',
+    });
+    subir(grupoNome, 260);
+    subir(grupoWhats, 360);
+    subir(grupoOficina, 460);
+    entrar(
+      blocoConfirmar,
+      [
+        { opacity: 0, scale: '0.7' },
+        { opacity: 1, scale: '1.06', offset: 0.65 },
+        { opacity: 1, scale: '1' },
+      ],
+      { duration: 520, delay: 600, easing: 'cubic-bezier(.2,.8,.25,1)' }
+    );
+    entrar(privacyText, [{ opacity: 0 }, { opacity: 1 }], { duration: 400, delay: 780 });
+    entrar(seletorDeIdioma, [{ opacity: 0, translate: '40px 0' }, { opacity: 1, translate: '0 0' }], {
+      duration: 520,
+      delay: 300,
+      easing: 'cubic-bezier(.2,.8,.25,1)',
     });
   
     const body = Stack({
@@ -15211,18 +15549,7 @@
               Column({
                 mainAxisSize: 'max',
                 mainAxisAlignment: 'center',
-                children: [
-                  selo,
-                  Container({
-                    width: SW * 0.574,
-                    child: Column({
-                      mainAxisSize: 'max',
-                      mainAxisAlignment: 'spaceBetween',
-                      children: divide(groups, 16.0),
-                    }),
-                  }),
-                  Opacity({ opacity: 0.0, child: timer }),
-                ],
+                children: [selo, formulario, Opacity({ opacity: 0.0, child: timer })],
               })
             ),
           }),
@@ -15237,7 +15564,7 @@
       ],
     });
   
-    const root = el('div', { class: 'ff-scaffold' }, body);
+    const root = el('div', { class: 'ff-scaffold pg-cadastro' }, body);
     root.addEventListener('click', unfocus);
   
     /* --------------------------------------------------------- on page load -- */
@@ -15245,7 +15572,7 @@
     // publicou desde a ultima partida.
     FFAppState.recarregarBaralho();
     // Com o baralho desta partida em mãos, pede já as imagens da roleta: daqui
-    // até ela o jogador atravessa o vídeo de instruções e a vinheta, e é tempo de
+    // até ela o jogador atravessa a tela de instruções e a vinheta, e é tempo de
     // sobra para nenhuma fatia nascer vazia (ver precarga.js).
     adiantarOPercurso(FFAppState.baralho);
     // E puxa da nuvem em paralelo. Sem esperar: a tela não pode ficar refém da
@@ -15317,108 +15644,214 @@
 
   /* ===== pages/instrucoes.js ===== */
   __define("pages/instrucoes.js", function (__exports, __require) {
-  // Port of lib/pages/instrucoes/instrucoes_widget.dart
+  // "Como funciona o jogo" — reescrita na 3.1.
   //
-  // Plays the instruction video; after 13s (or when "Pular instruções" is
-  // pressed) it goes to the transition video with tipo = 1.
+  // O Dart tocava aqui um vídeo (Instrucao.mp4): a tela da pergunta da época num
+  // monitor, com quatro chamadas coloridas — o defeito, as 4 alternativas, as 2
+  // ajudas e o relógio 00:60:00. A 3.0 virou programa de auditório e aquela tela
+  // deixou de existir; o vídeo passou a ensinar uma interface que o jogador não
+  // ia encontrar. E vídeo não acompanha mudança: teria de ser refeito a cada uma.
+  //
+  // Agora a explicação é a própria tela nova. Uma captura da pergunta
+  // (`Como_Funciona_Pergunta.jpg`) entra num monitor — o mesmo enquadramento do
+  // vídeo, que o público já conhecia — e os passos chegam um a um. Cada passo
+  // acende, na captura, a peça de que fala, na cor dele, e escurece o resto: o
+  // olho vai do texto à peça sem precisar procurar.
+  //
+  // SE A TELA DA PERGUNTA MUDAR DE CARA, refaça a captura (estilo clássico,
+  // 1280x720, com o relógio correndo) e meça de novo as `REGIOES`, que estão em
+  // px do palco de 1920x1080 — o retângulo de cada peça na tela de verdade.
+  //
+  // Segue sozinha em 15s — o tempo de os cinco passos chegarem e ainda sobrar
+  // leitura —, ou antes, por "Pular instruções" (ou Enter).
   
-  const { Align, Column, Container, InkWell, Padding, Stack, StackAlign, Txt, VideoPlayer, boxShadow, color, decorationImage, el, linearGradient, unfocus, SW, SH } = __require("widgets.js");
-  const { TH, style } = __require("theme.js");
+  const { el, fonte, unfocus } = __require("widgets.js");
+  const { entrar, menosMovimento } = __require("anim.js");
   const { L } = __require("i18n.js");
+  const { T } = __require("textos.js");
   const { Som } = __require("som.js");
   const { goNamed, serializeParam } = __require("router.js");
-  const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnActionTrigger, animateOnPageLoad, delayed } = __require("anim.js");
+  const { registrarComandos } = __require("comandos.js");
+  const { BotaoDeAuditorio } = __require("components/botao.js");
   
   const NEXT = () => goNamed('telaVideoTransisao', { queryParameters: { tipo: serializeParam(1) } });
   
-  function InstrucoesWidget() {
-    let left = false;
+  /** Quanto a tela espera antes de seguir sozinha. */
+  const SEGUE_SOZINHA_MS = 15000;
+  /** Quando entra o primeiro passo, e de quanto em quanto entram os outros. */
+  const PRIMEIRO_PASSO_MS = 900;
+  const ENTRE_PASSOS_MS = 2300;
   
-    const animationsMap = {
-      containerOnPageLoadAnimation: new AnimationInfo({
-        loop: true,
-        reverse: true,
-        trigger: AnimationTrigger.onPageLoad,
-        applyInitialState: true,
-        effectsBuilder: () => [
-          ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [1.0, 1.0], end: [1.05, 1.05] }),
-        ],
-      }),
-      containerOnActionTriggerAnimation: new AnimationInfo({
-        trigger: AnimationTrigger.onActionTrigger,
-        applyInitialState: true,
-        effectsBuilder: () => [
-          ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 200.0, begin: [1.0, 1.0], end: [0.9, 0.9] }),
-          ScaleEffect({ curve: Curves.easeInOut, delay: 200.0, duration: 200.0, begin: [0.9, 0.9], end: [1.0, 1.0] }),
-        ],
-      }),
+  /** A captura, e a caixa da tela do monitor em px do palco (16:9, como ela). */
+  const CAPTURA = 'assets/images/Como_Funciona_Pergunta.jpg';
+  const TELA = { x: 820, y: 236, w: 1040, h: 585 };
+  
+  /**
+   * Onde cada peça está na tela da pergunta, em px do palco: `[x0, y0, x1, y1]`,
+   * medidos no DOM no momento da captura.
+   */
+  const REGIOES = {
+    defeito: [60, 196, 1020, 462],
+    alternativas: [60, 486, 1020, 980],
+    ajudas: [1104, 846, 1904, 1016],
+    cronometro: [1584, 4, 1874, 323],
+  };
+  
+  /** Os passos, na ordem em que o jogador vive a pergunta. `regiao` null: não há peça a apontar. */
+  const PASSOS = [
+    { cor: '#FF4D4D', regiao: 'defeito', titulo: 'comoPassoDefeito', sub: 'comoPassoDefeitoSub' },
+    { cor: '#FFC21A', regiao: 'alternativas', titulo: 'comoPassoResposta', sub: 'comoPassoRespostaSub' },
+    { cor: '#2BD96B', regiao: 'ajudas', titulo: 'comoPassoAjudas', sub: 'comoPassoAjudasSub' },
+    { cor: '#E040FB', regiao: 'cronometro', titulo: 'comoPassoTempo', sub: 'comoPassoTempoSub' },
+    { cor: '#22D3EE', regiao: null, titulo: 'comoPassoRanking', sub: 'comoPassoRankingSub' },
+  ];
+  
+  /** O caminho até a pergunta — o que vem antes dela, numa linha. */
+  const CAMINHO = ['comoCaminhoRoleta', 'comoCaminhoEquipamento', 'comoCaminhoDefeito'];
+  
+  /** A cor do passo vai numa variável de CSS: o `style` de `el()` não escreve `--x`. */
+  const comCor = (no, cor) => {
+    no.style.setProperty('--cor', cor);
+    return no;
+  };
+  
+  /** Uma região do palco, na escala da captura, com uma folga em volta. */
+  function naCaptura([x0, y0, x1, y1], folga = 8) {
+    const k = TELA.w / 1920;
+    return {
+      left: `${Math.max(0, (x0 - folga) * k).toFixed(1)}px`,
+      top: `${Math.max(0, (y0 - folga) * k).toFixed(1)}px`,
+      width: `${(Math.min(1920, x1 + folga) - Math.max(0, x0 - folga)) * k}px`,
+      height: `${(Math.min(1080, y1 + folga) - Math.max(0, y0 - folga)) * k}px`,
+    };
+  }
+  
+  function InstrucoesWidget() {
+    let saiu = false;
+    const timers = [];
+    const depois = (ms, fn) => timers.push(setTimeout(() => !saiu && fn(), ms));
+  
+    const pular = () => {
+      if (saiu) return;
+      saiu = true;
+      Som.clique();
+      NEXT();
     };
   
-    const skipButton = InkWell({
-      onTap: async () => {
-        Som.clique();
-        animationsMap.containerOnActionTriggerAnimation.controller.forward();
-        left = true;
-        NEXT();
-      },
-      child: Container({
-        width: 450.0,
-        height: 100.0,
-        boxShadow: boxShadow({ blurRadius: 4.0, color: color(0x33000000), offset: [0.0, 2.0] }),
-        gradient: linearGradient({
-          colors: [color(0xFF0051FF), color(0xFF3471F4)],
-          stops: [0.0, 1.0],
-          begin: [1.0, 0.17],
-          end: [-1.0, -0.17],
-        }),
-        borderRadius: 8.0,
-        alignment: [0.0, 0.0],
-        child: Align({
-          alignment: [0.0, 0.0],
-          child: Txt(L('ii6e477y') /* Pular instruções */, style('bodyMedium', { fontFamily: 'pirulen', fontSize: 28.0 })),
-        }),
-      }),
-    });
-    animateOnPageLoad(skipButton, animationsMap.containerOnPageLoadAnimation);
-    animateOnActionTrigger(skipButton, animationsMap.containerOnActionTriggerAnimation);
+    /* ------------------------------------------------------------ o alto ---- */
   
-    const root = el(
+    const titulo = el('div', { class: 'ff-text ins-titulo aud-oculta', text: T('comoFunciona'), style: { fontSize: fonte(52) } });
+    const caminho = el(
       'div',
-      { class: 'ff-scaffold', style: { background: TH.primaryBackground } },
-      Stack({
-        children: [
-          Column({
-            mainAxisSize: 'max',
-            children: [
-              Container({
-                width: SW * 1.0,
-                height: SH * 1.0,
-                color: TH.secondaryBackground,
-                image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),
-                child: VideoPlayer({
-                  path: 'assets/videos/Instrucao.mp4',
-                  autoPlay: true,
-                  looping: true,
-                  showControls: false,
-                }),
-              }),
-            ],
-          }),
-          StackAlign({
-            alignment: [1.0, 1.0],
-            child: Padding({ padding: [0.0, 0.0, 32.0, 32.0], child: skipButton }),
-          }),
-        ],
-      })
+      { class: 'ins-caminho aud-oculta' },
+      CAMINHO.flatMap((chave, i) => [
+        i ? el('span', { class: 'ins-caminho-seta', 'aria-hidden': 'true', text: '›' }) : null,
+        el('span', { class: ['ff-text', 'ins-caminho-item', i === CAMINHO.length - 1 ? 'ins-caminho-item--aqui' : null], text: T(chave), style: { fontSize: fonte(20) } }),
+      ])
     );
+  
+    /* ---------------------------------------------------------- os passos --- */
+  
+    const passos = PASSOS.map((p, i) =>
+      comCor(el('div', { class: 'ins-passo aud-oculta', dataPasso: String(i + 1) }, [
+        el('b', { class: 'ff-text ins-passo-num', text: String(i + 1), style: { fontSize: fonte(34) } }),
+        el('div', { class: 'ins-passo-texto' }, [
+          el('div', { class: 'ff-text ins-passo-titulo', text: T(p.titulo), style: { fontSize: fonte(25) } }),
+          el('div', { class: 'ff-text ins-passo-sub', text: T(p.sub), style: { fontSize: fonte(21) } }),
+        ]),
+      ]), p.cor)
+    );
+  
+    /* -------------------------------------------------------- o monitor ----- */
+  
+    const destaques = PASSOS.map((p, i) =>
+      p.regiao
+        ? comCor(
+            el('div', { class: 'ins-destaque aud-oculta', dataDestaque: String(i + 1), style: naCaptura(REGIOES[p.regiao]) }, [
+              el('b', { class: 'ff-text ins-destaque-num', text: String(i + 1), style: { fontSize: fonte(24) } }),
+            ]),
+            p.cor
+          )
+        : null
+    );
+    const tela = el('div', { class: 'ins-tela', style: { width: `${TELA.w}px`, height: `${TELA.h}px` } }, [
+      el('img', { src: CAPTURA, alt: '', draggable: 'false', width: String(TELA.w), height: String(TELA.h) }),
+      ...destaques.filter(Boolean),
+    ]);
+    const monitor = el('div', { class: 'ins-monitor aud-oculta', style: { left: `${TELA.x - 14}px`, top: `${TELA.y - 14}px` } }, [
+      tela,
+      el('div', { class: 'ins-monitor-pe', 'aria-hidden': 'true' }),
+      el('div', { class: 'ins-monitor-base', 'aria-hidden': 'true' }),
+    ]);
+  
+    /* --------------------------------------------------------- o botão ------ */
+  
+    const botao = BotaoDeAuditorio(L('ii6e477y') /* Pular instruções */, { acao: 'pular', aoTocar: pular });
+    botao.classList.add('ins-pular');
+    // A barra que enche no botão diz que a tela segue sozinha, e quando.
+    botao.botao.style.setProperty('--espera', `${SEGUE_SOZINHA_MS}ms`);
+    botao.botao.classList.add('aud-botao--contando');
+  
+    const root = el('div', { class: 'ff-scaffold pg-instrucoes' }, [
+      titulo,
+      caminho,
+      el('div', { class: 'ins-passos' }, passos),
+      monitor,
+      botao,
+    ]);
     root.addEventListener('click', unfocus);
   
-    delayed(13000).then(() => {
-      if (!left && root.isConnected) NEXT();
+    /* ------------------------------------------------------- o roteiro ------ */
+  
+    entrar(titulo, [{ opacity: 0, transform: 'translateY(-24px)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: 'ease-out' });
+    entrar(caminho, [{ opacity: 0 }, { opacity: 1 }], { duration: 420, delay: 200 });
+    entrar(monitor, [{ opacity: 0, transform: 'translateY(40px) scale(.96)' }, { opacity: 1, transform: 'none' }], {
+      duration: 600,
+      delay: 150,
+      easing: 'cubic-bezier(.2,.8,.3,1)',
+    });
+    entrar(botao, [{ opacity: 0 }, { opacity: 1 }], { duration: 400, delay: 400 });
+    Som.whoosh(0, 0.35, 0.14);
+  
+    // Mi, Sol, Si, Ré, Mi: o acorde que sobe a cada passo, como as alternativas
+    // entrando na pergunta.
+    const notas = [659.25, 783.99, 987.77, 1174.66, 1318.51];
+    PASSOS.forEach((_, i) => {
+      depois(PRIMEIRO_PASSO_MS + i * ENTRE_PASSOS_MS, () => {
+        passos.forEach((n, k) => {
+          n.classList.toggle('ins-ativo', k === i);
+          n.classList.toggle('ins-visto', k < i);
+        });
+        destaques.forEach((d, k) => {
+          if (!d) return;
+          d.classList.toggle('ins-ativo', k === i);
+          d.classList.toggle('ins-visto', k < i);
+        });
+        entrar(passos[i], [{ opacity: 0, transform: 'translateX(-50px)' }, { opacity: 1, transform: 'none' }], {
+          duration: 420,
+          easing: 'cubic-bezier(.2,.9,.3,1)',
+        });
+        if (destaques[i]) {
+          entrar(destaques[i], [{ opacity: 0, transform: menosMovimento() ? 'none' : 'scale(1.08)' }, { opacity: 1, transform: 'none' }], {
+            duration: 380,
+            easing: 'ease-out',
+          });
+        }
+        Som.sino(notas[i], 0, 0.09);
+      });
     });
   
+    depois(SEGUE_SOZINHA_MS, () => {
+      saiu = true;
+      NEXT();
+    });
+  
+    const desligarComandos = registrarComandos({ principal: pular });
+  
     root.__dispose = () => {
-      left = true;
+      saiu = true;
+      timers.forEach(clearTimeout);
+      desligarComandos();
     };
   
     return root;
@@ -16856,7 +17289,7 @@
       //
       // É uma marca do baralho, por pergunta (`pularEquipamento`, ver deck.js):
       // há pergunta que não depende de scanner nenhum, e para essa a tela dos
-      // cinco equipamentos é uma parada sem decisão — em feira cheia, é a fila
+      // seis equipamentos é uma parada sem decisão — em feira cheia, é a fila
       // parada. Quem pula joga com o equipamento padrão, que é o que dá ao painel
       // da pergunta uma pele inteira em vez do cinza de reserva, e não vê o vídeo
       // demonstrativo: ele é a apresentação do equipamento ESCOLHIDO, e aqui não
@@ -16886,6 +17319,10 @@
   //
   // "ESCOLHA O EQUIPAMENTO IDEAL" - three scanners on the first row, two on the
   // second. Which of them are valid depends on the current question.
+  //
+  // Desde a 3.1 são seis, três e três: o Rasther 4 entrou. Em cima ficam os
+  // aparelhos de mão da Tecnomotor (4, 3S e ST); embaixo o BOX e os dois Xtool. A
+  // altura não mudou — a segunda fileira já existia —, só ganhou o terceiro.
   //
   // A ENTRADA. O Dart escalava o bloco inteiro de [-1, -1] ate [1, 1] — escala
   // negativa e ESPELHAMENTO, entao os cinco equipamentos nasciam invertidos,
@@ -16990,11 +17427,11 @@
               alignment: [0.0, 0.0],
               child: Padding({
                 padding: [1.0, 0.0, 0.0, 0.0],
-                child: pousando(FerramentaWidget({ ferramenta: '3s', util: true })),
+                child: pousando(FerramentaWidget({ ferramenta: '4s', util: true })),
               }),
             }),
+            pousando(FerramentaWidget({ ferramenta: '3s', util: true })),
             pousando(FerramentaWidget({ ferramenta: 'rts', util: true })),
-            pousando(FerramentaWidget({ ferramenta: 'td90', util: false })),
           ],
         }),
         Padding({
@@ -17011,6 +17448,7 @@
                   child: pousando(FerramentaWidget({ ferramenta: 'rb', util: true })),
                 }),
               }),
+              pousando(FerramentaWidget({ ferramenta: 'td90', util: false })),
               pousando(FerramentaWidget({ ferramenta: 'td80', util: true })),
             ],
           }),
@@ -17038,112 +17476,6 @@
   Object.defineProperty(__exports, "ScannerWidget", { get: () => ScannerWidget, enumerable: true });
   });
 
-  /* ===== pages/tela_video_scanner.js ===== */
-  __define("pages/tela_video_scanner.js", function (__exports, __require) {
-  // Port of lib/pages/tela_video_scanner/tela_video_scanner_widget.dart
-  //
-  // A 14s demo clip of the chosen scanner, then straight into the action screen.
-  // The clips are the same public Firebase Storage URLs the Dart used.
-  
-  const { Column, Container, Padding, Stack, StackAlign, Txt, VideoPlayer, color, decorationImage, el } = __require("widgets.js");
-  const { TH, style } = __require("theme.js");
-  const { L } = __require("i18n.js");
-  const { FFAppState } = __require("state.js");
-  const { CONFIG } = __require("config.js");
-  const { goNamed } = __require("router.js");
-  const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnPageLoad, delayed } = __require("anim.js");
-  
-  const BASE = 'https://firebasestorage.googleapis.com/v0/b/projeto-assis-3qcf6v.appspot.com/o/videoScanners';
-  
-  const VIDEOS = {
-    Td80: `${BASE}%2FTD80.mp4?alt=media&token=65d0550d-7aa6-4cc1-beec-806b1db9b034`,
-    Td90: `${BASE}%2FTD90.mp4?alt=media&token=618b753c-dfe1-44b4-a38c-c51f6b43aaa9`,
-    'Rasther 3': `${BASE}%2F3S%20(1).mp4?alt=media&token=2223d09b-e65f-4e71-80d2-44f544b47626`,
-    RB: `${BASE}%2FRasther%20BOX.mp4?alt=media&token=6a029d9f-0d8f-48bc-a18c-cb9e0865fe5f`,
-    RST: `${BASE}%2FRasther%20ST.mp4?alt=media&token=bd84db8d-674c-48c1-8fc0-00556944d16a`,
-  };
-  
-  const DEFAULT_VIDEO = VIDEOS['Rasther 3'];
-  
-  /** Optional local copies - see CONFIG.useLocalScannerVideos in config.js. */
-  const LOCAL_VIDEOS = {
-    Td80: 'assets/videos/scanners/TD80.mp4',
-    Td90: 'assets/videos/scanners/TD90.mp4',
-    'Rasther 3': 'assets/videos/scanners/3S.mp4',
-    RB: 'assets/videos/scanners/RastherBOX.mp4',
-    RST: 'assets/videos/scanners/RastherST.mp4',
-  };
-  
-  function videoFor(scannerEscolhido) {
-    if (CONFIG.useLocalScannerVideos) {
-      return LOCAL_VIDEOS[scannerEscolhido] ?? LOCAL_VIDEOS['Rasther 3'];
-    }
-    return VIDEOS[scannerEscolhido] ?? DEFAULT_VIDEO;
-  }
-  
-  function TelaVideoScannerWidget() {
-    let left = false;
-  
-    const animationsMap = {
-      textOnPageLoadAnimation: new AnimationInfo({
-        loop: true,
-        reverse: true,
-        trigger: AnimationTrigger.onPageLoad,
-        effectsBuilder: () => [
-          ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [1.0, 1.0], end: [1.02, 1.02] }),
-        ],
-      }),
-    };
-  
-    const label = Txt(
-      L('islas0rw') /* Vídeo demonstrativo * */,
-      style('bodyMedium', { fontFamily: 'pirulen', color: color(0xFFFFBC00), fontSize: 32.0 })
-    );
-    animateOnPageLoad(label, animationsMap.textOnPageLoadAnimation);
-  
-    const root = el(
-      'div',
-      { class: 'ff-scaffold', style: { background: TH.primaryBackground } },
-      Stack({
-        children: [
-          Container({
-            width: Infinity,
-            height: Infinity,
-            image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),
-            child: Column({
-              mainAxisSize: 'max',
-              children: [
-                VideoPlayer({
-                  path: videoFor(FFAppState.scannerEscolhido),
-                  autoPlay: true,
-                  looping: true,
-                  showControls: false,
-                }),
-              ],
-            }),
-          }),
-          StackAlign({
-            alignment: [-1.0, -1.0],
-            child: Padding({ padding: [32.0, 32.0, 0.0, 0.0], child: label }),
-          }),
-        ],
-      })
-    );
-  
-    delayed(14000).then(() => {
-      if (left || !root.isConnected) return;
-      goNamed('telaAcao');
-    });
-  
-    root.__dispose = () => {
-      left = true;
-    };
-  
-    return root;
-  }
-  Object.defineProperty(__exports, "TelaVideoScannerWidget", { get: () => TelaVideoScannerWidget, enumerable: true });
-  });
-
   /* ===== pages/fim.js ===== */
   __define("pages/fim.js", function (__exports, __require) {
   // As duas telas de fim (lib/fim/ganhou e lib/fim/perdeu no Dart), que na 3.0
@@ -17156,8 +17488,9 @@
   //
   //   - o anfitrião da Tecnomotor, com o balão de sempre (ACERTOU! / ERROUU!);
   //   - o pódio dos maiores campeões, com o lugar do jogador marcado;
-  //   - para quem errou, a resposta certa e — se a pergunta tiver o link — o QR
-  //     code do vídeo do TecnomotorTV que ensina aquilo;
+  //   - para quem errou, se a pergunta tiver o link, o QR code do vídeo do
+  //     TecnomotorTV que ensina aquilo (a resposta certa já foi dita na
+  //     pergunta, e desde a 3.1 não se repete aqui);
   //   - REINICIAR, que manda a mensagem de WhatsApp (desligada, ver config.js),
   //     esquece a partida e recomeça pela vinheta.
   //
@@ -17273,31 +17606,31 @@
       ]);
     };
   
-    /* --------------------------------------------------- a lição e o QR ---- */
+    /* ------------------------------------------------------------ o QR ---- */
   
-    // O gabarito, contado a QUEM ERROU. Quem acertou não vê: a revelação já
-    // acendeu a alternativa certa em verde, e ela era a que o jogador escolheu.
-    const licao =
-      !resultado?.acertou && resultado?.numeroCerto && resultado?.textoCerto
-        ? (() => {
-            const qr = resultado.video ? QrSvg(resultado.video, { tamanho: 170 }) : null;
-            const no = el('div', { class: 'fim-licao', dataLicao: '1' }, [
-              el('div', { class: 'fim-licao-texto' }, [
-                el('div', { class: 'ff-text fim-licao-titulo', text: `${T('respostaCerta')}: ${T('alternativa')} ${resultado.numeroCerto}`, style: { fontSize: fonte(20) } }),
-                el('div', { class: 'ff-text fim-licao-certa', text: resultado.textoCerto, style: { fontSize: fonte(21) } }),
-                resultado.textoEscolhido
-                  ? el('div', { class: 'ff-text fim-licao-escolhida', text: `${T('voceRespondeu')}: ${T('alternativa')} ${resultado.numeroEscolhido}`, style: { fontSize: fonte(17) } })
-                  : null,
-                qr ? el('div', { class: 'ff-text fim-licao-aponte', text: T('aprendaAponte'), style: { fontSize: fonte(16) } }) : null,
-              ]),
-              qr ? el('div', { class: 'fim-qr', dataQr: '1' }, qr) : null,
-            ]);
-            entrar(no, [{ opacity: 0, transform: 'translateY(30px)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: 1300, easing: 'ease-out' });
-            return no;
-          })()
-        : null;
+    // A RESPOSTA CERTA NÃO VOLTA AQUI. Até a 3.0 quem errou relia o gabarito
+    // nesta tela; mas ele já tinha sido dito na própria pergunta, na lição — a
+    // certa acesa em verde e "A CERTA ERA A 3" —, e repetido aqui virava a tela
+    // inteira de quem perdeu. Fica só o QR do vídeo do TecnomotorTV, quando a
+    // pergunta tem o link: é o que o jogador leva no celular.
+    const qr = !resultado?.acertou && resultado?.video ? QrSvg(resultado.video, { tamanho: 170 }) : null;
+    const licao = qr
+      ? (() => {
+          const no = el('div', { class: 'fim-licao', dataLicao: '1' }, [
+            el('div', { class: 'fim-licao-texto' }, [
+              el('div', { class: 'ff-text fim-licao-titulo', text: T('aprendaNaTv'), style: { fontSize: fonte(20) } }),
+              el('div', { class: 'ff-text fim-licao-aponte', text: T('aprendaAponte'), style: { fontSize: fonte(18) } }),
+            ]),
+            el('div', { class: 'fim-qr', dataQr: '1' }, qr),
+          ]);
+          entrar(no, [{ opacity: 0, transform: 'translateY(30px)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: 1300, easing: 'ease-out' });
+          return no;
+        })()
+      : null;
   
-    const reiniciar = BotaoDeAuditorio(L(spec.buttonKey), { pulsa: true, acao: 'reiniciar', aoTocar: restart });
+    // O botão que encerra a partida é o maior da tela: é a única coisa a fazer
+    // aqui, e quem joga de pé, a um passo do totem, tem de achá-lo sem procurar.
+    const reiniciar = BotaoDeAuditorio(L(spec.buttonKey), { pulsa: true, grande: true, acao: 'reiniciar', aoTocar: restart });
     reiniciar.classList.add('fim-reiniciar');
     entrar(reiniciar, [{ opacity: 0, transform: 'translateY(30px)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: 2200, easing: 'ease-out' });
   

@@ -7,11 +7,16 @@
 // E o prazo de inatividade do jogo inteiro (quatro minutos, inatividade.js)
 // passa por aqui também: uma ficha começada e largada é apagada.
 //
-// NA 3.0: o selo ganhou as lâmpadas acesas correndo (components/selo.js), o
-// CONFIRMAR ganhou o brilho passando, e confirmar a ficha tem anúncio — "COM
-// VOCÊS: DAVI!", com aplauso, antes do vídeo de instruções. Custa um segundo e
-// meio e personaliza a partida inteira. Os 45s parados abrem o modo de atração
-// (components/atracao.js) no lugar da lista de nomes rolando.
+// NA 3.0: o selo ganhou as lâmpadas acesas correndo (components/selo.js), e
+// os 45s parados abrem o modo de atração (components/atracao.js) no lugar da
+// lista de nomes rolando.
+//
+// NA 3.1: a ficha virou um cartão de vidro escuro no palco, com o CONFIRMAR em
+// ouro — a cor dos botões de decisão do jogo inteiro (components/botao.js). O
+// azul de antes era o mesmo dos campos, e o botão se perdia entre eles. As
+// peças entram subindo em ~1,2s (eram 2,6s vindo da esquerda). E confirmar
+// chama o jogador ao palco: o nome digitado voa do campo e vira o "COM VOCÊS:
+// DAVI!" (ver transicoes.js).
 
 import {
   Align,
@@ -39,8 +44,7 @@ import { CadastroStruct, FFAppState } from '../state.js';
 import { embaralhaQuestoes, nomeOfensivo, primeiroNome } from '../functions.js';
 import { Som } from '../som.js';
 import { humor } from '../palco.js';
-import { grito, raios } from '../locutor.js';
-import { criarRoteiro, soInterrupcao } from '../roteiro.js';
+import { criarRoteiro } from '../roteiro.js';
 import { showDialog } from '../dialog.js';
 import { NomeOfensivoWidget } from '../components/nome_ofensivo.js';
 import { PoliticaPrivacidadeWidget } from '../components/politica_privacidade.js';
@@ -49,17 +53,16 @@ import { SeloComLampadas } from '../components/selo.js';
 import { registrarToqueSecreto } from '../admin/porta.js';
 import { sincronizarBaralho } from '../nuvem.js';
 import { adiantarOPercurso } from '../precarga.js';
-import { desmontarOCadastro } from '../transicoes.js';
+import { chamarAoPalco } from '../transicoes.js';
 import { go, goNamed } from '../router.js';
 import {
   AnimationInfo,
   AnimationTrigger,
   Curves,
-  FadeEffect,
-  MoveEffect,
   ScaleEffect,
   animateOnActionTrigger,
   animateOnPageLoad,
+  entrar,
 } from '../anim.js';
 import { FlutterFlowTimer, FlutterFlowTimerController, InstantTimer, StopWatchMode, StopWatchTimer } from '../timer.js';
 import {
@@ -72,15 +75,30 @@ import {
   TextFormField,
 } from '../forms.js';
 
-/** The four staggered slide-ins; only the delay and duration differ. */
-const slideIn = (delay, duration) =>
-  new AnimationInfo({
-    trigger: AnimationTrigger.onPageLoad,
-    effectsBuilder: () => [
-      MoveEffect({ curve: Curves.easeInOut, delay, duration, begin: [-100.0, 0.0], end: [0.0, 0.0] }),
-      FadeEffect({ curve: Curves.easeInOut, delay, duration, begin: 0.0, end: 1.0 }),
+/**
+ * A entrada das peças: sobem 36px e acendem, uma depois da outra.
+ *
+ * No Dart elas vinham da esquerda com atrasos de 500 a 2000ms e 1200ms cada —
+ * o CONFIRMAR só aparecia 2,6s depois de a tela abrir. Agora a ficha inteira
+ * está de pé em ~1,2s. `translate` e `scale` (e não `transform`): o selo e o CONFIRMAR têm
+ * animação própria em `transform`, e propriedades separadas não disputam com ela.
+ */
+const subir = (no, delay) =>
+  entrar(
+    no,
+    [
+      { opacity: 0, translate: '0 36px', filter: 'blur(6px)' },
+      { opacity: 1, translate: '0 0', filter: 'blur(0px)' },
     ],
-  });
+    { duration: 520, delay, easing: 'cubic-bezier(.2,.8,.25,1)' }
+  );
+
+/** A cor do texto de dica: clara o bastante para ler, apagada o bastante para não parecer resposta. */
+const COR_DA_DICA = '#94AEDA';
+
+/** O fundo e a borda dos campos — os mesmos para os quatro, idioma incluso. */
+const CAMPO_FUNDO = 'rgba(0, 26, 80, 0.78)';
+const CAMPO_BORDA = 'rgba(120, 175, 255, 0.42)';
 
 /** The dropdown options, in the order the Dart lists them. */
 const OFICINA_KEYS = [
@@ -163,10 +181,6 @@ export function CadastroWidget() {
         ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [0.98, 0.98], end: [1.0, 1.0] }),
       ],
     }),
-    columnOnPageLoadAnimation1: slideIn(500.0, 1200.0),
-    columnOnPageLoadAnimation2: slideIn(1000.0, 1200.0),
-    columnOnPageLoadAnimation3: slideIn(1500.0, 1200.0),
-    columnOnPageLoadAnimation4: slideIn(2000.0, 600.0),
     transformOnActionTriggerAnimation: new AnimationInfo({
       trigger: AnimationTrigger.onActionTrigger,
       applyInitialState: true,
@@ -175,16 +189,6 @@ export function CadastroWidget() {
         ScaleEffect({ curve: Curves.easeInOut, delay: 200.0, duration: 200.0, begin: [0.9, 0.9], end: [1.0, 1.0] }),
       ],
     }),
-    transformOnPageLoadAnimation: new AnimationInfo({
-      loop: true,
-      reverse: true,
-      trigger: AnimationTrigger.onPageLoad,
-      applyInitialState: true,
-      effectsBuilder: () => [
-        ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [1.0, 1.0], end: [1.01, 1.01] }),
-      ],
-    }),
-    textOnPageLoadAnimation: slideIn(2000.0, 600.0),
   };
 
   /** Every interaction on this page restarts the idle countdown. */
@@ -198,30 +202,33 @@ export function CadastroWidget() {
   // Recebe o TEXTO, e nao a chave: os rotulos deste formulario deixaram de sair
   // de `translations.js`, que os trazia com a anotacao "( Teclado )"/"( Tela )"
   // do projeto Dart colada no fim. Ver o cabecalho de textos.js.
-  const fieldLabel = (texto) =>
-    Padding({
-      padding: [0.0, 0.0, 0.0, 16.0],
-      child: Txt(
-        texto,
-        style('bodyMedium', {
-          fontFamily: 'pirulen',
-          color: '#FFFFFF',
-          fontSize: 24.0,
-          letterSpacing: 3.0,
-          fontWeight: 400,
-        })
-      ),
-    });
+  const fieldLabel = (texto) => {
+    const rotulo = Txt(
+      texto,
+      style('bodyMedium', {
+        fontFamily: 'pirulen',
+        color: '#DCE8FF',
+        fontSize: 24.0,
+        letterSpacing: 3.0,
+        fontWeight: 400,
+      })
+    );
+    // O losango de ouro antes do rótulo (auditorio.css) é o mesmo dos botões.
+    rotulo.classList.add('cad-rotulo');
+    return Padding({ padding: [0.0, 0.0, 0.0, 14.0], child: rotulo });
+  };
 
   const nomeField = TextFormField({
     controller: model.textFieldNomeTextController,
     hintText: L('b4pv213k') /* Digite aqui seu nome */,
-    hintStyle: style('labelMedium', { color: '#FFFFFF', fontSize: 23.0 }),
+    // A dica era branca como o texto digitado: o campo vazio parecia preenchido.
+    hintStyle: style('labelMedium', { color: COR_DA_DICA, fontSize: 23.0 }),
     errorStyle: style('bodyMedium', { color: TH.error, fontSize: 23.0 }),
     style: style('bodyMedium', { color: '#FFFFFF', fontSize: 32.0 }),
-    fillColor: color(0xFF0053B6),
-    borderRadius: 8.0,
-    borderColor: color(0x00000000),
+    fillColor: CAMPO_FUNDO,
+    borderRadius: 12.0,
+    borderColor: CAMPO_BORDA,
+    borderWidth: 2,
     errorColor: TH.error,
     maxLength: 30,
     cursorColor: TH.primaryText,
@@ -235,12 +242,13 @@ export function CadastroWidget() {
   const whatsField = TextFormField({
     controller: model.textFieldWhatsTextController,
     hintText: L('559rlm5s') /* Digite o seu número */,
-    hintStyle: style('labelMedium', { color: '#FFFFFF', fontSize: 23.0 }),
+    hintStyle: style('labelMedium', { color: COR_DA_DICA, fontSize: 23.0 }),
     errorStyle: style('bodyMedium', { color: TH.error, fontSize: 23.0 }),
     style: style('bodyMedium', { color: '#FFFFFF', fontSize: 32.0 }),
-    fillColor: color(0xFF0053B6),
-    borderRadius: 8.0,
-    borderColor: color(0x00000000),
+    fillColor: CAMPO_FUNDO,
+    borderRadius: 12.0,
+    borderColor: CAMPO_BORDA,
+    borderWidth: 2,
     errorColor: TH.error,
     maxLength: 20,
     keyboardType: 'number',
@@ -268,19 +276,30 @@ export function CadastroWidget() {
       // Guarda a chave, não o rótulo traduzido, para a escolha atravessar a
       // troca de idioma (ver formState no topo).
       formState.oficinaKey = OFICINA_KEYS[index] ?? null;
+      pintarOficina();
       Som.clique();
       restartIdleTimer();
     },
     height: 70.0,
     textStyle: style('bodyMedium', { fontSize: 23.0 }),
     hintText: L('6rvdt37x') /* Escolha o seu seguimento */,
-    icon: Icon('keyboard_arrow_down_rounded', { color: TH.secondaryText, size: 62.0 }),
-    fillColor: color(0xFF0053B6),
-    borderColor: 'transparent',
-    borderWidth: 0.0,
-    borderRadius: 8.0,
+    icon: Icon('keyboard_arrow_down_rounded', { color: '#FFC21A', size: 62.0 }),
+    fillColor: CAMPO_FUNDO,
+    // A lista aberta passa por cima dos outros campos: com o fundo translúcido
+    // do campo, os rótulos de trás apareciam através das opções.
+    menuColor: '#06205E',
+    borderColor: CAMPO_BORDA,
+    borderWidth: 2.0,
+    borderRadius: 12.0,
     margin: [12.0, 0.0, 12.0, 0.0],
   });
+  // A dica do dropdown sai no mesmo estilo da escolha (é o mesmo rótulo), e
+  // por isso é pintada à mão: apagada enquanto nada foi escolhido.
+  const rotuloDaOficina = oficinaDropdown.querySelector('.ff-dropdown > .ff-text');
+  function pintarOficina() {
+    if (rotuloDaOficina) rotuloDaOficina.style.color = formState.oficinaKey ? '#FFFFFF' : COR_DA_DICA;
+  }
+  pintarOficina();
 
   /* ------------------------------------------------------ confirm button -- */
 
@@ -294,6 +313,9 @@ export function CadastroWidget() {
   // Por fora, o alvo passa a ser exatamente a forma azul que se vê (o
   // `TransformSkew` é o pai, então a inclinação vale para o acerto também), e o
   // afundar do `.ff-press` passa a ser do botão inteiro em vez de só da palavra.
+  //
+  // Em ouro desde a 3.1, e maior (88px de altura; era 76): é a cor de decisão
+  // do jogo inteiro, e o azul de antes era o dos campos — o botão se perdia.
   let caixaDoConfirmar = null;
   const confirmar = TransformSkew({
     ax: -0.5,
@@ -329,22 +351,27 @@ export function CadastroWidget() {
           // próximo jogador encontra a tela em branco.
           resetFormState();
 
-          // A ficha preenchida é lida e desmontada antes de o vídeo entrar —
-          // ver transicoes.js. De baixo para cima, que é o caminho da linha.
-          await desmontarOCadastro({
+          // O nome digitado voa do campo e vira o "COM VOCÊS: DAVI!" — ver
+          // transicoes.js. Resolve com o anúncio na tela, e a lâmina o leva.
+          await chamarAoPalco({
             raiz: root,
+            campoDoNome: grupoNome.querySelector('input'),
+            nome: primeiroNome(FFAppState.cadastro.nome),
             pecas: [privacyText, blocoConfirmar, grupoOficina, grupoWhats, grupoNome, seletorDeIdioma],
+            ficha,
             selo,
+            botao: confirmar,
+            roteiro,
           });
-
-          await anunciar(FFAppState.cadastro.nome);
           if (left) return;
           goNamed('instrucoes');
         },
       child: caixaDoConfirmar = Container({
-        width: SW * 0.25,
-        height: SH * 0.07,
-        color: color(0xFF0053B6),
+        width: SW * 0.29,
+        height: 88.0,
+        // `gradient`, e não `color`: a abreviação `background` que `color`
+        // escreve inline zeraria o degradê (ver o CLAUDE.md).
+        gradient: 'linear-gradient(180deg, #fff1b8 0%, #ffc21a 50%, #e88a00 100%)',
         borderRadius: 16.0,
         alignment: [0.0, 0.0],
         child: TransformSkew({
@@ -357,8 +384,8 @@ export function CadastroWidget() {
                 L('kn0wcjje') /* CONFIRMAR */,
                 style('bodyMedium', {
                   fontFamily: 'pirulen',
-                  color: '#FFFFFF',
-                  fontSize: 24.0,
+                  color: '#231500',
+                  fontSize: 28.0,
                   letterSpacing: 5.0,
                   fontWeight: 400,
                 })
@@ -369,36 +396,12 @@ export function CadastroWidget() {
       }),
     }),
   });
-  animateOnPageLoad(confirmar, animationsMap.transformOnPageLoadAnimation);
   animateOnActionTrigger(confirmar, animationsMap.transformOnActionTriggerAnimation);
   // O brilho que passa pelo botão, como nos botões do apresentador: diz "é
-  // aqui" sem piscar. Mora num ::after (auditorio.css), porque o fundo do
-  // Container é escrito inline e uma regra de folha não o alcançaria.
-  caixaDoConfirmar.classList.add('aud-brilho');
-
-  /**
-   * "COM VOCÊS: DAVI!" — o apresentador chama o jogador pelo primeiro nome,
-   * com aplauso, no palco já vazio da ficha desmontada. Um segundo e meio.
-   */
-  async function anunciar(nome) {
-    const quem = primeiroNome(nome);
-    if (!quem) return;
-    const camada = el('div', { class: 'pg-locutor' });
-    root.appendChild(camada);
-    try {
-      humor('atracao');
-      const r = raios(camada, { y: 540 });
-      Som.impacto(0, 0.6);
-      Som.aplauso(0.1, 1.8, 0.7);
-      grito(camada, T('comVoces'), { cor: 'branco', tam: 64, y: 360, segura: 1100, chave: 'comVoces' }, roteiro).catch(soInterrupcao);
-      await roteiro.pausa(180);
-      Som.fanfarra(0);
-      await grito(camada, `${quem.toUpperCase()}!`, { tam: 150, y: 450, segura: 900, chave: 'nome' }, roteiro);
-      r.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, fill: 'forwards' });
-    } catch (erro) {
-      soInterrupcao(erro);
-    }
-  }
+  // aqui" sem piscar. Mora num ::after (auditorio.css). E o halo que respira
+  // em volta é de CSS (`.cad-confirmar`), e não o laço de escala do Dart: laço
+  // de WAAPI segura a tela na memória (ver `encerrarAnimacoes`).
+  caixaDoConfirmar.classList.add('aud-brilho', 'cad-confirmar');
 
   /* -------------------------------------------------------------- privacy -- */
 
@@ -419,7 +422,6 @@ export function CadastroWidget() {
       style('bodyMedium', { color: '#CFE3FF', fontSize: 17.0, decoration: 'underline' })
     ),
   });
-  animateOnPageLoad(privacyText, animationsMap.textOnPageLoadAnimation);
 
   /* ---------------------------------------------------------- hidden bits -- */
   // O cronometro conta a inatividade e nao e para ser visto: fica num
@@ -452,52 +454,40 @@ export function CadastroWidget() {
   const grupoNome = Padding({
     padding: [0.0, 16.0, 0.0, 0.0],
     style: { alignSelf: 'stretch' },
-    child: animateOnPageLoad(
-      Column({
-        mainAxisSize: 'min',
-        crossAxisAlignment: 'start',
-        width: Infinity,
-        children: [
-          fieldLabel(T('rotuloNome')),
-          Container({ width: SW * 1.0, child: nomeField }),
-        ],
-      }),
-      animationsMap.columnOnPageLoadAnimation1
-    ),
+    child: Column({
+      mainAxisSize: 'min',
+      crossAxisAlignment: 'start',
+      width: Infinity,
+      children: [
+        fieldLabel(T('rotuloNome')),
+        Container({ width: SW * 1.0, child: nomeField }),
+      ],
+    }),
   });
 
   const grupoWhats = Padding({
     padding: [0.0, 16.0, 0.0, 0.0],
     style: { alignSelf: 'stretch' },
-    child: animateOnPageLoad(
-      Column({
-        mainAxisSize: 'min',
-        crossAxisAlignment: 'start',
-        width: Infinity,
-        children: [fieldLabel(T('rotuloWhatsapp')), whatsField],
-      }),
-      animationsMap.columnOnPageLoadAnimation2
-    ),
+    child: Column({
+      mainAxisSize: 'min',
+      crossAxisAlignment: 'start',
+      width: Infinity,
+      children: [fieldLabel(T('rotuloWhatsapp')), whatsField],
+    }),
   });
 
   const grupoOficina = Padding({
-    padding: [0.0, 16.0, 0.0, 32.0],
+    padding: [0.0, 16.0, 0.0, 24.0],
     style: { alignSelf: 'stretch' },
-    child: animateOnPageLoad(
-      Column({
-        mainAxisSize: 'min',
-        crossAxisAlignment: 'start',
-        width: Infinity,
-        children: [fieldLabel(T('rotuloOficina')), oficinaDropdown],
-      }),
-      animationsMap.columnOnPageLoadAnimation3
-    ),
+    child: Column({
+      mainAxisSize: 'min',
+      crossAxisAlignment: 'start',
+      width: Infinity,
+      children: [fieldLabel(T('rotuloOficina')), oficinaDropdown],
+    }),
   });
 
-  const blocoConfirmar = animateOnPageLoad(
-    Column({ mainAxisSize: 'max', children: [confirmar] }),
-    animationsMap.columnOnPageLoadAnimation4
-  );
+  const blocoConfirmar = Column({ mainAxisSize: 'max', children: [confirmar] });
 
   const groups = [grupoNome, grupoWhats, grupoOficina, blocoConfirmar, privacyText];
 
@@ -519,15 +509,65 @@ export function CadastroWidget() {
   const seletorDeIdioma = FlutterFlowLanguageSelector({
     width: 358.57,
     height: 61.2,
-    backgroundColor: color(0xFF0053B6),
-    borderColor: 'transparent',
+    backgroundColor: CAMPO_FUNDO,
+    borderColor: CAMPO_BORDA,
     dropdownColor: color(0xFF171212),
-    dropdownIconColor: TH.secondaryText,
+    dropdownIconColor: '#FFC21A',
     borderRadius: 23.0,
     textStyle: style('bodyMedium', { fontSize: 23.0 }),
     currentLanguage: FFLocalizations.languageCode,
     languages: LANGUAGES,
     onChanged: (lang) => setAppLanguage(lang),
+  });
+
+  // O cartão atrás da ficha. É irmão das peças, e não pai: uma caixa pintada
+  // por fora dos campos contaria como "botão" no verify:teclado, que mede se o
+  // alvo de toque cobre a caixa pintada em volta dele.
+  const ficha = el('div', { class: 'cad-ficha', 'aria-hidden': 'true' });
+  const formulario = Container({
+    width: SW * 0.574,
+    child: Column({
+      mainAxisSize: 'max',
+      mainAxisAlignment: 'spaceBetween',
+      children: divide(groups, 16.0),
+    }),
+  });
+  formulario.classList.add('cad-formulario');
+  formulario.prepend(ficha);
+
+  // A entrada: o selo desce, o cartão abre, as peças sobem uma a uma, e o
+  // CONFIRMAR chega por último, saltando — é o que o jogador tem de achar.
+  entrar(
+    selo,
+    [
+      { opacity: 0, translate: '0 -70px', scale: '0.86' },
+      { opacity: 1, translate: '0 6px', scale: '1.02', offset: 0.7 },
+      { opacity: 1, translate: '0 0', scale: '1' },
+    ],
+    { duration: 700, easing: 'cubic-bezier(.2,.8,.25,1)' }
+  );
+  entrar(ficha, [{ opacity: 0, scale: '0.95' }, { opacity: 1, scale: '1' }], {
+    duration: 560,
+    delay: 120,
+    easing: 'cubic-bezier(.2,.8,.25,1)',
+  });
+  subir(grupoNome, 260);
+  subir(grupoWhats, 360);
+  subir(grupoOficina, 460);
+  entrar(
+    blocoConfirmar,
+    [
+      { opacity: 0, scale: '0.7' },
+      { opacity: 1, scale: '1.06', offset: 0.65 },
+      { opacity: 1, scale: '1' },
+    ],
+    { duration: 520, delay: 600, easing: 'cubic-bezier(.2,.8,.25,1)' }
+  );
+  entrar(privacyText, [{ opacity: 0 }, { opacity: 1 }], { duration: 400, delay: 780 });
+  entrar(seletorDeIdioma, [{ opacity: 0, translate: '40px 0' }, { opacity: 1, translate: '0 0' }], {
+    duration: 520,
+    delay: 300,
+    easing: 'cubic-bezier(.2,.8,.25,1)',
   });
 
   const body = Stack({
@@ -555,18 +595,7 @@ export function CadastroWidget() {
             Column({
               mainAxisSize: 'max',
               mainAxisAlignment: 'center',
-              children: [
-                selo,
-                Container({
-                  width: SW * 0.574,
-                  child: Column({
-                    mainAxisSize: 'max',
-                    mainAxisAlignment: 'spaceBetween',
-                    children: divide(groups, 16.0),
-                  }),
-                }),
-                Opacity({ opacity: 0.0, child: timer }),
-              ],
+              children: [selo, formulario, Opacity({ opacity: 0.0, child: timer })],
             })
           ),
         }),
@@ -581,7 +610,7 @@ export function CadastroWidget() {
     ],
   });
 
-  const root = el('div', { class: 'ff-scaffold' }, body);
+  const root = el('div', { class: 'ff-scaffold pg-cadastro' }, body);
   root.addEventListener('click', unfocus);
 
   /* --------------------------------------------------------- on page load -- */
@@ -589,7 +618,7 @@ export function CadastroWidget() {
   // publicou desde a ultima partida.
   FFAppState.recarregarBaralho();
   // Com o baralho desta partida em mãos, pede já as imagens da roleta: daqui
-  // até ela o jogador atravessa o vídeo de instruções e a vinheta, e é tempo de
+  // até ela o jogador atravessa a tela de instruções e a vinheta, e é tempo de
   // sobra para nenhuma fatia nascer vazia (ver precarga.js).
   adiantarOPercurso(FFAppState.baralho);
   // E puxa da nuvem em paralelo. Sem esperar: a tela não pode ficar refém da

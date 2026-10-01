@@ -8,8 +8,9 @@
 //
 //   - o anfitrião da Tecnomotor, com o balão de sempre (ACERTOU! / ERROUU!);
 //   - o pódio dos maiores campeões, com o lugar do jogador marcado;
-//   - para quem errou, a resposta certa e — se a pergunta tiver o link — o QR
-//     code do vídeo do TecnomotorTV que ensina aquilo;
+//   - para quem errou, se a pergunta tiver o link, o QR code do vídeo do
+//     TecnomotorTV que ensina aquilo (a resposta certa já foi dita na
+//     pergunta, e desde a 3.1 não se repete aqui);
 //   - REINICIAR, que manda a mensagem de WhatsApp (desligada, ver config.js),
 //     esquece a partida e recomeça pela vinheta.
 //
@@ -125,31 +126,31 @@ export function FimWidget(spec) {
     ]);
   };
 
-  /* --------------------------------------------------- a lição e o QR ---- */
+  /* ------------------------------------------------------------ o QR ---- */
 
-  // O gabarito, contado a QUEM ERROU. Quem acertou não vê: a revelação já
-  // acendeu a alternativa certa em verde, e ela era a que o jogador escolheu.
-  const licao =
-    !resultado?.acertou && resultado?.numeroCerto && resultado?.textoCerto
-      ? (() => {
-          const qr = resultado.video ? QrSvg(resultado.video, { tamanho: 170 }) : null;
-          const no = el('div', { class: 'fim-licao', dataLicao: '1' }, [
-            el('div', { class: 'fim-licao-texto' }, [
-              el('div', { class: 'ff-text fim-licao-titulo', text: `${T('respostaCerta')}: ${T('alternativa')} ${resultado.numeroCerto}`, style: { fontSize: fonte(20) } }),
-              el('div', { class: 'ff-text fim-licao-certa', text: resultado.textoCerto, style: { fontSize: fonte(21) } }),
-              resultado.textoEscolhido
-                ? el('div', { class: 'ff-text fim-licao-escolhida', text: `${T('voceRespondeu')}: ${T('alternativa')} ${resultado.numeroEscolhido}`, style: { fontSize: fonte(17) } })
-                : null,
-              qr ? el('div', { class: 'ff-text fim-licao-aponte', text: T('aprendaAponte'), style: { fontSize: fonte(16) } }) : null,
-            ]),
-            qr ? el('div', { class: 'fim-qr', dataQr: '1' }, qr) : null,
-          ]);
-          entrar(no, [{ opacity: 0, transform: 'translateY(30px)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: 1300, easing: 'ease-out' });
-          return no;
-        })()
-      : null;
+  // A RESPOSTA CERTA NÃO VOLTA AQUI. Até a 3.0 quem errou relia o gabarito
+  // nesta tela; mas ele já tinha sido dito na própria pergunta, na lição — a
+  // certa acesa em verde e "A CERTA ERA A 3" —, e repetido aqui virava a tela
+  // inteira de quem perdeu. Fica só o QR do vídeo do TecnomotorTV, quando a
+  // pergunta tem o link: é o que o jogador leva no celular.
+  const qr = !resultado?.acertou && resultado?.video ? QrSvg(resultado.video, { tamanho: 170 }) : null;
+  const licao = qr
+    ? (() => {
+        const no = el('div', { class: 'fim-licao', dataLicao: '1' }, [
+          el('div', { class: 'fim-licao-texto' }, [
+            el('div', { class: 'ff-text fim-licao-titulo', text: T('aprendaNaTv'), style: { fontSize: fonte(20) } }),
+            el('div', { class: 'ff-text fim-licao-aponte', text: T('aprendaAponte'), style: { fontSize: fonte(18) } }),
+          ]),
+          el('div', { class: 'fim-qr', dataQr: '1' }, qr),
+        ]);
+        entrar(no, [{ opacity: 0, transform: 'translateY(30px)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: 1300, easing: 'ease-out' });
+        return no;
+      })()
+    : null;
 
-  const reiniciar = BotaoDeAuditorio(L(spec.buttonKey), { pulsa: true, acao: 'reiniciar', aoTocar: restart });
+  // O botão que encerra a partida é o maior da tela: é a única coisa a fazer
+  // aqui, e quem joga de pé, a um passo do totem, tem de achá-lo sem procurar.
+  const reiniciar = BotaoDeAuditorio(L(spec.buttonKey), { pulsa: true, grande: true, acao: 'reiniciar', aoTocar: restart });
   reiniciar.classList.add('fim-reiniciar');
   entrar(reiniciar, [{ opacity: 0, transform: 'translateY(30px)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: 2200, easing: 'ease-out' });
 
