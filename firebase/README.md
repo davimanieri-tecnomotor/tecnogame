@@ -136,8 +136,21 @@ continua indo dentro do baralho, como `data:` URL.
    isso o bucket nasce com as regras do assistente, e o painel recebe
    `storage/unauthorized` — o editor avisa e a foto fica dentro do baralho.
 
-Não precisa configurar CORS no bucket: o jogo mostra a foto por `<img>` e pelo
-`<image>` do SVG da roleta, que não pedem CORS, e o SDK cuida do envio.
+**CORS — só para o "Baixar foto" do painel.** O jogo mostra a foto por `<img>`
+e pelo `<image>` do SVG da roleta, que não pedem CORS, e o SDK cuida do envio.
+O que pede é o botão **Baixar foto**, quando a foto não foi enviada pela mesma
+aba: ler os bytes de outra origem pelo JavaScript exige o cabeçalho
+`Access-Control-Allow-Origin` no download, e um bucket novo não o manda. Sem
+CORS, o botão abre a foto numa aba nova (dá para salvar pelo botão direito);
+com ele, baixa direto. Para liberar, com o Google Cloud SDK, nesta pasta:
+
+```bash
+gcloud storage buckets update gs://tecnogame-c7e46.firebasestorage.app --cors-file=cors.json
+```
+
+`cors.json` libera só `GET`, de qualquer origem: a foto já é pública pelo
+endereço com token (é o que a roleta de qualquer visitante carrega), então
+deixar o JavaScript lê-la não expõe nada que um `<img>` não exponha.
 
 **O que as regras defendem.** Ler a foto não passa por elas — o endereço de
 download carrega um token que dispensa regra, e é assim que o totem mostra a
@@ -146,12 +159,23 @@ foto sem conta. O que elas cobram é a escrita: só com login, só arquivo novo
 WebP/PNG/JPEG/GIF de até 5 MB, com o nome no formato `<sha-256>.<ext>`.
 
 **A limpeza.** Não há servidor nem regra de ciclo de vida no bucket: quem limpa
-é o painel, logo depois de salvar o baralho na nuvem — o único momento em que se
-sabe qual baralho está publicado. Ele apaga de `veiculos/` o que o baralho não
-cita **e** não foi tocado há mais de 7 dias (`CARENCIA_DIAS` em
-`admin/imagens.js`). Por isso:
+é o painel. Três momentos:
 
-- uma foto trocada leva até a primeira gravação depois de 7 dias para sair;
+- a foto que a aba **acabou de enviar** e trocou por outra antes de salvar (ou
+  cujo veículo removeu, ou cujas alterações descartou) sai **na hora** —
+  nenhum baralho publicado a cita, e ela só existia por causa daquele envio;
+- a foto que o baralho **publicado** usava e o Salvar trocou sai **logo depois
+  desse Salvar** — antes não, porque o totem ainda a mostrava;
+- o resto (aba fechada sem salvar, rascunho de outro notebook) sai pela
+  carência: depois de salvar na nuvem, o painel apaga de `veiculos/` o que o
+  baralho não cita **e** não foi tocado há mais de 7 dias (`CARENCIA_DIAS` em
+  `admin/imagens.js`).
+
+Por isso:
+
+- o notebook que estava com um rascunho citando a foto que outro trocou e
+  apagou recebe, ao salvar, o aviso de que a foto não existe mais — e envia de
+  novo;
 - uma regra de ciclo de vida por idade no bucket **não** serve de reforço: ela
   apagaria também foto em uso, que nunca muda de data;
 - o painel recusa publicar baralho que cite foto já apagada, e diz qual veículo

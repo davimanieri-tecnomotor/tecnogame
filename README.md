@@ -12,7 +12,9 @@ web/                  o jogo portado (é isto que se publica)
   js/                   os módulos ES — o código-fonte
   js/admin/             a administração: porta.js, painel.js, editor.js, ui.js
   js/admin/respostas.js a aba Respostas: dados de partida, telefone com login, CSV
-  js/admin/imagens.js   foto de veículo no Storage: envio, e a limpeza das sem uso
+  js/admin/configuracoes.js a aba Configurações: o que vale só neste navegador
+  js/admin/problemas.js o que impede salvar, na língua da tela
+  js/admin/imagens.js   foto de veículo no Storage: envio, download e limpeza
   js/firebase.js        o SDK, carregado sob demanda (recusado por file://)
   js/nuvem.js           o baralho no Firestore (salvar exige login)
   js/bundle.js          gerado: tudo isso em um script clássico
@@ -197,32 +199,53 @@ no console do navegador (F12), depois de o aviso sumir.
 
 Onde o Firebase **não é alcançável** — jogo aberto do disco, `localhost`, ou
 feira com a internet fora — não há login possível, e aí a senha **2040** abre o
-painel em **modo local**: a barra mostra `sem login — só este navegador` e
+painel em **modo local**: a barra mostra **Sem login** e
 salvar para os outros totens fica bloqueado. É o que impede o painel de ficar
 inacessível justamente quando o operador precisa arrumar o baralho sem rede.
 Ver *Até onde cada entrada protege*, mais abaixo nesta seção.
 
+O painel ocupa 90% da largura da janela e tem três abas — **Veículos** (o
+baralho), **Respostas** (as partidas) e **Configurações** (o que vale só
+neste navegador). A barra de cima, sempre à vista, tem um selo só com a
+situação do baralho (*Alterações não salvas*, *Salvo há 3 min*, ou quantos
+problemas impedem salvar), o **Salvar**, as novidades da versão (o sino), a
+conta do Firebase (**Entrar** / **Sair da conta**) e o **Voltar ao jogo**. A
+explicação de cada campo não ocupa a tela: mora no ícone **?** ao lado do nome
+dele, e abre ao passar o mouse.
+
 O que dá para fazer:
 
-- **ver** as rodadas, com a foto, o gabarito e os 12 campos nos 3 idiomas;
-- **editar** qualquer texto, com aba por idioma;
+- **ver** as rodadas, com a foto, a resposta correta e os 12 campos nos 3
+  idiomas;
+- **editar** qualquer texto, com aba por idioma — a aba que tem campo em branco
+  ganha um ponto vermelho;
 - **adicionar** e **remover** veículos (cada um é uma fatia da roleta) e as
-  perguntas do banco de cada um;
-- **veículos**: nome, caminho da imagem, largura, altura e encaixe, com atalho
-  para as dez fotos que já vêm no projeto — ou **enviar uma imagem do
-  computador**: com a conta do Firebase conectada ela vai para o **Storage** e o
-  baralho guarda só o endereço; sem login, fica guardada dentro do baralho. Nos
-  dois casos o totem mostra a foto nova sem receber arquivo nenhum (ver
-  *Fotos no Storage*, abaixo);
-- **regras**: qual alternativa é a correta e quais equipamentos resolvem a
-  rodada (os não marcados abrem *"equipamento inválido"*) — ou **pular a escolha
-  do equipamento** nesta pergunta, e aí o jogo vai do veículo direto para ela;
+  perguntas do banco de cada um. Subir, descer, duplicar e excluir ficam no alto
+  do editor, com nome;
+- **veículos**: nome e foto — uma das dez que já vêm no projeto, ou **enviada
+  do computador**: com a conta do Firebase conectada ela vai para o
+  **Storage** e o baralho guarda só o endereço; sem login, fica guardada dentro
+  do baralho. Nos dois casos o totem mostra a foto nova sem receber arquivo
+  nenhum, e **Baixar foto** a devolve como arquivo (ver *Fotos no Storage*,
+  abaixo). Caminho de arquivo, largura, altura e encaixe ficam dobrados em
+  *Ajustes avançados da foto*;
+- **a pergunta**: a resposta correta se marca na própria alternativa
+  (*Correta*, vale para os três idiomas), e ao lado ficam os equipamentos que
+  a resolvem (os não marcados abrem *"equipamento inválido"*) — ou **pular a
+  escolha do equipamento** nesta pergunta, e aí o jogo vai do veículo direto
+  para ela;
 - **validação ao vivo** — cada problema aparece na lista e acende o campo
-  correspondente; **salvar fica bloqueado** enquanto houver problema;
+  correspondente, e o selo de problemas da barra abre a lista do que falta, com
+  cada item levando ao campo; **salvar fica bloqueado** enquanto houver
+  problema;
 - **resetar todos os dados**: volta ao baralho de fábrica e apaga deste
   navegador o ranking e os telefones das partidas já jogadas. O que já foi para
-  o Firebase só sai pelo console. Fica no **pé da lista de veículos**, sob
-  *Antes da feira*, e não na barra — apagar tudo não é vizinho de salvar.
+  o Firebase só sai pelo console. Fica na aba **Configurações**, e não na barra
+  — apagar tudo não é vizinho de salvar.
+
+Na aba **Configurações** mora também o que o operador ajusta no estande, sem
+Salvar e só para este navegador: o estilo da tela da pergunta, pular o vídeo
+demonstrativo do equipamento, o volume do som e a Pergunta do Milhão do dia.
 
 ### Um veículo, várias perguntas
 
@@ -231,9 +254,9 @@ caiu no VW Delivery, era sempre aquela — e numa feira o segundo da fila já sa
 a resposta. Agora cada veículo tem um **banco**, e quando a roleta para nele o
 jogo **sorteia uma das ligadas**.
 
-A seta ao lado de cada veículo abre e fecha o banco dele; fechado, ele mostra
-só a contagem. A marca ao lado de cada pergunta liga e desliga. Desligada, ela fica no
-banco como rascunho: não cai em partida, e campo vazio nela **não** impede
+Escolher um veículo na lista abre o banco dele logo embaixo; os outros mostram
+só a contagem. A chave **Ativa no jogo**, no alto da pergunta, liga e desliga.
+Desligada, ela fica no banco como rascunho: não cai em partida, e campo vazio nela **não** impede
 publicar. O que impede é um veículo ficar sem nenhuma ligada — aí a roleta
 cairia num carro sem jogo.
 
@@ -338,20 +361,32 @@ está em [`web/js/admin/imagens.js`](web/js/admin/imagens.js); as regras, em
   recusam a sobrescrita mesmo assim.
 - **Cache de um ano**, porque o arquivo é imutável: o totem que já mostrou a
   foto continua mostrando quando a internet da feira cai.
-- **Limpeza ao salvar na nuvem.** O painel lista `veiculos/` e apaga o que o
+- **Foto trocada sai do Storage.** Enviou uma foto e trocou por outra antes de
+  salvar (ou removeu o veículo, ou descartou as alterações)? A que ficou sem
+  uso é apagada **na hora**: foi esta aba que a criou e nada publicado a cita.
+  Já a foto que o baralho **publicado** usa só sai **depois do Salvar** que a
+  troca — antes disso o totem ainda a mostra, e "Descartar" voltaria para ela.
+- **Limpeza ao salvar na nuvem.** Para o resto (aba fechada sem salvar,
+  rascunho de outro notebook), o painel lista `veiculos/` e apaga o que o
   baralho recém-publicado não cita **e** não foi tocado há mais de **7 dias**
-  (`CARENCIA_DIAS`). A carência protege o rascunho aberto noutro notebook e o
-  totem no meio de uma partida com o baralho anterior; reaproveitar uma foto
-  renova a data dela.
+  (`CARENCIA_DIAS`). A carência protege o rascunho aberto noutro notebook;
+  reaproveitar uma foto renova a data dela.
 - **Foto que sumiu não é publicada.** Antes de gravar, o Salvar confere se as
-  fotos do Storage que o baralho cita ainda existem; se alguma foi limpa, ele
-  diz qual veículo precisa de foto nova. Sem rede, ele não tem como saber e
-  segue — recusar salvar por falta de internet seria pior.
+  fotos do Storage que o baralho cita ainda existem; se alguma foi apagada (a
+  limpeza, ou outro notebook que a trocou), ele diz qual veículo precisa de foto
+  nova. Sem rede, ele não tem como saber e segue — recusar salvar por falta de
+  internet seria pior.
+- **Baixar foto.** O editor devolve a foto enviada como arquivo, com o nome do
+  veículo. A que está dentro do baralho, ou foi enviada nesta aba, sai na hora;
+  a que só existe no Storage é buscada lá, e isso pede CORS liberado no bucket
+  (`firebase/cors.json`). Sem ele, a foto abre numa aba nova, de onde se salva
+  pelo botão direito.
 - **Sem login, ou se o Storage recusar**, a foto vai para dentro do baralho,
   como antes, e o editor diz por quê.
 
-Ativar o Storage e publicar as regras são passos de Console e de
-`firebase deploy` — ver [`firebase/README.md`](firebase/README.md).
+Ativar o Storage, publicar as regras e liberar o CORS do bucket são passos de
+Console, de `firebase deploy` e de `gcloud` — ver
+[`firebase/README.md`](firebase/README.md).
 
 > **Até onde cada entrada protege.** Até a v1 a administração era um
 > `admin.html` separado, e a proteção era real: bastava não copiar aquele
@@ -373,17 +408,16 @@ Ativar o Storage e publicar as regras são passos de Console e de
 
 A segunda aba do painel (ao lado de Veículos) mostra os dados de cada partida
 — nome, atuação, equipamento, se venceu, tempo restante, respostas inválidas
-— e baixa tudo num CSV, com **Baixar dados**.
+— e baixa tudo num CSV, com **Baixar planilha**.
 
 Nuvem quando dá, local quando não dá, a mesma regra do baralho: com o
 Firestore alcançável, a tabela junta as partidas de **todos os totens**; sem
-rede (ou `file://`), mostra só o que este navegador jogou. Os dois badges no
-topo da aba dizem qual dos dois está valendo, e se o **telefone** está na
-mistura.
+rede (ou `file://`), mostra só o que este navegador jogou. A linha em cima da
+tabela diz qual dos dois está valendo, e se o **telefone** está na mistura.
 
 Telefone é caso à parte: `contatos` (nome + telefone) é a única coleção do
 projeto que continua exigindo login de verdade — não a senha 2040 da porta,
-uma conta do Firebase mesmo (**Entrar**, no topo da aba). Sem entrar, a tabela
+uma conta do Firebase mesmo (**Entrar**, na barra do painel). Sem entrar, a tabela
 mostra os dados da partida sem telefone; é o que a política de privacidade do
 jogo promete. Local não pede login — é deste navegador mesmo, sem segredo
 possível para proteger dele.
@@ -569,7 +603,7 @@ trate-o como exposto e **rotacione-o** no painel da z-api (é o pendente nº 1 d
 - **Vídeos dos scanners.** As cinco URLs do Firebase Storage foram mantidas
   como estavam, mas o bucket hoje responde `402 Payment Required` — ou seja,
   não tocam no app Flutter também. A tela continua avançando depois dos 14s —
-  e pode sair do caminho: no painel, em **Na feira**, a marca **Pular o vídeo
+  e pode sair do caminho: no painel, na aba **Configurações**, a marca **Pular o vídeo
   demonstrativo do equipamento** (guardada no navegador) leva da escolha
   direto para a pergunta. O Rasther 4, que entrou na 3.1, não tem vídeo e
   sempre vai direto. Para exibi-los, coloque os `.mp4` em
@@ -642,7 +676,7 @@ em outro terminal, ou de `BASE=` apontando para o `file://`):
 | Comando | O que afirma |
 | --- | --- |
 | `npm run check` | todo import resolve, é usado, e o bundle está atualizado |
-| `npm test` | lógica pura, sem navegador: validação do baralho, retenção, junção de respostas, CSV, estalos da roleta, prazo de inatividade, cronômetro e caminho do equipamento, o que a limpeza do Storage apaga, funções do Dart |
+| `npm test` | lógica pura, sem navegador: validação do baralho e a lista de problemas do painel, retenção, junção de respostas, CSV, estalos da roleta, prazo de inatividade, cronômetro e caminho do equipamento, o que a limpeza do Storage apaga, funções do Dart |
 | `npm run verify:routes` | as 11 rotas: erro de console, imagem faltando, algo fora do palco |
 | `npm run verify:corte` | nada **recortado** dentro do palco (texto que não cabe no próprio container) |
 | `npm run verify:play` | uma partida completa, ponta a ponta |
@@ -655,10 +689,10 @@ em outro terminal, ou de `BASE=` apontando para o `file://`):
 | `npm run verify:baralho` | o embutido reproduz `questions.js`; baralho de outro tamanho joga |
 | `npm run verify:estalo` | a roleta estala uma vez por divisa, no instante e no ritmo em que a tela mostra a roda |
 | `npm run verify:centro` | a roleta e o carro sorteado ficam no meio do palco, como no Dart |
-| `npm run verify:admin` | ver, editar, adicionar, validar, publicar, enviar imagem, remover e restaurar |
+| `npm run verify:admin` | ver, editar, adicionar, validar, publicar, enviar e baixar imagem, remover e restaurar; o painel em 90% da largura, sem linha de descrição no editor (o ? abre o balão), a lista de problemas e as configurações na aba própria |
 | `npm run verify:respostas` | aba Respostas: dados locais com telefone, baixa CSV de verdade, sem nuvem não mostra Entrar |
 | `npm run verify:login` | a porta diz por que pede o que pede, a recusa do login vem com o código, e "Manter conectado" decide onde a sessão fica (com um SDK falso — a suíte não fala com o Firebase) |
-| `npm run verify:imagens` | a roleta mostra a foto do Storage (também aberta do disco); com login a foto sobe com nome de conteúdo e não sobe duas vezes; a limpeza respeita uso e carência; foto sumida não é publicada (Storage falso) |
+| `npm run verify:imagens` | a roleta mostra a foto do Storage (também aberta do disco); com login a foto sobe com nome de conteúdo e não sobe duas vezes; a recém-enviada trocada sai na hora, a publicada trocada sai no Salvar; a limpeza respeita uso e carência; Baixar foto com e sem CORS; foto sumida não é publicada (Storage falso) |
 | `npm run verify:inatividade` | quatro minutos sem toque devolvem qualquer tela ao cadastro, sem a partida de quem saiu; no cadastro só a ficha começada sai, e o painel fica de fora |
 | `npm run verify:sizes` | escala do palco em 1366x768, 1280x1024, 3840x2160 e retrato |
 | `node scripts/verify/probe.mjs telaAcao` | despeja a árvore de layout de uma rota |

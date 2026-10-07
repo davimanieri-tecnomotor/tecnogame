@@ -12,6 +12,10 @@
        app.css já tem o mesmo; `html, body` virou o próprio `.adm`; e os
        seletores de elemento (h1..h3, code) ganharam o prefixo.
 
+   As exceções moram no `body`, fora do `.adm`, porque são `position: fixed` e
+   precisam escapar da rolagem das colunas: avisos, diálogos, o balão de ajuda e
+   o popover. Elas repetem a tipografia (ver `.avisos`).
+
    Variáveis ficam em `:root`: os nomes daqui (--azul, --fundo, --texto...) não
    existem no app.css, e assim a caixa de senha, que é desenhada na camada do
    jogo, pinta com as mesmas cores do painel. */
@@ -28,16 +32,26 @@
   --ok: #2fbf71;
   --atencao: #f0b429;
   --erro: #ef5350;
+  /* A margem de cada lado: o painel ocupa 90% da largura da janela. */
+  --margem-lateral: 5%;
 }
 
-/* A raiz da camada. O jogo prende a rolagem no `html, body` (totem não rola sob
-   o dedo); com o admin aberto o `data-modo="adm"` solta isso no app.css, e é
-   este bloco que passa a mandar no tamanho e na tipografia. */
+/* A raiz da camada, do tamanho da janela: a barra fica parada em cima, e quem
+   rola é cada coluna (ou a página da aba). O jogo prende a rolagem no `html,
+   body` (totem não rola sob o dedo); com o admin aberto o `data-modo="adm"`
+   solta isso no app.css, e é este bloco que passa a mandar no tamanho e na
+   tipografia. */
 .adm {
-  min-height: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
   background: var(--fundo);
   color: var(--texto);
   font: 15px/1.5 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+.adm[hidden] {
+  display: none;
 }
 
 .adm h1,
@@ -49,7 +63,7 @@
 }
 
 .adm h2 { font-size: 1.05rem; }
-.adm h3 { font-size: 0.95rem; letter-spacing: 0.02em; text-transform: uppercase; color: var(--texto-2); }
+.adm h3 { font-size: 1rem; }
 
 .adm code {
   font-family: 'Roboto Mono', ui-monospace, monospace;
@@ -60,24 +74,39 @@
 }
 
 .nota {
-  margin: 0 0 12px;
-  font-size: 0.85rem;
+  margin: 0;
+  font-size: 0.86rem;
   color: var(--texto-2);
+}
+
+/* Visível só para o leitor de tela: o rótulo de uma caixa que o que está em
+   volta já explica. */
+.so-leitor {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 /* ----------------------------------------------------------------- barra -- */
 
 .barra {
-  position: sticky;
-  top: 0;
+  flex: none;
+  position: relative;
   z-index: 10;
+  background: var(--fundo-2);
+  border-bottom: 1px solid var(--borda);
+}
+
+.barra-interna {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px 20px;
+  gap: 10px 18px;
   align-items: center;
-  padding: 12px 20px;
-  background: linear-gradient(180deg, var(--fundo-2), var(--fundo));
-  border-bottom: 1px solid var(--borda);
+  min-height: 64px;
+  padding: 10px var(--margem-lateral);
 }
 
 .marca {
@@ -93,30 +122,37 @@
 }
 
 .marca span {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--texto-2);
 }
 
-.barra-info {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  flex: 1 1 260px;
-}
-
+/* As ações da aba ficam juntas, empurradas para a direita, e o que vale para
+   o painel inteiro (novidades, conta, voltar ao jogo) fica separado delas por
+   uma divisória — eram uma fileira só, e o Salvar se perdia no meio. */
 .barra-acoes {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  margin-left: auto;
 }
 
-/* Empurra "Voltar ao jogo" para a ponta direita quando a barra tem espaço —
-   ele é a única ação comum às duas abas, e faz sentido sempre no mesmo canto. */
-.barra-acoes-sair {
+.barra-global {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding-left: 18px;
+  border-left: 1px solid var(--borda);
+}
+
+.barra-acoes:empty {
+  display: none;
+}
+
+.barra-acoes:empty + .barra-global {
   margin-left: auto;
 }
 
@@ -126,36 +162,47 @@
   display: flex;
   flex: none;
   gap: 4px;
+  padding: 4px;
+  border-radius: 11px;
+  background: var(--fundo);
+  border: 1px solid var(--borda);
 }
 
 .aba-painel {
-  padding: 8px 14px;
-  border: 1px solid var(--borda);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border: 0;
   border-radius: 8px;
-  background: var(--fundo-3);
+  background: transparent;
   color: var(--texto-2);
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   cursor: pointer;
-  transition: background 120ms, color 120ms, border-color 120ms;
+  transition: background 120ms, color 120ms;
 }
 
-.aba-painel:hover { color: var(--texto); }
+.aba-painel:hover { color: var(--texto); background: #ffffff0a; }
 
 .aba-painel.ativa {
   background: var(--azul);
-  border-color: var(--azul-claro);
   color: #fff;
   font-weight: 600;
 }
 
 .aba-painel:focus-visible { outline: 3px solid var(--atencao); outline-offset: 2px; }
 
+/* -------------------------------------------------------------- situação -- */
+
 .situacao,
 .contador {
-  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
   border-radius: 999px;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   border: 1px solid var(--borda);
   background: #00000033;
   white-space: nowrap;
@@ -166,6 +213,64 @@
 .situacao-erro { color: var(--erro); border-color: #ef535055; }
 .situacao-atencao { color: var(--atencao); border-color: #f0b42955; }
 .situacao-neutra { color: var(--texto-2); }
+
+/* O selo de problemas abre a lista do que falta: tem cara de selo e jeito de
+   botão. */
+.situacao-botao {
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 120ms;
+}
+
+.situacao-botao:hover { background: #ef53501a; }
+.situacao-botao:focus-visible { outline: 3px solid var(--atencao); outline-offset: 2px; }
+
+.situacao-icone { display: inline-flex; font-size: 0.95rem; }
+
+/* ----------------------------------------------------------------- conta -- */
+
+.conta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.conta-botao {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 250px;
+  padding: 4px 12px 4px 4px;
+  border-radius: 999px;
+  border: 1px solid var(--borda);
+  background: var(--fundo-3);
+  color: var(--texto);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.conta-botao:hover { border-color: var(--azul-claro); }
+.conta-botao:focus-visible { outline: 3px solid var(--atencao); outline-offset: 2px; }
+
+.conta-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--ok);
+  color: #04210f;
+  font-weight: 700;
+}
+
+.conta-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* --------------------------------------------------------------- sininho -- */
 
@@ -206,7 +311,8 @@
 .botao {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 7px;
   padding: 8px 14px;
   min-height: 38px;
   border-radius: 8px;
@@ -217,7 +323,8 @@
   font-size: 0.88rem;
   cursor: pointer;
   text-decoration: none;
-  transition: background 120ms, border-color 120ms;
+  white-space: nowrap;
+  transition: background 120ms, border-color 120ms, color 120ms;
 }
 
 .botao:hover { background: #1d2b45; }
@@ -226,6 +333,7 @@
 .botao-primario {
   background: var(--azul);
   border-color: var(--azul-claro);
+  color: #fff;
   font-weight: 600;
 }
 
@@ -234,25 +342,911 @@
 .botao-perigo { color: #ffc9c7; border-color: #ef535055; }
 .botao-perigo:hover { background: #3a1c1c; }
 
-.botao-icone { font-size: 1rem; line-height: 1; }
+.botao-discreto {
+  border-color: transparent;
+  background: transparent;
+  color: var(--texto-2);
+}
+
+.botao-discreto:hover { color: var(--texto); background: #ffffff0d; }
+
+.botao-so-icone { padding: 8px 10px; }
+
+.botao-icone { display: inline-flex; font-size: 1rem; line-height: 1; }
+
+/* O rótulo vazio do botão só de ícone não ocupa espaço. */
+.botao-so-icone > span:last-child { display: none; }
 
 .botao:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
 .botao:disabled:hover { background: var(--fundo-3); }
+.botao-primario:disabled:hover { background: var(--azul); }
+.botao-discreto:disabled:hover { background: transparent; }
+
+/* ------------------------------------------------------------------ corpo -- */
+
+/* Cada aba ocupa o que sobra embaixo da barra. As colunas da aba Veículos rolam
+   cada uma no seu espaço, e a barra — com o Salvar — fica sempre à vista; antes
+   quem rolava era a página inteira, e o Salvar subia para fora da tela
+   justamente quando o formulário estava longo. */
+.corpo {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px var(--margem-lateral) 28px;
+}
+
+.corpo-veiculos {
+  display: grid;
+  grid-template-columns: clamp(290px, 24%, 400px) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 20px;
+  overflow: hidden;
+}
+
+.pagina-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 18px;
+  margin-bottom: 16px;
+}
+
+.adm .pagina-topo h2 { font-size: 1.3rem; }
+
+.pagina-topo .nota {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nota-icone { display: inline-flex; color: var(--atencao); }
+
+.vazio {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 56px 20px;
+  border: 1px dashed var(--borda);
+  border-radius: 14px;
+  color: var(--texto-2);
+  text-align: center;
+}
+
+.vazio strong { color: var(--texto); font-size: 1.05rem; }
+.vazio-icone { font-size: 2.2rem; opacity: 0.6; }
+
+/* -------------------------------------------------------------- a lista -- */
+
+.lateral {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--fundo-2);
+  border: 1px solid var(--borda);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.lateral-topo {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--borda);
+}
+
+.lateral-topo h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lateral-rolo {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px;
+}
+
+/* `minmax(0, 1fr)`, e não `1fr`: a coluna da grade cresce até o conteúdo, e o
+   texto de uma pergunta longa empurrava a lista inteira para fora da borda. */
+.itens,
+.banco > ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3px;
+}
+
+.item-botao {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+
+.item-botao:hover { background: #ffffff08; }
+.item-botao:focus-visible { outline: 3px solid var(--atencao); outline-offset: -3px; }
+
+.item.veiculo.selecionado > .item-botao {
+  border-color: var(--azul-claro);
+  background: #0053b62a;
+}
+
+.item.veiculo.com-problema:not(.selecionado) > .item-botao { border-color: #ef535044; }
+
+.item-miniatura {
+  flex: none;
+  width: 64px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #060b14;
+}
+
+.item-miniatura-vazia {
+  display: grid;
+  place-items: center;
+  color: var(--texto-2);
+  font-size: 1.1rem;
+  border: 1px dashed var(--borda);
+}
+
+.item-texto {
+  flex: 1;
+  display: grid;
+  min-width: 0;
+}
+
+.item-texto strong {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 0.92rem;
+}
+
+.item-nome {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-indice {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--fundo-3);
+  color: var(--texto-2);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.item-pergunta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  color: var(--texto-2);
+}
+
+.item-selo {
+  flex: none;
+  min-width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--erro);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* O banco de perguntas do veículo aberto: recuado e com um fio à esquerda —
+   a lista tem dois níveis, e o olho precisa ver de quem cada pergunta é sem
+   ler. */
+.banco > ul {
+  margin: 2px 0 8px 26px;
+  padding-left: 10px;
+  border-left: 2px solid var(--borda);
+  gap: 2px;
+}
+
+.item.pergunta .item-botao {
+  padding: 6px 8px;
+  gap: 8px;
+}
+
+.item.pergunta .item-pergunta { flex: 1; min-width: 0; font-size: 0.82rem; color: var(--texto); }
+
+.item.pergunta.selecionado .item-botao {
+  background: #0053b622;
+  border-color: #3471f466;
+}
+
+.pq-numero {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--fundo-3);
+  color: var(--texto-2);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+/* Desligada continua legível — é rascunho, não lixo —, mas sai do primeiro
+   plano e o texto ganha o risco que diz "isto não cai em partida". */
+.item.pergunta.desligada .item-pergunta {
+  color: var(--texto-2);
+  text-decoration: line-through;
+}
+
+.pq-desligada {
+  flex: none;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid #f0b42955;
+  color: var(--atencao);
+  font-size: 0.7rem;
+}
+
+.item.pergunta.acrescentar .botao {
+  min-height: 32px;
+  padding: 4px 8px;
+  font-size: 0.82rem;
+}
+
+/* ---------------------------------------------------------------- painel -- */
+
+.painel {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  /* Sem isto o anel de foco do campo mais alto fica recortado pela rolagem. */
+  padding: 2px 4px 2px 2px;
+}
+
+.editor {
+  display: grid;
+  gap: 16px;
+}
+
+.editor-cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+}
+
+.editor-titulo {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.adm .editor-nome {
+  font-size: 1.45rem;
+  overflow-wrap: anywhere;
+}
+
+.editor-subtitulo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--texto-2);
+}
+
+.editor-acoes,
+.bloco-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bloco {
+  background: var(--fundo-2);
+  border: 1px solid var(--borda);
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.adm .bloco-titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.05rem;
+  color: var(--texto);
+}
+
+.bloco-cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 20px;
+}
+
+.bloco-cabecalho .bloco-acoes { margin-left: auto; }
+
+/* A pergunta desligada fica com a borda tracejada: está guardada, mas fora do
+   jogo. */
+.bloco-pergunta.desligada { border-style: dashed; }
+
+/* Dentro de um bloco, um grupo de campos com título próprio. */
+.grupo {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.grupo-titulo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--texto-2);
+}
+
+/* Duas colunas, ou uma quando não cabem duas de 260px — nunca três: as quatro
+   alternativas em três colunas deixavam a última sozinha embaixo. */
+.grade-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(260px, calc(50% - 8px)), 1fr));
+  gap: 12px 16px;
+}
+
+/* --------------------------------------------------------------- veículo -- */
+
+.veiculo-grade {
+  display: grid;
+  grid-template-columns: minmax(200px, 300px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.previa {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  border-radius: 12px;
+  border: 1px solid var(--borda);
+  background: #060b14 url('../assets/images/BG_Seleo_Equipamento.png') center / cover;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.previa.tem-erro { border-color: var(--erro); }
+
+.previa-foto {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.previa-vazia {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--texto-2);
+}
+
+.previa-vazia[hidden] { display: none; }
+
+.previa-vazia-icone { font-size: 1.8rem; opacity: 0.7; }
+
+.veiculo-campos {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.foto-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.foto-acoes > .campo {
+  flex: 1 1 220px;
+}
+
+.linha-tres {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* -------------------------------------------------------------- avançado -- */
+
+/* O que é técnico fica dobrado: caminho de arquivo, tamanho em pixels, e os
+   textos que o jogo guarda e não mostra. Aberto, é igual ao resto. */
+.avancado {
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  background: #00000022;
+}
+
+.avancado > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  list-style: none;
+  font-size: 0.85rem;
+  color: var(--texto-2);
+  cursor: pointer;
+  border-radius: 10px;
+}
+
+.avancado > summary::-webkit-details-marker { display: none; }
+
+.avancado > summary::before {
+  content: '▸';
+  font-size: 0.8rem;
+  transition: transform 140ms ease-out;
+}
+
+.avancado[open] > summary::before { transform: rotate(90deg); }
+.avancado > summary:hover { color: var(--texto); }
+.avancado > summary:focus-visible { outline: 3px solid var(--atencao); outline-offset: -3px; }
+
+.avancado-corpo {
+  display: grid;
+  gap: 12px;
+  padding: 4px 12px 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .avancado > summary::before { transition: none; }
+}
+
+/* -------------------------------------------------------------- pergunta -- */
+
+.pergunta-corpo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 22px;
+}
+
+.pergunta-textos,
+.pergunta-regras {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  min-width: 0;
+}
+
+/* Na tela larga, as regras da pergunta (equipamentos e vídeo) vão para uma
+   coluna ao lado do texto: ficam à vista sem rolar o formulário inteiro. */
+@media (min-width: 1360px) {
+  .pergunta-corpo {
+    grid-template-columns: minmax(0, 1fr) minmax(250px, 320px);
+  }
+
+  .pergunta-regras {
+    padding-left: 22px;
+    border-left: 1px solid var(--borda);
+  }
+}
+
+.abas-linha {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--borda);
+}
+
+.abas-idioma {
+  display: flex;
+  gap: 4px;
+}
+
+.aba-idioma {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  color: var(--texto-2);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.aba-idioma:hover { color: var(--texto); }
+
+.aba-idioma.ativa {
+  color: var(--texto);
+  border-bottom-color: var(--azul-claro);
+  font-weight: 600;
+}
+
+.aba-idioma:focus-visible { outline: 3px solid var(--atencao); outline-offset: -3px; }
+
+/* O idioma que tem campo em branco: sem o ponto, só se descobria abrindo as
+   três abas. */
+.aba-ponto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--erro);
+}
+
+.aba-ponto[hidden] { display: none; }
+
+.textos {
+  display: grid;
+  gap: 16px;
+}
+
+/* A resposta correta é marcada na própria alternativa. */
+.alternativa {
+  position: relative;
+  min-width: 0;
+}
+
+.alternativa-certa {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 2px;
+  font-size: 0.78rem;
+  color: var(--texto-2);
+  cursor: pointer;
+}
+
+.alternativa-certa input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--ok);
+  cursor: pointer;
+}
+
+.alternativa.correta .alternativa-certa {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.alternativa.correta .campo-entrada {
+  border-color: #2fbf7199;
+  box-shadow: inset 3px 0 0 var(--ok);
+}
+
+/* ---------------------------------------------------------------- campos -- */
+
+/* `align-content: start`: numa grade, a caixa vizinha mais alta estica esta, e
+   a sobra ia para cima do rótulo — os rótulos de uma mesma linha desalinhavam. */
+.campo {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  min-width: 0;
+}
+
+.campo-rotulo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 18px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--texto-2);
+}
+
+.campo-asterisco {
+  margin-left: -3px;
+  color: var(--atencao);
+}
+
+.campo-entrada {
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--borda);
+  background: #060b14;
+  color: var(--texto);
+  font: inherit;
+  resize: vertical;
+}
+
+.campo-entrada::placeholder { color: #5d6e8c; }
+
+/* A caixa de várias linhas cresce com o texto: com altura fixa, a dica e a
+   alternativa longas ficavam cortadas no meio, e conferir o que estava escrito
+   pedia rolar dentro de cada caixa. Onde o navegador não sabe fazer isto, vale
+   a altura do `rows` e a alça de redimensionar. */
+@supports (field-sizing: content) {
+  textarea.campo-entrada {
+    field-sizing: content;
+    min-height: calc(2lh + 20px);
+    max-height: 50vh;
+    resize: none;
+  }
+
+  .alternativa textarea.campo-entrada {
+    min-height: calc(1lh + 20px);
+  }
+}
+
+.campo-entrada:focus-visible {
+  outline: 2px solid var(--azul-claro);
+  outline-offset: 0;
+  border-color: var(--azul-claro);
+}
+
+.campo-dica {
+  font-size: 0.78rem;
+  color: var(--texto-2);
+}
+
+.campo-erro {
+  font-size: 0.8rem;
+  color: var(--erro);
+}
+
+.campo-erro[hidden] { display: none; }
+
+.campo.tem-erro .campo-entrada {
+  border-color: var(--erro);
+}
+
+.marcar-grupo {
+  display: grid;
+  gap: 8px;
+}
+
+.marcar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.marcar input {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--azul-claro);
+}
+
+/* As marcas de equipamento de uma pergunta que PULA a escolha: continuam
+   editáveis no dado, mas não valem em jogo, e a tela tem de dizer isso. */
+.marcar-grupo.sem-efeito {
+  opacity: 0.4;
+}
+
+.grupo-equipamentos.tem-erro .marcar-grupo {
+  padding: 8px 10px;
+  border: 1px solid var(--erro);
+  border-radius: 8px;
+}
+
+/* ----------------------------------------------------------- interruptor -- */
+
+.interruptor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.interruptor-entrada {
+  position: absolute;
+  width: 36px;
+  height: 20px;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.interruptor-trilho {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: #2a3a57;
+  transition: background 140ms;
+}
+
+.interruptor-trilho::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #cfd8e8;
+  transition: transform 140ms;
+}
+
+.interruptor-entrada:checked + .interruptor-trilho { background: var(--ok); }
+.interruptor-entrada:checked + .interruptor-trilho::after { transform: translateX(16px); background: #fff; }
+.interruptor-entrada:focus-visible + .interruptor-trilho { outline: 3px solid var(--atencao); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .interruptor-trilho,
+  .interruptor-trilho::after { transition: none; }
+}
+
+/* ----------------------------------------------------------------- ajuda -- */
+
+/* O (?) ao lado de um rótulo. O "?" vem do CSS, e não de texto no elemento:
+   assim o rótulo continua dizendo só "Nome do veículo" para quem o lê pelo
+   texto — os testes, o leitor de tela pelo aria-label. */
+.ajuda {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  color: var(--texto-2);
+  font: 700 10.5px/1 'Inter', system-ui, sans-serif;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: help;
+  opacity: 0.75;
+  transition: color 120ms, opacity 120ms;
+}
+
+.ajuda::before { content: '?'; }
+
+.ajuda:hover,
+.ajuda:focus-visible {
+  color: var(--azul-claro);
+  opacity: 1;
+}
+
+.ajuda:focus-visible { outline: 2px solid var(--atencao); outline-offset: 2px; }
+
+/* O balão mora no `body`, por cima de tudo, e não recebe o mouse: passar por
+   cima dele não o segura aberto nem tapa o campo de baixo. */
+.ajuda-balao {
+  position: fixed;
+  z-index: 80;
+  max-width: min(330px, calc(100vw - 16px));
+  padding: 9px 12px;
+  border-radius: 9px;
+  border: 1px solid #2c3f63;
+  background: #1b2a44;
+  box-shadow: 0 12px 32px #000a;
+  color: var(--texto);
+  font: 13.5px/1.45 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  pointer-events: none;
+}
+
+.ajuda-balao[hidden] { display: none; }
+
+/* --------------------------------------------------------------- popover -- */
+
+.popover {
+  position: fixed;
+  z-index: 60;
+  width: min(420px, calc(100vw - 16px));
+  max-height: min(480px, 70vh);
+  overflow: auto;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--borda);
+  background: var(--fundo-2);
+  box-shadow: 0 16px 44px #000c;
+  color: var(--texto);
+  font: 15px/1.5 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+.popover-titulo {
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.problemas {
+  display: grid;
+  gap: 4px;
+}
+
+.problema {
+  display: grid;
+  gap: 1px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #00000033;
+  color: var(--texto);
+  font: inherit;
+  font-size: 0.86rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.problema strong {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--texto-2);
+}
+
+.problema:hover { border-color: #ef535099; }
+.problema:focus-visible { outline: 3px solid var(--atencao); outline-offset: 1px; }
+
+.problema-geral {
+  margin: 0 0 8px;
+  color: var(--erro);
+  font-size: 0.86rem;
+}
+
+.popover .nota { margin-top: 8px; }
 
 /* ------------------------------------------------------------- respostas -- */
 
-.corpo-respostas {
-  padding: 20px;
-  max-width: 1500px;
-  margin: 0 auto;
+.respostas-resumo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--texto-2);
 }
 
+.respostas-resumo > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.respostas-resumo strong { color: var(--texto); }
+
 .tabela-rolo {
-  max-height: calc(100vh - 160px);
+  max-height: calc(100vh - 210px);
   overflow: auto;
   border: 1px solid var(--borda);
   border-radius: 12px;
@@ -286,448 +1280,122 @@
 
 .tabela tbody tr:hover { background: #ffffff0a; }
 
-/* ----------------------------------------------------------------- corpo -- */
+/* -------------------------------------------------------- configurações -- */
 
-.corpo {
+.grade-config {
   display: grid;
-  grid-template-columns: minmax(280px, 30%) 1fr;
-  gap: 20px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+.cartao-milhao,
+.cartao-config.zona-de-risco {
+  grid-column: 1 / -1;
+}
+
+.milhao-linha {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(240px, 2fr) auto;
+  gap: 12px;
   align-items: start;
-  padding: 20px;
-  max-width: 1500px;
-  margin: 0 auto;
 }
 
-@media (max-width: 900px) {
-  .corpo {
-    grid-template-columns: 1fr;
-  }
+/* O botão alinha com as caixas, e não com os rótulos de cima. */
+.milhao-linha > .botao { margin-top: 24px; }
+
+.milhao-ultimas {
+  display: grid;
+  gap: 4px;
 }
 
-.lateral {
-  position: sticky;
-  top: 78px;
-  background: var(--fundo-2);
-  border: 1px solid var(--borda);
-  border-radius: 12px;
-  padding: 14px;
-  max-height: calc(100vh - 100px);
-  overflow: auto;
+.milhao-ultimas ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.84rem;
+  color: var(--texto-2);
 }
 
-@media (max-width: 900px) {
-  .lateral {
-    position: static;
-    max-height: none;
-  }
-}
+.cartao-config.zona-de-risco { border-color: #ef535044; }
 
-.lateral-topo {
+.zerar-linha {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 6px;
+  gap: 12px 20px;
 }
 
-.itens {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 6px;
-}
+.zerar-linha .nota { flex: 1 1 320px; }
 
-.item {
-  display: flex;
-  align-items: stretch;
-  gap: 4px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  background: #00000022;
-}
-
-.item.selecionado {
-  border-color: var(--azul-claro);
-  background: #0053b622;
-}
-
-.item.com-problema { border-color: #ef535055; }
-
-/* A seta que abre e fecha o banco de um veículo. */
-.seta-banco {
-  flex: none;
-  width: 26px;
-  align-self: stretch;
-  border: 0;
-  background: none;
-  color: var(--texto-2);
-  font-size: 0.8rem;
-  line-height: 1;
-  cursor: pointer;
-  transition: transform 140ms ease-out, color 140ms ease-out;
-}
-
-.seta-banco:hover { color: var(--texto); }
-
-.seta-banco.aberta { transform: rotate(90deg); }
-
-.seta-banco:focus-visible {
-  outline: 2px solid var(--azul-claro);
-  outline-offset: -2px;
-  border-radius: 6px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .seta-banco { transition: color 140ms ease-out; }
-}
-
-/* ------------------------------------- o banco de perguntas de um veículo -- */
-/* Recuadas e mais baixas que a linha do veículo: a lista tem dois níveis, e o
-   olho precisa ver de quem cada pergunta é sem ler. */
-
-.item.pergunta {
-  margin-left: 22px;
-  border-left: 2px solid var(--borda);
-  border-radius: 0 8px 8px 0;
-  background: transparent;
-}
-
-.item.pergunta .item-botao {
-  padding: 7px 10px;
-  gap: 8px;
-}
-
-.item.pergunta .item-pergunta {
-  font-size: 0.8rem;
-}
-
-.item.pergunta.selecionado {
-  border-left-color: var(--azul-claro);
-  background: #0053b61f;
-}
-
-/* Desligada continua legível — é rascunho, não lixo —, mas sai do primeiro
-   plano e o texto ganha o risco que diz "isto não cai em partida". */
-.item.pergunta.desligada .item-pergunta {
-  color: var(--texto-2);
-  text-decoration: line-through;
-  text-decoration-color: var(--texto-2);
-}
-
-.pq-marca {
-  flex: none;
-  margin-left: 10px;
-  width: 15px;
-  height: 15px;
-  accent-color: var(--azul-claro);
-  cursor: pointer;
-}
-
-.pq-marca:focus-visible {
-  outline: 2px solid var(--azul-claro);
-  outline-offset: 2px;
-}
-
-.item.pergunta.acrescentar {
-  border-left-style: dashed;
-  padding: 4px 0 4px 10px;
-}
-
-.item.pergunta.acrescentar .botao {
-  font-size: 0.8rem;
-}
-
-.item-botao {
-  flex: 1 1 auto;
+.volume-linha {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.volume-faixa {
+  flex: 1;
   min-width: 0;
-  padding: 8px 10px;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  border-radius: 9px;
+  accent-color: var(--azul-claro);
 }
 
-.item-botao:focus-visible { outline: 3px solid var(--atencao); outline-offset: -3px; }
-
-.item-indice {
-  flex: none;
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border-radius: 7px;
-  background: var(--fundo-3);
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.item-texto {
-  display: grid;
-  min-width: 0;
-}
-
-.item-texto strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.92rem;
-}
-
-.item-pergunta {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.78rem;
+.volume-valor {
+  min-width: 3.2em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
   color: var(--texto-2);
 }
 
-.item-selo {
-  flex: none;
-  min-width: 20px;
-  height: 20px;
-  display: grid;
-  place-items: center;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: var(--erro);
-  color: #fff;
-  font-size: 0.72rem;
-  font-weight: 700;
-}
+/* ---------------------------------------------------- tela estreita ------ */
 
-.item-acoes {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 4px;
-}
-
-.item-acoes .botao {
-  min-height: 0;
-  padding: 2px 7px;
-  font-size: 0.8rem;
-  border-color: transparent;
-  background: transparent;
-}
-
-.item-acoes .botao:hover { background: var(--fundo-3); border-color: var(--borda); }
-
-/* ---------------------------------------------------------------- painel -- */
-
-/* A direita rola sozinha, como a esquerda. Antes o editor crescia e quem rolava
-   era a pagina inteira: a barra de acoes subia para fora da tela justamente
-   quando o formulario estava longo, que e quando se quer salvar. Agora as duas
-   colunas rolam no proprio espaco e a barra fica sempre a vista. */
-.painel {
-  min-width: 0;
-  position: sticky;
-  top: 78px;
-  max-height: calc(100vh - 100px);
-  overflow: auto;
-  /* Sem isto o anel de foco do campo mais alto fica recortado pela rolagem. */
-  padding: 2px;
-}
-
-.editor {
-  display: grid;
-  gap: 18px;
-}
-
-.editor-cabecalho {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.editor-cabecalho h2 { font-size: 1.3rem; }
-
-.selo-fatia {
-  padding: 3px 9px;
-  border-radius: 999px;
-  border: 1px solid var(--borda);
-  font-size: 0.75rem;
-  color: var(--texto-2);
-}
-
-.selo-desligado {
-  border-color: #f0b42955;
-  color: var(--atencao);
-}
-
-.bloco {
-  background: var(--fundo-2);
-  border: 1px solid var(--borda);
-  border-radius: 12px;
-  padding: 16px;
-  display: grid;
-  gap: 12px;
-}
-
-/* --------------------------------------------------------------- veículo -- */
-
-.veiculo-grade {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 16px;
-  align-items: start;
-}
-
-@media (max-width: 760px) {
-  .veiculo-grade {
-    grid-template-columns: 1fr;
+/* Abaixo disto as duas colunas viram uma, e a página volta a rolar inteira:
+   colunas de altura fixa numa tela de celular deixariam um palmo de editor. */
+@media (max-width: 900px) {
+  .adm {
+    height: auto;
+    min-height: 100vh;
   }
-}
 
-.previa {
-  position: relative;
-  aspect-ratio: 16 / 10;
-  border-radius: 10px;
-  border: 1px solid var(--borda);
-  background: #060b14 url('../assets/images/BG_Seleo_Equipamento.png') center / cover;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-}
+  .barra {
+    position: sticky;
+    top: 0;
+  }
 
-.previa-foto {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-}
+  .barra-global {
+    padding-left: 0;
+    border-left: 0;
+  }
 
-.previa-vazia {
-  font-size: 0.8rem;
-  color: var(--texto-2);
-}
+  .corpo {
+    overflow: visible;
+  }
 
-.veiculo-campos {
-  display: grid;
-  gap: 12px;
-  min-width: 0;
-}
+  .corpo-veiculos {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+  }
 
-.linha-tres {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  .lateral-rolo,
+  .painel {
+    overflow: visible;
+  }
+
+  .veiculo-grade,
+  .milhao-linha,
+  .grade-config {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .milhao-linha > .botao { margin-top: 0; }
+
+  .tabela-rolo { max-height: none; }
 }
 
 @media (max-width: 560px) {
   .linha-tres {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
-}
-
-/* ---------------------------------------------------------------- campos -- */
-
-.campo {
-  display: grid;
-  gap: 5px;
-  min-width: 0;
-}
-
-.campo-rotulo {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--texto-2);
-}
-
-.campo-obrigatorio > .campo-rotulo::after {
-  content: ' *';
-  color: var(--atencao);
-}
-
-.campo-entrada {
-  width: 100%;
-  padding: 9px 11px;
-  border-radius: 8px;
-  border: 1px solid var(--borda);
-  background: #060b14;
-  color: var(--texto);
-  font: inherit;
-  resize: vertical;
-}
-
-.campo-entrada:focus-visible {
-  outline: 2px solid var(--azul-claro);
-  outline-offset: 0;
-  border-color: var(--azul-claro);
-}
-
-.campo-dica {
-  font-size: 0.76rem;
-  color: var(--texto-2);
-}
-
-.campo-erro {
-  font-size: 0.78rem;
-  color: var(--erro);
-}
-
-.campo.tem-erro .campo-entrada {
-  border-color: var(--erro);
-}
-
-.marcar-grupo {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 18px;
-  margin-top: 4px;
-}
-
-.marcar {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 0.9rem;
-  cursor: pointer;
-}
-
-.marcar input {
-  width: 17px;
-  height: 17px;
-  accent-color: var(--azul-claro);
-}
-
-/* ---------------------------------------------------------------- textos -- */
-
-.abas-idioma {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--borda);
-}
-
-.aba-idioma {
-  padding: 8px 14px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--texto-2);
-  font: inherit;
-  font-size: 0.88rem;
-  cursor: pointer;
-}
-
-.aba-idioma.ativa {
-  color: var(--texto);
-  border-bottom-color: var(--azul-claro);
-  font-weight: 600;
-}
-
-.aba-idioma:focus-visible { outline: 3px solid var(--atencao); outline-offset: -3px; }
-
-.textos {
-  display: grid;
-  gap: 12px;
-  padding-top: 12px;
 }
 
 /* ---------------------------------------------------------------- avisos -- */
@@ -870,38 +1538,31 @@
 
 /* ---------------------------------------- imagem enviada do computador -- */
 
-/* O input de arquivo nativo e feio e inconsistente entre navegadores, mas
-   esconder e simular com um botao custa o alcance por teclado e a entrega de
-   arquivo nos testes. Entao ele fica visivel, com o botao interno estilizado
-   pelo ::file-selector-button. */
-.campo-arquivo {
+/* O "Enviar do computador" é um botão com o `<input type=file>` de verdade
+   por cima, transparente: o clique e o teclado caem nele, e os testes
+   entregam arquivo a ele. Ver `entradaDeImagem` em admin/ui.js. */
+.botao-arquivo {
+  position: relative;
+  overflow: hidden;
+}
+
+.botao-arquivo .campo-arquivo {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  padding: 0.4rem 0;
-  font: inherit;
-  font-size: 0.85rem;
-  color: var(--texto-2);
-}
-
-.campo-arquivo::file-selector-button {
-  margin-right: 0.7rem;
-  padding: 0.45rem 0.9rem;
-  border: 1px solid var(--borda);
-  border-radius: 8px;
-  background: var(--fundo-3);
-  color: var(--texto);
-  font: inherit;
-  font-size: 0.85rem;
+  height: 100%;
+  opacity: 0;
   cursor: pointer;
+  font-size: 0;
 }
 
-.campo-arquivo::file-selector-button:hover {
-  border-color: var(--azul-claro);
-}
+.botao-arquivo .campo-arquivo::file-selector-button { cursor: pointer; }
 
-.campo-arquivo:focus-visible {
-  outline: 2px solid var(--azul-claro);
-  outline-offset: 2px;
-  border-radius: 8px;
+.botao-arquivo:focus-within { outline: 3px solid var(--atencao); outline-offset: 2px; }
+
+.botao-arquivo.ocupado {
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 .campo-arquivo-estado:empty {
@@ -1016,20 +1677,27 @@
   }
 }
 
+/* Onde a foto enviada mora, com o "Baixar foto". */
 .embutida {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem;
+  gap: 10px;
   align-items: center;
-  padding: 0.6rem 0.75rem;
-  border: 1px dashed var(--borda);
+  padding: 8px 8px 8px 12px;
+  border: 1px solid var(--borda);
   border-radius: 10px;
-  background: var(--fundo-2);
+  background: var(--fundo-3);
+}
+
+.embutida-icone {
+  display: inline-flex;
+  color: var(--azul-claro);
+  font-size: 1.1rem;
 }
 
 .embutida-texto {
   flex: 1 1 14rem;
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   color: var(--texto-2);
 }
 
@@ -1041,68 +1709,4 @@
 .campo[hidden],
 .embutida[hidden] {
   display: none;
-}
-
-/* A zona de risco no pé da lista de veículos. "Resetar todos os dados" morava
-   na barra, encostado em "Salvar" — vizinhança errada para um botão que apaga
-   o baralho e o ranking do navegador. Aqui ele fica atrás de uma rolagem e de
-   um título, que é o caminho de quem procura por ele de propósito. */
-.zona-de-risco {
-  margin-top: 22px;
-  padding-top: 14px;
-  border-top: 1px solid var(--borda);
-}
-
-.zona-de-risco h3 {
-  margin: 0 0 4px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--texto-2);
-}
-
-.zona-de-risco .nota {
-  margin: 0 0 10px;
-}
-
-/* As marcas de equipamento de uma pergunta que PULA a escolha: continuam
-   editáveis no dado, mas não valem em jogo, e a tela tem de dizer isso. */
-.marcar-grupo.sem-efeito {
-  opacity: 0.4;
-}
-
-/* "Na feira" (3.0): o que o operador ajusta no estande — estilo da pergunta,
-   volume e a Pergunta do Milhão. Mora acima da zona de risco, com a mesma
-   divisória, porque é tão de propósito quanto ela, e muito menos perigoso. */
-.na-feira h3 + .nota {
-  margin-bottom: 12px;
-}
-
-.na-feira h3:not(:first-child) {
-  margin-top: 18px;
-}
-
-.volume-linha {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.volume-faixa {
-  flex: 1;
-  min-width: 0;
-  accent-color: var(--azul-claro);
-}
-
-.volume-valor {
-  min-width: 3.2em;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  color: var(--texto-2);
-}
-
-.milhao-ultimas {
-  margin: 10px 0 0;
-  padding-left: 18px;
-  font-size: 0.82rem;
-  color: var(--texto-2);
 }

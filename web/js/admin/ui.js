@@ -27,20 +27,185 @@ export const limpar = (node) => {
   return node;
 };
 
+/* ---------------------------------------------------------------- ícones -- */
+
+// Traço, na cor do texto, e não emoji: o 🗑 e o 🔔 saem coloridos e cada
+// sistema os desenha de um jeito, e no meio de botões azuis pareciam colados.
+const TRACOS = {
+  mais: '<path d="M12 5v14M5 12h14"/>',
+  lixeira:
+    '<path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
+  copiar: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  cima: '<path d="M12 19V5M5 12l7-7 7 7"/>',
+  baixo: '<path d="M12 5v14M19 12l-7 7-7-7"/>',
+  baixar: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
+  enviar: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/>',
+  engrenagem:
+    '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  atualizar: '<path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
+  sino: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+  carro:
+    '<path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/>',
+  grafico: '<path d="M12 20V10M18 20V4M6 20v-4"/>',
+  imagem: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>',
+  voltar: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
+  alerta: '<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>',
+  certo: '<path d="M20 6L9 17l-5-5"/>',
+  nuvem: '<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>',
+  tocar: '<path d="M6 4l14 8-14 8V4z"/>',
+};
+
+/**
+ * Um ícone de traço, num `span` (é o que `botao` e as abas põem na frente do
+ * rótulo). Nome desconhecido sai como texto: os glifos de sempre (↑, ⧉)
+ * continuam valendo.
+ */
+export function icone(nome, { classe = 'botao-icone' } = {}) {
+  const s = el('span', { class: classe, 'aria-hidden': 'true' });
+  if (TRACOS[nome]) {
+    s.innerHTML = `<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${TRACOS[nome]}</svg>`;
+  } else {
+    s.textContent = nome;
+  }
+  return s;
+}
+
+/* ------------------------------------------------------------------ ajuda -- */
+
+// O (?) que guarda a explicação de um campo. O painel tinha uma linha cinza de
+// dica embaixo de quase todo campo, e a tela virava um manual: quem só queria
+// trocar uma pergunta lia três parágrafos para achar a caixa. A explicação
+// continua lá, a um passar de mouse — e só para quem a procura.
+//
+// O balão é UM só, pendurado no `body` com `position: fixed`, e não um filho do
+// ícone: as duas colunas do painel rolam (`overflow: auto`), e um balão dentro
+// delas seria recortado na borda — justo no campo do canto, onde mais aparece.
+
+let balao = null;
+let ancoraDoBalao = null;
+let vigiaDoBalao = 0;
+
+function esconderBalao() {
+  clearInterval(vigiaDoBalao);
+  ancoraDoBalao = null;
+  if (balao) balao.hidden = true;
+}
+
+function mostrarBalao(ancora) {
+  if (!balao) {
+    balao = el('div', { class: 'ajuda-balao', role: 'tooltip' });
+    balao.hidden = true;
+    document.body.appendChild(balao);
+    // Rolar tira o ícone de baixo do balão, que é fixo na janela.
+    window.addEventListener('scroll', esconderBalao, true);
+    document.addEventListener('keydown', (e) => e.key === 'Escape' && esconderBalao());
+    document.addEventListener('pointerdown', (e) => {
+      if (ancoraDoBalao && !ancoraDoBalao.contains(e.target)) esconderBalao();
+    });
+  }
+  ancoraDoBalao = ancora;
+  balao.textContent = ancora.dataset.ajuda ?? '';
+  balao.hidden = false;
+
+  // Embaixo do ícone, centrado nele; em cima se não couber, e sempre dentro da
+  // janela.
+  const r = ancora.getBoundingClientRect();
+  const b = balao.getBoundingClientRect();
+  const margem = 8;
+  const x = Math.min(Math.max(margem, r.left + r.width / 2 - b.width / 2), innerWidth - b.width - margem);
+  const embaixo = r.bottom + 8;
+  const y = embaixo + b.height > innerHeight - margem ? Math.max(margem, r.top - 8 - b.height) : embaixo;
+  balao.style.left = `${Math.round(x)}px`;
+  balao.style.top = `${Math.round(y)}px`;
+
+  // A barra e a lista do painel são redesenhadas a cada tecla; o ícone pode sair
+  // da página com o balão aberto, e sem isto o balão ficaria órfão na tela.
+  clearInterval(vigiaDoBalao);
+  vigiaDoBalao = setInterval(() => {
+    if (!ancora.isConnected) esconderBalao();
+  }, 300);
+}
+
+/**
+ * O ícone (?) de ajuda: o balão abre ao passar o mouse, no foco do teclado e no
+ * toque.
+ *
+ * `span`, e não `button`, de propósito: dentro de um `<label>`, o primeiro
+ * elemento rotulável vira o controle do rótulo, e um botão antes da caixa de
+ * texto roubaria dela o rótulo — clicar no nome do campo deixaria de levar o
+ * cursor para a caixa, e o leitor de tela anunciaria a caixa sem nome.
+ */
+export function ajuda(texto, { rotulo = 'Ajuda' } = {}) {
+  const sinal = el('span', { class: 'ajuda', tabindex: '0', role: 'img', 'aria-label': `${rotulo}: ${texto}` });
+  sinal.dataset.ajuda = texto;
+  sinal.addEventListener('pointerenter', () => mostrarBalao(sinal));
+  // No toque, o `pointerleave` chega logo depois do dedo sair da tela; ali o
+  // balão fica até o próximo toque fora dele.
+  sinal.addEventListener('pointerleave', (e) => e.pointerType !== 'touch' && esconderBalao());
+  sinal.addEventListener('focus', () => mostrarBalao(sinal));
+  sinal.addEventListener('blur', esconderBalao);
+  sinal.addEventListener('click', (e) => {
+    // Dentro de um rótulo, o clique iria para a caixa que ele rotula — numa
+    // caixa de marcar, a marcaria; num `<summary>`, abriria o avançado.
+    e.preventDefault();
+    e.stopPropagation();
+    if (ancoraDoBalao !== sinal) mostrarBalao(sinal);
+  });
+  return sinal;
+}
+
 /* ------------------------------------------------------------- controles -- */
 
-export function campo({ rotulo, valor = '', multilinha = false, onInput, dica, obrigatorio = false, id }) {
+/** O rótulo de um campo: o nome, o * de obrigatório e o (?), nessa ordem. */
+function rotuloDeCampo(rotulo, { obrigatorio = false, textoDeAjuda = null, escondido = false } = {}) {
+  return el('span', { class: ['campo-rotulo', escondido ? 'so-leitor' : null] }, [
+    el('span', { class: 'campo-rotulo-texto', text: rotulo }),
+    obrigatorio ? el('span', { class: 'campo-asterisco', 'aria-hidden': 'true', text: '*' }) : null,
+    textoDeAjuda ? ajuda(textoDeAjuda, { rotulo }) : null,
+  ]);
+}
+
+/**
+ * @param {object} props
+ * @param {string} [props.ajuda] a explicação que mora no (?) ao lado do rótulo
+ * @param {string} [props.dica] uma linha fixa embaixo da caixa — só para o que
+ *   muda com o dado (o mais rápido do dia), e não para explicar o campo
+ * @param {number} [props.linhas] altura da caixa de várias linhas
+ * @param {boolean} [props.semQuebra] caixa de várias linhas que não aceita
+ *   Enter: o texto quebra na tela para ser lido inteiro, mas é uma linha só —
+ *   a alternativa, que o jogo desenha numa caixa de uma linha
+ */
+export function campo({
+  rotulo,
+  valor = '',
+  multilinha = false,
+  linhas = 3,
+  semQuebra = false,
+  onInput,
+  dica,
+  ajuda: textoDeAjuda = null,
+  obrigatorio = false,
+  placeholder,
+  id,
+}) {
   const entrada = multilinha
-    ? el('textarea', { rows: 3, id, class: 'campo-entrada' })
-    : el('input', { type: 'text', id, class: 'campo-entrada' });
+    ? el('textarea', { rows: linhas, id, class: 'campo-entrada', placeholder })
+    : el('input', { type: 'text', id, class: 'campo-entrada', placeholder });
   entrada.value = valor ?? '';
+  if (multilinha && semQuebra) {
+    entrada.addEventListener('keydown', (e) => e.key === 'Enter' && e.preventDefault());
+    // O que chega colado com quebra vira espaço.
+    entrada.addEventListener('input', () => {
+      if (entrada.value.includes('\n')) entrada.value = entrada.value.replace(/\s*\n+\s*/g, ' ');
+    });
+  }
   if (onInput) entrada.addEventListener('input', () => onInput(entrada.value, entrada));
 
   const erro = el('span', { class: 'campo-erro', role: 'alert' });
   erro.hidden = true;
 
   const raiz = el('label', { class: ['campo', obrigatorio ? 'campo-obrigatorio' : null] }, [
-    el('span', { class: 'campo-rotulo', text: rotulo }),
+    rotuloDeCampo(rotulo, { obrigatorio, textoDeAjuda }),
     entrada,
     dica ? el('span', { class: 'campo-dica', text: dica }) : null,
     erro,
@@ -54,15 +219,36 @@ export function campo({ rotulo, valor = '', multilinha = false, onInput, dica, o
   return raiz;
 }
 
-export function botao(texto, { onClick, tipo = 'normal', titulo, icone, disabled = false } = {}) {
+/**
+ * @param {string} texto o rótulo; vazio num botão só de ícone, e aí `titulo`
+ *   é o que o leitor de tela e o mouse por cima dizem
+ * @param {object} [opcoes]
+ * @param {'normal'|'primario'|'perigo'|'discreto'} [opcoes.tipo]
+ * @param {string} [opcoes.acao] vira `data-acao`, o nome estável por que os
+ *   testes acham o botão sem depender do texto
+ */
+export function botao(texto, { onClick, tipo = 'normal', titulo, icone: nomeDoIcone, disabled = false, acao = null } = {}) {
   return el(
     'button',
-    { type: 'button', class: `botao botao-${tipo}`, onClick, title: titulo, 'aria-label': titulo, disabled },
-    [icone ? el('span', { class: 'botao-icone', 'aria-hidden': 'true', text: icone }) : null, el('span', { text: texto })]
+    {
+      type: 'button',
+      class: ['botao', `botao-${tipo}`, texto ? null : 'botao-so-icone'],
+      onClick,
+      title: titulo,
+      'aria-label': texto ? null : titulo,
+      'data-acao': acao,
+      disabled,
+    },
+    [nomeDoIcone ? icone(nomeDoIcone) : null, el('span', { text: texto })]
   );
 }
 
-export function selecao({ rotulo, opcoes, valor, onChange, id }) {
+/**
+ * @param {object} props
+ * @param {boolean} [props.rotuloEscondido] o rótulo só para o leitor de tela,
+ *   quando o que está em volta já diz o que a caixa é
+ */
+export function selecao({ rotulo, opcoes, valor, onChange, id, ajuda: textoDeAjuda = null, rotuloEscondido = false }) {
   const sel = el('select', { class: 'campo-entrada', id });
   for (const o of opcoes) {
     const opt = el('option', { value: o.valor, text: o.rotulo });
@@ -70,18 +256,91 @@ export function selecao({ rotulo, opcoes, valor, onChange, id }) {
     sel.appendChild(opt);
   }
   if (onChange) sel.addEventListener('change', () => onChange(sel.value));
-  const raiz = el('label', { class: 'campo' }, [el('span', { class: 'campo-rotulo', text: rotulo }), sel]);
+  const raiz = el('label', { class: 'campo' }, [rotuloDeCampo(rotulo, { textoDeAjuda, escondido: rotuloEscondido }), sel]);
   raiz.entrada = sel;
   return raiz;
 }
 
-export function caixaDeMarcar({ rotulo, marcado, onChange }) {
+export function caixaDeMarcar({ rotulo, marcado, onChange, ajuda: textoDeAjuda = null }) {
   const input = el('input', { type: 'checkbox' });
   input.checked = Boolean(marcado);
   if (onChange) input.addEventListener('change', () => onChange(input.checked));
-  const raiz = el('label', { class: 'marcar' }, [input, el('span', { text: rotulo })]);
+  const raiz = el('label', { class: 'marcar' }, [
+    input,
+    el('span', { text: rotulo }),
+    textoDeAjuda ? ajuda(textoDeAjuda, { rotulo }) : null,
+  ]);
   raiz.entrada = input;
   return raiz;
+}
+
+/**
+ * Uma chave de liga/desliga — uma caixa de marcar com cara de interruptor,
+ * para o que é estado ("ativa no jogo") e não escolha numa lista.
+ */
+export function interruptor({ rotulo, ligado, onChange, ajuda: textoDeAjuda = null }) {
+  const input = el('input', { type: 'checkbox', role: 'switch', class: 'interruptor-entrada' });
+  input.checked = Boolean(ligado);
+  if (onChange) input.addEventListener('change', () => onChange(input.checked));
+  const raiz = el('label', { class: 'interruptor' }, [
+    input,
+    el('span', { class: 'interruptor-trilho', 'aria-hidden': 'true' }),
+    el('span', { class: 'interruptor-rotulo', text: rotulo }),
+    textoDeAjuda ? ajuda(textoDeAjuda, { rotulo }) : null,
+  ]);
+  raiz.entrada = input;
+  return raiz;
+}
+
+/* --------------------------------------------------------------- popover -- */
+
+let fecharPopoverAberto = null;
+let ancoraDoPopover = null;
+
+/** Fecha o popover aberto, se houver. */
+export function fecharPopover() {
+  fecharPopoverAberto?.();
+}
+
+/**
+ * Uma caixa que abre embaixo de um botão — a lista de problemas da barra.
+ *
+ * Fecha no clique fora, no Esc, quando a janela muda de tamanho e num segundo
+ * clique no mesmo botão. Como os avisos, mora no `body` e repete a tipografia
+ * do painel (ver admin.css).
+ */
+export function abrirPopover(ancora, conteudo, { rotulo } = {}) {
+  const jaAberto = fecharPopoverAberto && ancoraDoPopover === ancora;
+  fecharPopover();
+  if (jaAberto) return null;
+  ancoraDoPopover = ancora;
+  const caixa = el('div', { class: 'popover', role: 'dialog', 'aria-label': rotulo }, conteudo);
+  document.body.appendChild(caixa);
+
+  const r = ancora.getBoundingClientRect();
+  const b = caixa.getBoundingClientRect();
+  caixa.style.top = `${Math.round(r.bottom + 6)}px`;
+  caixa.style.left = `${Math.round(Math.min(Math.max(8, r.right - b.width), innerWidth - b.width - 8))}px`;
+
+  const fora = (e) => {
+    if (!caixa.contains(e.target) && !ancora.contains(e.target)) fechar();
+  };
+  const tecla = (e) => e.key === 'Escape' && fechar();
+  function fechar() {
+    caixa.remove();
+    document.removeEventListener('pointerdown', fora, true);
+    document.removeEventListener('keydown', tecla);
+    window.removeEventListener('resize', fechar);
+    if (fecharPopoverAberto === fechar) {
+      fecharPopoverAberto = null;
+      ancoraDoPopover = null;
+    }
+  }
+  document.addEventListener('pointerdown', fora, true);
+  document.addEventListener('keydown', tecla);
+  window.addEventListener('resize', fechar);
+  fecharPopoverAberto = fechar;
+  return fechar;
 }
 
 /* ------------------------------------------------------------------ aviso -- */
@@ -323,9 +582,17 @@ export async function reduzirImagem(arquivo, { maxLado = MAX_LADO, qualidade = 0
 }
 
 /**
- * Um seletor de imagem visivel de verdade (nao um input escondido atras de um
- * clique sintetico), para dar para alcancar por teclado e para os testes
- * conseguirem entregar um arquivo a ele.
+ * O botão de enviar imagem do computador.
+ *
+ * O `<input type=file>` continua de verdade dentro do botão — transparente, mas
+ * presente e focável —, e não escondido atrás de um clique sintético: assim o
+ * teclado o alcança (Tab, e Enter abre a janela de arquivos) e os testes
+ * conseguem entregar um arquivo a ele. O que saiu foi a cara nativa, o
+ * "Escolher arquivo / Nenhum arquivo escolhido", que o operador lia como um
+ * campo a preencher.
+ *
+ * A linha de estado (`raiz.estado`) vai onde quem chama quiser: o editor a põe
+ * embaixo da fileira de botões da foto.
  *
  * @param {object} props
  * @param {Function} props.onEscolha recebe (resultado, arquivo); resultado e
@@ -333,7 +600,7 @@ export async function reduzirImagem(arquivo, { maxLado = MAX_LADO, qualidade = 0
  *   assincrona (o envio ao Storage): o seletor fica desligado ate ela acabar,
  *   e o que ela tiver a dizer vai por `raiz.mostrarEstado`.
  */
-export function entradaDeImagem({ rotulo, dica, onEscolha }) {
+export function entradaDeImagem({ rotulo, onEscolha }) {
   const entrada = el('input', { type: 'file', accept: 'image/*', class: 'campo-arquivo' });
   const estado = el('span', { class: 'campo-dica campo-arquivo-estado', role: 'status' });
 
@@ -344,6 +611,7 @@ export function entradaDeImagem({ rotulo, dica, onEscolha }) {
     // Desligado durante o envio: uma segunda escolha no meio da primeira
     // terminaria na ordem em que a rede respondesse, e nao na do clique.
     entrada.disabled = true;
+    raiz.classList.add('ocupado');
     try {
       const r = await reduzirImagem(arquivo);
       estado.textContent = r.reduziu
@@ -357,16 +625,13 @@ export function entradaDeImagem({ rotulo, dica, onEscolha }) {
       // Zerar deixa escolher o MESMO arquivo de novo depois de um erro.
       entrada.value = '';
       entrada.disabled = false;
+      raiz.classList.remove('ocupado');
     }
   });
 
-  const raiz = el('label', { class: 'campo campo-arquivo-campo' }, [
-    el('span', { class: 'campo-rotulo', text: rotulo }),
-    entrada,
-    dica ? el('span', { class: 'campo-dica', text: dica }) : null,
-    estado,
-  ]);
+  const raiz = el('label', { class: 'botao botao-arquivo campo-arquivo-campo' }, [icone('enviar'), el('span', { text: rotulo }), entrada]);
   raiz.entrada = entrada;
+  raiz.estado = estado;
   /**
    * @param {string} texto
    * @param {'andamento'|'ok'|'atencao'|'erro'|null} [tipo] a cor da linha; em

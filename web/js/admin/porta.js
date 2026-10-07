@@ -267,7 +267,7 @@ async function pedirEntrada() {
     // na segunda chamada do mesmo gesto (o selo pergunta, a rota confirma).
     if (ja === 'local' && !recemAberta && podeUsarNuvem()) {
       diagnostico(
-        'A porta já foi aberta nesta aba pela senha local, e não pergunta de novo. Para entrar com a conta: aba Respostas → Entrar, ou abra o jogo numa aba nova.'
+        'A porta já foi aberta nesta aba pela senha local, e não pergunta de novo. Para entrar com a conta: botão Entrar, no alto do painel, ou abra o jogo numa aba nova.'
       );
     }
     recemAberta = false;

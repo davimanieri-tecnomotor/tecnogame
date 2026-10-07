@@ -13,6 +13,9 @@
 // da porta viaja no mesmo JavaScript que o jogador recebe, e quem abrir o
 // código a lê. Ver a nota em `porta.js`: é tranca de gaveta, não cofre.
 //
+// Três abas: Veículos (o baralho), Respostas (as partidas) e Configurações (o
+// que vale só neste navegador — ver admin/configuracoes.js).
+//
 // Editar aqui não mexe no totem até você clicar em Salvar. Salvar grava o
 // baralho neste navegador e, se houver nuvem, no Firebase; o jogo o relê quando
 // a próxima partida começa.
@@ -22,19 +25,14 @@
 // neste navegador e diz por quê. A mesma conta manda as fotos enviadas do
 // computador para o Storage — ver admin/imagens.js.
 
-import { el, botao, aviso, confirmar, limpar, mostrarNotas, pedirCredenciais } from './ui.js';
-import { campo, caixaDeMarcar, selecao } from './ui.js';
+import { el, botao, aviso, confirmar, limpar, mostrarNotas, pedirCredenciais, ajuda, icone } from './ui.js';
+import { abrirPopover, fecharPopover } from './ui.js';
 import { editorDeSlot } from './editor.js';
-import { definirEstiloDaPergunta, estiloDaPergunta } from '../palco.js';
-import { alternarMudo, definirVolume, estaMudo, volumeAtual } from '../audio.js';
-import { Som } from '../som.js';
-import { maisRapidoDoDia } from '../estatisticas.js';
-import { formatarTempoDeResposta } from '../functions.js';
+import { telaConfiguracoes } from './configuracoes.js';
+import { agruparProblemas, explicarProblema } from './problemas.js';
 import { FFAppState } from '../state.js';
-import { getRecords } from '../storage.js';
 import { goNamed } from '../router.js';
 import { milhaoAutomatico } from '../pages/milhao.js';
-import { definirPularVideoDoEquipamento, pulaVideoDoEquipamento } from '../pages/tela_video_scanner.js';
 import { rotuloDaPergunta } from '../deck.js';
 import {
   BARALHO_ORIGINAL,
@@ -47,12 +45,20 @@ import {
   slotVazio,
   temBaralhoPublicado,
   usaArteOriginal,
-  validarBaralho,
 } from '../deck.js';
 import { motivoDaFalha, removerChave } from '../storage.js';
 import { podeUsarNuvem } from '../firebase.js';
 import { publicarNaNuvem, sincronizarBaralho, ultimaPublicacao } from '../nuvem.js';
-import { CARENCIA_DIAS, enviosEmAndamento, fotosQueSumiram, limparFotosSemUso } from './imagens.js';
+import {
+  CARENCIA_DIAS,
+  apagarRecemEnviadasSemUso,
+  enviosEmAndamento,
+  esquecerRecemEnviadas,
+  fotosDoBaralho,
+  fotosQueSumiram,
+  haRecemEnviadas,
+  limparFotosSemUso,
+} from './imagens.js';
 import { VERSAO_DO_JOGO, NOTAS_DE_ATUALIZACAO, temNovidade, marcarVersaoVista } from '../changelog.js';
 import {
   COLUNAS,
@@ -80,19 +86,13 @@ const estado = {
   selecionado: 0,
   /** Qual pergunta do banco desse veículo está no editor. */
   pergunta: 0,
+  /** A aba de idioma do editor — fica a mesma ao trocar de veículo. */
+  idioma: 'pt',
   sujo: false,
   /** `{quando, quem}` da última gravação no Firebase, ou null. */
   ultimaNuvem: null,
-  /**
-   * Quais veículos estão com o banco de perguntas aberto.
-   *
-   * Começaram todos abertos, e com dez veículos a lateral virava um rolo. O
-   * aberto é o veículo em que se está trabalhando; os outros mostram só a
-   * contagem, que já responde "quantas perguntas este carro tem".
-   */
-  abertos: new Set([0]),
 
-  /** 'veiculos' | 'respostas' — qual aba do painel está visível. */
+  /** 'veiculos' | 'respostas' | 'config' — qual aba do painel está visível. */
   aba: 'veiculos',
   /** E-mail da conta do Firebase autenticada nesta aba, ou null. */
   operador: null,
@@ -103,42 +103,32 @@ const estado = {
 /** A raiz que `montarAdmin` recebe. Fora da camada aberta, é null. */
 let app = null;
 
-/* -------------------------------------------------------------- validação -- */
-
-/**
- * Agrupa as mensagens de validarBaralho por rodada, que é como a UI mostra.
- *
- * Desde o banco de perguntas a mensagem pode vir com duas coordenadas —
- * "rodada 3, pergunta 2: ..." —, então o erro é guardado nas duas: por veículo
- * (para o selo na lista) e por pergunta (para acender a certa).
- */
-function errosPorRodada(deck) {
-  const todos = validarBaralho(deck);
-  const porRodada = new Map();
-  const porPergunta = new Map();
-  const gerais = [];
-  for (const m of todos) {
-    const n = m.match(/^rodada (\d+)(?:, pergunta (\d+))?: (.*)$/);
-    if (n) {
-      const i = Number(n[1]) - 1;
-      const j = n[2] ? Number(n[2]) - 1 : 0;
-      if (!porRodada.has(i)) porRodada.set(i, []);
-      porRodada.get(i).push(n[3]);
-      const chave = `${i}:${j}`;
-      if (!porPergunta.has(chave)) porPergunta.set(chave, []);
-      porPergunta.get(chave).push(n[3]);
-    } else {
-      gerais.push(m);
-    }
-  }
-  return { total: todos.length, porRodada, porPergunta, gerais };
-}
-
 /** Um resumo curto da pergunta, para a lista. */
 const resumoDaPergunta = (pergunta, j) => {
   const texto = (pergunta?.pt?.pergunta ?? '').trim();
-  return texto ? texto.slice(0, 58) : `pergunta ${j + 1} (sem enunciado)`;
+  return texto ? texto.slice(0, 70) : `Pergunta ${j + 1} (sem enunciado)`;
 };
+
+const nomeDoVeiculo = (i) => estado.baralho.slots[i]?.veiculo?.nome?.trim() || `Veículo ${i + 1}`;
+
+/* ------------------------------------------------------- fotos sem uso -- */
+
+/**
+ * Apaga do Storage a foto que esta aba enviou e que nada mais cita — trocada
+ * por outra, veículo removido, alterações descartadas. Ver a nota grande em
+ * admin/imagens.js sobre por que só essas saem na hora.
+ *
+ * "Nada mais cita" é o editor E o baralho publicado: depois de "Descartar", a
+ * foto que voltou a valer é a publicada, e ela fica.
+ */
+async function soltarFotosSemUso() {
+  if (!haRecemEnviadas()) return;
+  const emUso = new Set([...fotosDoBaralho(estado.baralho), ...fotosDoBaralho(carregarBaralho())]);
+  const { apagadas } = await apagarRecemEnviadasSemUso(emUso);
+  if (apagadas) {
+    aviso(apagadas === 1 ? 'A foto anterior foi apagada do Firebase Storage.' : `${apagadas} fotos sem uso foram apagadas do Firebase Storage.`);
+  }
+}
 
 /* ------------------------------------------------------------------ ações -- */
 
@@ -150,15 +140,17 @@ async function publicar() {
     return;
   }
 
-  const { total, gerais, porRodada } = errosPorRodada(estado.baralho);
+  const { total, itens, gerais } = agruparProblemas(estado.baralho);
   if (total > 0) {
-    const primeira = [...porRodada.keys()].sort((a, b) => a - b)[0];
-    aviso(`${total} problema(s) impedem salvar. ${gerais[0] ?? ''}`.trim(), 'erro');
-    if (primeira != null) {
-      estado.selecionado = primeira;
-      estado.pergunta = 0;
-      desenhar();
-    }
+    const primeiro = itens[0];
+    const explicado = primeiro ? explicarProblema(primeiro.mensagem) : null;
+    aviso(
+      `${total === 1 ? 'Um problema impede' : `${total} problemas impedem`} salvar. ${
+        primeiro ? `${nomeDoVeiculo(primeiro.i)}: ${explicado.texto}.` : gerais[0] ?? ''
+      }`.trim(),
+      'erro'
+    );
+    if (primeiro) irParaProblema(primeiro);
     return;
   }
 
@@ -171,7 +163,7 @@ async function publicar() {
     !podeUsarNuvem()
       ? 'Atenção: esta cópia não fala com o Firebase, então o baralho vai valer só neste navegador. Para salvar na nuvem daqui, abra o jogo com ?comNuvem=1 no endereço.'
       : !estado.operador
-        ? 'Atenção: você entrou sem login, então o baralho vai valer só neste navegador. Entre com a conta do Firebase, na aba Respostas, para publicar para os outros totens.'
+        ? 'Atenção: você entrou sem login, então o baralho vai valer só neste navegador. Clique em Entrar, no alto da tela, para salvar para os outros totens.'
         : 'Vai para o Firebase: todo totem com internet pega na próxima partida.',
     'A próxima partida aqui já usa este conteúdo.',
   ].filter(Boolean);
@@ -186,9 +178,9 @@ async function publicar() {
   if (podeUsarNuvem() && estado.operador) {
     const { sumidas } = await fotosQueSumiram(estado.baralho);
     if (sumidas.length) {
-      const nomes = sumidas.map((i) => estado.baralho.slots[i]?.veiculo?.nome?.trim() || `rodada ${i + 1}`);
+      const nomes = sumidas.map((i) => nomeDoVeiculo(i));
       aviso(
-        `A foto de ${nomes.join(', ')} não existe mais no Firebase Storage (a limpeza apaga as que passam de ${CARENCIA_DIAS} dias sem uso). Envie a imagem de novo e salve.`,
+        `A foto de ${nomes.join(', ')} não existe mais no Firebase Storage (foi apagada por outra máquina, ou pela limpeza das que passam de ${CARENCIA_DIAS} dias sem uso). Envie a imagem de novo e salve.`,
         'erro'
       );
       estado.selecionado = sumidas[0];
@@ -198,13 +190,18 @@ async function publicar() {
     }
   }
 
+  // O que estava publicado ANTES deste Salvar: as fotos que ele citava e o novo
+  // não cita mais foram trocadas agora, e saem do Storage sem esperar a
+  // carência — depois de a troca chegar à nuvem, nunca antes.
+  const antes = carregarBaralho();
+
   if (!publicarBaralho(estado.baralho)) {
     // "Cheio" e "recusado" pedem coisas opostas: um pede tirar imagem enviada,
     // o outro pede liberar o armazenamento do site. Dizer qual dos dois e.
     const motivo = motivoDaFalha();
     aviso(
       motivo === 'cheio'
-        ? `Não caberia: o baralho está com cerca de ${pesoDoBaralho()} KB e o navegador não aceitou. Imagens enviadas do computador sem login são o que mais ocupa — entre com a conta do Firebase e envie de novo (vão para o Storage), ou troque por um caminho de arquivo em assets/images.`
+        ? `Não caberia: o baralho está com cerca de ${pesoDoBaralho()} KB e o navegador não aceitou. Imagens enviadas do computador sem login são o que mais ocupa — entre com a conta do Firebase e envie de novo (vão para o Storage), ou troque por uma das fotos do jogo.`
         : 'Não foi possível gravar — o navegador está bloqueando o armazenamento deste site.',
       'erro'
     );
@@ -218,10 +215,7 @@ async function publicar() {
   // gravado local de propósito: se a internet estiver fora, o que foi editado
   // não se perde, e o operador é avisado do que ficou faltando.
   if (!podeUsarNuvem()) {
-    aviso(
-      'Esta cópia não fala com o Firebase — abra com ?comNuvem=1 no endereço para salvar na nuvem daqui.',
-      'erro'
-    );
+    aviso('Esta cópia não fala com o Firebase — abra com ?comNuvem=1 no endereço para salvar na nuvem daqui.', 'erro');
     return;
   }
   // Sem conta autenticada não adianta tentar: a regra de `conteudo` exige
@@ -229,10 +223,7 @@ async function publicar() {
   // um "insufficient permissions" que não diz ao operador o que fazer. Melhor
   // dizer aqui, com o caminho do conserto.
   if (!estado.operador) {
-    aviso(
-      'Sem login, o baralho ficou só neste navegador. Entre com a conta do Firebase, na aba Respostas, para publicar para os outros totens.',
-      'erro'
-    );
+    aviso('Sem login, o baralho ficou só neste navegador. Clique em Entrar, no alto da tela, para salvar para os outros totens.', 'erro');
     return;
   }
   const r = await publicarNaNuvem(estado.baralho);
@@ -246,10 +237,19 @@ async function publicar() {
   // A faxina do Storage roda aqui, e não num servidor: é o único momento em
   // que se sabe, com certeza, qual baralho está publicado. Com o que acabou
   // de subir, e não com `estado.baralho` — o operador pode voltar a editar
-  // enquanto a lista do Storage desce. Ver admin/imagens.js.
-  const limpeza = await limparFotosSemUso(clonar(carregarBaralho()));
+  // enquanto a lista do Storage desce; o que ele voltar a citar entra por
+  // `tambemEmUso`. Ver admin/imagens.js.
+  const publicado = clonar(carregarBaralho());
+  const fotosPublicadas = fotosDoBaralho(publicado);
+  // Publicadas, as fotos desta aba passam a ser do baralho da nuvem.
+  esquecerRecemEnviadas(fotosPublicadas);
+  const trocadas = [...fotosDoBaralho(antes)].filter((c) => !fotosPublicadas.has(c));
+  const limpeza = await limparFotosSemUso(publicado, {
+    semCarencia: trocadas,
+    tambemEmUso: () => (estado.baralho ? fotosDoBaralho(estado.baralho) : new Set()),
+  });
   if (limpeza.apagadas > 0) {
-    aviso(`${limpeza.apagadas} foto(s) que nenhum veículo usa havia mais de ${CARENCIA_DIAS} dias saíram do Firebase Storage.`);
+    aviso(`${limpeza.apagadas} foto(s) que nenhum veículo usa mais saíram do Firebase Storage.`);
   } else if (!limpeza.ok) {
     console.warn('limpeza do Storage não rodou:', limpeza.motivo);
   }
@@ -274,7 +274,7 @@ function trocarAba(aba) {
 
 async function atualizarRespostas() {
   estado.respostas.carregando = true;
-  if (estado.aba === 'respostas') atualizarChrome();
+  if (estado.aba === 'respostas') desenhar();
   try {
     const r = await buscarRespostas();
     if (!app) return;
@@ -286,17 +286,19 @@ async function atualizarRespostas() {
     estado.respostas.carregando = false;
     aviso(`Não deu para carregar as respostas: ${erro?.message ?? erro}`, 'erro');
   }
-  if (app && estado.aba === 'respostas') atualizarChrome();
+  if (app && estado.aba === 'respostas') desenhar();
 }
 
 /**
- * A conta do Firebase para ler telefone — não a senha 2040 da porta. Ver a
- * nota grande em `admin/respostas.js` sobre por que uma exige a outra.
+ * A conta do Firebase — não a senha 2040 da porta. É a mesma que a porta
+ * pede onde a nuvem alcança; daqui ela serve a quem entrou pela senha local
+ * e ganhou rede depois. Ver a nota grande em `admin/respostas.js` sobre por
+ * que o telefone exige uma conta de verdade.
  */
 async function entrarComFirebase() {
   const dados = await pedirCredenciais({
-    titulo: 'Entrar para ver telefone',
-    texto: 'A conta do Firebase do projeto. Sem ela, a tabela mostra os dados da partida sem telefone.',
+    titulo: 'Entrar com a conta do Firebase',
+    texto: 'Com a conta, o Salvar vale para todos os totens, as fotos vão para o Firebase Storage e a aba Respostas mostra o telefone.',
   });
   if (!dados) return;
   const r = await entrar(dados.email, dados.senha, { manter: dados.manter });
@@ -307,13 +309,19 @@ async function entrarComFirebase() {
     return;
   }
   aviso(`Conectado como ${dados.email} — ${dados.manter ? 'mantido neste navegador' : 'até fechar esta aba'}.`);
-  // A tabela é atualizada pelo aoMudarOperador (montarAdmin), que dispara
-  // sozinho quando o login mudar.
+  // A barra e a tabela são atualizadas pelo aoMudarOperador (montarAdmin), que
+  // dispara sozinho quando o login muda.
 }
 
 async function sairComFirebase() {
+  const ok = await confirmar({
+    titulo: 'Sair da conta?',
+    texto: `Você está conectado como ${estado.operador}. Sem a conta, o Salvar vale só neste navegador e a aba Respostas deixa de mostrar o telefone de quem jogou em outros totens.`,
+    confirmarTexto: 'Sair da conta',
+  });
+  if (!ok) return;
   await sair();
-  aviso('Desconectado. A tabela volta a mostrar sem telefone.');
+  aviso('Você saiu da conta do Firebase.');
 }
 
 function baixarRespostas() {
@@ -327,13 +335,16 @@ function baixarRespostas() {
   baixarArquivo(`tecgame-respostas-${hoje}.csv`, paraCSV(linhas, colunas));
 }
 
+/* ---------------------------------------------------------- o baralho ---- */
+
 async function descartar() {
-  if (!(await confirmar({ titulo: 'Descartar alterações?', texto: 'Volta ao baralho salvo agora.', perigoso: true, confirmarTexto: 'Descartar' }))) return;
+  if (!(await confirmar({ titulo: 'Descartar alterações?', texto: 'Tudo volta a ser como estava no último Salvar.', perigoso: true, confirmarTexto: 'Descartar' }))) return;
   estado.baralho = clonar(carregarBaralho());
   estado.selecionado = Math.min(estado.selecionado, estado.baralho.slots.length - 1);
   estado.sujo = false;
   desenhar();
   aviso('Alterações descartadas.');
+  soltarFotosSemUso();
 }
 
 /**
@@ -348,7 +359,7 @@ async function resetarTudo() {
   const ok = await confirmar({
     titulo: 'Resetar todos os dados?',
     texto:
-      'Volta ao baralho de fábrica (dez veículos, uma pergunta cada) e apaga deste navegador o ranking e os telefones das partidas já jogadas. O que já foi salvo no Firebase continua lá — isso só se apaga pelo console do Firebase.',
+      'Volta às perguntas de fábrica (dez veículos, uma pergunta cada) e apaga deste navegador o ranking e os telefones das partidas já jogadas. O que já foi salvo no Firebase continua lá — isso só se apaga pelo console do Firebase.',
     perigoso: true,
     confirmarTexto: 'Resetar tudo',
   });
@@ -362,27 +373,27 @@ async function resetarTudo() {
   estado.pergunta = 0;
   estado.sujo = false;
   desenhar();
-  aviso('Baralho de fábrica de volta, e o ranking deste navegador apagado.');
+  aviso('Perguntas de fábrica de volta, e o ranking deste navegador apagado.');
+  soltarFotosSemUso();
 }
 
 function adicionarRodada() {
   estado.baralho.slots.push(slotVazio());
   estado.selecionado = estado.baralho.slots.length - 1;
   estado.pergunta = 0;
-  estado.abertos.add(estado.selecionado);
   estado.sujo = true;
   desenhar();
-  aviso('Veículo adicionado. Preencha o veículo e a primeira pergunta.');
+  // O veículo novo está no fim da lista, e é o nome dele que se digita
+  // primeiro.
+  app.querySelector('.veiculo-campos .campo-entrada')?.focus();
+  aviso('Veículo adicionado no fim da roleta. Dê um nome, escolha a foto e escreva a primeira pergunta.');
 }
-
-/* ---------------------------------------------- o banco de um veículo ----- */
 
 function adicionarPergunta(i) {
   const slot = estado.baralho.slots[i];
   slot.perguntas.push(perguntaVazia());
   estado.selecionado = i;
   estado.pergunta = slot.perguntas.length - 1;
-  estado.abertos.add(i);
   estado.sujo = true;
   desenhar();
   aviso('Pergunta nova no banco deste veículo. Preencha os três idiomas.');
@@ -395,9 +406,9 @@ function duplicarPergunta(i, j) {
   slot.perguntas.splice(j + 1, 0, copia);
   estado.selecionado = i;
   estado.pergunta = j + 1;
-  estado.abertos.add(i);
   estado.sujo = true;
   desenhar();
+  aviso('Pergunta duplicada. A cópia está aberta.');
 }
 
 async function removerPergunta(i, j) {
@@ -409,10 +420,10 @@ async function removerPergunta(i, j) {
   const resumo = resumoDaPergunta(slot.perguntas[j], j);
   if (
     !(await confirmar({
-      titulo: 'Remover pergunta?',
-      texto: `"${resumo}" sai do banco de ${slot.veiculo.nome || 'este veículo'}.`,
+      titulo: 'Excluir pergunta?',
+      texto: `"${resumo}" sai do banco de ${nomeDoVeiculo(i)}.`,
       perigoso: true,
-      confirmarTexto: 'Remover',
+      confirmarTexto: 'Excluir',
     }))
   ) {
     return;
@@ -439,21 +450,24 @@ function duplicarRodada(i) {
   copia.veiculo.nome = `${copia.veiculo.nome} (cópia)`;
   estado.baralho.slots.splice(i + 1, 0, copia);
   estado.selecionado = i + 1;
+  estado.pergunta = 0;
   estado.sujo = true;
   desenhar();
+  aviso('Veículo duplicado logo abaixo do original.');
 }
 
 async function removerRodada(i) {
   if (estado.baralho.slots.length <= 1) {
-    aviso('O baralho precisa de pelo menos uma rodada.', 'erro');
+    aviso('A roleta precisa de pelo menos um veículo.', 'erro');
     return;
   }
-  const nome = estado.baralho.slots[i].veiculo.nome || `rodada ${i + 1}`;
-  if (!(await confirmar({ titulo: 'Remover rodada?', texto: `"${nome}" sai do baralho.`, perigoso: true, confirmarTexto: 'Remover' }))) return;
+  if (!(await confirmar({ titulo: 'Excluir veículo?', texto: `"${nomeDoVeiculo(i)}" e as perguntas dele saem da roleta.`, perigoso: true, confirmarTexto: 'Excluir' }))) return;
   estado.baralho.slots.splice(i, 1);
   estado.selecionado = Math.max(0, Math.min(i, estado.baralho.slots.length - 1));
+  estado.pergunta = 0;
   estado.sujo = true;
   desenhar();
+  soltarFotosSemUso();
 }
 
 function mover(i, delta) {
@@ -466,6 +480,17 @@ function mover(i, delta) {
   desenhar();
 }
 
+/** Abre o veículo e a pergunta onde um problema mora, na aba de idioma dele. */
+function irParaProblema({ i, j, mensagem }) {
+  fecharPopover();
+  estado.aba = 'veiculos';
+  estado.selecionado = i;
+  estado.pergunta = j;
+  const { idioma } = explicarProblema(mensagem);
+  if (idioma) estado.idioma = idioma;
+  desenhar();
+  app.querySelector('.painel .tem-erro')?.scrollIntoView({ block: 'center' });
+}
 
 /* ------------------------------------------------------------------ telas -- */
 
@@ -499,29 +524,74 @@ function faz(quando) {
 }
 
 /**
- * A situação do baralho, numa frase.
+ * A situação do baralho, num selo só.
  *
- * Antes o selo dizia "publicado no totem", que só falava deste navegador — e
- * era justamente a pergunta errada: o operador precisa saber se o que ele
- * salvou chegou ao Firebase, e se alguém em outra máquina salvou depois dele.
+ * Eram três, lado a lado — a gravação, "pronto para salvar" e a origem do
+ * baralho —, e o operador não sabia qual ler. A pergunta que ele faz é uma só:
+ * "preciso clicar em Salvar?". Problema vence alteração, que vence o "salvo";
+ * o detalhe de quando e onde foi salvo mora no (?).
  */
-function seloDaSituacao() {
-  if (estado.sujo) return { texto: 'alterações não salvas', tipo: 'suja' };
+function seloDaSituacao(total) {
+  if (total > 0) return { tipo: 'erro', texto: total === 1 ? '1 problema' : `${total} problemas` };
+  if (estado.sujo) return { tipo: 'suja', texto: 'Alterações não salvas' };
 
   const nuvem = estado.ultimaNuvem;
   if (nuvem?.quando) {
     return {
       tipo: 'ok',
-      texto: `salvo ${faz(nuvem.quando)}`,
-      titulo: `Última gravação no Firebase: ${nuvem.quando.toLocaleString('pt-BR')}${
-        nuvem.quem ? ` — por ${nuvem.quem}` : ''
-      }`,
+      texto: `Salvo ${faz(nuvem.quando)}`,
+      ajuda: `Gravado no Firebase em ${nuvem.quando.toLocaleString('pt-BR')}${nuvem.quem ? `, por ${nuvem.quem}` : ''}. Todo totem com internet já joga com este conteúdo.`,
     };
   }
   if (temBaralhoPublicado()) {
-    return { texto: 'salvo só neste navegador', tipo: 'atencao', titulo: 'Nada foi gravado no Firebase ainda.' };
+    return {
+      tipo: 'neutra',
+      texto: 'Salvo neste navegador',
+      ajuda: 'Nada foi gravado no Firebase ainda: os outros totens não têm este conteúdo.',
+    };
   }
-  return { texto: 'usando o baralho de fábrica', tipo: 'neutra' };
+  return {
+    tipo: 'neutra',
+    texto: 'Perguntas de fábrica',
+    ajuda: 'Ninguém salvou nada ainda: o jogo usa as perguntas que vêm com ele.',
+  };
+}
+
+/**
+ * O selo de problemas é um botão: abre a lista do que falta, e cada linha leva
+ * ao campo. Antes o operador lia "3 problema(s)" e caçava veículo por veículo.
+ */
+function seloDeProblemas(selo, itens, gerais) {
+  const MAXIMO = 12;
+  const abrir = (e) => {
+    const linhas = itens.slice(0, MAXIMO).map((item) =>
+      el(
+        'button',
+        { type: 'button', class: 'problema', onClick: () => irParaProblema(item) },
+        [
+          el('strong', {
+            text: `${nomeDoVeiculo(item.i)}${(estado.baralho.slots[item.i]?.perguntas?.length ?? 0) > 1 ? ` · pergunta ${item.j + 1}` : ''}`,
+          }),
+          el('span', { text: explicarProblema(item.mensagem).texto }),
+        ]
+      )
+    );
+    abrirPopover(
+      e.currentTarget,
+      [
+        el('div', { class: 'popover-titulo', text: 'O que falta para salvar' }),
+        ...gerais.map((g) => el('p', { class: 'problema-geral', text: g })),
+        el('div', { class: 'problemas' }, linhas),
+        itens.length > MAXIMO ? el('p', { class: 'nota', text: `e mais ${itens.length - MAXIMO}…` }) : null,
+      ],
+      { rotulo: 'O que falta para salvar' }
+    );
+  };
+  return el(
+    'button',
+    { type: 'button', class: 'situacao situacao-erro situacao-botao', 'aria-haspopup': 'dialog', onClick: abrir },
+    [icone('alerta', { classe: 'situacao-icone' }), el('span', { text: selo.texto })]
+  );
 }
 
 /**
@@ -546,251 +616,125 @@ function sininho() {
       'aria-label': novidade ? 'Novidades desta versão — ainda não vistas' : 'Novidades desta versão',
       onClick: abrirNotas,
     },
-    [
-      el('span', { 'aria-hidden': 'true', text: '🔔' }),
-      novidade ? el('span', { class: 'sininho-ponto', 'aria-hidden': 'true' }) : null,
-    ]
+    [icone('sino'), novidade ? el('span', { class: 'sininho-ponto', 'aria-hidden': 'true' }) : null]
   );
 }
 
-/** As duas abas do painel. Trocar de aba não perde o que a outra tinha. */
+/** As três abas do painel. Trocar de aba não perde o que a outra tinha. */
 function abas() {
-  const item = (aba, rotulo) =>
-    el('button', {
-      type: 'button',
-      class: ['aba-painel', estado.aba === aba ? 'ativa' : null],
-      role: 'tab',
-      'aria-selected': estado.aba === aba ? 'true' : 'false',
-      text: rotulo,
-      onClick: () => trocarAba(aba),
-    });
+  const item = (aba, rotulo, nomeDoIcone) =>
+    el(
+      'button',
+      {
+        type: 'button',
+        class: ['aba-painel', estado.aba === aba ? 'ativa' : null],
+        role: 'tab',
+        'aria-selected': estado.aba === aba ? 'true' : 'false',
+        'data-aba': aba,
+        onClick: () => trocarAba(aba),
+      },
+      [icone(nomeDoIcone), el('span', { text: rotulo })]
+    );
   return el('nav', { class: 'abas-painel', role: 'tablist', 'aria-label': 'Seção do painel' }, [
-    item('veiculos', 'Veículos'),
-    item('respostas', 'Respostas'),
+    item('veiculos', 'Veículos', 'carro'),
+    item('respostas', 'Respostas', 'grafico'),
+    item('config', 'Configurações', 'engrenagem'),
   ]);
 }
 
-/** `.barra-info` + `.barra-acoes` da aba Veículos — o que já existia. */
-function infoEAcoesDeVeiculos() {
-  const { total } = errosPorRodada(estado.baralho);
+/**
+ * Quem está conectado — ou o aviso de que ninguém está.
+ *
+ * Mora na barra, à vista de todas as abas, porque muda o que o Salvar faz: sem
+ * login, ele grava só neste navegador. Antes o "Entrar" ficava escondido na
+ * aba Respostas, e quem queria publicar para os outros totens não o achava.
+ *
+ * Quem entrou pela senha local vê o painel MARCADO aqui, e não pode deixar de
+ * ver: é a promessa do modo local (ver porta.js).
+ */
+function conta() {
+  if (estado.operador) {
+    return el('div', { class: 'conta' }, [
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'conta-botao',
+          title: `Conectado ao Firebase como ${estado.operador}. Clique para sair da conta.`,
+          onClick: sairComFirebase,
+        },
+        [
+          el('span', { class: 'conta-avatar', 'aria-hidden': 'true', text: estado.operador.slice(0, 1).toUpperCase() }),
+          el('span', { class: 'conta-email', text: estado.operador }),
+        ]
+      ),
+    ]);
+  }
+  return el('div', { class: 'conta' }, [
+    el('span', { class: 'situacao situacao-atencao' }, [
+      'Sem login',
+      ajuda(
+        podeUsarNuvem()
+          ? 'Você entrou pela senha local: o que salvar vale só neste navegador, e a foto enviada fica dentro do baralho. Clique em Entrar para usar a conta do Firebase.'
+          : 'Este navegador não alcança o Firebase (jogo aberto do disco, localhost ou sem internet). O que salvar vale só aqui.',
+        { rotulo: 'Sem login' }
+      ),
+    ]),
+    podeUsarNuvem() ? botao('Entrar', { onClick: entrarComFirebase, acao: 'entrar' }) : null,
+  ]);
+}
+
+/** O selo e os botões da aba Veículos. */
+function acoesDeVeiculos() {
+  const { total, itens, gerais } = agruparProblemas(estado.baralho);
   const peso = pesoDoBaralho();
-  const situacao = seloDaSituacao();
+  const selo = seloDaSituacao(total);
 
   return [
-    el('div', { class: 'barra-info' }, [
-      // Primeiro de todos porque muda o que o botão Salvar faz: sem login, ele
-      // grava só aqui. Ver `publicar()` e o cabeçalho de porta.js.
-      !estado.operador
-        ? el('span', {
-            class: 'situacao situacao-atencao',
-            text: 'sem login — só este navegador',
-            title: podeUsarNuvem()
-              ? 'Entre com a conta do Firebase, na aba Respostas, para publicar o baralho para os outros totens.'
-              : 'Este navegador não alcança o Firebase (jogo aberto do disco, localhost, ou sem rede). O que for salvo vale só aqui.',
-          })
-        : null,
-      el('span', {
-        class: `situacao situacao-${situacao.tipo}`,
-        text: situacao.texto,
-        title: situacao.titulo ?? null,
-      }),
-      total > 0
-        ? el('span', { class: 'situacao situacao-erro', text: `${total} problema(s)` })
-        : el('span', { class: 'situacao situacao-ok', text: 'pronto para salvar' }),
-      // Este fica: é um aviso de verdade, e só aparece quando há o que avisar.
-      peso >= PESO_DE_ATENCAO_KB
-        ? el('span', {
-            class: 'situacao situacao-atencao',
-            title:
-              'O baralho vive no armazenamento do navegador, que tem poucos megabytes. Imagens enviadas do computador são o que mais ocupa.',
-            text: `${peso} KB — perto do limite`,
-          })
-        : null,
-    ]),
-    // "Resetar todos os dados" saiu daqui: ficava encostado em "Salvar", que é
-    // o botão mais clicado do painel, e apaga o baralho e o ranking deste
-    // navegador. Agora mora no pé da lista de veículos, longe da mão que salva.
-    el('div', { class: 'barra-acoes' }, [
-      estado.sujo ? botao('Descartar', { onClick: descartar }) : null,
-      botao('Salvar', { onClick: publicar, tipo: 'primario' }),
-    ]),
+    // Só aparece quando há o que avisar.
+    peso >= PESO_DE_ATENCAO_KB
+      ? el('span', { class: 'situacao situacao-atencao' }, [
+          `${peso} KB — perto do limite`,
+          ajuda('O baralho vive no armazenamento do navegador, que tem poucos megabytes. Fotos enviadas do computador sem login são o que mais ocupa.', {
+            rotulo: 'Perto do limite',
+          }),
+        ])
+      : null,
+    total > 0
+      ? seloDeProblemas(selo, itens, gerais)
+      : el('span', { class: `situacao situacao-${selo.tipo}` }, [selo.texto, selo.ajuda ? ajuda(selo.ajuda, { rotulo: selo.texto }) : null]),
+    estado.sujo ? botao('Descartar', { onClick: descartar, titulo: 'Volta a como estava no último Salvar' }) : null,
+    botao('Salvar', { onClick: publicar, tipo: 'primario', acao: 'salvar' }),
   ];
 }
 
-/** `.barra-info` + `.barra-acoes` da aba Respostas. */
-function infoEAcoesDeRespostas() {
-  const { fonte, comTelefone, carregando, linhas } = estado.respostas;
-
+function acoesDeRespostas() {
+  const { carregando, linhas } = estado.respostas;
   return [
-    el('div', { class: 'barra-info' }, [
-      fonte
-        ? el('span', {
-            class: `situacao ${fonte === 'nuvem' ? 'situacao-ok' : 'situacao-atencao'}`,
-            text: fonte === 'nuvem' ? 'todos os totens' : 'só este navegador',
-            title:
-              fonte === 'nuvem'
-                ? 'Lendo o Firestore: partidas de qualquer totem com internet.'
-                : 'A nuvem está desligada ou fora do alcance — mostrando só o que este navegador jogou.',
-          })
-        : null,
-      el('span', {
-        class: `situacao ${comTelefone ? 'situacao-ok' : 'situacao-neutra'}`,
-        text: comTelefone ? 'com telefone' : 'sem telefone',
-        title: comTelefone
-          ? null
-          : 'Entre com a conta do Firebase para ver o telefone de quem jogou nos outros totens.',
-      }),
-      estado.operador
-        ? el('span', { class: 'situacao situacao-ok', text: estado.operador, title: 'Conectado ao Firebase' })
-        : null,
-      linhas.length ? el('span', { class: 'situacao situacao-neutra', text: `${linhas.length} partida(s)` }) : null,
-    ]),
-    el('div', { class: 'barra-acoes' }, [
-      botao('Atualizar', { onClick: atualizarRespostas, titulo: 'Buscar de novo' }),
-      podeUsarNuvem()
-        ? estado.operador
-          ? botao('Sair da conta', { onClick: sairComFirebase, titulo: `Conectado como ${estado.operador}` })
-          : botao('Entrar', { onClick: entrarComFirebase, titulo: 'Conta do Firebase, para ver telefone' })
-        : null,
-      botao('Baixar dados', { onClick: baixarRespostas, tipo: 'primario', disabled: carregando || !linhas.length }),
-    ]),
+    botao('Atualizar', { icone: 'atualizar', onClick: atualizarRespostas, titulo: 'Buscar as partidas de novo' }),
+    botao('Baixar planilha', {
+      icone: 'baixar',
+      onClick: baixarRespostas,
+      tipo: 'primario',
+      disabled: carregando || !linhas.length,
+      titulo: 'Um arquivo CSV, que abre no Excel',
+    }),
   ];
 }
 
 function barra() {
+  const acoes = estado.aba === 'veiculos' ? acoesDeVeiculos() : estado.aba === 'respostas' ? acoesDeRespostas() : [];
   return el('header', { class: 'barra' }, [
-    el('div', { class: 'marca' }, [
-      el('strong', { text: 'TecGame' }),
-      el('span', { text: `administração · v${VERSAO_DO_JOGO}` }),
+    el('div', { class: 'barra-interna' }, [
+      el('div', { class: 'marca' }, [el('strong', { text: 'TecGame' }), el('span', { text: `administração · v${VERSAO_DO_JOGO}` })]),
+      abas(),
+      el('div', { class: 'barra-acoes' }, acoes),
+      el('div', { class: 'barra-global' }, [
+        sininho(),
+        conta(),
+        botao('Voltar ao jogo', { icone: 'voltar', onClick: voltarAoJogo, titulo: 'Fecha a administração e volta para a tela do jogador' }),
+      ]),
     ]),
-    sininho(),
-    abas(),
-    ...(estado.aba === 'veiculos' ? infoEAcoesDeVeiculos() : infoEAcoesDeRespostas()),
-    el('div', { class: 'barra-acoes barra-acoes-sair' }, [
-      botao('Voltar ao jogo', { onClick: voltarAoJogo, titulo: 'Fecha a administração e volta para a tela do jogador' }),
-    ]),
-  ]);
-}
-
-/** Abre ou fecha o banco de um veículo. */
-function alternarAberto(i) {
-  if (estado.abertos.has(i)) estado.abertos.delete(i);
-  else estado.abertos.add(i);
-  atualizarChrome();
-}
-
-/* --------------------------------------------------------------- na feira -- */
-
-/**
- * "Na feira": o que o operador ajusta no estande, e não no baralho — vale só
- * para ESTE navegador, na hora, sem Salvar.
- *
- *   - o estilo da tela da pergunta (clássico ou palco — ver palco.js);
- *   - pular o vídeo demonstrativo do equipamento (ver tela_video_scanner.js);
- *   - o volume do som, porque a feira barulhenta e o auditório silencioso
- *     pedem volumes diferentes, e ele era cravado no código;
- *   - a Pergunta do Milhão do dia: chamar o mais rápido de volta ao totem
- *     para uma pergunta extra, valendo brinde (ver pages/milhao.js).
- */
-function naFeira() {
-  const campoEstilo = selecao({
-    rotulo: 'Estilo da tela da pergunta',
-    valor: estiloDaPergunta(),
-    opcoes: [
-      { valor: 'classico', rotulo: 'Clássico — a coluna do Show do Milhão (padrão)' },
-      { valor: 'palco', rotulo: 'Palco — os losangos do Milionário' },
-    ],
-    onChange: (v) => {
-      definirEstiloDaPergunta(v);
-      aviso(`A próxima pergunta já sai no estilo ${v === 'palco' ? 'Palco' : 'Clássico'}.`);
-    },
-  });
-
-  const campoPularVideo = el('div', { class: 'campo', 'data-campo': 'pular-video' }, [
-    caixaDeMarcar({
-      rotulo: 'Pular o vídeo demonstrativo do equipamento',
-      marcado: pulaVideoDoEquipamento(),
-      onChange: (v) => {
-        definirPularVideoDoEquipamento(v);
-        aviso(v ? 'A partir da próxima partida, o jogo vai do equipamento direto para a pergunta.' : 'O vídeo do equipamento volta a passar antes da pergunta.');
-      },
-    }),
-    el('span', {
-      class: 'campo-dica',
-      text: 'Tira os 14 segundos entre a escolha do equipamento e a pergunta. O Rasther 4 não tem vídeo e sempre vai direto.',
-    }),
-  ]);
-
-  const faixa = el('input', { type: 'range', min: '0', max: '100', step: '5', class: 'volume-faixa', 'aria-label': 'Volume do som do jogo' });
-  faixa.value = String(Math.round(volumeAtual() * 100));
-  const valor = el('span', { class: 'volume-valor', text: `${faixa.value}%` });
-  const mudo = caixaDeMarcar({
-    rotulo: 'Sem som',
-    marcado: estaMudo(),
-    onChange: (v) => {
-      if (v !== estaMudo()) alternarMudo();
-    },
-  });
-  faixa.addEventListener('input', () => {
-    definirVolume(Number(faixa.value) / 100);
-    valor.textContent = `${faixa.value}%`;
-    const caixa = mudo.querySelector('input');
-    if (caixa) caixa.checked = estaMudo();
-  });
-
-  // A lista vem do baralho PUBLICADO — é com ele que o jogo joga, e não com a
-  // cópia em edição aqui ao lado.
-  const publicado = carregarBaralho();
-  const opcoesDoMilhao = [{ valor: 'sorteio', rotulo: 'Sortear uma das perguntas ligadas' }];
-  publicado.slots.forEach((slot, i) =>
-    (slot.perguntas ?? []).forEach((p, j) => {
-      if (p.ativa === false) return;
-      const texto = (p.pt?.pergunta ?? '').trim();
-      opcoesDoMilhao.push({
-        valor: `${i}:${j}`,
-        rotulo: `${slot.veiculo?.nome?.trim() || `Rodada ${i + 1}`} — ${texto.slice(0, 48)}${texto.length > 48 ? '…' : ''}`,
-      });
-    })
-  );
-  const campeao = maisRapidoDoDia();
-  const campoNome = campo({
-    rotulo: 'Quem vai jogar',
-    valor: campeao?.nome ?? '',
-    dica: campeao
-      ? `O mais rápido de hoje neste totem: ${campeao.nome}, ${formatarTempoDeResposta(campeao.tempo)}.`
-      : 'Ninguém venceu hoje neste totem ainda — escreva o nome de quem vai jogar.',
-  });
-  const campoPergunta = selecao({ rotulo: 'Pergunta', valor: 'sorteio', opcoes: opcoesDoMilhao });
-
-  const ultimas = getRecords('milhao').slice(-3).reverse();
-
-  return el('div', { class: 'zona-de-risco na-feira' }, [
-    el('h3', { text: 'Na feira' }),
-    el('p', { class: 'nota', text: 'Vale só para este navegador, na hora — não precisa Salvar.' }),
-    campoEstilo,
-    campoPularVideo,
-    el('div', { class: 'campo' }, [
-      el('span', { class: 'campo-rotulo', text: 'Volume do som' }),
-      el('div', { class: 'volume-linha' }, [faixa, valor, botao('Testar', { onClick: () => Som.fanfarra(0), titulo: 'Toca a fanfarra do acerto no volume escolhido' })]),
-      mudo,
-      el('span', { class: 'campo-dica', text: 'No totem, sem abrir o painel: Ctrl+Alt+M liga e desliga o som, Ctrl+Alt+↑/↓ muda o volume, Ctrl+Alt+Home volta ao cadastro.' }),
-    ]),
-    el('h3', { text: 'Pergunta do Milhão' }),
-    el('p', { class: 'nota', text: 'Uma pergunta extra, valendo brinde, para chamar o mais rápido do dia de volta ao totem. Sem ajudas, e não entra no ranking.' }),
-    campoNome,
-    campoPergunta,
-    botao('Chamar ao palco', { tipo: 'primario', onClick: () => chamarMilhao(campoNome.entrada.value, campoPergunta.entrada.value) }),
-    ultimas.length
-      ? el(
-          'ul',
-          { class: 'milhao-ultimas' },
-          ultimas.map((r) =>
-            el('li', {
-              text: `${r.nome || '(sem nome)'} — ${r.venceu ? `levou o brinde (${formatarTempoDeResposta(r.tempo)})` : 'não levou'} · ${new Date(r.data).toLocaleString('pt-BR')}`,
-            })
-          )
-        )
-      : null,
   ]);
 }
 
@@ -798,14 +742,15 @@ function naFeira() {
 async function chamarMilhao(nome, qual) {
   if (estado.sujo) {
     const segue = await confirmar({
-      titulo: 'Sair sem publicar?',
-      texto: 'Há alterações que o totem ainda não recebeu. Chamar a Pergunta do Milhão agora as descarta.',
+      titulo: 'Sair sem salvar?',
+      texto: 'Há alterações no baralho que o totem ainda não recebeu. Chamar a Pergunta do Milhão agora as descarta.',
       confirmarTexto: 'Descartar e chamar',
       perigoso: true,
     });
     if (!segue) return;
     estado.baralho = clonar(carregarBaralho());
     estado.sujo = false;
+    soltarFotosSemUso();
   }
   FFAppState.recarregarBaralho();
   const [i, j] = String(qual).split(':').map(Number);
@@ -815,150 +760,161 @@ async function chamarMilhao(nome, qual) {
   goNamed('milhao');
 }
 
+/* ------------------------------------------------------- a lista lateral -- */
+
 /**
- * A lateral: todos os veículos e, debaixo do que estiver aberto, o banco de
+ * As miniaturas da lista, guardadas entre um redesenho e outro.
+ *
+ * A lista é refeita a cada tecla no editor (o selo de problema muda), e uma
+ * `<img>` nova a cada vez piscava em branco antes de decodificar — com dez
+ * fotos, a coluna inteira tremia enquanto se digitava. O mesmo nó, movido
+ * para a lista nova, não pisca.
+ */
+const miniaturas = new Map();
+
+function miniatura(i, src) {
+  if (!src) return el('span', { class: 'item-miniatura item-miniatura-vazia', 'aria-hidden': 'true' }, icone('imagem'));
+  const chave = `${i}|${src}`;
+  let img = miniaturas.get(chave);
+  if (!img) {
+    img = el('img', { class: 'item-miniatura', src, alt: '', decoding: 'async' });
+    miniaturas.set(chave, img);
+  }
+  return img;
+}
+
+/** "1 pergunta", "3 perguntas · 1 desligada". */
+function contagem(perguntas) {
+  const desligadas = perguntas.filter((p) => p.ativa === false).length;
+  const n = perguntas.length;
+  const base = n === 1 ? '1 pergunta' : `${n} perguntas`;
+  if (!desligadas) return base;
+  if (n === 1) return '1 pergunta, desligada';
+  return `${base} · ${desligadas} desligada${desligadas > 1 ? 's' : ''}`;
+}
+
+/**
+ * Os itens da lista: todos os veículos e, debaixo do aberto, o banco de
  * perguntas dele.
  *
- * O veículo fechado mostra a contagem ("2 de 3 ativas"), que já responde
- * "quantas perguntas este carro tem" sem esticar a lista. O aberto mostra cada
- * uma, com a marca que liga e desliga — desligada, ela fica de rascunho e nunca
- * cai em partida.
+ * Só o aberto mostra as perguntas. Com dez veículos e os bancos todos abertos
+ * a lista virava um rolo, e cada linha de veículo carregava quatro botões
+ * empilhados (subir, descer, duplicar, remover) — que agora moram, com nome,
+ * no cabeçalho do editor.
  */
-function lista() {
-  const { porRodada, porPergunta } = errosPorRodada(estado.baralho);
+function itensDaLista() {
+  const { porRodada, porPergunta } = agruparProblemas(estado.baralho);
+  const usadas = new Set();
 
   const itens = estado.baralho.slots.flatMap((slot, i) => {
     const problemas = porRodada.get(i)?.length ?? 0;
-    const nome = slot.veiculo.nome?.trim() || '(sem nome)';
     const perguntas = slot.perguntas ?? [];
-    const ativas = perguntas.filter((p) => p.ativa !== false).length;
-
-    const aberto = estado.abertos.has(i);
+    const aberto = i === estado.selecionado;
+    usadas.add(`${i}|${slot.veiculo?.imagem}`);
 
     const cabeca = el(
       'li',
-      { class: ['item', 'veiculo', i === estado.selecionado ? 'selecionado' : null, problemas ? 'com-problema' : null] },
-      [
-        el('button', {
-          type: 'button',
-          class: ['seta-banco', aberto ? 'aberta' : null],
-          title: aberto ? 'Recolher as perguntas' : 'Expandir as perguntas',
-          'aria-expanded': aberto ? 'true' : 'false',
-          'aria-label': `${aberto ? 'Recolher' : 'Expandir'} as perguntas de ${nome}`,
-          text: '▸',
-          onClick: () => alternarAberto(i),
-        }),
-        el('button', {
+      { class: ['item', 'veiculo', aberto ? 'selecionado' : null, problemas ? 'com-problema' : null] },
+      el(
+        'button',
+        {
           type: 'button',
           class: 'item-botao',
+          'aria-current': aberto ? 'true' : null,
           onClick: () => {
             estado.selecionado = i;
             estado.pergunta = 0;
-            // Escolher um veículo abre o banco dele: é o que a pessoa veio ver.
-            estado.abertos.add(i);
             desenhar();
           },
-        }, [
-          el('span', { class: 'item-indice', text: String(i + 1) }),
+        },
+        [
+          miniatura(i, slot.veiculo?.imagem),
           el('span', { class: 'item-texto' }, [
-            el('strong', { text: nome }),
-            el('span', {
-              class: 'item-pergunta',
-              text:
-                perguntas.length === 1
-                  ? `${ativas === 1 ? '1 pergunta' : '1 pergunta desligada'}`
-                  : `${ativas} de ${perguntas.length} perguntas ativas`,
-            }),
+            el('strong', {}, [
+              el('span', { class: 'item-indice', text: `${i + 1}` }),
+              el('span', { class: 'item-nome', text: slot.veiculo.nome?.trim() || '(sem nome)' }),
+            ]),
+            el('span', { class: 'item-pergunta', text: contagem(perguntas) }),
           ]),
-          problemas ? el('span', { class: 'item-selo', text: String(problemas) }) : null,
-        ]),
-        el('span', { class: 'item-acoes' }, [
-          botao('', { icone: '↑', titulo: 'Subir', onClick: () => mover(i, -1) }),
-          botao('', { icone: '↓', titulo: 'Descer', onClick: () => mover(i, 1) }),
-          botao('', { icone: '⧉', titulo: 'Duplicar veículo', onClick: () => duplicarRodada(i) }),
-          botao('', { icone: '✕', titulo: 'Remover veículo', tipo: 'perigo', onClick: () => removerRodada(i) }),
-        ]),
-      ]
+          problemas
+            ? el('span', { class: 'item-selo', title: `${problemas} problema(s) neste veículo`, text: String(problemas) })
+            : null,
+        ]
+      )
     );
 
-    const banco = perguntas.map((pergunta, j) => {
-      const comProblema = (porPergunta.get(`${i}:${j}`)?.length ?? 0) > 0;
-      const aberta = i === estado.selecionado && j === estado.pergunta;
-      const marca = el('input', {
-        type: 'checkbox',
-        class: 'pq-marca',
-        title: pergunta.ativa !== false ? 'Ligada — pode cair em partida' : 'Desligada — fica só de rascunho',
-        'aria-label': `Pergunta ${j + 1} de ${nome} ativa`,
-        onChange: (e) => alternarPergunta(i, j, e.currentTarget.checked),
-      });
-      marca.checked = pergunta.ativa !== false;
+    if (!aberto) return [cabeca];
 
+    const banco = perguntas.map((pergunta, j) => {
+      const comProblema = porPergunta.get(`${i}:${j}`)?.length ?? 0;
       return el(
         'li',
         {
           class: [
             'item',
             'pergunta',
-            aberta ? 'selecionado' : null,
+            j === estado.pergunta ? 'selecionado' : null,
             comProblema ? 'com-problema' : null,
             pergunta.ativa === false ? 'desligada' : null,
           ],
         },
-        [
-          marca,
-          el('button', {
+        el(
+          'button',
+          {
             type: 'button',
             class: 'item-botao pq-botao',
+            'aria-current': j === estado.pergunta ? 'true' : null,
             onClick: () => {
-              estado.selecionado = i;
               estado.pergunta = j;
               desenhar();
             },
-          }, [
-            el('span', { class: 'item-texto' }, [
-              el('span', { class: 'item-pergunta', text: resumoDaPergunta(pergunta, j) }),
-            ]),
-            comProblema ? el('span', { class: 'item-selo', text: String(porPergunta.get(`${i}:${j}`).length) }) : null,
-          ]),
-          el('span', { class: 'item-acoes' }, [
-            botao('', { icone: '⧉', titulo: 'Duplicar pergunta', onClick: () => duplicarPergunta(i, j) }),
-            botao('', { icone: '✕', titulo: 'Remover pergunta', tipo: 'perigo', onClick: () => removerPergunta(i, j) }),
-          ]),
-        ]
+          },
+          [
+            el('span', { class: 'pq-numero', text: String(j + 1) }),
+            el('span', { class: 'item-pergunta', text: resumoDaPergunta(pergunta, j) }),
+            pergunta.ativa === false ? el('span', { class: 'pq-desligada', text: 'desligada' }) : null,
+            comProblema ? el('span', { class: 'item-selo', text: String(comProblema) }) : null,
+          ]
+        )
       );
     });
 
-    if (!aberto) return [cabeca];
+    const acrescentar = el(
+      'li',
+      { class: 'item pergunta acrescentar' },
+      botao('Nova pergunta', { icone: 'mais', tipo: 'discreto', titulo: `Mais uma pergunta para ${nomeDoVeiculo(i)}`, onClick: () => adicionarPergunta(i) })
+    );
 
-    const acrescentar = el('li', { class: 'item pergunta acrescentar' }, [
-      botao('Pergunta', { icone: '+', titulo: `Nova pergunta para ${nome}`, onClick: () => adicionarPergunta(i) }),
-    ]);
-
-    return [cabeca, ...banco, acrescentar];
+    return [cabeca, el('li', { class: 'banco' }, el('ul', {}, [...banco, acrescentar]))];
   });
 
+  for (const chave of miniaturas.keys()) if (!usadas.has(chave)) miniaturas.delete(chave);
+  return el('ul', { class: 'itens' }, itens);
+}
+
+function lista() {
   return el('aside', { class: 'lateral' }, [
     el('div', { class: 'lateral-topo' }, [
-      el('h2', { text: 'Veículos' }),
-      botao('Veículo', { onClick: adicionarRodada, tipo: 'primario', icone: '+' }),
+      el('h2', {}, [
+        'Veículos',
+        ajuda(
+          'A ordem da lista é a ordem das fatias na roleta. Cada veículo pode ter várias perguntas: quando a roleta para nele, o jogo sorteia uma das ativas.',
+          { rotulo: 'Veículos' }
+        ),
+      ]),
+      botao('Novo veículo', { onClick: adicionarRodada, tipo: 'primario', icone: 'mais', acao: 'novo-veiculo' }),
     ]),
-    el('p', {
-      class: 'nota',
-      text: 'A ordem dos veículos é a ordem das fatias da roleta. Cada veículo pode ter várias perguntas: quando a roleta para nele, o jogo sorteia uma das ligadas.',
-    }),
-    el('ul', { class: 'itens' }, itens),
-    naFeira(),
-    // O fim da lista é o lugar de quem só se procura de propósito.
-    el('div', { class: 'zona-de-risco' }, [
-      el('h3', { text: 'Antes da feira' }),
-      el('p', {
-        class: 'nota',
-        text: 'Volta ao baralho de fábrica e apaga o ranking e os telefones gravados neste navegador.',
-      }),
-      botao('Resetar todos os dados', { onClick: resetarTudo, tipo: 'perigo' }),
-    ]),
+    el('div', { class: 'lateral-rolo' }, itensDaLista()),
   ]);
 }
+
+/** Troca só os itens da lista, mantendo onde ela estava rolada. */
+function atualizarLista() {
+  const ul = app.querySelector('.lateral-rolo > .itens');
+  if (ul) ul.replaceWith(itensDaLista());
+}
+
+/* ---------------------------------------------------------- respostas ---- */
 
 /**
  * A tabela de partidas. As colunas seguem `COLUNAS` de respostas.js; sem
@@ -966,20 +922,49 @@ function lista() {
  * insinuaria um dado perdido em vez de um dado que a conta atual não vê.
  */
 function telaRespostas() {
-  const { linhas, carregado, carregando } = estado.respostas;
-  const colunas = estado.respostas.comTelefone ? COLUNAS : COLUNAS.filter((c) => c.chave !== 'telefone');
+  const { linhas, carregado, carregando, fonte, comTelefone } = estado.respostas;
+  const colunas = comTelefone ? COLUNAS : COLUNAS.filter((c) => c.chave !== 'telefone');
+
+  // O que eram três selos na barra virou uma linha em cima da tabela: diz de
+  // onde vêm as partidas e se o telefone está na mistura.
+  const resumo = el('p', { class: 'respostas-resumo' }, [
+    linhas.length ? el('strong', { text: linhas.length === 1 ? '1 partida' : `${linhas.length} partidas` }) : null,
+    fonte
+      ? el('span', { class: 'respostas-fonte' }, [
+          fonte === 'nuvem' ? 'de todos os totens' : 'só deste navegador',
+          ajuda(
+            fonte === 'nuvem'
+              ? 'Lidas do Firebase: as partidas de qualquer totem com internet.'
+              : 'A nuvem está desligada ou fora do alcance: só o que este navegador jogou aparece aqui.',
+            { rotulo: 'De onde vêm as partidas' }
+          ),
+        ])
+      : null,
+    el('span', { class: 'respostas-telefone' }, [
+      comTelefone ? 'com telefone' : 'sem telefone',
+      comTelefone ? null : ajuda('Entre com a conta do Firebase (botão Entrar, no alto) para ver o telefone de quem jogou nos outros totens.', { rotulo: 'Sem telefone' }),
+    ]),
+  ]);
+
+  const topo = el('div', { class: 'pagina-topo' }, [el('h2', { text: 'Respostas dos jogadores' }), resumo]);
 
   if (carregando && !carregado) {
-    return el('main', { class: 'corpo-respostas' }, [el('p', { class: 'nota', text: 'Carregando respostas…' })]);
+    return el('main', { class: 'corpo corpo-respostas' }, [topo, el('p', { class: 'vazio', text: 'Carregando as partidas…' })]);
   }
 
   if (!linhas.length) {
-    return el('main', { class: 'corpo-respostas' }, [
-      el('p', { class: 'nota', text: 'Nenhuma partida registrada ainda.' }),
+    return el('main', { class: 'corpo corpo-respostas' }, [
+      topo,
+      el('div', { class: 'vazio' }, [
+        icone('grafico', { classe: 'vazio-icone' }),
+        el('strong', { text: 'Nenhuma partida ainda' }),
+        el('span', { text: 'As respostas aparecem aqui assim que alguém jogar.' }),
+      ]),
     ]);
   }
 
-  return el('main', { class: 'corpo-respostas' }, [
+  return el('main', { class: 'corpo corpo-respostas' }, [
+    topo,
     el('div', { class: 'tabela-rolo' }, [
       el('table', { class: 'tabela' }, [
         el('thead', {}, [el('tr', {}, colunas.map((c) => el('th', { text: c.rotulo })))]),
@@ -993,12 +978,37 @@ function telaRespostas() {
   ]);
 }
 
+/* ------------------------------------------------------------ desenhar --- */
+
+/**
+ * Rola a lista (só ela) até o veículo aberto aparecer. `scrollIntoView` não
+ * serve: na tela estreita a página inteira rola, e um clique em "Duplicar
+ * pergunta", no editor, levaria a tela de volta para a lista.
+ */
+function mostrarSelecionadoNaLista() {
+  const rolo = app.querySelector('.lateral-rolo');
+  const item = rolo?.querySelector('.item.veiculo.selecionado');
+  if (!rolo || !item) return;
+  const r = rolo.getBoundingClientRect();
+  const it = item.getBoundingClientRect();
+  if (it.top < r.top) rolo.scrollTop -= r.top - it.top + 8;
+  else if (it.bottom > r.bottom) rolo.scrollTop += it.bottom - r.bottom + 8;
+}
+
 function desenhar() {
+  fecharPopover();
+  // A lista é refeita junto com o resto, e nasceria rolada para o topo: quem
+  // clicou no décimo veículo o perderia de vista.
+  const rolagemDaLista = app.querySelector('.lateral-rolo')?.scrollTop ?? 0;
   limpar(app);
   app.appendChild(barra());
 
   if (estado.aba === 'respostas') {
     app.appendChild(telaRespostas());
+    return;
+  }
+  if (estado.aba === 'config') {
+    app.appendChild(telaConfiguracoes({ aoChamarMilhao: chamarMilhao, aoResetar: resetarTudo }));
     return;
   }
 
@@ -1007,15 +1017,22 @@ function desenhar() {
   // para a primeira em vez de abrir vazio.
   if (slot && !slot.perguntas[estado.pergunta]) estado.pergunta = 0;
   const pergunta = slot?.perguntas?.[estado.pergunta];
+  const i = estado.selecionado;
+  const j = estado.pergunta;
 
   const editor =
     slot && pergunta
       ? editorDeSlot({
           slot,
           pergunta,
-          indice: estado.selecionado,
-          posicao: estado.pergunta,
+          indice: i,
+          posicao: j,
           total: slot.perguntas.length,
+          totalDeVeiculos: estado.baralho.slots.length,
+          idioma: estado.idioma,
+          onIdioma: (lang) => {
+            estado.idioma = lang;
+          },
           // O mesmo critério do Salvar: a conta real do Firebase, e não a
           // senha local — o Storage cobra `request.auth != null`.
           nuvemDeImagens: () => podeUsarNuvem() && Boolean(estado.operador),
@@ -1025,32 +1042,46 @@ function desenhar() {
             // editor inteiro tiraria o foco do campo que está sendo digitado.
             atualizarChrome();
           },
+          aoTrocarFoto: soltarFotosSemUso,
+          acoes: {
+            subir: () => mover(i, -1),
+            descer: () => mover(i, 1),
+            duplicarVeiculo: () => duplicarRodada(i),
+            excluirVeiculo: () => removerRodada(i),
+            duplicarPergunta: () => duplicarPergunta(i, j),
+            excluirPergunta: () => removerPergunta(i, j),
+            alternarAtiva: (ligada) => alternarPergunta(i, j, ligada),
+          },
         })
-      : el('p', { text: 'Nenhum veículo.' });
+      : el('p', { class: 'vazio', text: 'Nenhum veículo.' });
 
-  const { porPergunta } = errosPorRodada(estado.baralho);
-  editor.marcarErros?.(porPergunta.get(`${estado.selecionado}:${estado.pergunta}`) ?? []);
+  const { porPergunta } = agruparProblemas(estado.baralho);
+  editor.marcarErros?.(porPergunta.get(`${i}:${j}`) ?? []);
 
-  app.appendChild(el('main', { class: 'corpo' }, [lista(), el('div', { class: 'painel' }, editor)]));
+  app.appendChild(el('main', { class: 'corpo corpo-veiculos' }, [lista(), el('div', { class: 'painel' }, editor)]));
   app.__editor = editor;
+  const rolo = app.querySelector('.lateral-rolo');
+  if (rolo) rolo.scrollTop = rolagemDaLista;
+  mostrarSelecionadoNaLista();
 }
 
 /**
- * Redesenha a barra e o corpo. Na aba Veículos, troca só a lista e preserva o
- * foco no editor — redesenhar tudo tiraria o foco do campo em que se digita.
- * Na aba Respostas não há campo de texto para perder, então é mais simples
- * redesenhar tudo.
+ * Redesenha a barra e, na aba Veículos, a lista — preservando o foco no editor
+ * e a rolagem da lista: redesenhar tudo tiraria o foco do campo em que se
+ * digita, e a lista refeita voltava para o topo a cada tecla.
+ *
+ * Nas outras abas só a barra muda: a aba Configurações tem caixa de texto (o
+ * nome da Pergunta do Milhão), e o selo de "salvo há…" chegando da nuvem não
+ * pode apagar o que se digita ali. A tabela de Respostas se redesenha quando os
+ * dados chegam (`atualizarRespostas`).
  */
 function atualizarChrome() {
-  if (estado.aba !== 'veiculos') {
-    desenhar();
-    return;
-  }
+  fecharPopover();
   const barraAntiga = app.querySelector('.barra');
-  const listaAntiga = app.querySelector('.lateral');
   if (barraAntiga) barraAntiga.replaceWith(barra());
-  if (listaAntiga) listaAntiga.replaceWith(lista());
-  const { porPergunta } = errosPorRodada(estado.baralho);
+  if (estado.aba !== 'veiculos') return;
+  atualizarLista();
+  const { porPergunta } = agruparProblemas(estado.baralho);
   app.__editor?.marcarErros?.(porPergunta.get(`${estado.selecionado}:${estado.pergunta}`) ?? []);
 }
 
@@ -1072,7 +1103,7 @@ function aoDescarregar(e) {
 async function voltarAoJogo() {
   if (estado.sujo) {
     const segue = await confirmar({
-      titulo: 'Sair sem publicar?',
+      titulo: 'Sair sem salvar?',
       texto: 'Há alterações que o totem ainda não recebeu. Sair agora as descarta.',
       confirmarTexto: 'Sair e descartar',
       perigoso: true,
@@ -1080,6 +1111,7 @@ async function voltarAoJogo() {
     if (!segue) return;
     estado.baralho = clonar(carregarBaralho());
     estado.sujo = false;
+    soltarFotosSemUso();
   }
   fecharCamada?.();
 }
@@ -1114,7 +1146,7 @@ export function montarAdmin(raiz, { aoSair = null } = {}) {
     sincronizarBaralho().then((mudou) => {
       if (mudou && app && !estado.sujo) {
         estado.baralho = clonar(carregarBaralho());
-        desenhar();
+        if (estado.aba === 'veiculos') desenhar();
         aviso('Baralho atualizado com o que está salvo na nuvem.');
       }
     });
@@ -1127,7 +1159,7 @@ export function montarAdmin(raiz, { aoSair = null } = {}) {
   // Aviso honesto na primeira abertura: nada foi salvo ainda, e o que está na
   // tela é o conteúdo que veio com o jogo.
   if (!temBaralhoPublicado() && estado.baralho.slots.length === SLOTS_ORIGINAIS.length) {
-    setTimeout(() => aviso('Você está vendo o baralho de fábrica. Edite e clique em Salvar.'), 400);
+    setTimeout(() => aviso('Você está vendo as perguntas de fábrica. Edite e clique em Salvar.'), 400);
   }
 
   // Novidade não vista: abre sozinho na primeira tela depois da versão mudar.
@@ -1137,18 +1169,15 @@ export function montarAdmin(raiz, { aoSair = null } = {}) {
     setTimeout(() => abrirNotas(), 350);
   }
 
-  // O SDK restaura a sessão do Firebase de forma assíncrona, então a aba
-  // Respostas nasce "sem telefone" e se corrige quando isto dispara. Se a
-  // aba já tinha sido aberta antes (troca de conta em sessão longa), busca de
-  // novo — é o login que decide se `contatos` entra na mistura.
+  // O SDK restaura a sessão do Firebase de forma assíncrona, então a barra
+  // nasce "sem login" e se corrige quando isto dispara. Se a aba Respostas já
+  // tinha sido aberta (troca de conta em sessão longa), busca de novo — é o
+  // login que decide se `contatos` entra na mistura.
   aoMudarOperador((email) => {
     estado.operador = email;
     if (!app) return;
-    // Redesenha SEMPRE: o selo "sem login" vive na barra da aba Veículos, e
-    // antes só a de Respostas reagia — entrar pela porta deixava o selo velho
-    // na tela até trocar de aba.
+    atualizarChrome();
     if (estado.respostas.carregado) atualizarRespostas();
-    else atualizarChrome();
   }).then((cancelar) => {
     pararDeOuvirLogin = cancelar;
   });
@@ -1162,6 +1191,8 @@ export function desmontarAdmin() {
   window.removeEventListener('beforeunload', aoDescarregar);
   pararDeOuvirLogin?.();
   pararDeOuvirLogin = null;
+  fecharPopover();
+  miniaturas.clear();
   if (app) limpar(app);
   app = null;
   fecharCamada = null;

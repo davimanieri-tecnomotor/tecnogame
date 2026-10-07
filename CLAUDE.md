@@ -67,18 +67,25 @@ web/js/            os módulos ES — a fonte
   changelog.js       versão do jogo e as notas do sininho de novidades
   pages/ components/ admin/
     admin/respostas.js  dados de partida, telefone com login, export CSV
-    admin/imagens.js    foto de veículo no Storage: envio, limpeza das sem uso
+    admin/imagens.js    foto de veículo no Storage: envio, download, limpeza
+    admin/configuracoes.js  a aba Configurações: estilo, vídeo, som, Milhão, reset
+    admin/problemas.js  o que impede salvar, agrupado e na língua da tela
 web/js/bundle.js   GERADO. Não editar.
 scripts/unidade/   testes de lógica pura (node --test), um arquivo por assunto
 scripts/verify/    a suíte (puppeteer), um arquivo por afirmação
 scripts/desempenho/ muitas partidas seguidas e o armazenamento envelhecido — fora da suíte
-firebase/          regras do Firestore e do Storage, e os índices
+firebase/          regras do Firestore e do Storage, os índices e o CORS do bucket
 ```
 
 O jogo vive num **palco fixo de 1920x1080** escalado para caber na janela, então
 toda medida no código é absoluta e cai no mesmo pixel do Dart. A administração
 mora **fora** desse palco, numa camada por cima (`#adm`), porque é ferramenta de
 notebook e precisa de rolagem.
+
+No painel, a explicação de um campo vai no **(?)** ao lado do rótulo (`ajuda`,
+em `admin/ui.js`), e não numa linha de dica embaixo dele: com uma dica por
+campo o editor virava manual, e quem opera é leigo. `verify:admin` falha se o
+editor voltar a ter descrição fixa.
 
 ## O sininho de novidades
 

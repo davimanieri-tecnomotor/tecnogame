@@ -102,7 +102,7 @@ class FFAppStateClass {
     this.resultado = null;
 
     /**
-     * A Pergunta do Milhão que o operador preparou no painel ("Na feira"):
+     * A Pergunta do Milhão que o operador preparou no painel (aba Configurações):
      * `{ slot, pergunta, jogador }`, ou null. Ver pages/milhao.js.
      */
     this.milhao = null;

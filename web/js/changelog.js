@@ -10,10 +10,21 @@
 
 import { readRaw, writeRaw } from './storage.js';
 
-export const VERSAO_DO_JOGO = '3.2.0';
+export const VERSAO_DO_JOGO = '3.3.0';
 
 /** Mais recente primeiro — é a ordem em que o painel lista. */
 export const NOTAS_DE_ATUALIZACAO = [
+  {
+    versao: '3.3.0',
+    data: '2026-10-07',
+    itens: [
+      'O painel ficou mais simples e ocupa quase toda a largura da tela. As explicações que ficavam embaixo de cada campo viraram um "?" ao lado do nome: passe o mouse por cima para ler.',
+      'No alto, um selo só diz como está o baralho: "Alterações não salvas", "Salvo há 3 min" ou quantos problemas impedem salvar. Clique nos problemas para ver a lista do que falta — cada item leva direto ao campo. O "Entrar" e o "Sair da conta" do Firebase também moram ali agora, e não mais escondidos na aba Respostas.',
+      'Nova aba Configurações: o estilo da tela da pergunta, o vídeo do equipamento, o volume, a Pergunta do Milhão e o "Resetar todos os dados" saíram do pé da lista de veículos e foram para lá.',
+      'A resposta correta agora se marca na própria alternativa, em "Correta". Subir, descer, duplicar e excluir veículo ou pergunta ficam no alto do editor, com o nome escrito, e a lista mostra a foto de cada veículo.',
+      'Foto enviada e trocada por outra antes de salvar sai na hora do Firebase Storage; a foto já publicada que você trocou sai logo depois do Salvar. E o botão "Baixar foto" devolve a foto enviada como arquivo.',
+    ],
+  },
   {
     versao: '3.2.0',
     data: '2026-10-06',

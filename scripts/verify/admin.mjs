@@ -1,6 +1,8 @@
 // A área administrativa, de ponta a ponta: ver, editar, adicionar, remover,
 // validar, publicar — e o totem pegando o conteúdo novo na partida seguinte.
 import puppeteer from 'puppeteer';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -250,13 +252,77 @@ if (inicial.itens !== 10) falhas.push(`listou ${inicial.itens} rodadas, esperava
 if (inicial.primeiroNome !== 'FIAT TORO - 10GF') falhas.push(`primeiro veiculo: ${inicial.primeiroNome}`);
 if (inicial.abas.length !== 3) falhas.push('faltam abas de idioma');
 if (inicial.campos !== 12) falhas.push(`${inicial.campos} campos de texto, esperava 12`);
-if (!inicial.situacao.some((s) => /pronto para salvar/.test(s))) falhas.push('o baralho de fabrica deveria estar valido');
+if (inicial.situacao.some((s) => /problema/.test(s))) falhas.push('o baralho de fabrica deveria estar valido');
 // A suite roda em localhost e em file://, onde o Firebase nunca e alcancavel:
 // a porta cai na senha local e o painel tem de abrir MARCADO. Sem este selo o
 // operador nao teria como saber que o Salvar dali nao alcanca os outros totens.
-if (!inicial.situacao.some((s) => /sem login/.test(s))) {
+if (!inicial.situacao.some((s) => /sem login/i.test(s))) {
   falhas.push('entrou pela senha local e o painel nao se marcou como sem login');
 }
+
+/* ------------------------------------------- 1b. a cara do painel (3.3) -- */
+
+// O que a reforma da 3.3 prometeu, medido na tela: o painel ocupa 90% da
+// largura; a barra tem um selo de situacao e o da conta, e nao os quatro de
+// antes; o editor nao tem mais linha de descricao embaixo dos campos — a
+// explicacao mora no (?), e abre ao passar o mouse; e o que e de feira saiu da
+// lista de veiculos para a aba Configuracoes.
+const cara = await page.evaluate(() => {
+  const larguraDe = (seletor) => {
+    const n = document.querySelector(seletor);
+    if (!n) return 0;
+    const s = getComputedStyle(n);
+    return n.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
+  };
+  return {
+    barra: larguraDe('.barra-interna') / innerWidth,
+    corpo: larguraDe('.corpo') / innerWidth,
+    selosNaBarra: document.querySelectorAll('.barra .situacao').length,
+    dicasNoEditor: [...document.querySelectorAll('.painel .campo-dica, .painel .nota')].filter((n) => n.textContent.trim()).length,
+    ajudas: document.querySelectorAll('.painel .ajuda').length,
+    feiraNaLista: Boolean(document.querySelector('.lateral [data-campo="pular-video"], .lateral .volume-faixa')),
+  };
+});
+console.log('1b. cara ->', JSON.stringify(cara));
+if (Math.abs(cara.barra - 0.9) > 0.01 || Math.abs(cara.corpo - 0.9) > 0.01) {
+  falhas.push(`o painel deveria ocupar 90% da largura (barra ${cara.barra.toFixed(3)}, corpo ${cara.corpo.toFixed(3)})`);
+}
+if (cara.selosNaBarra > 2) falhas.push(`a barra voltou a ter ${cara.selosNaBarra} selos`);
+if (cara.dicasNoEditor > 0) falhas.push(`o editor voltou a ter ${cara.dicasNoEditor} linha(s) de descricao`);
+if (cara.ajudas < 5) falhas.push(`o editor deveria explicar os campos pelo (?): achei ${cara.ajudas}`);
+if (cara.feiraNaLista) falhas.push('as configuracoes de feira continuam na lista de veiculos');
+
+// O balao: passar o mouse no (?) do nome do veiculo mostra a explicacao.
+const iconeDoNome = await page.$('.veiculo-campos .campo .ajuda');
+await iconeDoNome?.hover();
+await wait(200);
+const balao = await page.evaluate(() => {
+  const b = document.querySelector('.ajuda-balao');
+  return b && !b.hidden ? b.textContent : null;
+});
+await iconeDoNome?.dispose();
+await page.mouse.move(2, 2);
+await wait(150);
+const balaoSumiu = await page.evaluate(() => document.querySelector('.ajuda-balao')?.hidden !== false);
+console.log('   balao ->', JSON.stringify({ balao, balaoSumiu }));
+if (!/carro sorteado/.test(balao ?? '')) falhas.push(`o (?) do nome nao abriu a explicacao: ${balao}`);
+if (!balaoSumiu) falhas.push('o balao de ajuda ficou na tela depois de o mouse sair');
+
+// A aba Configuracoes tem o que era "Na feira" e "Antes da feira".
+await clicar('Configurações');
+const config = await page.evaluate(() => ({
+  pularVideo: Boolean(document.querySelector('[data-campo="pular-video"] input')),
+  volume: Boolean(document.querySelector('.volume-faixa')),
+  milhao: [...document.querySelectorAll('button')].some((b) => /Chamar ao palco/.test(b.textContent)),
+  resetar: [...document.querySelectorAll('button')].some((b) => /Resetar todos os dados/.test(b.textContent)),
+  semSalvar: !document.querySelector('.barra [data-acao="salvar"]'),
+}));
+console.log('   configuracoes ->', JSON.stringify(config));
+if (!config.pularVideo || !config.volume || !config.milhao || !config.resetar) {
+  falhas.push(`a aba Configuracoes nao tem tudo o que era de feira: ${JSON.stringify(config)}`);
+}
+if (!config.semSalvar) falhas.push('a aba Configuracoes nao precisa de Salvar, e o botao continuou na barra');
+await clicar('Veículos');
 
 /* ------------------------------------------- 2. troca de idioma nas abas -- */
 
@@ -286,6 +352,27 @@ console.log('3. com enunciado vazio ->', JSON.stringify(comErro));
 if (!comErro.problemas) falhas.push('a validacao nao acusou o enunciado vazio');
 if (!comErro.campoAceso) falhas.push('o campo vazio nao foi marcado');
 if (!comErro.seloNaLista) falhas.push('a rodada com problema nao foi selada na lista');
+
+// O selo de problemas abre a lista do que falta, na lingua da tela — e nao
+// "pergunta vazio em PT" —, e a aba do idioma com campo em branco ganha o ponto.
+await page.evaluate(() => document.querySelector('.barra .situacao-botao')?.click());
+await wait(300);
+const lista = await page.evaluate(() => ({
+  itens: [...document.querySelectorAll('.popover .problema')].map((n) => n.textContent),
+  ponto: (() => {
+    const p = document.querySelector('.aba-idioma[data-idioma="pt"] .aba-ponto');
+    return Boolean(p) && !p.hidden;
+  })(),
+}));
+console.log('   lista de problemas ->', JSON.stringify(lista));
+if (!lista.itens.some((t) => /FIAT TORO.*Enunciado em branco, em Português/.test(t))) {
+  falhas.push(`a lista de problemas nao explicou o enunciado vazio: ${JSON.stringify(lista.itens)}`);
+}
+if (!lista.ponto) falhas.push('a aba Português deveria ganhar o ponto de campo em branco');
+// Clicar no problema leva ao campo e fecha a lista.
+await page.evaluate(() => document.querySelector('.popover .problema')?.click());
+await wait(300);
+if (await page.evaluate(() => Boolean(document.querySelector('.popover')))) falhas.push('a lista de problemas nao fechou ao escolher um');
 
 // Salvar tem de ser bloqueado.
 await clicar('Salvar');
@@ -391,7 +478,7 @@ await wait(400);
 
 /* ---------------------------------------------------- 4. adiciona rodada -- */
 
-await clicar('Veículo');
+await clicar('Novo veículo');
 const apos = await page.evaluate(() => ({
   itens: document.querySelectorAll('.itens .item.veiculo').length,
   rodada: document.querySelector('.editor-cabecalho h2')?.textContent,
@@ -430,13 +517,28 @@ await page.evaluate(() => {
 });
 await wait(400);
 
+// A resposta correta e marcada na propria alternativa — e a marca vale para os
+// tres idiomas, entao a aba aberta (Español) a mostra tambem.
+await page.evaluate(() => document.querySelector('.alternativa[data-alternativa="3"] input[type=radio]').click());
+await wait(300);
+const correta = await page.evaluate(() => ({
+  marcada: [...document.querySelectorAll('.alternativa.correta')].map((n) => n.dataset.alternativa),
+}));
+await page.evaluate(() => [...document.querySelectorAll('.aba-idioma')].find((n) => n.textContent === 'Português').click());
+await wait(250);
+correta.emPortugues = await page.evaluate(() => [...document.querySelectorAll('.alternativa.correta')].map((n) => n.dataset.alternativa));
+console.log('   resposta correta ->', JSON.stringify(correta));
+if (JSON.stringify(correta.marcada) !== '["3"]' || JSON.stringify(correta.emPortugues) !== '["3"]') {
+  falhas.push(`a alternativa 3 deveria ser a unica correta, nos dois idiomas: ${JSON.stringify(correta)}`);
+}
+
 const preenchida = await page.evaluate(() => ({
   problemas: [...document.querySelectorAll('.situacao')].map((n) => n.textContent).find((t) => /problema/.test(t)) ?? null,
-  pronto: [...document.querySelectorAll('.situacao')].some((n) => /pronto para salvar/.test(n.textContent)),
+  naoSalvo: [...document.querySelectorAll('.situacao')].some((n) => /Alterações não salvas/.test(n.textContent)),
 }));
 console.log('   preenchida ->', JSON.stringify(preenchida));
 if (preenchida.problemas) falhas.push('ainda ha problemas depois de preencher: ' + preenchida.problemas);
-if (!preenchida.pronto) falhas.push('deveria estar pronto para salvar');
+if (!preenchida.naoSalvo) falhas.push('a barra deveria dizer que ha alteracoes nao salvas');
 
 /* ---------------------------------------------------------- 5. publica --- */
 
@@ -451,6 +553,7 @@ const publicado = await page.evaluate(() => {
     ultimo: deck?.slots?.[deck.slots.length - 1]?.veiculo?.nome ?? null,
     // v2: a pergunta mora no banco do veiculo, e nao mais solta no slot.
     primeiraPergunta: deck?.slots?.[0]?.perguntas?.[0]?.pt?.pergunta ?? null,
+    gabaritoDoNovo: deck?.slots?.[deck.slots.length - 1]?.perguntas?.[0]?.gabarito ?? null,
     situacao: [...document.querySelectorAll('.situacao')].map((n) => n.textContent),
   };
 });
@@ -458,6 +561,7 @@ console.log('5. publicou ->', JSON.stringify(publicado));
 if (publicado.slots !== 11) falhas.push(`publicou ${publicado.slots} rodadas`);
 if (publicado.ultimo !== 'BMW de teste') falhas.push('a rodada nova nao foi publicada');
 if (publicado.primeiraPergunta !== 'Pergunta editada pelo admin') falhas.push('a edicao do enunciado nao foi publicada');
+if (publicado.gabaritoDoNovo !== '3') falhas.push(`a resposta correta marcada na alternativa nao foi publicada: ${publicado.gabaritoDoNovo}`);
 
 /* -------------------------------------- 6. o jogo pega o conteudo novo --- */
 
@@ -489,15 +593,21 @@ if (!/11 ve/.test(naRoleta.rotulo ?? '')) falhas.push(`rotulo da roleta: ${naRol
 /* ----------------------------------------- 7. remover e restaurar fabrica -- */
 
 await abrirAdmin();
-await page.evaluate(() => document.querySelectorAll('.itens .item.veiculo')[10].querySelector('.item-acoes button:last-child').click());
+// Os botoes do veiculo moram no cabecalho do editor, com nome: escolhe-se o
+// veiculo na lista e exclui-se de la.
+await page.evaluate(() => document.querySelectorAll('.itens .item.veiculo')[10].querySelector('.item-botao').click());
+await wait(300);
+await page.evaluate(() => document.querySelector('.editor-cabecalho [data-acao="excluir-veiculo"]').click());
 await wait(300);
 await confirmarModal();
 const removido = await page.evaluate(() => document.querySelectorAll('.itens .item.veiculo').length);
 console.log('7. removeu ->', removido, 'rodadas');
 if (removido !== 10) falhas.push(`apos remover tem ${removido} rodadas`);
 
+await clicar('Configurações');
 await clicar('Resetar todos os dados');
 await confirmarModal();
+await clicar('Veículos');
 const restaurado = await page.evaluate(() => ({
   itens: document.querySelectorAll('.itens .item.veiculo').length,
   primeiro: document.querySelector('.veiculo-campos .campo-entrada')?.value,
@@ -547,6 +657,31 @@ if (!entradaArquivo) {
   // fosse precisa ler isso, e não deduzir de um "cerca de 84 KB".
   if (!/sem a conta do Firebase/.test(enviada.estado)) falhas.push(`o envio sem login nao diz por que ficou no baralho: ${enviada.estado}`);
 
+  // "Baixar foto" devolve a foto enviada como arquivo, com o nome do veiculo.
+  // Dentro do baralho os bytes estao ali mesmo: nao passa pela rede.
+  const pastaDownload = fs.mkdtempSync(path.join(os.tmpdir(), 'tecgame-foto-'));
+  const cdp = await page.target().createCDPSession();
+  await cdp.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: pastaDownload });
+  await page.evaluate(() => document.querySelector('[data-acao="baixar-foto"]').click());
+  let baixados = [];
+  for (let t = 0; t < 20 && !baixados.some((n) => !n.endsWith('.crdownload')); t++) {
+    await wait(150);
+    baixados = fs.readdirSync(pastaDownload);
+  }
+  const arquivoBaixado = baixados.find((n) => !n.endsWith('.crdownload'));
+  const cabecaDoArquivo = arquivoBaixado ? fs.readFileSync(path.join(pastaDownload, arquivoBaixado)).subarray(0, 12) : null;
+  console.log('   baixou a foto ->', JSON.stringify({ arquivoBaixado, bytes: cabecaDoArquivo?.length ?? 0 }));
+  if (!arquivoBaixado) {
+    falhas.push('"Baixar foto" nao baixou nada');
+  } else {
+    if (!/^FIAT TORO - 10GF\.(webp|png)$/.test(arquivoBaixado)) falhas.push(`a foto baixada saiu com o nome ${arquivoBaixado}`);
+    // WebP começa com RIFF....WEBP; PNG, com \x89PNG.
+    const assinatura = cabecaDoArquivo.toString('latin1');
+    if (!/^RIFF.{4}WEBP/s.test(assinatura) && !assinatura.startsWith('\x89PNG')) falhas.push('o arquivo baixado nao e uma imagem');
+  }
+  await cdp.detach();
+  fs.rmSync(pastaDownload, { recursive: true, force: true });
+
   await clicar('Salvar');
   await wait(300);
   await confirmarModal();
@@ -585,6 +720,7 @@ if (!entradaArquivo) {
   }
 
   await abrirAdmin();
+  await clicar('Configurações');
   await clicar('Resetar todos os dados');
   await confirmarModal();
 }
