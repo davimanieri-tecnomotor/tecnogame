@@ -1,9 +1,10 @@
 // O Firebase, carregado sob demanda.
 //
-// Um lugar só para subir o SDK, porque três assuntos diferentes o usam: o
+// Um lugar só para subir o SDK, porque quatro assuntos diferentes o usam: o
 // ranking (`backend.js`, coleção `usuarios`), o conteúdo do jogo (`nuvem.js`,
-// coleção `conteudo`, sem login) e as respostas com telefone
-// (`admin/respostas.js`, coleção `contatos`, com login de verdade).
+// coleção `conteudo`), as respostas com telefone (`admin/respostas.js`,
+// coleção `contatos`) e as fotos de veículo no Storage (`admin/imagens.js`).
+// Os três últimos escrevem ou leem só com login de verdade.
 //
 // POR QUE `import()` DINÂMICO E NÃO UM ARQUIVO NO REPOSITÓRIO
 // O SDK do Firebase vem da CDN do Google como módulo ES. Isso tem uma
@@ -78,4 +79,40 @@ export function firebase() {
   });
 
   return promessa;
+}
+
+let promessaDoStorage = null;
+
+/**
+ * Sobe o módulo do Cloud Storage e devolve `{ storage, st }`, ou `null` se não
+ * der. `st` é o módulo inteiro, do mesmo jeito que `fs` e `fa` em `firebase()`.
+ *
+ * Separado de `firebase()` porque só o painel o usa — para enviar e apagar
+ * foto de veículo (ver admin/imagens.js). O jogo só MOSTRA a foto, e para isso
+ * o endereço basta: nenhum totem precisa baixar este módulo.
+ */
+export function firebaseStorage() {
+  if (promessaDoStorage) return promessaDoStorage;
+
+  promessaDoStorage = (async () => {
+    const fb = await firebase();
+    if (!fb) {
+      promessaDoStorage = null;
+      return null;
+    }
+    const st = await import(`${CDN}/firebase-storage.js`);
+    const storage = st.getStorage(fb.app);
+    // O SDK insiste por 2 min numa operação e 10 min num envio antes de
+    // desistir. Sem rede, isso é o painel parado com "enviando…" na tela —
+    // e o Salvar, que confere as fotos antes de gravar, esperando junto.
+    storage.maxOperationRetryTime = 15000;
+    storage.maxUploadRetryTime = 30000;
+    return { storage, st };
+  })().catch((erro) => {
+    console.warn('Storage do Firebase indisponível; foto enviada fica dentro do baralho.', erro);
+    promessaDoStorage = null;
+    return null;
+  });
+
+  return promessaDoStorage;
 }

@@ -10,10 +10,19 @@
 
 import { readRaw, writeRaw } from './storage.js';
 
-export const VERSAO_DO_JOGO = '3.1.0';
+export const VERSAO_DO_JOGO = '3.2.0';
 
 /** Mais recente primeiro — é a ordem em que o painel lista. */
 export const NOTAS_DE_ATUALIZACAO = [
+  {
+    versao: '3.2.0',
+    data: '2026-10-06',
+    itens: [
+      'Foto de veículo enviada do computador, com a conta do Firebase conectada, agora vai para o Firebase Storage — o baralho guarda só o endereço dela. Enquanto sobe, a prévia mostra a foto escolhida com a porcentagem enviada. Antes ela ia dentro do baralho, e umas dez fotos já impediam salvar na nuvem. Sem login (senha local, jogo aberto do disco) a foto continua indo dentro do baralho, como antes.',
+      'O Storage se limpa sozinho: ao salvar na nuvem, as fotos que nenhum veículo usa há mais de 7 dias são apagadas. A mesma foto enviada duas vezes vira um arquivo só.',
+      'Se a foto de um veículo tiver sido apagada do Storage (um rascunho parado por mais de 7 dias), o Salvar avisa qual veículo precisa de foto nova em vez de publicar um carro sem imagem.',
+    ],
+  },
   {
     versao: '3.1.0',
     data: '2026-10-01',

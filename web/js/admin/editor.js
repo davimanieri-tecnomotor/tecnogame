@@ -7,6 +7,7 @@
 // lista do painel.
 
 import { el, campo, selecao, caixaDeMarcar, limpar, botao, entradaDeImagem } from './ui.js';
+import { caminhoNoStorage, enviarFoto } from './imagens.js';
 import { CAMPOS_QUESTAO, CAMPOS_OBRIGATORIOS, IDIOMAS, SCANNERS, VEICULOS_ORIGINAIS } from '../deck.js';
 
 const NOME_IDIOMA = { pt: 'Português', en: 'English', es: 'Español' };
@@ -36,17 +37,45 @@ const CAMPO_DA_ALTERNATIVA = ['respostaUm', 'respostaDois', 'respostaTres', 'res
  * @param {object}   props.pergunta  a pergunta do banco que está sendo editada
  * @param {number}   props.indice    posição no baralho
  * @param {Function} props.onChange  chamado a cada edição, para revalidar
+ * @param {Function} [props.nuvemDeImagens] diz, NA HORA do envio, se a foto
+ *   vai para o Storage (há conta do Firebase nesta aba). Função, e não valor,
+ *   porque o login pode chegar com o editor já aberto. Sem ela, ou devolvendo
+ *   `false`, a foto fica dentro do baralho.
  */
-export function editorDeSlot({ slot, pergunta, indice, posicao = 0, total = 1, onChange }) {
+export function editorDeSlot({ slot, pergunta, indice, posicao = 0, total = 1, onChange, nuvemDeImagens = null }) {
   const mudou = () => onChange?.();
 
   /* ------------------------------------------------------------- veículo -- */
 
-  /** Uma imagem enviada do computador vive dentro do baralho, como data URL. */
+  /** Uma imagem enviada do computador sem login vive dentro do baralho, como data URL. */
   const embutida = (src) => typeof src === 'string' && src.startsWith('data:');
+  /** Com login, ela vai para o Storage e o baralho guarda só o endereço. */
+  const noStorage = (src) => caminhoNoStorage(src) != null;
 
   const previaFoto = el('img', { class: 'previa-foto', alt: '' });
   const semFoto = el('div', { class: 'previa-vazia', text: 'sem imagem' });
+
+  // O véu do envio ao Storage, por cima da prévia. Existe porque a única pista
+  // era uma linha cinza embaixo do seletor, e a prévia seguia com a foto
+  // ANTIGA até o fim do envio: parecia que nada estava acontecendo.
+  const preenchidoEnvio = el('div', { class: 'previa-envio-preenchido' });
+  const barraEnvio = el('div', { class: 'previa-envio-barra' }, preenchidoEnvio);
+  const textoEnvio = el('span', { class: 'previa-envio-texto' });
+  const veuEnvio = el('div', { class: 'previa-envio', role: 'status' }, [
+    el('span', { class: 'previa-envio-giro', 'aria-hidden': 'true' }),
+    textoEnvio,
+    barraEnvio,
+  ]);
+  veuEnvio.hidden = true;
+
+  /** `fracao` null é "começando": a barra corre sem medida até o 1º pedaço subir. */
+  const mostrarEnvio = (fracao) => {
+    veuEnvio.hidden = false;
+    const medida = typeof fracao === 'number';
+    barraEnvio.classList.toggle('indeterminada', !medida);
+    preenchidoEnvio.style.width = medida ? `${Math.round(fracao * 100)}%` : '';
+    textoEnvio.textContent = medida ? `Enviando… ${Math.round(fracao * 100)}%` : 'Enviando…';
+  };
   const resumoEmbutida = el('span', { class: 'embutida-texto' });
   const blocoEmbutida = el('div', { class: 'embutida' }, [
     resumoEmbutida,
@@ -71,12 +100,16 @@ export function editorDeSlot({ slot, pergunta, indice, posicao = 0, total = 1, o
 
     // Um data URL tem centenas de milhares de caracteres: dentro de um campo de
     // texto ele e inutil e ainda dispara `input` a cada tecla. Some o campo e
-    // mostra o tamanho, com a saida para voltar ao modo caminho.
+    // mostra o tamanho, com a saida para voltar ao modo caminho. O endereco do
+    // Storage e curto, mas carrega um token que ninguem deve editar a mao.
     const dentro = embutida(src);
-    campoImagem.hidden = dentro;
-    blocoEmbutida.hidden = !dentro;
+    const naNuvem = noStorage(src);
+    campoImagem.hidden = dentro || naNuvem;
+    blocoEmbutida.hidden = !(dentro || naNuvem);
     if (dentro) {
       resumoEmbutida.textContent = `Imagem enviada do computador — cerca de ${Math.round(src.length / 1024)} KB, guardada dentro do baralho`;
+    } else if (naNuvem) {
+      resumoEmbutida.textContent = 'Imagem enviada ao Firebase Storage — o baralho guarda só o endereço dela';
     }
   };
 
@@ -133,10 +166,48 @@ export function editorDeSlot({ slot, pergunta, indice, posicao = 0, total = 1, o
 
   const envio = entradaDeImagem({
     rotulo: 'Ou enviar uma imagem do computador',
-    dica: 'Fica guardada dentro do baralho, então funciona no totem sem copiar arquivo nenhum. Reduzida para no máximo 1280px.',
-    onEscolha: (r, arquivo) => {
+    dica:
+      'Com login, vai para o Firebase Storage e o baralho guarda só o endereço; sem login, fica guardada dentro do baralho. ' +
+      'Nos dois casos o totem mostra a foto sem copiar arquivo nenhum. Reduzida para no máximo 1280px.',
+    onEscolha: async (r, arquivo) => {
       if (!r) return;
-      slot.veiculo.imagem = r.dataUrl;
+      const nome = arquivo?.name ?? 'imagem';
+      let src = r.dataUrl;
+      if (nuvemDeImagens?.()) {
+        // A foto escolhida já aparece, sob o véu: o operador vê O QUE está
+        // subindo, e não a foto de antes.
+        previaFoto.src = r.dataUrl;
+        previaFoto.hidden = false;
+        semFoto.hidden = true;
+        mostrarEnvio(null);
+        envio.mostrarEstado(`Enviando ${nome} para o Firebase Storage…`, 'andamento');
+        const enviada = await enviarFoto(r.dataUrl, {
+          aoProgredir: (f) => {
+            mostrarEnvio(f);
+            envio.mostrarEstado(`Enviando ${nome} para o Firebase Storage… ${Math.round(f * 100)}%`, 'andamento');
+          },
+        });
+        veuEnvio.hidden = true;
+        if (enviada.ok) {
+          src = enviada.url;
+          envio.mostrarEstado(
+            `${nome} — no Firebase Storage, cerca de ${r.kb} KB${enviada.reaproveitada ? ' (já estava lá)' : ''}`,
+            'ok'
+          );
+        } else {
+          // Não perde a foto por causa da rede: ela fica dentro do baralho,
+          // como sem login, e o operador sabe por quê.
+          envio.mostrarEstado(`Não foi para o Storage — ${enviada.motivo} A foto ficou guardada dentro do baralho.`, 'erro');
+        }
+      } else {
+        // Sem esta linha, quem esperava o Storage via a foto "enviada" e não
+        // tinha como saber que ela não saiu deste navegador.
+        envio.mostrarEstado(
+          `${nome} — cerca de ${r.kb} KB, guardada dentro do baralho: sem a conta do Firebase conectada nesta aba, a foto não vai para o Storage.`,
+          'atencao'
+        );
+      }
+      slot.veiculo.imagem = src;
       // O aspecto de uma foto qualquer não é o das fotos originais, então
       // `contain` para ela caber inteira em vez de sair recortada.
       slot.veiculo.fit = 'contain';
@@ -189,7 +260,7 @@ export function editorDeSlot({ slot, pergunta, indice, posicao = 0, total = 1, o
   const blocoVeiculo = el('section', { class: 'bloco' }, [
     el('h3', { text: 'Veículo' }),
     el('div', { class: 'veiculo-grade' }, [
-      el('div', { class: 'previa' }, [previaFoto, semFoto]),
+      el('div', { class: 'previa' }, [previaFoto, semFoto, veuEnvio]),
       el('div', { class: 'veiculo-campos' }, [
         campoNome,
         atalhoImagem,

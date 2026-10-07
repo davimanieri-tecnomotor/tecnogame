@@ -1,0 +1,52 @@
+rules_version = '2';
+
+// Regras do Cloud Storage do TecGame.
+//
+// Uma pasta só: `veiculos/`, as fotos que o painel envia do computador (ver
+// web/js/admin/imagens.js). Todo o resto do bucket fica fechado.
+//
+// QUEM LÊ NÃO PASSA POR AQUI. O baralho guarda o endereço de download da foto,
+// e esse endereço carrega um token que dispensa regra — é assim que o totem
+// mostra a foto sem conta nenhuma. A foto de veículo é pública por natureza (ela
+// aparece na roleta para qualquer visitante); o que estas regras defendem é a
+// ESCRITA, e o formato do que entra.
+//
+// Deploy:  firebase deploy --only storage
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    match /veiculos/{arquivo} {
+      // Conferir se a foto existe e listar a pasta (a limpeza) é coisa do painel.
+      allow get, list: if request.auth != null;
+
+      // Só arquivo NOVO. Sobrescrever no Storage gera token novo, e o endereço
+      // que o baralho publicado guarda deixaria de abrir em todo totem — por
+      // isso o nome é o SHA-256 do conteúdo, e o mesmo conteúdo nunca é
+      // reenviado. `resource == null` garante isso mesmo que alguém tente.
+      //
+      // O teto de 5 MB é o mesmo de `TETO_BYTES` em admin/imagens.js; a foto
+      // reduzida fica em centenas de KB. Sem tipo e tamanho validados, uma conta
+      // perdida transformaria o bucket em depósito de arquivos quaisquer.
+      allow create: if request.auth != null
+        && resource == null
+        && arquivo.matches('[0-9a-f]{64}[.](webp|png|jpg|gif)')
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(webp|png|jpeg|gif)');
+
+      // Metadado apenas: é o toque que renova a carência da limpeza quando uma
+      // foto já existente é reaproveitada. O tipo não muda — trocar para
+      // text/html serviria a foto como página.
+      allow update: if request.auth != null
+        && request.resource.contentType == resource.contentType;
+
+      // A limpeza de fotos sem uso, que o painel roda ao salvar na nuvem.
+      allow delete: if request.auth != null;
+    }
+
+    // Nada mais é acessível.
+    match /{tudo=**} {
+      allow read, write: if false;
+    }
+  }
+}

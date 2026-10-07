@@ -12,11 +12,12 @@ web/                  o jogo portado (é isto que se publica)
   js/                   os módulos ES — o código-fonte
   js/admin/             a administração: porta.js, painel.js, editor.js, ui.js
   js/admin/respostas.js a aba Respostas: dados de partida, telefone com login, CSV
+  js/admin/imagens.js   foto de veículo no Storage: envio, e a limpeza das sem uso
   js/firebase.js        o SDK, carregado sob demanda (recusado por file://)
-  js/nuvem.js           o baralho no Firestore, sem login
+  js/nuvem.js           o baralho no Firestore (salvar exige login)
   js/bundle.js          gerado: tudo isso em um script clássico
   assets/               imagens, áudios, fontes e vídeos do original
-firebase/             regras e índices do Firestore
+firebase/             regras do Firestore e do Storage, e os índices
 scripts/              geradores e verificadores
   unidade/              testes de lógica pura, sem navegador (`npm test`)
   verify/               a suíte de navegador (puppeteer)
@@ -209,8 +210,10 @@ O que dá para fazer:
   perguntas do banco de cada um;
 - **veículos**: nome, caminho da imagem, largura, altura e encaixe, com atalho
   para as dez fotos que já vêm no projeto — ou **enviar uma imagem do
-  computador**, que fica guardada dentro do baralho (então o totem mostra a
-  foto nova sem receber arquivo nenhum);
+  computador**: com a conta do Firebase conectada ela vai para o **Storage** e o
+  baralho guarda só o endereço; sem login, fica guardada dentro do baralho. Nos
+  dois casos o totem mostra a foto nova sem receber arquivo nenhum (ver
+  *Fotos no Storage*, abaixo);
 - **regras**: qual alternativa é a correta e quais equipamentos resolvem a
   rodada (os não marcados abrem *"equipamento inválido"*) — ou **pular a escolha
   do equipamento** nesta pergunta, e aí o jogo vai do veículo direto para ela;
@@ -301,24 +304,54 @@ fica com a última cópia que baixou.
 
 E há um teto: **o Firestore recusa documento acima de 1 MB**. O baralho de
 fábrica inteiro dá 38 KB, então texto não chega perto; quem estoura é foto
-enviada do computador, que vira um `data:` URL de ~88 KB dentro do baralho. O
-painel confere antes de enviar e diz o tamanho e o motivo, em vez de deixar o
-Firestore recusar com uma mensagem críptica.
+enviada do computador **sem login**, que vira um `data:` URL de ~88 KB dentro do
+baralho. O painel confere antes de enviar e diz o tamanho e o motivo, em vez de
+deixar o Firestore recusar com uma mensagem críptica.
 
 O jogo relê o baralho quando o **cadastro** monta, e não a cada tela — publicar
 no meio de uma partida não pode trocar o carro debaixo do jogador. Sair pelo
 "Voltar ao jogo" cai no cadastro, então a partida seguinte já usa o que você
 acabou de publicar.
 
-Uma imagem enviada do computador vira um `data:` URL dentro do baralho, e por
-isso é reduzida para no máximo 1280px de maior lado e regravada em **WebP** —
+Uma imagem enviada do computador é reduzida para no máximo 1280px de maior
+lado e regravada em **WebP** —
 que, diferente de JPEG, tem canal alfa: as fotos do jogo são recortes com fundo
 transparente, e um fundo branco apareceria como uma caixa em cima da fatia da
-roleta. Uma foto de veículo fica em torno de 80 KB. Como o `localStorage` tem
-só alguns megabytes, a barra do admin acende `KB — perto do limite` a partir de
-3 MB, e se a gravação não couber a mensagem diz que foi **cota**, não permissão
-— são problemas com soluções opostas. Para muitas fotos, o caminho barato
-continua sendo copiá-las para `web/assets/images/` e referenciar pelo caminho.
+roleta. Uma foto de veículo fica em torno de 80 KB. Sem login ela vai como
+`data:` URL dentro do baralho, e como o `localStorage` tem só alguns megabytes,
+a barra do admin acende `KB — perto do limite` a partir de 3 MB; se a gravação
+não couber, a mensagem diz que foi **cota**, não permissão — são problemas com
+soluções opostas.
+
+### Fotos no Storage
+
+Com a conta do Firebase conectada, a foto enviada vai para o **Cloud Storage**
+(`veiculos/` no bucket do projeto) e o baralho guarda só o endereço de
+download — então o teto de 1 MB do Firestore deixa de contar foto. O código
+está em [`web/js/admin/imagens.js`](web/js/admin/imagens.js); as regras, em
+[`firebase/storage.rules`](firebase/storage.rules).
+
+- **O nome é o conteúdo** (`veiculos/<sha-256>.webp`): a mesma foto enviada
+  duas vezes é um arquivo só. E arquivo **nunca é sobrescrito** — sobrescrever
+  no Storage gera token novo e quebraria o endereço que o baralho publicado
+  guarda, em todo totem. Se a foto já existe, é reaproveitada; as regras
+  recusam a sobrescrita mesmo assim.
+- **Cache de um ano**, porque o arquivo é imutável: o totem que já mostrou a
+  foto continua mostrando quando a internet da feira cai.
+- **Limpeza ao salvar na nuvem.** O painel lista `veiculos/` e apaga o que o
+  baralho recém-publicado não cita **e** não foi tocado há mais de **7 dias**
+  (`CARENCIA_DIAS`). A carência protege o rascunho aberto noutro notebook e o
+  totem no meio de uma partida com o baralho anterior; reaproveitar uma foto
+  renova a data dela.
+- **Foto que sumiu não é publicada.** Antes de gravar, o Salvar confere se as
+  fotos do Storage que o baralho cita ainda existem; se alguma foi limpa, ele
+  diz qual veículo precisa de foto nova. Sem rede, ele não tem como saber e
+  segue — recusar salvar por falta de internet seria pior.
+- **Sem login, ou se o Storage recusar**, a foto vai para dentro do baralho,
+  como antes, e o editor diz por quê.
+
+Ativar o Storage e publicar as regras são passos de Console e de
+`firebase deploy` — ver [`firebase/README.md`](firebase/README.md).
 
 > **Até onde cada entrada protege.** Até a v1 a administração era um
 > `admin.html` separado, e a proteção era real: bastava não copiar aquele
@@ -573,7 +606,7 @@ dizer, o número do cronômetro e para onde o jogo vai depois do equipamento, as
 funções que vieram do Dart. Sem navegador, sem servidor, sem `bundle`.
 
 `npm run verify` roda a checagem estática, **os testes de unidade**, regera o
-bundle e passa os dezessete testes de navegador nos **dois transportes** — 34
+bundle e passa os dezoito testes de navegador nos **dois transportes** — 36
 execuções. Sobe o `http-server` se a porta 8099 estiver livre e reaproveita o
 que já estiver de pé.
 
@@ -584,7 +617,7 @@ afirmado num nível **não se repete no outro**: a conversão de baralho v1 para
 v2, por exemplo, mora no `verify:baralho`, com o jogo rodando, e não tem cópia
 em `scripts/unidade/`.
 
-As 34 execuções correm **em paralelo** (um terço dos núcleos, no máximo 6). Cada teste
+As 36 execuções correm **em paralelo** (um terço dos núcleos, no máximo 6). Cada teste
 sobe o próprio Chrome e só lê do servidor, então não disputam nada entre si; o
 que os prendia era o laço sequencial do `all.mjs`. A saída de cada um sai
 inteira quando ele termina, e no fim vem o tempo de cada execução — é assim que
@@ -609,7 +642,7 @@ em outro terminal, ou de `BASE=` apontando para o `file://`):
 | Comando | O que afirma |
 | --- | --- |
 | `npm run check` | todo import resolve, é usado, e o bundle está atualizado |
-| `npm test` | lógica pura, sem navegador: validação do baralho, retenção, junção de respostas, CSV, estalos da roleta, prazo de inatividade, cronômetro e caminho do equipamento, funções do Dart |
+| `npm test` | lógica pura, sem navegador: validação do baralho, retenção, junção de respostas, CSV, estalos da roleta, prazo de inatividade, cronômetro e caminho do equipamento, o que a limpeza do Storage apaga, funções do Dart |
 | `npm run verify:routes` | as 11 rotas: erro de console, imagem faltando, algo fora do palco |
 | `npm run verify:corte` | nada **recortado** dentro do palco (texto que não cabe no próprio container) |
 | `npm run verify:play` | uma partida completa, ponta a ponta |
@@ -625,6 +658,7 @@ em outro terminal, ou de `BASE=` apontando para o `file://`):
 | `npm run verify:admin` | ver, editar, adicionar, validar, publicar, enviar imagem, remover e restaurar |
 | `npm run verify:respostas` | aba Respostas: dados locais com telefone, baixa CSV de verdade, sem nuvem não mostra Entrar |
 | `npm run verify:login` | a porta diz por que pede o que pede, a recusa do login vem com o código, e "Manter conectado" decide onde a sessão fica (com um SDK falso — a suíte não fala com o Firebase) |
+| `npm run verify:imagens` | a roleta mostra a foto do Storage (também aberta do disco); com login a foto sobe com nome de conteúdo e não sobe duas vezes; a limpeza respeita uso e carência; foto sumida não é publicada (Storage falso) |
 | `npm run verify:inatividade` | quatro minutos sem toque devolvem qualquer tela ao cadastro, sem a partida de quem saiu; no cadastro só a ficha começada sai, e o painel fica de fora |
 | `npm run verify:sizes` | escala do palco em 1366x768, 1280x1024, 3840x2160 e retrato |
 | `node scripts/verify/probe.mjs telaAcao` | despeja a árvore de layout de uma rota |

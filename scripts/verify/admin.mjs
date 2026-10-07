@@ -533,6 +533,7 @@ if (!entradaArquivo) {
       kb: Math.round((prev?.getAttribute('src') ?? '').length / 1024),
       resumo: chip?.textContent ?? null,
       chipVisivel: document.querySelector('.embutida')?.hidden === false,
+      estado: document.querySelector('.campo-arquivo-estado')?.textContent ?? '',
       encaixe: document.querySelectorAll('.linha-tres select')[0]?.value ?? null,
     };
   });
@@ -542,6 +543,9 @@ if (!entradaArquivo) {
   if (enviada.kb > 900) falhas.push(`a imagem enviada ficou com ${enviada.kb} KB - a reducao nao rodou`);
   if (enviada.encaixe !== 'contain') falhas.push(`encaixe apos envio: ${enviada.encaixe}`);
   if (!enviada.chipVisivel) falhas.push('o campo de caminho deveria dar lugar ao resumo da imagem enviada');
+  // Sem conta do Firebase a foto não vai para o Storage — e quem esperava que
+  // fosse precisa ler isso, e não deduzir de um "cerca de 84 KB".
+  if (!/sem a conta do Firebase/.test(enviada.estado)) falhas.push(`o envio sem login nao diz por que ficou no baralho: ${enviada.estado}`);
 
   await clicar('Salvar');
   await wait(300);

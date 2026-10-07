@@ -329,7 +329,9 @@ export async function reduzirImagem(arquivo, { maxLado = MAX_LADO, qualidade = 0
  *
  * @param {object} props
  * @param {Function} props.onEscolha recebe (resultado, arquivo); resultado e
- *   null quando a leitura falhou, e o terceiro argumento traz o erro
+ *   null quando a leitura falhou, e o terceiro argumento traz o erro. Pode ser
+ *   assincrona (o envio ao Storage): o seletor fica desligado ate ela acabar,
+ *   e o que ela tiver a dizer vai por `raiz.mostrarEstado`.
  */
 export function entradaDeImagem({ rotulo, dica, onEscolha }) {
   const entrada = el('input', { type: 'file', accept: 'image/*', class: 'campo-arquivo' });
@@ -339,18 +341,22 @@ export function entradaDeImagem({ rotulo, dica, onEscolha }) {
     const arquivo = entrada.files?.[0];
     if (!arquivo) return;
     estado.textContent = 'processando…';
+    // Desligado durante o envio: uma segunda escolha no meio da primeira
+    // terminaria na ordem em que a rede respondesse, e nao na do clique.
+    entrada.disabled = true;
     try {
       const r = await reduzirImagem(arquivo);
       estado.textContent = r.reduziu
         ? `${arquivo.name} — reduzida para ${r.largura}x${r.altura}, cerca de ${r.kb} KB`
         : `${arquivo.name} — cerca de ${r.kb} KB`;
-      onEscolha(r, arquivo);
+      await onEscolha(r, arquivo);
     } catch (e) {
       estado.textContent = e?.message ?? 'não foi possível usar este arquivo';
       onEscolha(null, arquivo, e);
     } finally {
       // Zerar deixa escolher o MESMO arquivo de novo depois de um erro.
       entrada.value = '';
+      entrada.disabled = false;
     }
   });
 
@@ -361,5 +367,16 @@ export function entradaDeImagem({ rotulo, dica, onEscolha }) {
     estado,
   ]);
   raiz.entrada = entrada;
+  /**
+   * @param {string} texto
+   * @param {'andamento'|'ok'|'atencao'|'erro'|null} [tipo] a cor da linha; em
+   *   andamento ela ganha um giro na frente, para não parecer parada
+   */
+  raiz.mostrarEstado = (texto, tipo = null) => {
+    estado.textContent = texto;
+    for (const t of ['andamento', 'ok', 'atencao', 'erro']) {
+      estado.classList.toggle(`campo-arquivo-estado--${t}`, t === tipo);
+    }
+  };
   return raiz;
 }

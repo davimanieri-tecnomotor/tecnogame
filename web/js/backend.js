@@ -80,7 +80,7 @@ const readLocal = () => getRecords(LOCAL_KEY);
  */
 const PRAZO_MS = 2500;
 
-const comPrazo = (promessa, ms = PRAZO_MS) =>
+export const comPrazo = (promessa, ms = PRAZO_MS) =>
   Promise.race([promessa, new Promise((_, rejeitar) => setTimeout(() => rejeitar(new Error('prazo')), ms))]);
 
 let firestore = null;
