@@ -268,7 +268,7 @@ export function soco(no, escala = 1.022, ms = 440) {
 /**
  * O estilo da tela da pergunta: `classico` (a coluna do Show do Milhão de 2000,
  * o padrão) ou `palco` (o terço inferior com losangos, a gramática do
- * Milionário). Escolhido pelo operador no painel, em "Na feira", e guardado
+ * Milionário). Escolhido pelo operador no painel, na aba Configurações, e guardado
  * neste navegador — cada totem pode ter o seu.
  *
  * `?estilo=palco` no endereço vence o guardado: é como se mostra o outro sem

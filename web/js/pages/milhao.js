@@ -1,6 +1,6 @@
 // A Pergunta do Milhão do dia.
 //
-// Uma rodada extra que o OPERADOR dispara, pelo painel ("Na feira"), para o
+// Uma rodada extra que o OPERADOR dispara, pelo painel (aba Configurações), para o
 // jogador mais rápido do dia voltar ao totem e responder uma pergunta valendo
 // brinde. É a mesma tela da pergunta, com outra regra:
 //

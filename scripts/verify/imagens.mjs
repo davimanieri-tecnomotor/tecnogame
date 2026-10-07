@@ -15,6 +15,7 @@
 // aberto do disco nunca alcança o Firebase.
 import puppeteer from 'puppeteer';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -36,6 +37,18 @@ const DIA = 24 * 60 * 60 * 1000;
 const FOTO_SERVIDA = fs.readFileSync(path.join(RAIZ_DISCO, 'web', 'assets', 'images', 'BMW.png'));
 const FOTO_ENVIADA = path.join(RAIZ_DISCO, 'web', 'assets', 'images', 'BMW.png');
 const OUTRA_FOTO = path.join(RAIZ_DISCO, 'web', 'assets', 'images', 'Volvo_XC_60.png');
+// Duas fotos que só servem para trocar uma pela outra (2c2).
+const FOTO_TROCADA = path.join(RAIZ_DISCO, 'web', 'assets', 'images', 'BYD.png');
+const FOTO_QUE_FICA = path.join(RAIZ_DISCO, 'web', 'assets', 'images', 'VW_-_Delivery.png');
+
+/**
+ * O bucket de mentira libera CORS por padrão — é o que firebase/cors.json
+ * configura no de verdade, e o que deixa o "Baixar foto" baixar direto. O
+ * trecho do bucket SEM CORS (o padrão de um bucket novo) desliga isto.
+ */
+let corsNoStorage = true;
+/** O erro de CORS que o navegador escreve no console é esperado nesse trecho. */
+let toleraCors = false;
 
 /** Três fotos que já estão no Storage quando o teste começa. */
 const hex = (c) => c.repeat(64);
@@ -167,7 +180,9 @@ async function abaNova() {
   await page.setViewport({ width: 1500, height: 1000 });
   page.on('pageerror', (e) => falhas.push('pageerror: ' + e.message));
   page.on('console', (m) => {
-    if (m.type() === 'error' && !/ERR_FAILED|js\/main\.js/.test(m.text())) falhas.push('console: ' + m.text());
+    if (m.type() !== 'error' || /ERR_FAILED|js\/main\.js/.test(m.text())) return;
+    if (toleraCors && /blocked by CORS policy/.test(m.text())) return;
+    falhas.push('console: ' + m.text());
   });
   page.on('dialog', (d) => d.accept());
 
@@ -195,7 +210,12 @@ async function abaNova() {
     const u = req.url();
     if (u.startsWith(HOST_STORAGE)) {
       pedidosDeFoto.push(u);
-      return req.respond({ status: 200, contentType: 'image/png', body: FOTO_SERVIDA });
+      return req.respond({
+        status: 200,
+        contentType: 'image/png',
+        headers: corsNoStorage ? { 'Access-Control-Allow-Origin': '*' } : {},
+        body: FOTO_SERVIDA,
+      });
     }
     if (!u.startsWith(CDN)) return req.continue();
     const corpo = SDK_FALSO[u.split('/').pop()];
@@ -245,12 +265,15 @@ if (!emDisco) {
 
   // O que está NA TELA, e não o atributo: `hidden` perde para o `display` da
   // folha, e o editor teve o campo de caminho e o quadro do resumo
-  // visíveis ao mesmo tempo sem nenhum teste notar.
+  // visíveis ao mesmo tempo sem nenhum teste notar. O caminho mora dobrado nos
+  // "Ajustes avançados da foto" desde a 3.3: abre-se antes de olhar.
   const visiveis = () =>
     page.evaluate(() => {
+      const avancado = document.querySelector('.veiculo-campos details.avancado');
+      if (avancado) avancado.open = true;
       const naTela = (n) => Boolean(n) && getComputedStyle(n).display !== 'none' && n.getClientRects().length > 0;
       const campoCaminho = [...document.querySelectorAll('.veiculo-campos .campo')].find(
-        (c) => c.querySelector('.campo-rotulo')?.textContent.trim() === 'Imagem'
+        (c) => c.querySelector('.campo-rotulo')?.textContent.trim() === 'Caminho do arquivo'
       );
       return { campoCaminho: naTela(campoCaminho), resumo: naTela(document.querySelector('.embutida')) };
     });
@@ -393,6 +416,110 @@ if (!emDisco) {
   conferir(s3.toques.includes(caminho), 'reaproveitar renova a data de onde a carência conta');
   conferir(/já estava lá/.test(deNovo.estado), 'o editor diz que reaproveitou');
   conferir(deNovo.previa.includes(encodeURIComponent(caminho)), 'o segundo veículo aponta para o mesmo arquivo');
+
+  // 2c2. Enviar uma foto e trocar por outra antes de salvar: a primeira sai do
+  //      Storage na hora. Nada mais a cita — nunca foi publicada, e o nome é o
+  //      conteúdo, então ela só existia por causa deste envio.
+  await escolherVeiculo(4);
+  await enviar(FOTO_TROCADA);
+  const antesDaTroca = await storage(page);
+  const trocada = antesDaTroca.envios.at(-1);
+  await enviar(FOTO_QUE_FICA);
+  await page
+    .waitForFunction((c) => window.__storageFalso.apagados.includes(c), { timeout: 5000 }, trocada)
+    .catch(() => {});
+  const depoisDaTroca = await storage(page);
+  const ficou = depoisDaTroca.envios.at(-1);
+  console.log('2c2. trocou a recém-enviada ->', JSON.stringify({ trocada, ficou, apagados: depoisDaTroca.apagados }));
+  conferir(
+    antesDaTroca.envios.length === 2 && depoisDaTroca.envios.length === 3 && ficou !== trocada,
+    'as duas fotos subiram, uma depois da outra'
+  );
+  conferir(depoisDaTroca.apagados.includes(trocada) && !(trocada in depoisDaTroca.arquivos), 'trocar a foto recém-enviada apaga a anterior do Storage');
+  conferir(ficou in depoisDaTroca.arquivos, 'a foto nova ficou');
+  conferir(/foto anterior foi apagada/.test(await avisos(page)), 'o painel avisa que a anterior saiu do Storage');
+  // A foto reaproveitada (2c) não é desta aba: estar em dois veículos a protege,
+  // mas mesmo sem isso ela não sairia — outro notebook pode tê-la enviado.
+  conferir(caminho in depoisDaTroca.arquivos, 'a foto que outros veículos usam ficou');
+
+  // 2c3. "Baixar foto" de uma foto que esta aba NÃO enviou: os bytes não estão
+  //      aqui, e o painel busca no Storage. Com CORS no bucket, baixa direto.
+  await escolherVeiculo(1);
+  const pastaDownload = fs.mkdtempSync(path.join(os.tmpdir(), 'tecgame-foto-'));
+  const cdp = await page.target().createCDPSession();
+  await cdp.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: pastaDownload });
+  await page.evaluate(() => document.querySelector('[data-acao="baixar-foto"]')?.click());
+  let baixados = [];
+  for (let t = 0; t < 30 && !baixados.some((n) => !n.endsWith('.crdownload')); t++) {
+    await wait(150);
+    baixados = fs.readdirSync(pastaDownload);
+  }
+  const baixado = baixados.find((n) => !n.endsWith('.crdownload'));
+  const bytesBaixados = baixado ? fs.readFileSync(path.join(pastaDownload, baixado)) : null;
+  console.log('2c3. baixou do Storage ->', JSON.stringify({ baixado, kb: bytesBaixados ? Math.round(bytesBaixados.length / 1024) : 0 }));
+  conferir(baixado === 'Volvo XC-60.png', `com CORS, a foto do Storage baixa direto, com o nome do veículo (${baixado})`);
+  conferir(Boolean(bytesBaixados?.equals(FOTO_SERVIDA)), 'o arquivo baixado é a foto que o Storage serviu');
+  await cdp.detach();
+  fs.rmSync(pastaDownload, { recursive: true, force: true });
+
+  //      Sem CORS (o padrão de um bucket novo), o navegador não deixa ler os
+  //      bytes, e a foto abre numa aba nova — de onde se salva pelo botão
+  //      direito. A aba é registrada, e não aberta: abri-la mandaria a suíte
+  //      para a rede.
+  corsNoStorage = false;
+  toleraCors = true;
+  await page.evaluate(() => {
+    window.__abertas = [];
+    window.open = (endereco) => {
+      window.__abertas.push(endereco);
+      return null;
+    };
+  });
+  await page.evaluate(() => document.querySelector('[data-acao="baixar-foto"]')?.click());
+  await page.waitForFunction(() => window.__abertas.length > 0, { timeout: 8000 }).catch(() => {});
+  const abertas = await page.evaluate(() => window.__abertas);
+  corsNoStorage = true;
+  toleraCors = false;
+  console.log('     sem CORS ->', JSON.stringify(abertas.map((a) => a.slice(0, 90))));
+  conferir(abertas.length === 1 && abertas[0].includes(encodeURIComponent(EM_USO_VELHA)), 'sem CORS, a foto abre numa aba nova');
+  conferir(/abriu numa aba nova/.test(await avisos(page)), 'e o painel ensina a salvar dali');
+
+  // 2c4. A foto que o baralho PUBLICADO cita não sai na troca — o totem ainda
+  //      a mostra até o Salvar, e "Descartar" voltaria para ela —, mas sai logo
+  //      depois do Salvar, sem esperar a carência.
+  //
+  //      A foto é a de 2c2, enviada AGORA, e não a semeada com 30 dias: aquela
+  //      a carência já apagaria por conta própria, e o teste passaria sem a
+  //      regra que ele afirma.
+  const gravacoes = () => page.evaluate(() => window.__firestoreFalso.gravados.length);
+  const salvarEEsperar = async () => {
+    const antes = await gravacoes();
+    await salvar();
+    await page.waitForFunction((n) => window.__firestoreFalso.gravados.length > n, { timeout: 10000 }, antes).catch(() => {});
+    await wait(600);
+  };
+  await salvarEEsperar();
+  conferir(ficou in (await storage(page)).arquivos, 'publicada, a foto de 2c2 continua no Storage');
+  await escolherVeiculo(4);
+  await page.evaluate(() => {
+    const atalho = document.querySelector('.veiculo-campos select');
+    atalho.value = 'assets/images/BYD.png';
+    atalho.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await wait(500);
+  conferir(ficou in (await storage(page)).arquivos, 'a foto publicada trocada continua no Storage até salvar');
+  await salvarEEsperar();
+  await page
+    .waitForFunction((c) => window.__storageFalso.apagados.includes(c), { timeout: 10000 }, ficou)
+    .catch(() => {});
+  const depoisDeSalvar = await storage(page);
+  console.log('2c4. salvou a troca ->', JSON.stringify({ apagados: depoisDeSalvar.apagados }));
+  conferir(
+    depoisDeSalvar.apagados.includes(ficou) && !(ficou in depoisDeSalvar.arquivos),
+    'salvo, a foto publicada que foi trocada sai do Storage sem esperar a carência'
+  );
+  conferir(ORFA_NOVA in depoisDeSalvar.arquivos, 'a órfã dentro da carência continua lá');
+  conferir(caminho in depoisDeSalvar.arquivos && EM_USO_VELHA in depoisDeSalvar.arquivos, 'as fotos que o baralho cita ficaram');
 
   // 2d. O Storage recusa — aqui, do jeito que recusa enquanto não foi ativado
   //     no Console: a foto não se perde, fica dentro do baralho, e o motivo

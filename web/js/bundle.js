@@ -2593,7 +2593,7 @@
       this.resultado = null;
   
       /**
-       * A Pergunta do Milhão que o operador preparou no painel ("Na feira"):
+       * A Pergunta do Milhão que o operador preparou no painel (aba Configurações):
        * `{ slot, pergunta, jogador }`, ou null. Ver pages/milhao.js.
        */
       this.milhao = null;
@@ -3423,7 +3423,7 @@
   /**
    * O estilo da tela da pergunta: `classico` (a coluna do Show do Milhão de 2000,
    * o padrão) ou `palco` (o terço inferior com losangos, a gramática do
-   * Milionário). Escolhido pelo operador no painel, em "Na feira", e guardado
+   * Milionário). Escolhido pelo operador no painel, na aba Configurações, e guardado
    * neste navegador — cada totem pode ter o seu.
    *
    * `?estilo=palco` no endereço vence o guardado: é como se mostra o outro sem
@@ -7270,20 +7270,185 @@
     return node;
   };
   
+  /* ---------------------------------------------------------------- ícones -- */
+  
+  // Traço, na cor do texto, e não emoji: o 🗑 e o 🔔 saem coloridos e cada
+  // sistema os desenha de um jeito, e no meio de botões azuis pareciam colados.
+  const TRACOS = {
+    mais: '<path d="M12 5v14M5 12h14"/>',
+    lixeira:
+      '<path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
+    copiar: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+    cima: '<path d="M12 19V5M5 12l7-7 7 7"/>',
+    baixo: '<path d="M12 5v14M19 12l-7 7-7-7"/>',
+    baixar: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
+    enviar: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/>',
+    engrenagem:
+      '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+    atualizar: '<path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
+    sino: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+    carro:
+      '<path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/>',
+    grafico: '<path d="M12 20V10M18 20V4M6 20v-4"/>',
+    imagem: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>',
+    voltar: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
+    alerta: '<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>',
+    certo: '<path d="M20 6L9 17l-5-5"/>',
+    nuvem: '<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>',
+    tocar: '<path d="M6 4l14 8-14 8V4z"/>',
+  };
+  
+  /**
+   * Um ícone de traço, num `span` (é o que `botao` e as abas põem na frente do
+   * rótulo). Nome desconhecido sai como texto: os glifos de sempre (↑, ⧉)
+   * continuam valendo.
+   */
+  function icone(nome, { classe = 'botao-icone' } = {}) {
+    const s = el('span', { class: classe, 'aria-hidden': 'true' });
+    if (TRACOS[nome]) {
+      s.innerHTML = `<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${TRACOS[nome]}</svg>`;
+    } else {
+      s.textContent = nome;
+    }
+    return s;
+  }
+  
+  /* ------------------------------------------------------------------ ajuda -- */
+  
+  // O (?) que guarda a explicação de um campo. O painel tinha uma linha cinza de
+  // dica embaixo de quase todo campo, e a tela virava um manual: quem só queria
+  // trocar uma pergunta lia três parágrafos para achar a caixa. A explicação
+  // continua lá, a um passar de mouse — e só para quem a procura.
+  //
+  // O balão é UM só, pendurado no `body` com `position: fixed`, e não um filho do
+  // ícone: as duas colunas do painel rolam (`overflow: auto`), e um balão dentro
+  // delas seria recortado na borda — justo no campo do canto, onde mais aparece.
+  
+  let balao = null;
+  let ancoraDoBalao = null;
+  let vigiaDoBalao = 0;
+  
+  function esconderBalao() {
+    clearInterval(vigiaDoBalao);
+    ancoraDoBalao = null;
+    if (balao) balao.hidden = true;
+  }
+  
+  function mostrarBalao(ancora) {
+    if (!balao) {
+      balao = el('div', { class: 'ajuda-balao', role: 'tooltip' });
+      balao.hidden = true;
+      document.body.appendChild(balao);
+      // Rolar tira o ícone de baixo do balão, que é fixo na janela.
+      window.addEventListener('scroll', esconderBalao, true);
+      document.addEventListener('keydown', (e) => e.key === 'Escape' && esconderBalao());
+      document.addEventListener('pointerdown', (e) => {
+        if (ancoraDoBalao && !ancoraDoBalao.contains(e.target)) esconderBalao();
+      });
+    }
+    ancoraDoBalao = ancora;
+    balao.textContent = ancora.dataset.ajuda ?? '';
+    balao.hidden = false;
+  
+    // Embaixo do ícone, centrado nele; em cima se não couber, e sempre dentro da
+    // janela.
+    const r = ancora.getBoundingClientRect();
+    const b = balao.getBoundingClientRect();
+    const margem = 8;
+    const x = Math.min(Math.max(margem, r.left + r.width / 2 - b.width / 2), innerWidth - b.width - margem);
+    const embaixo = r.bottom + 8;
+    const y = embaixo + b.height > innerHeight - margem ? Math.max(margem, r.top - 8 - b.height) : embaixo;
+    balao.style.left = `${Math.round(x)}px`;
+    balao.style.top = `${Math.round(y)}px`;
+  
+    // A barra e a lista do painel são redesenhadas a cada tecla; o ícone pode sair
+    // da página com o balão aberto, e sem isto o balão ficaria órfão na tela.
+    clearInterval(vigiaDoBalao);
+    vigiaDoBalao = setInterval(() => {
+      if (!ancora.isConnected) esconderBalao();
+    }, 300);
+  }
+  
+  /**
+   * O ícone (?) de ajuda: o balão abre ao passar o mouse, no foco do teclado e no
+   * toque.
+   *
+   * `span`, e não `button`, de propósito: dentro de um `<label>`, o primeiro
+   * elemento rotulável vira o controle do rótulo, e um botão antes da caixa de
+   * texto roubaria dela o rótulo — clicar no nome do campo deixaria de levar o
+   * cursor para a caixa, e o leitor de tela anunciaria a caixa sem nome.
+   */
+  function ajuda(texto, { rotulo = 'Ajuda' } = {}) {
+    const sinal = el('span', { class: 'ajuda', tabindex: '0', role: 'img', 'aria-label': `${rotulo}: ${texto}` });
+    sinal.dataset.ajuda = texto;
+    sinal.addEventListener('pointerenter', () => mostrarBalao(sinal));
+    // No toque, o `pointerleave` chega logo depois do dedo sair da tela; ali o
+    // balão fica até o próximo toque fora dele.
+    sinal.addEventListener('pointerleave', (e) => e.pointerType !== 'touch' && esconderBalao());
+    sinal.addEventListener('focus', () => mostrarBalao(sinal));
+    sinal.addEventListener('blur', esconderBalao);
+    sinal.addEventListener('click', (e) => {
+      // Dentro de um rótulo, o clique iria para a caixa que ele rotula — numa
+      // caixa de marcar, a marcaria; num `<summary>`, abriria o avançado.
+      e.preventDefault();
+      e.stopPropagation();
+      if (ancoraDoBalao !== sinal) mostrarBalao(sinal);
+    });
+    return sinal;
+  }
+  
   /* ------------------------------------------------------------- controles -- */
   
-  function campo({ rotulo, valor = '', multilinha = false, onInput, dica, obrigatorio = false, id }) {
+  /** O rótulo de um campo: o nome, o * de obrigatório e o (?), nessa ordem. */
+  function rotuloDeCampo(rotulo, { obrigatorio = false, textoDeAjuda = null, escondido = false } = {}) {
+    return el('span', { class: ['campo-rotulo', escondido ? 'so-leitor' : null] }, [
+      el('span', { class: 'campo-rotulo-texto', text: rotulo }),
+      obrigatorio ? el('span', { class: 'campo-asterisco', 'aria-hidden': 'true', text: '*' }) : null,
+      textoDeAjuda ? ajuda(textoDeAjuda, { rotulo }) : null,
+    ]);
+  }
+  
+  /**
+   * @param {object} props
+   * @param {string} [props.ajuda] a explicação que mora no (?) ao lado do rótulo
+   * @param {string} [props.dica] uma linha fixa embaixo da caixa — só para o que
+   *   muda com o dado (o mais rápido do dia), e não para explicar o campo
+   * @param {number} [props.linhas] altura da caixa de várias linhas
+   * @param {boolean} [props.semQuebra] caixa de várias linhas que não aceita
+   *   Enter: o texto quebra na tela para ser lido inteiro, mas é uma linha só —
+   *   a alternativa, que o jogo desenha numa caixa de uma linha
+   */
+  function campo({
+    rotulo,
+    valor = '',
+    multilinha = false,
+    linhas = 3,
+    semQuebra = false,
+    onInput,
+    dica,
+    ajuda: textoDeAjuda = null,
+    obrigatorio = false,
+    placeholder,
+    id,
+  }) {
     const entrada = multilinha
-      ? el('textarea', { rows: 3, id, class: 'campo-entrada' })
-      : el('input', { type: 'text', id, class: 'campo-entrada' });
+      ? el('textarea', { rows: linhas, id, class: 'campo-entrada', placeholder })
+      : el('input', { type: 'text', id, class: 'campo-entrada', placeholder });
     entrada.value = valor ?? '';
+    if (multilinha && semQuebra) {
+      entrada.addEventListener('keydown', (e) => e.key === 'Enter' && e.preventDefault());
+      // O que chega colado com quebra vira espaço.
+      entrada.addEventListener('input', () => {
+        if (entrada.value.includes('\n')) entrada.value = entrada.value.replace(/\s*\n+\s*/g, ' ');
+      });
+    }
     if (onInput) entrada.addEventListener('input', () => onInput(entrada.value, entrada));
   
     const erro = el('span', { class: 'campo-erro', role: 'alert' });
     erro.hidden = true;
   
     const raiz = el('label', { class: ['campo', obrigatorio ? 'campo-obrigatorio' : null] }, [
-      el('span', { class: 'campo-rotulo', text: rotulo }),
+      rotuloDeCampo(rotulo, { obrigatorio, textoDeAjuda }),
       entrada,
       dica ? el('span', { class: 'campo-dica', text: dica }) : null,
       erro,
@@ -7297,15 +7462,36 @@
     return raiz;
   }
   
-  function botao(texto, { onClick, tipo = 'normal', titulo, icone, disabled = false } = {}) {
+  /**
+   * @param {string} texto o rótulo; vazio num botão só de ícone, e aí `titulo`
+   *   é o que o leitor de tela e o mouse por cima dizem
+   * @param {object} [opcoes]
+   * @param {'normal'|'primario'|'perigo'|'discreto'} [opcoes.tipo]
+   * @param {string} [opcoes.acao] vira `data-acao`, o nome estável por que os
+   *   testes acham o botão sem depender do texto
+   */
+  function botao(texto, { onClick, tipo = 'normal', titulo, icone: nomeDoIcone, disabled = false, acao = null } = {}) {
     return el(
       'button',
-      { type: 'button', class: `botao botao-${tipo}`, onClick, title: titulo, 'aria-label': titulo, disabled },
-      [icone ? el('span', { class: 'botao-icone', 'aria-hidden': 'true', text: icone }) : null, el('span', { text: texto })]
+      {
+        type: 'button',
+        class: ['botao', `botao-${tipo}`, texto ? null : 'botao-so-icone'],
+        onClick,
+        title: titulo,
+        'aria-label': texto ? null : titulo,
+        'data-acao': acao,
+        disabled,
+      },
+      [nomeDoIcone ? icone(nomeDoIcone) : null, el('span', { text: texto })]
     );
   }
   
-  function selecao({ rotulo, opcoes, valor, onChange, id }) {
+  /**
+   * @param {object} props
+   * @param {boolean} [props.rotuloEscondido] o rótulo só para o leitor de tela,
+   *   quando o que está em volta já diz o que a caixa é
+   */
+  function selecao({ rotulo, opcoes, valor, onChange, id, ajuda: textoDeAjuda = null, rotuloEscondido = false }) {
     const sel = el('select', { class: 'campo-entrada', id });
     for (const o of opcoes) {
       const opt = el('option', { value: o.valor, text: o.rotulo });
@@ -7313,18 +7499,91 @@
       sel.appendChild(opt);
     }
     if (onChange) sel.addEventListener('change', () => onChange(sel.value));
-    const raiz = el('label', { class: 'campo' }, [el('span', { class: 'campo-rotulo', text: rotulo }), sel]);
+    const raiz = el('label', { class: 'campo' }, [rotuloDeCampo(rotulo, { textoDeAjuda, escondido: rotuloEscondido }), sel]);
     raiz.entrada = sel;
     return raiz;
   }
   
-  function caixaDeMarcar({ rotulo, marcado, onChange }) {
+  function caixaDeMarcar({ rotulo, marcado, onChange, ajuda: textoDeAjuda = null }) {
     const input = el('input', { type: 'checkbox' });
     input.checked = Boolean(marcado);
     if (onChange) input.addEventListener('change', () => onChange(input.checked));
-    const raiz = el('label', { class: 'marcar' }, [input, el('span', { text: rotulo })]);
+    const raiz = el('label', { class: 'marcar' }, [
+      input,
+      el('span', { text: rotulo }),
+      textoDeAjuda ? ajuda(textoDeAjuda, { rotulo }) : null,
+    ]);
     raiz.entrada = input;
     return raiz;
+  }
+  
+  /**
+   * Uma chave de liga/desliga — uma caixa de marcar com cara de interruptor,
+   * para o que é estado ("ativa no jogo") e não escolha numa lista.
+   */
+  function interruptor({ rotulo, ligado, onChange, ajuda: textoDeAjuda = null }) {
+    const input = el('input', { type: 'checkbox', role: 'switch', class: 'interruptor-entrada' });
+    input.checked = Boolean(ligado);
+    if (onChange) input.addEventListener('change', () => onChange(input.checked));
+    const raiz = el('label', { class: 'interruptor' }, [
+      input,
+      el('span', { class: 'interruptor-trilho', 'aria-hidden': 'true' }),
+      el('span', { class: 'interruptor-rotulo', text: rotulo }),
+      textoDeAjuda ? ajuda(textoDeAjuda, { rotulo }) : null,
+    ]);
+    raiz.entrada = input;
+    return raiz;
+  }
+  
+  /* --------------------------------------------------------------- popover -- */
+  
+  let fecharPopoverAberto = null;
+  let ancoraDoPopover = null;
+  
+  /** Fecha o popover aberto, se houver. */
+  function fecharPopover() {
+    fecharPopoverAberto?.();
+  }
+  
+  /**
+   * Uma caixa que abre embaixo de um botão — a lista de problemas da barra.
+   *
+   * Fecha no clique fora, no Esc, quando a janela muda de tamanho e num segundo
+   * clique no mesmo botão. Como os avisos, mora no `body` e repete a tipografia
+   * do painel (ver admin.css).
+   */
+  function abrirPopover(ancora, conteudo, { rotulo } = {}) {
+    const jaAberto = fecharPopoverAberto && ancoraDoPopover === ancora;
+    fecharPopover();
+    if (jaAberto) return null;
+    ancoraDoPopover = ancora;
+    const caixa = el('div', { class: 'popover', role: 'dialog', 'aria-label': rotulo }, conteudo);
+    document.body.appendChild(caixa);
+  
+    const r = ancora.getBoundingClientRect();
+    const b = caixa.getBoundingClientRect();
+    caixa.style.top = `${Math.round(r.bottom + 6)}px`;
+    caixa.style.left = `${Math.round(Math.min(Math.max(8, r.right - b.width), innerWidth - b.width - 8))}px`;
+  
+    const fora = (e) => {
+      if (!caixa.contains(e.target) && !ancora.contains(e.target)) fechar();
+    };
+    const tecla = (e) => e.key === 'Escape' && fechar();
+    function fechar() {
+      caixa.remove();
+      document.removeEventListener('pointerdown', fora, true);
+      document.removeEventListener('keydown', tecla);
+      window.removeEventListener('resize', fechar);
+      if (fecharPopoverAberto === fechar) {
+        fecharPopoverAberto = null;
+        ancoraDoPopover = null;
+      }
+    }
+    document.addEventListener('pointerdown', fora, true);
+    document.addEventListener('keydown', tecla);
+    window.addEventListener('resize', fechar);
+    fecharPopoverAberto = fechar;
+    return fechar;
   }
   
   /* ------------------------------------------------------------------ aviso -- */
@@ -7566,9 +7825,17 @@
   }
   
   /**
-   * Um seletor de imagem visivel de verdade (nao um input escondido atras de um
-   * clique sintetico), para dar para alcancar por teclado e para os testes
-   * conseguirem entregar um arquivo a ele.
+   * O botão de enviar imagem do computador.
+   *
+   * O `<input type=file>` continua de verdade dentro do botão — transparente, mas
+   * presente e focável —, e não escondido atrás de um clique sintético: assim o
+   * teclado o alcança (Tab, e Enter abre a janela de arquivos) e os testes
+   * conseguem entregar um arquivo a ele. O que saiu foi a cara nativa, o
+   * "Escolher arquivo / Nenhum arquivo escolhido", que o operador lia como um
+   * campo a preencher.
+   *
+   * A linha de estado (`raiz.estado`) vai onde quem chama quiser: o editor a põe
+   * embaixo da fileira de botões da foto.
    *
    * @param {object} props
    * @param {Function} props.onEscolha recebe (resultado, arquivo); resultado e
@@ -7576,7 +7843,7 @@
    *   assincrona (o envio ao Storage): o seletor fica desligado ate ela acabar,
    *   e o que ela tiver a dizer vai por `raiz.mostrarEstado`.
    */
-  function entradaDeImagem({ rotulo, dica, onEscolha }) {
+  function entradaDeImagem({ rotulo, onEscolha }) {
     const entrada = el('input', { type: 'file', accept: 'image/*', class: 'campo-arquivo' });
     const estado = el('span', { class: 'campo-dica campo-arquivo-estado', role: 'status' });
   
@@ -7587,6 +7854,7 @@
       // Desligado durante o envio: uma segunda escolha no meio da primeira
       // terminaria na ordem em que a rede respondesse, e nao na do clique.
       entrada.disabled = true;
+      raiz.classList.add('ocupado');
       try {
         const r = await reduzirImagem(arquivo);
         estado.textContent = r.reduziu
@@ -7600,16 +7868,13 @@
         // Zerar deixa escolher o MESMO arquivo de novo depois de um erro.
         entrada.value = '';
         entrada.disabled = false;
+        raiz.classList.remove('ocupado');
       }
     });
   
-    const raiz = el('label', { class: 'campo campo-arquivo-campo' }, [
-      el('span', { class: 'campo-rotulo', text: rotulo }),
-      entrada,
-      dica ? el('span', { class: 'campo-dica', text: dica }) : null,
-      estado,
-    ]);
+    const raiz = el('label', { class: 'botao botao-arquivo campo-arquivo-campo' }, [icone('enviar'), el('span', { text: rotulo }), entrada]);
     raiz.entrada = entrada;
+    raiz.estado = estado;
     /**
      * @param {string} texto
      * @param {'andamento'|'ok'|'atencao'|'erro'|null} [tipo] a cor da linha; em
@@ -7625,10 +7890,15 @@
   }
   Object.defineProperty(__exports, "el", { get: () => el, enumerable: true });
   Object.defineProperty(__exports, "limpar", { get: () => limpar, enumerable: true });
+  Object.defineProperty(__exports, "icone", { get: () => icone, enumerable: true });
+  Object.defineProperty(__exports, "ajuda", { get: () => ajuda, enumerable: true });
   Object.defineProperty(__exports, "campo", { get: () => campo, enumerable: true });
   Object.defineProperty(__exports, "botao", { get: () => botao, enumerable: true });
   Object.defineProperty(__exports, "selecao", { get: () => selecao, enumerable: true });
   Object.defineProperty(__exports, "caixaDeMarcar", { get: () => caixaDeMarcar, enumerable: true });
+  Object.defineProperty(__exports, "interruptor", { get: () => interruptor, enumerable: true });
+  Object.defineProperty(__exports, "fecharPopover", { get: () => fecharPopover, enumerable: true });
+  Object.defineProperty(__exports, "abrirPopover", { get: () => abrirPopover, enumerable: true });
   Object.defineProperty(__exports, "aviso", { get: () => aviso, enumerable: true });
   Object.defineProperty(__exports, "confirmar", { get: () => confirmar, enumerable: true });
   Object.defineProperty(__exports, "pedirCredenciais", { get: () => pedirCredenciais, enumerable: true });
@@ -7660,18 +7930,28 @@
   //     continua mostrando quando a internet da feira cai.
   //
   // A LIMPEZA. Trocar a foto de um veículo, apagar um veículo, enviar e desistir
-  // sem salvar: tudo isso deixa arquivo que nenhum baralho usa. Ao salvar na
-  // nuvem, o painel lista `veiculos/` e apaga o que o baralho recém-publicado não
-  // cita E não foi tocado há mais de `CARENCIA_DIAS`. A carência existe porque o
-  // baralho publicado não é o único lugar que cita uma foto:
-  //   - outro notebook pode estar editando, com uma foto enviada e não salva;
-  //   - um totem pode estar no meio de uma partida com o baralho anterior.
-  // Ela conta do `updated` do arquivo, que o reaproveitamento renova — enviar de
-  // novo uma foto órfã antiga a tira da fila.
+  // sem salvar: tudo isso deixa arquivo que nenhum baralho usa. Três caminhos o
+  // tiram do Storage, do mais imediato ao mais cauteloso:
   //
-  // Se mesmo assim uma foto citada sumir (um rascunho parado além da carência),
-  // `fotosQueSumiram` pega antes de salvar: o painel recusa publicar endereço
-  // que não abre e diz qual veículo precisa de foto nova.
+  //   - a foto que ESTA aba acabou de enviar sai na hora em que deixa de ser
+  //     usada — trocada por outra, veículo removido, alterações descartadas
+  //     (`apagarRecemEnviadasSemUso`). Ninguém mais pode citá-la: ela nunca foi
+  //     publicada, e o nome é o conteúdo, então só existia por causa deste envio;
+  //   - a foto que o baralho publicado citava e o Salvar acabou de trocar sai
+  //     logo depois de a troca chegar à nuvem (`semCarencia` em
+  //     `limparFotosSemUso`). Antes disso não pode: o totem que ainda joga com o
+  //     baralho anterior a mostraria quebrada, e "Descartar" voltaria para ela;
+  //   - o resto sai pela carência: ao salvar na nuvem, o painel lista
+  //     `veiculos/` e apaga o que o baralho recém-publicado não cita E não foi
+  //     tocado há mais de `CARENCIA_DIAS`. Ela cobre o rascunho de outro
+  //     notebook e a aba fechada sem salvar, que nenhum dos dois de cima alcança.
+  //     Conta do `updated` do arquivo, que o reaproveitamento renova — enviar de
+  //     novo uma foto órfã antiga a tira da fila.
+  //
+  // Se mesmo assim uma foto citada sumir (um rascunho parado além da carência,
+  // ou a foto que outro notebook trocou e apagou), `fotosQueSumiram` pega antes
+  // de salvar: o painel recusa publicar endereço que não abre e diz qual veículo
+  // precisa de foto nova.
   
   const { CONFIG } = __require("config.js");
   const { comPrazo } = __require("backend.js");
@@ -7755,13 +8035,23 @@
    *
    * @param {Array<{caminho: string, atualizado: string|number|Date|null}>} arquivos
    * @param {Set<string>} emUso os caminhos que o baralho cita (`fotosDoBaralho`)
+   * @param {object} [opcoes]
+   * @param {Iterable<string>} [opcoes.semCarencia] fora de uso, estes saem já,
+   *   sem esperar a carência: são as fotos que o Salvar acabou de trocar. Em uso,
+   *   ficam do mesmo jeito — estar nesta lista nunca vence `emUso`.
    * @returns {string[]} os caminhos a apagar
    */
-  function escolherOrfas(arquivos, emUso, { agora = Date.now(), carenciaMs = CARENCIA_DIAS * DIA_MS } = {}) {
+  function escolherOrfas(
+    arquivos,
+    emUso,
+    { agora = Date.now(), carenciaMs = CARENCIA_DIAS * DIA_MS, semCarencia = [] } = {}
+  ) {
+    const jaPodem = new Set(semCarencia);
     return arquivos
       .filter(({ caminho, atualizado }) => {
         if (typeof caminho !== 'string' || !caminho.startsWith(`${PASTA}/`)) return false;
         if (emUso.has(caminho)) return false;
+        if (jaPodem.has(caminho)) return true;
         // Sem data não há como saber a idade, e o arquivo fica. Errar para o
         // lado de guardar custa uns KB; errar para o outro custa a foto de um
         // veículo sumindo do totem.
@@ -7818,6 +8108,33 @@
    * ANTIGA, e a nova chegaria depois só neste navegador.
    */
   const enviosEmAndamento = () => emAndamento;
+  
+  /**
+   * As fotos que esta aba CRIOU no Storage e que a nuvem ainda não publicou.
+   *
+   * São as únicas que dá para apagar na hora em que saem de uso: nenhum baralho
+   * publicado as cita, e nenhum outro notebook as enviou (se tivesse, o arquivo
+   * já existiria e o envio seria reaproveitamento, que não entra aqui).
+   */
+  const recemEnviadas = new Set();
+  
+  /**
+   * Os bytes de cada foto enviada nesta aba, como `data:` URL, pelo caminho no
+   * Storage. É o que deixa "Baixar foto" baixar a foto recém-enviada sem buscá-la
+   * de volta no Storage — que, sem CORS no bucket, o navegador nem deixa ler.
+   */
+  const bytesDaSessao = new Map();
+  
+  /** Há foto desta aba esperando para ser apagada quando sair de uso? */
+  const haRecemEnviadas = () => recemEnviadas.size > 0;
+  
+  /**
+   * O Salvar levou estas fotos para a nuvem: daqui em diante elas pertencem ao
+   * baralho publicado, e só a limpeza do Salvar as apaga.
+   */
+  function esquecerRecemEnviadas(caminhos) {
+    for (const c of caminhos) recemEnviadas.delete(c);
+  }
   
   const naoExiste = (erro) => String(erro?.code ?? '').includes('object-not-found');
   
@@ -7880,7 +8197,12 @@
     try {
       const s = await firebaseStorage();
       if (!s) return { ok: false, motivo: motivoSemFirebase() ?? 'não deu para falar com o Firebase.' };
-      return await subir(s, bytes, tipo, aoProgredir);
+      const r = await subir(s, bytes, tipo, aoProgredir);
+      if (r.ok) {
+        bytesDaSessao.set(r.caminho, dataUrl);
+        if (!r.reaproveitada) recemEnviadas.add(r.caminho);
+      }
+      return r;
     } finally {
       emAndamento--;
     }
@@ -7968,9 +8290,15 @@
    * Melhor esforço: falhar aqui não desfaz nada do que foi salvo, e a próxima
    * gravação tenta de novo.
    *
+   * @param {object} [opcoes]
+   * @param {Iterable<string>} [opcoes.semCarencia] as fotos que este Salvar
+   *   trocou: saem já, sem esperar a carência — ver `escolherOrfas`
+   * @param {Function} [opcoes.tambemEmUso] devolve, NA HORA de escolher, mais
+   *   caminhos a poupar: o painel passa o que está aberto no editor, que pode ter
+   *   voltado a citar uma foto enquanto a lista do Storage descia
    * @returns {Promise<{ok: boolean, apagadas: number, restantes?: number, motivo?: string}>}
    */
-  async function limparFotosSemUso(deck, { agora = Date.now() } = {}) {
+  async function limparFotosSemUso(deck, { agora = Date.now(), semCarencia = [], tambemEmUso = null } = {}) {
     // Um baralho vazio citaria nada, e tudo viraria órfão. O validador não deixa
     // salvar baralho vazio, mas esta função apaga coisa: confere de novo.
     if (!deck?.slots?.length) return { ok: false, apagadas: 0, motivo: 'baralho vazio — limpeza não roda.' };
@@ -7989,12 +8317,135 @@
           )
         )
       );
-      const alvo = escolherOrfas(arquivos, fotosDoBaralho(deck), { agora });
+      const emUso = new Set([...fotosDoBaralho(deck), ...(tambemEmUso?.() ?? [])]);
+      const alvo = escolherOrfas(arquivos, emUso, { agora, semCarencia });
       const feitos = await Promise.allSettled(alvo.map((c) => st.deleteObject(st.ref(storage, c))));
       const apagadas = feitos.filter((f) => f.status === 'fulfilled').length;
       return { ok: true, apagadas, restantes: arquivos.length - apagadas };
     } catch (erro) {
       return { ok: false, apagadas: 0, motivo: traduzir(erro) };
+    }
+  }
+  
+  /** Apagar uma foto não pode segurar a tela: sem rede, desiste e a carência cuida. */
+  const PRAZO_PARA_APAGAR_MS = 8000;
+  
+  /**
+   * Apaga do Storage as fotos que esta aba enviou e que nada mais cita — a foto
+   * trocada por outra antes de salvar, a do veículo removido, a das alterações
+   * descartadas.
+   *
+   * Só as recém-enviadas (ver `recemEnviadas`): uma foto que o baralho publicado
+   * cita, ou que outro notebook enviou, espera o Salvar ou a carência.
+   *
+   * Melhor esforço, como a limpeza: a que não sair agora (sem rede, sem login)
+   * fica para a carência, e não é tentada de novo a cada tecla.
+   *
+   * @param {Set<string>} emUso o que o editor e o baralho publicado citam
+   * @returns {Promise<{apagadas: number}>}
+   */
+  async function apagarRecemEnviadasSemUso(emUso) {
+    const alvo = [...recemEnviadas].filter((c) => !emUso.has(c));
+    if (!alvo.length) return { apagadas: 0 };
+    // Sai do conjunto ANTES de esperar a rede: duas edições seguidas não mandam
+    // apagar o mesmo arquivo duas vezes.
+    for (const c of alvo) recemEnviadas.delete(c);
+  
+    try {
+      const s = await comPrazo(firebaseStorage(), PRAZO_PARA_APAGAR_MS);
+      if (!s) return { apagadas: 0 };
+      const { storage, st } = s;
+      const feitos = await Promise.allSettled(
+        alvo.map((c) =>
+          comPrazo(st.deleteObject(st.ref(storage, c)), PRAZO_PARA_APAGAR_MS).catch((erro) => {
+            // Já não estava lá: o que se queria aconteceu.
+            if (!naoExiste(erro)) throw erro;
+          })
+        )
+      );
+      for (const [k, f] of feitos.entries()) {
+        if (f.status === 'fulfilled') bytesDaSessao.delete(alvo[k]);
+        else console.warn(`a foto ${alvo[k]} ficou no Storage (a carência apaga depois):`, f.reason);
+      }
+      return { apagadas: feitos.filter((f) => f.status === 'fulfilled').length };
+    } catch (erro) {
+      console.warn('as fotos recém-enviadas sem uso ficaram no Storage (a carência apaga depois):', erro);
+      return { apagadas: 0 };
+    }
+  }
+  
+  /* ------------------------------------------------------------ baixar -- */
+  
+  /** Para o fallback de abrir a foto numa aba: o navegador só deixa abrir janela logo depois do clique. */
+  const PRAZO_PARA_BAIXAR_MS = 4000;
+  
+  const EXTENSAO_DO_CAMINHO = /\.(webp|png|jpg|gif)$/;
+  
+  /** "FIAT TORO / 10GF" -> "FIAT TORO 10GF": sem o que o Windows recusa em nome de arquivo. */
+  const nomeDeArquivo = (nome) => String(nome ?? '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim() || 'foto';
+  
+  function salvarComo(endereco, nome) {
+    const link = document.createElement('a');
+    link.href = endereco;
+    link.download = nome;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+  
+  /** Baixa os bytes de um `data:` URL como arquivo, com a extensão do tipo dele. */
+  function salvarDataUrl(dataUrl, nome) {
+    const { tipo, bytes } = bytesDeDataUrl(dataUrl);
+    const url = URL.createObjectURL(new Blob([bytes], { type: tipo }));
+    salvarComo(url, `${nome}.${EXTENSAO[tipo] ?? 'png'}`);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  
+  /**
+   * Baixa para o computador a foto de um veículo — a enviada, que só existe no
+   * Storage ou dentro do baralho.
+   *
+   * Três caminhos, do melhor ao pior:
+   *   - a foto está dentro do baralho, ou foi enviada nesta aba: os bytes estão
+   *     aqui, e o arquivo sai na hora;
+   *   - senão, busca no Storage. Isso só funciona com CORS liberado no bucket
+   *     (firebase/cors.json): o `<img>` mostra a foto sem CORS, mas ler os bytes
+   *     de outra origem pelo JavaScript precisa dele;
+   *   - sem CORS, abre a foto numa aba nova, de onde o "Salvar imagem como…" do
+   *     navegador a baixa. O `download` de um link de outra origem é ignorado
+   *     pelo navegador, então não há como forçar o arquivo daqui.
+   *
+   * @param {string} src o `veiculo.imagem`
+   * @param {string} nome o nome do veículo, que vira o nome do arquivo
+   * @returns {Promise<'baixou'|'abriu'|'falhou'>}
+   */
+  async function baixarFoto(src, nome) {
+    if (typeof src !== 'string' || !src) return 'falhou';
+    const arquivo = nomeDeArquivo(nome);
+    const caminho = caminhoNoStorage(src);
+    try {
+      const local = src.startsWith('data:') ? src : caminho ? bytesDaSessao.get(caminho) : null;
+      if (local) {
+        salvarDataUrl(local, arquivo);
+        return 'baixou';
+      }
+    } catch (_) {
+      /* data URL que não é base64: tenta pelo endereço, como qualquer outro */
+    }
+  
+    try {
+      const resposta = await comPrazo(fetch(src, { mode: 'cors' }), PRAZO_PARA_BAIXAR_MS);
+      if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
+      const blob = await resposta.blob();
+      const ext = EXTENSAO[blob.type] ?? caminho?.match(EXTENSAO_DO_CAMINHO)?.[1] ?? 'png';
+      const url = URL.createObjectURL(blob);
+      salvarComo(url, `${arquivo}.${ext}`);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return 'baixou';
+    } catch (erro) {
+      console.info('a foto não veio por fetch (sem CORS no bucket?) — abrindo numa aba nova:', erro?.message ?? erro);
+      window.open(src, '_blank', 'noopener');
+      return 'abriu';
     }
   }
   Object.defineProperty(__exports, "PASTA", { get: () => PASTA, enumerable: true });
@@ -8006,59 +8457,257 @@
   Object.defineProperty(__exports, "bytesDeDataUrl", { get: () => bytesDeDataUrl, enumerable: true });
   Object.defineProperty(__exports, "nomeDaFoto", { get: () => nomeDaFoto, enumerable: true });
   Object.defineProperty(__exports, "enviosEmAndamento", { get: () => enviosEmAndamento, enumerable: true });
+  Object.defineProperty(__exports, "haRecemEnviadas", { get: () => haRecemEnviadas, enumerable: true });
+  Object.defineProperty(__exports, "esquecerRecemEnviadas", { get: () => esquecerRecemEnviadas, enumerable: true });
   Object.defineProperty(__exports, "enviarFoto", { get: () => enviarFoto, enumerable: true });
   Object.defineProperty(__exports, "fotosQueSumiram", { get: () => fotosQueSumiram, enumerable: true });
   Object.defineProperty(__exports, "limparFotosSemUso", { get: () => limparFotosSemUso, enumerable: true });
+  Object.defineProperty(__exports, "apagarRecemEnviadasSemUso", { get: () => apagarRecemEnviadasSemUso, enumerable: true });
+  Object.defineProperty(__exports, "baixarFoto", { get: () => baixarFoto, enumerable: true });
+  });
+
+  /* ===== admin/problemas.js ===== */
+  __define("admin/problemas.js", function (__exports, __require) {
+  // O que impede salvar o baralho, do jeito que o painel mostra.
+  //
+  // `validarBaralho` (deck.js) fala a língua do dado — "rodada 3, pergunta 2:
+  // respostaDois vazio em EN" —, e era isso que o operador lia num aviso. Aqui
+  // as mensagens são agrupadas pelo lugar onde cada problema mora (para o selo na
+  // lista e o campo aceso no editor) e traduzidas para o nome que a tela usa
+  // ("Alternativa 2 em branco, em English").
+  //
+  // Puro, sem DOM: os testes de unidade o afirmam fora do navegador.
+  
+  const { validarBaralho } = __require("deck.js");
+  
+  /** O nome de cada idioma, como as abas do editor o escrevem. */
+  const NOME_DO_IDIOMA = { pt: 'Português', en: 'English', es: 'Español' };
+  
+  /** O nome de cada campo de texto numa frase de problema. */
+  const NOME_DO_CAMPO = {
+    pergunta: 'Enunciado',
+    respostaUm: 'Alternativa 1',
+    respostaDois: 'Alternativa 2',
+    respostaTres: 'Alternativa 3',
+    respostaQuatro: 'Alternativa 4',
+    ajudaApoio: 'Dica do Apoio Técnico',
+    ajudaTreinamentoEad: 'Dica dos Cursos EAD',
+    ajudaTecnomotorTv: 'Dica do TecnomotorTV',
+    ajudaComunidade: 'Dica da Comunidade',
+    ajudaRepresentanteComercial: 'Dica do Representante comercial',
+    relatoPreliminar: 'Relato preliminar',
+    maisInformacoes: 'Mais informações',
+  };
+  
+  /**
+   * As mensagens de `validarBaralho`, agrupadas por onde cada uma mora.
+   *
+   * Desde o banco de perguntas a mensagem pode vir com duas coordenadas —
+   * "rodada 3, pergunta 2: ..." —, então o erro é guardado nas duas: por veículo
+   * (o selo na lista) e por pergunta (o campo aceso). `itens` é a lista plana, na
+   * ordem do baralho, que o selo de problemas da barra mostra.
+   *
+   * @returns {{
+   *   total: number,
+   *   porRodada: Map<number, string[]>,
+   *   porPergunta: Map<string, string[]>,
+   *   gerais: string[],
+   *   itens: Array<{i: number, j: number, mensagem: string}>,
+   * }}
+   */
+  function agruparProblemas(deck) {
+    const todos = validarBaralho(deck);
+    const porRodada = new Map();
+    const porPergunta = new Map();
+    const gerais = [];
+    const itens = [];
+    for (const m of todos) {
+      const n = m.match(/^rodada (\d+)(?:, pergunta (\d+))?: (.*)$/);
+      if (!n) {
+        gerais.push(m);
+        continue;
+      }
+      const i = Number(n[1]) - 1;
+      const j = n[2] ? Number(n[2]) - 1 : 0;
+      if (!porRodada.has(i)) porRodada.set(i, []);
+      porRodada.get(i).push(n[3]);
+      const chave = `${i}:${j}`;
+      if (!porPergunta.has(chave)) porPergunta.set(chave, []);
+      porPergunta.get(chave).push(n[3]);
+      itens.push({ i, j, mensagem: n[3] });
+    }
+    return { total: todos.length, porRodada, porPergunta, gerais, itens };
+  }
+  
+  /**
+   * Uma mensagem de `validarBaralho` (já sem o "rodada N:") na língua da tela.
+   *
+   * `idioma` vem preenchido quando o problema mora numa das abas de idioma do
+   * editor: é para lá que o clique no problema leva.
+   *
+   * Mensagem que este mapa não conhece passa como veio: melhor o texto técnico
+   * do que esconder um problema que impede salvar.
+   *
+   * @returns {{texto: string, idioma: string|null}}
+   */
+  function explicarProblema(mensagem) {
+    const m = String(mensagem ?? '');
+    const vazio = m.match(/^(\w+) vazio em (PT|EN|ES)$/);
+    if (vazio) {
+      const idioma = vazio[2].toLowerCase();
+      return { texto: `${NOME_DO_CAMPO[vazio[1]] ?? vazio[1]} em branco, em ${NOME_DO_IDIOMA[idioma]}`, idioma };
+    }
+    const conhecidos = [
+      [/sem nome/, 'falta o nome do veículo'],
+      [/sem imagem/, 'falta a foto do veículo'],
+      [/não tem nenhuma pergunta/, 'o veículo está sem pergunta'],
+      [/todas as perguntas estão desligadas/, 'todas as perguntas do veículo estão desligadas'],
+      [/gabarito/, 'a resposta correta não está marcada'],
+      [/nenhum equipamento/, 'nenhum equipamento marcado'],
+      [/link do vídeo/, 'o link do vídeo precisa começar com https://'],
+    ];
+    for (const [padrao, texto] of conhecidos) if (padrao.test(m)) return { texto, idioma: null };
+    return { texto: m, idioma: null };
+  }
+  Object.defineProperty(__exports, "NOME_DO_IDIOMA", { get: () => NOME_DO_IDIOMA, enumerable: true });
+  Object.defineProperty(__exports, "NOME_DO_CAMPO", { get: () => NOME_DO_CAMPO, enumerable: true });
+  Object.defineProperty(__exports, "agruparProblemas", { get: () => agruparProblemas, enumerable: true });
+  Object.defineProperty(__exports, "explicarProblema", { get: () => explicarProblema, enumerable: true });
   });
 
   /* ===== admin/editor.js ===== */
   __define("admin/editor.js", function (__exports, __require) {
-  // O editor: o veículo em cima, e embaixo UMA pergunta do banco dele — os
-  // equipamentos que a resolvem, o gabarito e os doze campos de texto em cada um
-  // dos três idiomas.
+  // O editor: o veículo em cima, e embaixo UMA pergunta do banco dele — o texto
+  // nos três idiomas, a alternativa correta, os equipamentos que a resolvem e o
+  // vídeo.
   //
   // Veículo e pergunta são objetos separados desde a v2 do baralho (ver deck.js):
   // o mesmo carro pode ter várias perguntas, e quem escolhe qual está aberta é a
   // lista do painel.
+  //
+  // A explicação de cada campo mora no (?) ao lado do rótulo (`ajuda`, em ui.js),
+  // e não numa linha cinza embaixo dele: com uma dica por campo, o editor virava
+  // um manual, e quem só queria trocar uma pergunta lia três parágrafos para
+  // achar a caixa. O que é técnico — caminho de arquivo, tamanho em pixels, os
+  // textos que o jogo guarda e não mostra — fica dobrado num "avançado".
   
-  const { el, campo, selecao, caixaDeMarcar, limpar, botao, entradaDeImagem } = __require("admin/ui.js");
-  const { caminhoNoStorage, enviarFoto } = __require("admin/imagens.js");
-  const { CAMPOS_QUESTAO, CAMPOS_OBRIGATORIOS, IDIOMAS, SCANNERS, VEICULOS_ORIGINAIS } = __require("deck.js");
-  
-  const NOME_IDIOMA = { pt: 'Português', en: 'English', es: 'Español' };
-  
-  /** Rótulo e ajuda de cada campo, para o operador não precisar adivinhar. */
-  const ROTULOS = {
-    pergunta: ['Enunciado', 'O defeito que aparece na caixa da pergunta'],
-    respostaUm: ['Alternativa 1', null],
-    respostaDois: ['Alternativa 2', null],
-    respostaTres: ['Alternativa 3', null],
-    respostaQuatro: ['Alternativa 4', null],
-    ajudaApoio: ['Dica — Apoio Técnico', null],
-    ajudaTreinamentoEad: ['Dica — Cursos EAD', null],
-    ajudaTecnomotorTv: ['Dica — TecnomotorTV', 'Aparece também na lição de quem erra, ao lado do QR do vídeo (se houver link)'],
-    ajudaComunidade: ['Dica — Comunidade', null],
-    ajudaRepresentanteComercial: ['Dica — Representante comercial', null],
-    relatoPreliminar: ['Relato preliminar', 'Não aparece no jogo — o original guardava e nunca exibia'],
-    maisInformacoes: ['Mais informações', 'Não aparece no jogo — o original guardava e nunca exibia'],
-  };
+  const { el, campo, selecao, caixaDeMarcar, limpar, botao, entradaDeImagem, ajuda, interruptor, icone, aviso } = __require("admin/ui.js");
+  const { baixarFoto, caminhoNoStorage, enviarFoto } = __require("admin/imagens.js");
+  const { NOME_DO_IDIOMA } = __require("admin/problemas.js");
+  const { CAMPOS_OBRIGATORIOS, IDIOMAS, SCANNERS, VEICULOS_ORIGINAIS } = __require("deck.js");
   
   /** As alternativas na ordem em que o gabarito as numera. */
   const CAMPO_DA_ALTERNATIVA = ['respostaUm', 'respostaDois', 'respostaTres', 'respostaQuatro'];
+  
+  /** As dicas das ajudas: o campo, o rótulo dentro do grupo e a explicação. */
+  const DICAS = [
+    ['ajudaApoio', 'Apoio Técnico', null],
+    ['ajudaTreinamentoEad', 'Cursos EAD', null],
+    [
+      'ajudaTecnomotorTv',
+      'TecnomotorTV',
+      'Aparece também na lição de quem erra, ao lado do QR code do vídeo (quando a pergunta tem um).',
+    ],
+    ['ajudaComunidade', 'Comunidade', null],
+    ['ajudaRepresentanteComercial', 'Representante comercial', null],
+  ];
+  
+  /** O que o jogo original guardava e nunca exibia. Continua editável, dobrado. */
+  const GUARDADOS = [
+    ['relatoPreliminar', 'Relato preliminar'],
+    ['maisInformacoes', 'Mais informações'],
+  ];
+  
+  /**
+   * O "Ajustes avançados da foto" lembra se estava aberto entre um veículo e
+   * outro: quem está ajustando tamanhos ajusta vários seguidos.
+   */
+  let avancadoAberto = false;
   
   /**
    * @param {object}   props
    * @param {object}   props.slot      o veículo (a fatia da roleta), mutado no lugar
    * @param {object}   props.pergunta  a pergunta do banco que está sendo editada
    * @param {number}   props.indice    posição no baralho
+   * @param {number}   [props.posicao] posição da pergunta no banco do veículo
+   * @param {number}   [props.total]   quantas perguntas o veículo tem
+   * @param {number}   [props.totalDeVeiculos] para desligar o que não cabe (subir
+   *   o primeiro, excluir o único)
+   * @param {string}   [props.idioma]  a aba de idioma que abre — o painel a
+   *   guarda entre um veículo e outro, e o clique num problema a escolhe
+   * @param {Function} [props.onIdioma] avisado quando a aba de idioma muda
    * @param {Function} props.onChange  chamado a cada edição, para revalidar
+   * @param {Function} [props.aoTrocarFoto] chamado quando a foto do veículo muda —
+   *   é a deixa para o painel apagar do Storage a foto que ficou sem uso
    * @param {Function} [props.nuvemDeImagens] diz, NA HORA do envio, se a foto
    *   vai para o Storage (há conta do Firebase nesta aba). Função, e não valor,
    *   porque o login pode chegar com o editor já aberto. Sem ela, ou devolvendo
    *   `false`, a foto fica dentro do baralho.
+   * @param {object}   [props.acoes]   o que os botões do cabeçalho fazem:
+   *   `subir`, `descer`, `duplicarVeiculo`, `excluirVeiculo`,
+   *   `duplicarPergunta`, `excluirPergunta` e `alternarAtiva(ligada)`
    */
-  function editorDeSlot({ slot, pergunta, indice, posicao = 0, total = 1, onChange, nuvemDeImagens = null }) {
+  function editorDeSlot({
+    slot,
+    pergunta,
+    indice,
+    posicao = 0,
+    total = 1,
+    totalDeVeiculos = 1,
+    idioma = 'pt',
+    onIdioma = null,
+    onChange,
+    aoTrocarFoto = null,
+    nuvemDeImagens = null,
+    acoes = {},
+  }) {
     const mudou = () => onChange?.();
+    const fotoMudou = () => {
+      mudou();
+      aoTrocarFoto?.();
+    };
+  
+    /* ------------------------------------------------------------ cabeçalho -- */
+  
+    const nomeNaTela = () => slot.veiculo?.nome?.trim() || `Veículo ${indice + 1}`;
+    const titulo = el('h2', { class: 'editor-nome', text: nomeNaTela() });
+  
+    const cabecalho = el('div', { class: 'editor-cabecalho' }, [
+      el('div', { class: 'editor-titulo' }, [
+        titulo,
+        el('span', { class: 'editor-subtitulo' }, [
+          `Fatia ${indice + 1} da roleta`,
+          ajuda('A ordem da lista de veículos é a ordem das fatias na roleta. As setas mudam o lugar deste veículo.', {
+            rotulo: 'Fatia da roleta',
+          }),
+        ]),
+      ]),
+      el('div', { class: 'editor-acoes' }, [
+        botao('', {
+          icone: 'cima',
+          titulo: 'Subir na lista (uma fatia antes na roleta)',
+          onClick: acoes.subir,
+          disabled: indice === 0,
+          acao: 'subir-veiculo',
+        }),
+        botao('', {
+          icone: 'baixo',
+          titulo: 'Descer na lista (uma fatia depois na roleta)',
+          onClick: acoes.descer,
+          disabled: indice >= totalDeVeiculos - 1,
+          acao: 'descer-veiculo',
+        }),
+        botao('Duplicar veículo', { icone: 'copiar', onClick: acoes.duplicarVeiculo, acao: 'duplicar-veiculo' }),
+        botao('Excluir veículo', {
+          icone: 'lixeira',
+          tipo: 'perigo',
+          onClick: acoes.excluirVeiculo,
+          disabled: totalDeVeiculos <= 1,
+          titulo: totalDeVeiculos <= 1 ? 'A roleta precisa de pelo menos um veículo' : null,
+          acao: 'excluir-veiculo',
+        }),
+      ]),
+    ]);
   
     /* ------------------------------------------------------------- veículo -- */
   
@@ -8068,7 +8717,7 @@
     const noStorage = (src) => caminhoNoStorage(src) != null;
   
     const previaFoto = el('img', { class: 'previa-foto', alt: '' });
-    const semFoto = el('div', { class: 'previa-vazia', text: 'sem imagem' });
+    const semFoto = el('div', { class: 'previa-vazia' }, [icone('imagem', { classe: 'previa-vazia-icone' }), 'sem foto']);
   
     // O véu do envio ao Storage, por cima da prévia. Existe porque a única pista
     // era uma linha cinza embaixo do seletor, e a prévia seguia com a foto
@@ -8091,73 +8740,68 @@
       preenchidoEnvio.style.width = medida ? `${Math.round(fracao * 100)}%` : '';
       textoEnvio.textContent = medida ? `Enviando… ${Math.round(fracao * 100)}%` : 'Enviando…';
     };
+  
+    const previa = el('div', { class: 'previa' }, [previaFoto, semFoto, veuEnvio]);
+  
+    // Onde a foto enviada mora, e o botão de baixá-la de volta. Toma o lugar do
+    // campo de caminho: um data URL tem centenas de milhares de caracteres, e o
+    // endereço do Storage carrega um token que ninguém deve editar à mão.
     const resumoEmbutida = el('span', { class: 'embutida-texto' });
+    const iconeEmbutida = el('span', { class: 'embutida-icone' });
     const blocoEmbutida = el('div', { class: 'embutida' }, [
+      iconeEmbutida,
       resumoEmbutida,
-      botao('Trocar por um caminho de arquivo', {
-        onClick: () => {
-          slot.veiculo.imagem = '';
-          campoImagem.entrada.value = '';
-          atualizarPrevia();
-          mudou();
+      botao('Baixar foto', {
+        icone: 'baixar',
+        acao: 'baixar-foto',
+        onClick: async () => {
+          const r = await baixarFoto(slot.veiculo.imagem, slot.veiculo.nome);
+          if (r === 'abriu') {
+            aviso(
+              'A foto abriu numa aba nova: clique nela com o botão direito e escolha "Salvar imagem como…". ' +
+                'Para baixar direto, o Storage precisa liberar CORS (ver firebase/README.md).',
+              'info',
+              { ms: 9000 }
+            );
+          } else if (r === 'falhou') {
+            aviso('Não há foto enviada para baixar.', 'erro');
+          }
         },
       }),
     ]);
-  
-    const atualizarPrevia = () => {
-      // admin.html fica em web/, ao lado de assets/ — o caminho e relativo direto.
-      // Com `../` funcionava por acidente no HTTP (nao se sobe acima da raiz) e
-      // quebrava por file://, onde `../` sai mesmo da pasta.
-      const src = slot.veiculo.imagem;
-      previaFoto.src = src || '';
-      previaFoto.hidden = !src;
-      semFoto.hidden = Boolean(src);
-  
-      // Um data URL tem centenas de milhares de caracteres: dentro de um campo de
-      // texto ele e inutil e ainda dispara `input` a cada tecla. Some o campo e
-      // mostra o tamanho, com a saida para voltar ao modo caminho. O endereco do
-      // Storage e curto, mas carrega um token que ninguem deve editar a mao.
-      const dentro = embutida(src);
-      const naNuvem = noStorage(src);
-      campoImagem.hidden = dentro || naNuvem;
-      blocoEmbutida.hidden = !(dentro || naNuvem);
-      if (dentro) {
-        resumoEmbutida.textContent = `Imagem enviada do computador — cerca de ${Math.round(src.length / 1024)} KB, guardada dentro do baralho`;
-      } else if (naNuvem) {
-        resumoEmbutida.textContent = 'Imagem enviada ao Firebase Storage — o baralho guarda só o endereço dela';
-      }
-    };
   
     const campoNome = campo({
       rotulo: 'Nome do veículo',
       valor: slot.veiculo.nome,
       obrigatorio: true,
-      dica: 'É o texto grande da tela "carro sorteado"',
+      ajuda: 'Aparece em letras grandes na tela do carro sorteado e na fatia da roleta.',
       onInput: (v) => {
         slot.veiculo.nome = v;
+        titulo.textContent = nomeNaTela();
         mudou();
       },
     });
   
     const campoImagem = campo({
-      rotulo: 'Imagem',
+      rotulo: 'Caminho do arquivo',
       valor: slot.veiculo.imagem,
-      obrigatorio: true,
-      dica: 'Caminho dentro de web/, por exemplo assets/images/BMW.png',
+      ajuda: 'Uma imagem que já está na pasta web/ do jogo, por exemplo assets/images/BMW.png. As fotos que vêm com o jogo e as enviadas do computador preenchem isto sozinhas.',
       onInput: (v) => {
         slot.veiculo.imagem = v.trim();
         atualizarPrevia();
-        mudou();
+        fotoMudou();
       },
     });
   
-    // Atalho para as dez fotos que já vêm no projeto, para o caso comum de
-    // reaproveitar um veículo existente sem digitar caminho.
+    // As dez fotos que já vêm no projeto, para o caso comum de reaproveitar um
+    // veículo existente sem digitar caminho. Mostra a atual quando ela é uma
+    // delas: é a resposta para "de onde veio esta foto?".
     const atalhoImagem = selecao({
-      rotulo: 'Usar uma imagem que já existe',
-      valor: '',
+      rotulo: 'Escolher uma das fotos do jogo',
+      rotuloEscondido: true,
+      valor: VEICULOS_ORIGINAIS.some((v) => v.imagem === slot.veiculo.imagem) ? slot.veiculo.imagem : '',
       opcoes: [
-        { valor: '', rotulo: '— escolher —' },
+        { valor: '', rotulo: 'Escolher uma das fotos do jogo…' },
         ...VEICULOS_ORIGINAIS.map((v) => ({ valor: v.imagem, rotulo: v.nome })),
       ],
       onChange: (v) => {
@@ -8168,22 +8812,24 @@
           slot.veiculo.largura = original.largura;
           slot.veiculo.altura = original.altura;
           slot.veiculo.fit = original.fit;
+          campoLargura.entrada.value = String(original.largura);
+          campoAltura.entrada.value = String(original.altura);
+          campoFit.entrada.value = original.fit;
           if (!slot.veiculo.nome.trim()) {
             slot.veiculo.nome = original.nome;
             campoNome.entrada.value = original.nome;
+            titulo.textContent = nomeNaTela();
           }
         }
         campoImagem.entrada.value = v;
+        envio.mostrarEstado('');
         atualizarPrevia();
-        mudou();
+        fotoMudou();
       },
     });
   
     const envio = entradaDeImagem({
-      rotulo: 'Ou enviar uma imagem do computador',
-      dica:
-        'Com login, vai para o Firebase Storage e o baralho guarda só o endereço; sem login, fica guardada dentro do baralho. ' +
-        'Nos dois casos o totem mostra a foto sem copiar arquivo nenhum. Reduzida para no máximo 1280px.',
+      rotulo: 'Enviar do computador',
       onEscolha: async (r, arquivo) => {
         if (!r) return;
         const nome = arquivo?.name ?? 'imagem';
@@ -8206,7 +8852,7 @@
           if (enviada.ok) {
             src = enviada.url;
             envio.mostrarEstado(
-              `${nome} — no Firebase Storage, cerca de ${r.kb} KB${enviada.reaproveitada ? ' (já estava lá)' : ''}`,
+              `${nome} enviada — cerca de ${r.kb} KB${enviada.reaproveitada ? ' (já estava lá, foi reaproveitada)' : ''}.`,
               'ok'
             );
           } else {
@@ -8218,7 +8864,7 @@
           // Sem esta linha, quem esperava o Storage via a foto "enviada" e não
           // tinha como saber que ela não saiu deste navegador.
           envio.mostrarEstado(
-            `${nome} — cerca de ${r.kb} KB, guardada dentro do baralho: sem a conta do Firebase conectada nesta aba, a foto não vai para o Storage.`,
+            `${nome} guardada dentro do baralho (cerca de ${r.kb} KB): sem a conta do Firebase conectada, a foto não vai para o Storage.`,
             'atencao'
           );
         }
@@ -8227,6 +8873,7 @@
         // `contain` para ela caber inteira em vez de sair recortada.
         slot.veiculo.fit = 'contain';
         campoFit.entrada.value = 'contain';
+        atalhoImagem.entrada.value = '';
         if (!slot.veiculo.nome.trim()) {
           // Sem extensão e com os separadores virando espaço: "bmw_320i.png"
           // chega como "bmw 320i", que é um chute melhor que vazio.
@@ -8234,10 +8881,11 @@
           if (chute) {
             slot.veiculo.nome = chute;
             campoNome.entrada.value = chute;
+            titulo.textContent = nomeNaTela();
           }
         }
         atualizarPrevia();
-        mudou();
+        fotoMudou();
       },
     });
   
@@ -8261,8 +8909,8 @@
       rotulo: 'Encaixe',
       valor: slot.veiculo.fit ?? 'cover',
       opcoes: [
-        { valor: 'cover', rotulo: 'cover — preenche e recorta' },
-        { valor: 'contain', rotulo: 'contain — cabe inteira' },
+        { valor: 'cover', rotulo: 'Preencher (pode cortar as bordas)' },
+        { valor: 'contain', rotulo: 'Caber inteira' },
       ],
       onChange: (v) => {
         slot.veiculo.fit = v;
@@ -8270,41 +8918,237 @@
       },
     });
   
+    // O erro de "sem foto" mora no grupo da foto, e não no campo de caminho: o
+    // caminho está dobrado no avançado, e um aviso ali ninguém veria.
+    const erroDaFoto = el('span', { class: 'campo-erro', role: 'alert' });
+    erroDaFoto.hidden = true;
+  
+    const grupoFoto = el('div', { class: 'campo foto-campo' }, [
+      el('span', { class: 'campo-rotulo' }, [
+        el('span', { class: 'campo-rotulo-texto', text: 'Foto' }),
+        el('span', { class: 'campo-asterisco', 'aria-hidden': 'true', text: '*' }),
+        ajuda(
+          'Escolha uma das fotos que vêm com o jogo ou envie uma do computador. A enviada é reduzida para no máximo 1280 px; com a conta do Firebase conectada ela vai para o Firebase Storage, e sem ela fica guardada dentro do baralho.',
+          { rotulo: 'Foto' }
+        ),
+      ]),
+      el('div', { class: 'foto-acoes' }, [atalhoImagem, envio]),
+      envio.estado,
+      blocoEmbutida,
+      erroDaFoto,
+    ]);
+  
+    const avancado = el('details', { class: 'avancado' }, [
+      el('summary', {}, [
+        'Ajustes avançados da foto',
+        ajuda(
+          'Tamanho e encaixe da foto na tela do carro sorteado, em pixels do palco de 1920×1080. Só mexa se a foto aparecer cortada ou pequena demais.',
+          { rotulo: 'Ajustes avançados da foto' }
+        ),
+      ]),
+      el('div', { class: 'avancado-corpo' }, [campoImagem, el('div', { class: 'linha-tres' }, [campoLargura, campoAltura, campoFit])]),
+    ]);
+    avancado.open = avancadoAberto;
+    avancado.addEventListener('toggle', () => {
+      avancadoAberto = avancado.open;
+    });
+  
+    const atualizarPrevia = () => {
+      // O painel mora em web/index.html, ao lado de assets/ — o caminho é
+      // relativo direto. Com `../` funcionava por acidente no HTTP (não se sobe
+      // acima da raiz) e quebrava por file://, onde `../` sai mesmo da pasta.
+      const src = slot.veiculo.imagem;
+      previaFoto.src = src || '';
+      previaFoto.hidden = !src;
+      semFoto.hidden = Boolean(src);
+  
+      const dentro = embutida(src);
+      const naNuvem = noStorage(src);
+      campoImagem.hidden = dentro || naNuvem;
+      blocoEmbutida.hidden = !(dentro || naNuvem);
+      iconeEmbutida.replaceChildren(icone(naNuvem ? 'nuvem' : 'imagem', { classe: 'embutida-icone-traco' }));
+      if (dentro) {
+        resumoEmbutida.textContent = `Foto enviada do computador, guardada dentro do baralho — cerca de ${Math.round(src.length / 1024)} KB`;
+      } else if (naNuvem) {
+        resumoEmbutida.textContent = 'Foto enviada do computador, guardada no Firebase Storage';
+      }
+    };
+  
     atualizarPrevia();
   
-    const blocoVeiculo = el('section', { class: 'bloco' }, [
-      el('h3', { text: 'Veículo' }),
+    const blocoVeiculo = el('section', { class: 'bloco bloco-veiculo' }, [
+      el('h3', { class: 'bloco-titulo', text: 'Veículo' }),
       el('div', { class: 'veiculo-grade' }, [
-        el('div', { class: 'previa' }, [previaFoto, semFoto, veuEnvio]),
-        el('div', { class: 'veiculo-campos' }, [
-          campoNome,
-          atalhoImagem,
-          campoImagem,
-          blocoEmbutida,
-          envio,
-          el('div', { class: 'linha-tres' }, [campoLargura, campoAltura, campoFit]),
-        ]),
+        previa,
+        el('div', { class: 'veiculo-campos' }, [campoNome, grupoFoto, avancado]),
       ]),
     ]);
   
-    /* -------------------------------------------------- gabarito e scanners -- */
+    /* ------------------------------------------------------------- pergunta -- */
   
-    const opcoesGabarito = () =>
-      CAMPO_DA_ALTERNATIVA.map((c, i) => {
-        const texto = (pergunta.pt?.[c] ?? '').trim();
-        const resumo = texto ? `: ${texto.slice(0, 46)}${texto.length > 46 ? '…' : ''}` : ' (vazia)';
-        return { valor: String(i + 1), rotulo: `Alternativa ${i + 1}${resumo}` };
-      });
-  
-    const campoGabarito = selecao({
-      rotulo: 'Resposta correta',
-      valor: String(pergunta.gabarito),
-      opcoes: opcoesGabarito(),
+    const sufixo = total > 1 ? ` ${posicao + 1} de ${total}` : '';
+    const chaveAtiva = interruptor({
+      rotulo: 'Ativa no jogo',
+      ligado: pergunta.ativa !== false,
+      ajuda: 'Desligada, a pergunta fica guardada como rascunho e nunca cai numa partida — e campo em branco nela não impede salvar.',
       onChange: (v) => {
-        pergunta.gabarito = v;
-        mudou();
+        blocoPergunta.classList.toggle('desligada', !v);
+        acoes.alternarAtiva?.(v);
       },
     });
+  
+    const cabecalhoPergunta = el('div', { class: 'bloco-cabecalho' }, [
+      el('h3', { class: 'bloco-titulo', text: `Pergunta${sufixo}` }),
+      chaveAtiva,
+      el('div', { class: 'bloco-acoes' }, [
+        botao('Duplicar pergunta', { icone: 'copiar', onClick: acoes.duplicarPergunta, acao: 'duplicar-pergunta' }),
+        botao('Excluir pergunta', {
+          icone: 'lixeira',
+          tipo: 'perigo',
+          onClick: acoes.excluirPergunta,
+          disabled: total <= 1,
+          titulo: total <= 1 ? 'Cada veículo precisa de pelo menos uma pergunta' : null,
+          acao: 'excluir-pergunta',
+        }),
+      ]),
+    ]);
+  
+    /* ---------------------------------------------------- textos e gabarito -- */
+  
+    let idiomaAtivo = IDIOMAS.includes(idioma) ? idioma : 'pt';
+    const painelTextos = el('div', { class: 'textos' });
+    const camposPorIdioma = {};
+    const nomeDoGabarito = `gabarito-${pergunta.id ?? indice}-${posicao}`;
+  
+    /**
+     * A resposta correta é marcada na própria alternativa. Era uma lista à
+     * parte, longe do texto, com o começo de cada alternativa repetido nela — e
+     * o operador conferia o gabarito lendo a lista, não a alternativa.
+     *
+     * Vale para os três idiomas: a marca é uma só, e cada aba a mostra.
+     */
+    function alternativa(nome, k, lang) {
+      const c = campo({
+        rotulo: `Alternativa ${k + 1}`,
+        obrigatorio: true,
+        multilinha: true,
+        linhas: 1,
+        semQuebra: true,
+        valor: pergunta[lang][nome],
+        onInput: (v) => {
+          pergunta[lang][nome] = v;
+          mudou();
+        },
+      });
+      const marca = el('input', { type: 'radio', name: nomeDoGabarito, value: String(k + 1) });
+      marca.checked = String(pergunta.gabarito) === String(k + 1);
+      marca.addEventListener('change', () => {
+        if (!marca.checked) return;
+        pergunta.gabarito = String(k + 1);
+        for (const a of painelTextos.querySelectorAll('.alternativa')) {
+          a.classList.toggle('correta', a.dataset.alternativa === String(k + 1));
+        }
+        mudou();
+      });
+      const raiz = el('div', { class: ['alternativa', marca.checked ? 'correta' : null], 'data-alternativa': String(k + 1) }, [
+        c,
+        el('label', { class: 'alternativa-certa', title: 'Marcar como a resposta correta' }, [
+          marca,
+          el('span', { text: 'Correta' }),
+        ]),
+      ]);
+      return { raiz, campo: c };
+    }
+  
+    const desenharTextos = () => {
+      limpar(painelTextos);
+      const lang = idiomaAtivo;
+      camposPorIdioma[lang] = {};
+      const guardar = (nome, c) => {
+        camposPorIdioma[lang][nome] = c;
+        return c;
+      };
+      const texto = (nome, rotulo, { linhas = 2, ajuda: textoDeAjuda = null, obrigatorio = CAMPOS_OBRIGATORIOS.includes(nome) } = {}) =>
+        guardar(
+          nome,
+          campo({
+            rotulo,
+            obrigatorio,
+            multilinha: true,
+            linhas,
+            ajuda: textoDeAjuda,
+            valor: pergunta[lang][nome],
+            onInput: (v) => {
+              pergunta[lang][nome] = v;
+              mudou();
+            },
+          })
+        );
+  
+      const alternativas = CAMPO_DA_ALTERNATIVA.map((nome, k) => {
+        const a = alternativa(nome, k, lang);
+        guardar(nome, a.campo);
+        return a.raiz;
+      });
+  
+      painelTextos.append(
+        texto('pergunta', 'Enunciado', { linhas: 3, ajuda: 'O defeito que aparece na caixa da pergunta.' }),
+        el('div', { class: 'grupo' }, [
+          el('div', { class: 'grupo-titulo' }, [
+            'Alternativas',
+            ajuda('Marque em "Correta" a alternativa certa. A marca vale para os três idiomas.', { rotulo: 'Alternativas' }),
+          ]),
+          el('div', { class: 'grade-2' }, alternativas),
+        ]),
+        el('div', { class: 'grupo' }, [
+          el('div', { class: 'grupo-titulo' }, [
+            'Dicas das ajudas',
+            ajuda('O que cada ajuda diz ao jogador quando ele a usa nesta pergunta.', { rotulo: 'Dicas das ajudas' }),
+          ]),
+          el('div', { class: 'grade-2' }, DICAS.map(([nome, rotulo, explicacao]) => texto(nome, rotulo, { ajuda: explicacao }))),
+        ]),
+        el('details', { class: 'avancado' }, [
+          el('summary', { text: 'Textos guardados que não aparecem no jogo' }),
+          el('div', { class: 'avancado-corpo grade-2' }, GUARDADOS.map(([nome, rotulo]) => texto(nome, rotulo))),
+        ])
+      );
+    };
+  
+    const pontos = {};
+    const abas = el(
+      'div',
+      { class: 'abas-idioma', role: 'tablist', 'aria-label': 'Idioma do texto' },
+      IDIOMAS.map((lang) => {
+        pontos[lang] = el('span', { class: 'aba-ponto', 'aria-hidden': 'true' });
+        pontos[lang].hidden = true;
+        return el(
+          'button',
+          {
+            type: 'button',
+            role: 'tab',
+            class: ['aba-idioma', lang === idiomaAtivo ? 'ativa' : null],
+            'aria-selected': lang === idiomaAtivo ? 'true' : 'false',
+            'data-idioma': lang,
+            onClick: (e) => {
+              idiomaAtivo = lang;
+              for (const b of abas.querySelectorAll('.aba-idioma')) {
+                const ativa = b === e.currentTarget;
+                b.classList.toggle('ativa', ativa);
+                b.setAttribute('aria-selected', ativa ? 'true' : 'false');
+              }
+              onIdioma?.(lang);
+              desenharTextos();
+              marcarErros(ultimosErros);
+            },
+          },
+          [NOME_DO_IDIOMA[lang], pontos[lang]]
+        );
+      })
+    );
+  
+    desenharTextos();
+  
+    /* ------------------------------------------------- equipamentos e vídeo -- */
   
     const grupoDeScanners = el(
       'div',
@@ -8320,6 +9164,8 @@
         })
       )
     );
+    const erroDosScanners = el('span', { class: 'campo-erro', role: 'alert' });
+    erroDosScanners.hidden = true;
   
     /**
      * Quem pula não vê a tela dos equipamentos, então as marcas acima não valem
@@ -8333,8 +9179,10 @@
     };
   
     const campoPular = caixaDeMarcar({
-      rotulo: 'Pular a escolha do equipamento nesta pergunta',
+      rotulo: 'Pular a escolha do equipamento',
       marcado: pergunta.pularEquipamento === true,
+      ajuda:
+        'Para pergunta que não depende de scanner: o jogo vai do veículo direto para ela, sem a tela dos equipamentos e sem o vídeo demonstrativo. Na aba Respostas, a partida aparece com o equipamento "não escolhido".',
       onChange: (v) => {
         pergunta.pularEquipamento = v;
         refletirPulo();
@@ -8346,108 +9194,46 @@
     // leva o link num QR code, na lição e na tela de fim. Um para os três
     // idiomas: o canal é em português.
     const campoVideo = campo({
-      rotulo: 'Vídeo do TecnomotorTV (link)',
+      rotulo: 'Vídeo do TecnomotorTV',
       valor: pergunta.video ?? '',
-      dica: 'Opcional. Cole o endereço completo (https://...). Quem errar esta pergunta leva um QR code para ele — na lição e na tela de fim.',
+      placeholder: 'https://… (opcional)',
+      ajuda: 'Opcional. Quem errar esta pergunta leva um QR code para este vídeo, na lição e na tela de fim. Cole o endereço completo, começando com https://.',
       onInput: (v) => {
         pergunta.video = v.trim();
         mudou();
       },
     });
   
-    const blocoRegras = el('section', { class: 'bloco' }, [
-      el('h3', { text: 'Regras desta pergunta' }),
-      campoGabarito,
-      campoVideo,
-      el('div', { class: 'campo' }, [
-        el('span', { class: 'campo-rotulo', text: 'Equipamentos que resolvem esta pergunta' }),
-        el('span', {
-          class: 'campo-dica',
-          text: 'Os não marcados levam o carimbo "INCOMPATÍVEL" quando o jogador os escolhe. Ao menos um precisa estar marcado. Vale só para esta pergunta — outra do mesmo veículo pode pedir equipamentos diferentes.',
-        }),
-        grupoDeScanners,
+    const grupoEquipamentos = el('div', { class: 'grupo grupo-equipamentos' }, [
+      el('div', { class: 'grupo-titulo' }, [
+        'Equipamentos que resolvem',
+        ajuda(
+          'Os equipamentos sem marca recebem o carimbo INCOMPATÍVEL quando o jogador os escolhe. Marque pelo menos um. Vale só para esta pergunta: outra do mesmo veículo pode pedir equipamentos diferentes.',
+          { rotulo: 'Equipamentos que resolvem' }
+        ),
       ]),
-      el('div', { class: 'campo' }, [
-        campoPular,
-        el('span', {
-          class: 'campo-dica',
-          text: 'Para pergunta que não depende de scanner: o jogo vai do veículo direto para ela, com o Rasther 3S na etiqueta "Você está usando" e sem o vídeo demonstrativo de 14s. Os equipamentos acima deixam de valer, e a aba Respostas grava a partida como "não escolhido".',
-        }),
-      ]),
+      grupoDeScanners,
+      erroDosScanners,
+      campoPular,
     ]);
   
     refletirPulo();
   
-    /* --------------------------------------------------------------- textos -- */
-  
-    let idiomaAtivo = 'pt';
-    const painelTextos = el('div', { class: 'textos' });
-    const camposPorIdioma = {};
-  
-    const desenharTextos = () => {
-      limpar(painelTextos);
-      const lang = idiomaAtivo;
-      camposPorIdioma[lang] = {};
-      for (const nome of CAMPOS_QUESTAO) {
-        const [rotulo, dica] = ROTULOS[nome] ?? [nome, null];
-        const obrigatorio = CAMPOS_OBRIGATORIOS.includes(nome);
-        const c = campo({
-          rotulo,
-          dica,
-          obrigatorio,
-          multilinha: nome === 'pergunta' || nome.startsWith('ajuda') || nome === 'maisInformacoes',
-          valor: pergunta[lang][nome],
-          onInput: (v) => {
-            pergunta[lang][nome] = v;
-            // O rótulo do gabarito mostra o começo de cada alternativa em pt.
-            if (lang === 'pt' && CAMPO_DA_ALTERNATIVA.includes(nome)) {
-              const atual = campoGabarito.entrada.value;
-              limpar(campoGabarito.entrada);
-              for (const o of opcoesGabarito()) {
-                const opt = el('option', { value: o.valor, text: o.rotulo });
-                if (o.valor === atual) opt.selected = true;
-                campoGabarito.entrada.appendChild(opt);
-              }
-            }
-            mudou();
-          },
-        });
-        camposPorIdioma[lang][nome] = c;
-        painelTextos.appendChild(c);
-      }
-    };
-  
-    const abas = el(
-      'div',
-      { class: 'abas-idioma', role: 'tablist' },
-      IDIOMAS.map((lang) =>
-        el('button', {
-          type: 'button',
-          role: 'tab',
-          class: ['aba-idioma', lang === idiomaAtivo ? 'ativa' : null],
-          text: NOME_IDIOMA[lang],
-          'aria-selected': lang === idiomaAtivo ? 'true' : 'false',
-          onClick: (e) => {
-            idiomaAtivo = lang;
-            for (const b of abas.children) {
-              const ativa = b === e.currentTarget;
-              b.classList.toggle('ativa', ativa);
-              b.setAttribute('aria-selected', ativa ? 'true' : 'false');
-            }
-            desenharTextos();
-            marcarErros(ultimosErros);
-          },
-        })
-      )
-    );
-  
-    desenharTextos();
-  
-    const blocoTextos = el('section', { class: 'bloco' }, [
-      el('h3', { text: 'Textos' }),
-      el('p', { class: 'nota', text: 'Os três idiomas são independentes: o jogo não tem retorno para o português se um campo ficar vazio — a tela aparece em branco.' }),
-      abas,
-      painelTextos,
+    const blocoPergunta = el('section', { class: ['bloco', 'bloco-pergunta', pergunta.ativa === false ? 'desligada' : null] }, [
+      cabecalhoPergunta,
+      el('div', { class: 'pergunta-corpo' }, [
+        el('div', { class: 'pergunta-textos' }, [
+          el('div', { class: 'abas-linha' }, [
+            abas,
+            ajuda(
+              'Preencha os três idiomas: se um campo ficar em branco, o jogo mostra a tela vazia naquele idioma — ele não usa o português no lugar.',
+              { rotulo: 'Idiomas' }
+            ),
+          ]),
+          painelTextos,
+        ]),
+        el('div', { class: 'pergunta-regras' }, [grupoEquipamentos, el('div', { class: 'grupo' }, [campoVideo])]),
+      ]),
     ]);
   
     /* ---------------------------------------------------------- marcar erros -- */
@@ -8455,45 +9241,414 @@
     let ultimosErros = [];
   
     /**
-     * Recebe as mensagens de validarBaralho() desta rodada e acende o campo
-     * correspondente, para o operador não ter de caçar na lista.
+     * Recebe as mensagens de validarBaralho() desta pergunta e acende o campo
+     * correspondente, para o operador não ter de caçar na lista — e um ponto na
+     * aba do idioma que tem campo em branco, que de outro jeito só se descobria
+     * abrindo as três.
      */
     function marcarErros(mensagens) {
       ultimosErros = mensagens ?? [];
       for (const c of Object.values(camposPorIdioma[idiomaAtivo] ?? {})) c.marcarErro(null);
       campoNome.marcarErro(null);
-      campoImagem.marcarErro(null);
       campoVideo.marcarErro(null);
+      erroDaFoto.hidden = true;
+      previa.classList.remove('tem-erro');
+      erroDosScanners.hidden = true;
+      grupoEquipamentos.classList.remove('tem-erro');
+      for (const lang of IDIOMAS) pontos[lang].hidden = true;
   
       for (const m of ultimosErros) {
         if (/sem nome/.test(m)) campoNome.marcarErro('Obrigatório');
-        if (/sem imagem/.test(m)) campoImagem.marcarErro('Obrigatório');
+        if (/sem imagem/.test(m)) {
+          erroDaFoto.textContent = 'Escolha uma foto do jogo ou envie uma do computador.';
+          erroDaFoto.hidden = false;
+          previa.classList.add('tem-erro');
+        }
+        if (/nenhum equipamento/.test(m)) {
+          erroDosScanners.textContent = 'Marque pelo menos um equipamento — ou pule a escolha.';
+          erroDosScanners.hidden = false;
+          grupoEquipamentos.classList.add('tem-erro');
+        }
         if (/link do vídeo/.test(m)) campoVideo.marcarErro('Precisa ser um endereço que começa com https://');
         const vazio = m.match(/(\w+) vazio em (PT|EN|ES)/);
         if (vazio) {
-          const [, nome, lang] = vazio;
-          if (lang.toLowerCase() === idiomaAtivo) {
-            camposPorIdioma[idiomaAtivo]?.[nome]?.marcarErro('Obrigatório neste idioma');
-          }
+          const [, nome, sigla] = vazio;
+          const lang = sigla.toLowerCase();
+          if (pontos[lang]) pontos[lang].hidden = false;
+          if (lang === idiomaAtivo) camposPorIdioma[idiomaAtivo]?.[nome]?.marcarErro('Obrigatório neste idioma');
         }
       }
     }
   
-    const raiz = el('div', { class: 'editor' }, [
-      el('div', { class: 'editor-cabecalho' }, [
-        el('h2', { text: slot.veiculo?.nome?.trim() || `Rodada ${indice + 1}` }),
-        el('span', { class: 'selo-fatia', text: `fatia ${indice + 1} da roleta` }),
-        total > 1 ? el('span', { class: 'selo-fatia', text: `pergunta ${posicao + 1} de ${total}` }) : null,
-        pergunta.ativa === false ? el('span', { class: 'selo-fatia selo-desligado', text: 'desligada' }) : null,
-      ]),
-      blocoVeiculo,
-      blocoRegras,
-      blocoTextos,
-    ]);
+    const raiz = el('div', { class: 'editor' }, [cabecalho, blocoVeiculo, blocoPergunta]);
     raiz.marcarErros = marcarErros;
     return raiz;
   }
   Object.defineProperty(__exports, "editorDeSlot", { get: () => editorDeSlot, enumerable: true });
+  });
+
+  /* ===== pages/tela_video_scanner.js ===== */
+  __define("pages/tela_video_scanner.js", function (__exports, __require) {
+  // Port of lib/pages/tela_video_scanner/tela_video_scanner_widget.dart
+  //
+  // A 14s demo clip of the chosen scanner, then straight into the action screen.
+  // The clips are the same public Firebase Storage URLs the Dart used.
+  
+  const { Column, Container, Padding, Stack, StackAlign, Txt, VideoPlayer, color, decorationImage, el } = __require("widgets.js");
+  const { TH, style } = __require("theme.js");
+  const { L } = __require("i18n.js");
+  const { FFAppState } = __require("state.js");
+  const { CONFIG } = __require("config.js");
+  const { goNamed } = __require("router.js");
+  const { readRaw, writeRaw } = __require("storage.js");
+  const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnPageLoad, delayed } = __require("anim.js");
+  
+  const BASE = 'https://firebasestorage.googleapis.com/v0/b/projeto-assis-3qcf6v.appspot.com/o/videoScanners';
+  
+  const VIDEOS = {
+    Td80: `${BASE}%2FTD80.mp4?alt=media&token=65d0550d-7aa6-4cc1-beec-806b1db9b034`,
+    Td90: `${BASE}%2FTD90.mp4?alt=media&token=618b753c-dfe1-44b4-a38c-c51f6b43aaa9`,
+    'Rasther 3': `${BASE}%2F3S%20(1).mp4?alt=media&token=2223d09b-e65f-4e71-80d2-44f544b47626`,
+    RB: `${BASE}%2FRasther%20BOX.mp4?alt=media&token=6a029d9f-0d8f-48bc-a18c-cb9e0865fe5f`,
+    RST: `${BASE}%2FRasther%20ST.mp4?alt=media&token=bd84db8d-674c-48c1-8fc0-00556944d16a`,
+  };
+  
+  const DEFAULT_VIDEO = VIDEOS['Rasther 3'];
+  
+  /** Optional local copies - see CONFIG.useLocalScannerVideos in config.js. */
+  const LOCAL_VIDEOS = {
+    Td80: 'assets/videos/scanners/TD80.mp4',
+    Td90: 'assets/videos/scanners/TD90.mp4',
+    'Rasther 3': 'assets/videos/scanners/3S.mp4',
+    RB: 'assets/videos/scanners/RastherBOX.mp4',
+    RST: 'assets/videos/scanners/RastherST.mp4',
+  };
+  
+  function videoFor(scannerEscolhido) {
+    if (CONFIG.useLocalScannerVideos) {
+      return LOCAL_VIDEOS[scannerEscolhido] ?? LOCAL_VIDEOS['Rasther 3'];
+    }
+    return VIDEOS[scannerEscolhido] ?? DEFAULT_VIDEO;
+  }
+  
+  /* ------------------------------------------------- pular esta tela ------- */
+  
+  /**
+   * O operador pode tirar esta tela do caminho, no painel (aba Configurações). Os
+   * clipes ainda apontam para o bucket do FlutterFlow, que responde 402 (ver
+   * `useLocalScannerVideos` em config.js): sem as cópias locais, são 14 segundos
+   * de tela escura entre o equipamento e a pergunta — e fila parada.
+   *
+   * Fica guardado neste navegador, como o estilo da pergunta: cada totem decide.
+   */
+  const CHAVE_PULAR = 'scanner.pularVideo';
+  
+  const pulaVideoDoEquipamento = () => readRaw(CHAVE_PULAR) === '1';
+  
+  const definirPularVideoDoEquipamento = (pular) => writeRaw(CHAVE_PULAR, pular ? '1' : '0');
+  
+  /**
+   * Para onde o jogo vai depois que o jogador escolhe o equipamento.
+   *
+   * O Rasther 4 entrou na 3.1 sem vídeo demonstrativo: cair no clipe padrão
+   * mostraria o 3S como se fosse ele. Sem vídeo próprio, a tela não tem o que
+   * apresentar, e o jogo segue direto para a pergunta.
+   */
+  function telaDepoisDoEquipamento(scannerEscolhido) {
+    const temVideo = scannerEscolhido in (CONFIG.useLocalScannerVideos ? LOCAL_VIDEOS : VIDEOS);
+    return pulaVideoDoEquipamento() || !temVideo ? 'telaAcao' : 'telaVideoScanner';
+  }
+  
+  function TelaVideoScannerWidget() {
+    let left = false;
+  
+    const animationsMap = {
+      textOnPageLoadAnimation: new AnimationInfo({
+        loop: true,
+        reverse: true,
+        trigger: AnimationTrigger.onPageLoad,
+        effectsBuilder: () => [
+          ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [1.0, 1.0], end: [1.02, 1.02] }),
+        ],
+      }),
+    };
+  
+    const label = Txt(
+      L('islas0rw') /* Vídeo demonstrativo * */,
+      style('bodyMedium', { fontFamily: 'pirulen', color: color(0xFFFFBC00), fontSize: 32.0 })
+    );
+    animateOnPageLoad(label, animationsMap.textOnPageLoadAnimation);
+  
+    const root = el(
+      'div',
+      { class: 'ff-scaffold', style: { background: TH.primaryBackground } },
+      Stack({
+        children: [
+          Container({
+            width: Infinity,
+            height: Infinity,
+            image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),
+            child: Column({
+              mainAxisSize: 'max',
+              children: [
+                VideoPlayer({
+                  path: videoFor(FFAppState.scannerEscolhido),
+                  autoPlay: true,
+                  looping: true,
+                  showControls: false,
+                }),
+              ],
+            }),
+          }),
+          StackAlign({
+            alignment: [-1.0, -1.0],
+            child: Padding({ padding: [32.0, 32.0, 0.0, 0.0], child: label }),
+          }),
+        ],
+      })
+    );
+  
+    delayed(14000).then(() => {
+      if (left || !root.isConnected) return;
+      goNamed('telaAcao');
+    });
+  
+    root.__dispose = () => {
+      left = true;
+    };
+  
+    return root;
+  }
+  Object.defineProperty(__exports, "pulaVideoDoEquipamento", { get: () => pulaVideoDoEquipamento, enumerable: true });
+  Object.defineProperty(__exports, "definirPularVideoDoEquipamento", { get: () => definirPularVideoDoEquipamento, enumerable: true });
+  Object.defineProperty(__exports, "telaDepoisDoEquipamento", { get: () => telaDepoisDoEquipamento, enumerable: true });
+  Object.defineProperty(__exports, "TelaVideoScannerWidget", { get: () => TelaVideoScannerWidget, enumerable: true });
+  });
+
+  /* ===== admin/configuracoes.js ===== */
+  __define("admin/configuracoes.js", function (__exports, __require) {
+  // A aba Configurações do painel: o que o operador ajusta no estande, e não no
+  // baralho — vale só para ESTE navegador, na hora, sem Salvar.
+  //
+  //   - o estilo da tela da pergunta (clássico ou palco — ver palco.js);
+  //   - pular o vídeo demonstrativo do equipamento (ver tela_video_scanner.js);
+  //   - o volume do som, porque a feira barulhenta e o auditório silencioso
+  //     pedem volumes diferentes, e ele era cravado no código;
+  //   - a Pergunta do Milhão do dia: chamar o mais rápido de volta ao totem para
+  //     uma pergunta extra, valendo brinde (ver pages/milhao.js);
+  //   - zerar os dados deste navegador, o botão de antes da feira.
+  //
+  // Até a 3.2 isto morava no pé da lista de veículos, como "Na feira" e "Antes da
+  // feira": quem procurava o volume rolava a lista inteira de carros, e quem
+  // editava carros tinha o volume no caminho. Ganhou aba própria.
+  
+  const { el, botao, aviso, campo, caixaDeMarcar, selecao, ajuda, icone } = __require("admin/ui.js");
+  const { definirEstiloDaPergunta, estiloDaPergunta } = __require("palco.js");
+  const { alternarMudo, definirVolume, estaMudo, volumeAtual } = __require("audio.js");
+  const { Som } = __require("som.js");
+  const { maisRapidoDoDia } = __require("estatisticas.js");
+  const { formatarTempoDeResposta } = __require("functions.js");
+  const { getRecords } = __require("storage.js");
+  const { carregarBaralho } = __require("deck.js");
+  const { definirPularVideoDoEquipamento, pulaVideoDoEquipamento } = __require("pages/tela_video_scanner.js");
+  
+  /** Um cartão da aba: título, (?) opcional e o conteúdo. */
+  function cartao(titulo, { ajuda: textoDeAjuda = null, classe = null } = {}, conteudo = []) {
+    return el('section', { class: ['bloco', 'cartao-config', classe] }, [
+      el('h3', { class: 'bloco-titulo' }, [titulo, textoDeAjuda ? ajuda(textoDeAjuda, { rotulo: titulo }) : null]),
+      ...conteudo,
+    ]);
+  }
+  
+  function cartaoDoJogo() {
+    const campoEstilo = selecao({
+      rotulo: 'Estilo da tela da pergunta',
+      valor: estiloDaPergunta(),
+      opcoes: [
+        { valor: 'classico', rotulo: 'Clássico — a coluna do Show do Milhão (padrão)' },
+        { valor: 'palco', rotulo: 'Palco — os losangos do Milionário' },
+      ],
+      onChange: (v) => {
+        definirEstiloDaPergunta(v);
+        aviso(`A próxima pergunta já sai no estilo ${v === 'palco' ? 'Palco' : 'Clássico'}.`);
+      },
+    });
+  
+    const campoPularVideo = el('div', { class: 'campo', 'data-campo': 'pular-video' }, [
+      caixaDeMarcar({
+        rotulo: 'Pular o vídeo demonstrativo do equipamento',
+        marcado: pulaVideoDoEquipamento(),
+        ajuda: 'Tira os 14 segundos de vídeo entre a escolha do equipamento e a pergunta. O Rasther 4 não tem vídeo e sempre vai direto.',
+        onChange: (v) => {
+          definirPularVideoDoEquipamento(v);
+          aviso(
+            v
+              ? 'A partir da próxima partida, o jogo vai do equipamento direto para a pergunta.'
+              : 'O vídeo do equipamento volta a passar antes da pergunta.'
+          );
+        },
+      }),
+    ]);
+  
+    return cartao('Jogo', {}, [campoEstilo, campoPularVideo]);
+  }
+  
+  function cartaoDoSom() {
+    const faixa = el('input', {
+      type: 'range',
+      min: '0',
+      max: '100',
+      step: '5',
+      class: 'volume-faixa',
+      'aria-label': 'Volume do som do jogo',
+    });
+    faixa.value = String(Math.round(volumeAtual() * 100));
+    const valor = el('span', { class: 'volume-valor', text: `${faixa.value}%` });
+    const mudo = caixaDeMarcar({
+      rotulo: 'Sem som',
+      marcado: estaMudo(),
+      onChange: (v) => {
+        if (v !== estaMudo()) alternarMudo();
+      },
+    });
+    faixa.addEventListener('input', () => {
+      definirVolume(Number(faixa.value) / 100);
+      valor.textContent = `${faixa.value}%`;
+      mudo.entrada.checked = estaMudo();
+    });
+  
+    return cartao(
+      'Som',
+      {
+        ajuda:
+          'No totem, sem abrir o painel: Ctrl+Alt+M liga e desliga o som, Ctrl+Alt+↑/↓ muda o volume e Ctrl+Alt+Home volta ao cadastro.',
+      },
+      [
+        el('div', { class: 'campo' }, [
+          el('span', { class: 'campo-rotulo' }, [el('span', { class: 'campo-rotulo-texto', text: 'Volume' })]),
+          el('div', { class: 'volume-linha' }, [
+            faixa,
+            valor,
+            botao('Testar', { icone: 'tocar', onClick: () => Som.fanfarra(0), titulo: 'Toca a fanfarra do acerto no volume escolhido' }),
+          ]),
+        ]),
+        mudo,
+      ]
+    );
+  }
+  
+  /**
+   * @param {Function} aoChamar recebe `(nome, qual)` — `qual` é `"sorteio"` ou
+   *   `"i:j"` (veículo e pergunta). Quem chama é o painel, que sabe fechar a
+   *   camada e o que fazer com a edição pendente.
+   */
+  function cartaoDoMilhao(aoChamar) {
+    // A lista vem do baralho PUBLICADO — é com ele que o jogo joga, e não com a
+    // cópia em edição na outra aba.
+    const publicado = carregarBaralho();
+    const opcoes = [{ valor: 'sorteio', rotulo: 'Sortear uma das perguntas ativas' }];
+    publicado.slots.forEach((slot, i) =>
+      (slot.perguntas ?? []).forEach((p, j) => {
+        if (p.ativa === false) return;
+        const texto = (p.pt?.pergunta ?? '').trim();
+        opcoes.push({
+          valor: `${i}:${j}`,
+          rotulo: `${slot.veiculo?.nome?.trim() || `Veículo ${i + 1}`} — ${texto.slice(0, 48)}${texto.length > 48 ? '…' : ''}`,
+        });
+      })
+    );
+  
+    const campeao = maisRapidoDoDia();
+    const campoNome = campo({
+      rotulo: 'Quem vai jogar',
+      valor: campeao?.nome ?? '',
+      placeholder: 'Nome do jogador',
+      dica: campeao ? `O mais rápido de hoje neste totem: ${campeao.nome}, ${formatarTempoDeResposta(campeao.tempo)}.` : null,
+    });
+    const campoPergunta = selecao({ rotulo: 'Pergunta', valor: 'sorteio', opcoes });
+  
+    const ultimas = getRecords('milhao').slice(-3).reverse();
+  
+    return cartao(
+      'Pergunta do Milhão',
+      {
+        classe: 'cartao-milhao',
+        ajuda: 'Sem ajudas, e não entra no ranking. O painel fecha e o totem vai direto para a pergunta, com o nome de quem vai jogar.',
+      },
+      [
+        el('p', { class: 'nota', text: 'Uma pergunta extra, valendo brinde, para chamar o mais rápido do dia de volta ao totem.' }),
+        el('div', { class: 'milhao-linha' }, [
+          campoNome,
+          campoPergunta,
+          botao('Chamar ao palco', {
+            tipo: 'primario',
+            onClick: () => aoChamar(campoNome.entrada.value, campoPergunta.entrada.value),
+          }),
+        ]),
+        ultimas.length
+          ? el('div', { class: 'milhao-ultimas' }, [
+              el('span', { class: 'campo-rotulo', text: 'Últimas chamadas neste totem' }),
+              el(
+                'ul',
+                {},
+                ultimas.map((r) =>
+                  el('li', {
+                    text: `${r.nome || '(sem nome)'} — ${r.venceu ? `levou o brinde (${formatarTempoDeResposta(r.tempo)})` : 'não levou'} · ${new Date(r.data).toLocaleString('pt-BR')}`,
+                  })
+                )
+              ),
+            ])
+          : null,
+      ]
+    );
+  }
+  
+  /** O fim da aba é o lugar de quem só se procura de propósito. */
+  function cartaoDeZerar(aoResetar) {
+    return cartao(
+      'Zerar os dados deste navegador',
+      {
+        classe: 'zona-de-risco',
+        ajuda: 'O que já foi salvo no Firebase continua lá — isso só se apaga pelo console do Firebase.',
+      },
+      [
+        el('div', { class: 'zerar-linha' }, [
+          el('p', {
+            class: 'nota',
+            text: 'Para antes da feira: volta às perguntas de fábrica e apaga deste navegador o ranking e os telefones das partidas já jogadas.',
+          }),
+          botao('Resetar todos os dados', { onClick: aoResetar, tipo: 'perigo', icone: 'lixeira' }),
+        ]),
+      ]
+    );
+  }
+  
+  /**
+   * A aba inteira.
+   *
+   * @param {object} props
+   * @param {Function} props.aoChamarMilhao ver `cartaoDoMilhao`
+   * @param {Function} props.aoResetar o "Resetar todos os dados", que mexe no
+   *   baralho em edição — por isso é o painel que o faz
+   */
+  function telaConfiguracoes({ aoChamarMilhao, aoResetar }) {
+    return el('main', { class: 'corpo corpo-config' }, [
+      el('div', { class: 'pagina-topo' }, [
+        el('h2', { text: 'Configurações' }),
+        el('p', { class: 'nota' }, [
+          icone('alerta', { classe: 'nota-icone' }),
+          'Valem só para este navegador e já começam a valer — não precisa salvar.',
+        ]),
+      ]),
+      el('div', { class: 'grade-config' }, [
+        cartaoDoJogo(),
+        cartaoDoSom(),
+        cartaoDoMilhao(aoChamarMilhao),
+        cartaoDeZerar(aoResetar),
+      ]),
+    ]);
+  }
+  Object.defineProperty(__exports, "telaConfiguracoes", { get: () => telaConfiguracoes, enumerable: true });
   });
 
   /* ===== particulas.js ===== */
@@ -8727,144 +9882,6 @@
   Object.defineProperty(__exports, "fumaca", { get: () => fumaca, enumerable: true });
   Object.defineProperty(__exports, "limparParticulas", { get: () => limparParticulas, enumerable: true });
   Object.defineProperty(__exports, "noPalco", { get: () => noPalco, enumerable: true });
-  });
-
-  /* ===== pages/tela_video_scanner.js ===== */
-  __define("pages/tela_video_scanner.js", function (__exports, __require) {
-  // Port of lib/pages/tela_video_scanner/tela_video_scanner_widget.dart
-  //
-  // A 14s demo clip of the chosen scanner, then straight into the action screen.
-  // The clips are the same public Firebase Storage URLs the Dart used.
-  
-  const { Column, Container, Padding, Stack, StackAlign, Txt, VideoPlayer, color, decorationImage, el } = __require("widgets.js");
-  const { TH, style } = __require("theme.js");
-  const { L } = __require("i18n.js");
-  const { FFAppState } = __require("state.js");
-  const { CONFIG } = __require("config.js");
-  const { goNamed } = __require("router.js");
-  const { readRaw, writeRaw } = __require("storage.js");
-  const { AnimationInfo, AnimationTrigger, Curves, ScaleEffect, animateOnPageLoad, delayed } = __require("anim.js");
-  
-  const BASE = 'https://firebasestorage.googleapis.com/v0/b/projeto-assis-3qcf6v.appspot.com/o/videoScanners';
-  
-  const VIDEOS = {
-    Td80: `${BASE}%2FTD80.mp4?alt=media&token=65d0550d-7aa6-4cc1-beec-806b1db9b034`,
-    Td90: `${BASE}%2FTD90.mp4?alt=media&token=618b753c-dfe1-44b4-a38c-c51f6b43aaa9`,
-    'Rasther 3': `${BASE}%2F3S%20(1).mp4?alt=media&token=2223d09b-e65f-4e71-80d2-44f544b47626`,
-    RB: `${BASE}%2FRasther%20BOX.mp4?alt=media&token=6a029d9f-0d8f-48bc-a18c-cb9e0865fe5f`,
-    RST: `${BASE}%2FRasther%20ST.mp4?alt=media&token=bd84db8d-674c-48c1-8fc0-00556944d16a`,
-  };
-  
-  const DEFAULT_VIDEO = VIDEOS['Rasther 3'];
-  
-  /** Optional local copies - see CONFIG.useLocalScannerVideos in config.js. */
-  const LOCAL_VIDEOS = {
-    Td80: 'assets/videos/scanners/TD80.mp4',
-    Td90: 'assets/videos/scanners/TD90.mp4',
-    'Rasther 3': 'assets/videos/scanners/3S.mp4',
-    RB: 'assets/videos/scanners/RastherBOX.mp4',
-    RST: 'assets/videos/scanners/RastherST.mp4',
-  };
-  
-  function videoFor(scannerEscolhido) {
-    if (CONFIG.useLocalScannerVideos) {
-      return LOCAL_VIDEOS[scannerEscolhido] ?? LOCAL_VIDEOS['Rasther 3'];
-    }
-    return VIDEOS[scannerEscolhido] ?? DEFAULT_VIDEO;
-  }
-  
-  /* ------------------------------------------------- pular esta tela ------- */
-  
-  /**
-   * O operador pode tirar esta tela do caminho, no painel ("Na feira"). Os
-   * clipes ainda apontam para o bucket do FlutterFlow, que responde 402 (ver
-   * `useLocalScannerVideos` em config.js): sem as cópias locais, são 14 segundos
-   * de tela escura entre o equipamento e a pergunta — e fila parada.
-   *
-   * Fica guardado neste navegador, como o estilo da pergunta: cada totem decide.
-   */
-  const CHAVE_PULAR = 'scanner.pularVideo';
-  
-  const pulaVideoDoEquipamento = () => readRaw(CHAVE_PULAR) === '1';
-  
-  const definirPularVideoDoEquipamento = (pular) => writeRaw(CHAVE_PULAR, pular ? '1' : '0');
-  
-  /**
-   * Para onde o jogo vai depois que o jogador escolhe o equipamento.
-   *
-   * O Rasther 4 entrou na 3.1 sem vídeo demonstrativo: cair no clipe padrão
-   * mostraria o 3S como se fosse ele. Sem vídeo próprio, a tela não tem o que
-   * apresentar, e o jogo segue direto para a pergunta.
-   */
-  function telaDepoisDoEquipamento(scannerEscolhido) {
-    const temVideo = scannerEscolhido in (CONFIG.useLocalScannerVideos ? LOCAL_VIDEOS : VIDEOS);
-    return pulaVideoDoEquipamento() || !temVideo ? 'telaAcao' : 'telaVideoScanner';
-  }
-  
-  function TelaVideoScannerWidget() {
-    let left = false;
-  
-    const animationsMap = {
-      textOnPageLoadAnimation: new AnimationInfo({
-        loop: true,
-        reverse: true,
-        trigger: AnimationTrigger.onPageLoad,
-        effectsBuilder: () => [
-          ScaleEffect({ curve: Curves.easeInOut, delay: 0.0, duration: 600.0, begin: [1.0, 1.0], end: [1.02, 1.02] }),
-        ],
-      }),
-    };
-  
-    const label = Txt(
-      L('islas0rw') /* Vídeo demonstrativo * */,
-      style('bodyMedium', { fontFamily: 'pirulen', color: color(0xFFFFBC00), fontSize: 32.0 })
-    );
-    animateOnPageLoad(label, animationsMap.textOnPageLoadAnimation);
-  
-    const root = el(
-      'div',
-      { class: 'ff-scaffold', style: { background: TH.primaryBackground } },
-      Stack({
-        children: [
-          Container({
-            width: Infinity,
-            height: Infinity,
-            image: decorationImage('assets/images/BG_Seleo_Equipamento.png', 'cover'),
-            child: Column({
-              mainAxisSize: 'max',
-              children: [
-                VideoPlayer({
-                  path: videoFor(FFAppState.scannerEscolhido),
-                  autoPlay: true,
-                  looping: true,
-                  showControls: false,
-                }),
-              ],
-            }),
-          }),
-          StackAlign({
-            alignment: [-1.0, -1.0],
-            child: Padding({ padding: [32.0, 32.0, 0.0, 0.0], child: label }),
-          }),
-        ],
-      })
-    );
-  
-    delayed(14000).then(() => {
-      if (left || !root.isConnected) return;
-      goNamed('telaAcao');
-    });
-  
-    root.__dispose = () => {
-      left = true;
-    };
-  
-    return root;
-  }
-  Object.defineProperty(__exports, "pulaVideoDoEquipamento", { get: () => pulaVideoDoEquipamento, enumerable: true });
-  Object.defineProperty(__exports, "definirPularVideoDoEquipamento", { get: () => definirPularVideoDoEquipamento, enumerable: true });
-  Object.defineProperty(__exports, "telaDepoisDoEquipamento", { get: () => telaDepoisDoEquipamento, enumerable: true });
-  Object.defineProperty(__exports, "TelaVideoScannerWidget", { get: () => TelaVideoScannerWidget, enumerable: true });
   });
 
   /* ===== components/ferramenta.js ===== */
@@ -11985,7 +13002,7 @@
   __define("pages/milhao.js", function (__exports, __require) {
   // A Pergunta do Milhão do dia.
   //
-  // Uma rodada extra que o OPERADOR dispara, pelo painel ("Na feira"), para o
+  // Uma rodada extra que o OPERADOR dispara, pelo painel (aba Configurações), para o
   // jogador mais rápido do dia voltar ao totem e responder uma pergunta valendo
   // brinde. É a mesma tela da pergunta, com outra regra:
   //
@@ -12265,10 +13282,21 @@
   
   const { readRaw, writeRaw } = __require("storage.js");
   
-  const VERSAO_DO_JOGO = '3.2.0';
+  const VERSAO_DO_JOGO = '3.3.0';
   
   /** Mais recente primeiro — é a ordem em que o painel lista. */
   const NOTAS_DE_ATUALIZACAO = [
+    {
+      versao: '3.3.0',
+      data: '2026-10-07',
+      itens: [
+        'O painel ficou mais simples e ocupa quase toda a largura da tela. As explicações que ficavam embaixo de cada campo viraram um "?" ao lado do nome: passe o mouse por cima para ler.',
+        'No alto, um selo só diz como está o baralho: "Alterações não salvas", "Salvo há 3 min" ou quantos problemas impedem salvar. Clique nos problemas para ver a lista do que falta — cada item leva direto ao campo. O "Entrar" e o "Sair da conta" do Firebase também moram ali agora, e não mais escondidos na aba Respostas.',
+        'Nova aba Configurações: o estilo da tela da pergunta, o vídeo do equipamento, o volume, a Pergunta do Milhão e o "Resetar todos os dados" saíram do pé da lista de veículos e foram para lá.',
+        'A resposta correta agora se marca na própria alternativa, em "Correta". Subir, descer, duplicar e excluir veículo ou pergunta ficam no alto do editor, com o nome escrito, e a lista mostra a foto de cada veículo.',
+        'Foto enviada e trocada por outra antes de salvar sai na hora do Firebase Storage; a foto já publicada que você trocou sai logo depois do Salvar. E o botão "Baixar foto" devolve a foto enviada como arquivo.',
+      ],
+    },
     {
       versao: '3.2.0',
       data: '2026-10-06',
@@ -12789,6 +13817,9 @@
   // da porta viaja no mesmo JavaScript que o jogador recebe, e quem abrir o
   // código a lê. Ver a nota em `porta.js`: é tranca de gaveta, não cofre.
   //
+  // Três abas: Veículos (o baralho), Respostas (as partidas) e Configurações (o
+  // que vale só neste navegador — ver admin/configuracoes.js).
+  //
   // Editar aqui não mexe no totem até você clicar em Salvar. Salvar grava o
   // baralho neste navegador e, se houver nuvem, no Firebase; o jogo o relê quando
   // a próxima partida começa.
@@ -12798,25 +13829,20 @@
   // neste navegador e diz por quê. A mesma conta manda as fotos enviadas do
   // computador para o Storage — ver admin/imagens.js.
   
-  const { el, botao, aviso, confirmar, limpar, mostrarNotas, pedirCredenciais } = __require("admin/ui.js");
-  const { campo, caixaDeMarcar, selecao } = __require("admin/ui.js");
+  const { el, botao, aviso, confirmar, limpar, mostrarNotas, pedirCredenciais, ajuda, icone } = __require("admin/ui.js");
+  const { abrirPopover, fecharPopover } = __require("admin/ui.js");
   const { editorDeSlot } = __require("admin/editor.js");
-  const { definirEstiloDaPergunta, estiloDaPergunta } = __require("palco.js");
-  const { alternarMudo, definirVolume, estaMudo, volumeAtual } = __require("audio.js");
-  const { Som } = __require("som.js");
-  const { maisRapidoDoDia } = __require("estatisticas.js");
-  const { formatarTempoDeResposta } = __require("functions.js");
+  const { telaConfiguracoes } = __require("admin/configuracoes.js");
+  const { agruparProblemas, explicarProblema } = __require("admin/problemas.js");
   const { FFAppState } = __require("state.js");
-  const { getRecords } = __require("storage.js");
   const { goNamed } = __require("router.js");
   const { milhaoAutomatico } = __require("pages/milhao.js");
-  const { definirPularVideoDoEquipamento, pulaVideoDoEquipamento } = __require("pages/tela_video_scanner.js");
   const { rotuloDaPergunta } = __require("deck.js");
-  const { BARALHO_ORIGINAL, SLOTS_ORIGINAIS, carregarBaralho, novoIdDePergunta, perguntaVazia, publicarBaralho, restaurarOriginal, slotVazio, temBaralhoPublicado, usaArteOriginal, validarBaralho } = __require("deck.js");
+  const { BARALHO_ORIGINAL, SLOTS_ORIGINAIS, carregarBaralho, novoIdDePergunta, perguntaVazia, publicarBaralho, restaurarOriginal, slotVazio, temBaralhoPublicado, usaArteOriginal } = __require("deck.js");
   const { motivoDaFalha, removerChave } = __require("storage.js");
   const { podeUsarNuvem } = __require("firebase.js");
   const { publicarNaNuvem, sincronizarBaralho, ultimaPublicacao } = __require("nuvem.js");
-  const { CARENCIA_DIAS, enviosEmAndamento, fotosQueSumiram, limparFotosSemUso } = __require("admin/imagens.js");
+  const { CARENCIA_DIAS, apagarRecemEnviadasSemUso, enviosEmAndamento, esquecerRecemEnviadas, fotosDoBaralho, fotosQueSumiram, haRecemEnviadas, limparFotosSemUso } = __require("admin/imagens.js");
   const { VERSAO_DO_JOGO, NOTAS_DE_ATUALIZACAO, temNovidade, marcarVersaoVista } = __require("changelog.js");
   const { COLUNAS, aoMudarOperador, baixarArquivo, buscarRespostas, descreverFalha, entrar, formatarCelula, paraCSV, sair } = __require("admin/respostas.js");
   
@@ -12834,19 +13860,13 @@
     selecionado: 0,
     /** Qual pergunta do banco desse veículo está no editor. */
     pergunta: 0,
+    /** A aba de idioma do editor — fica a mesma ao trocar de veículo. */
+    idioma: 'pt',
     sujo: false,
     /** `{quando, quem}` da última gravação no Firebase, ou null. */
     ultimaNuvem: null,
-    /**
-     * Quais veículos estão com o banco de perguntas aberto.
-     *
-     * Começaram todos abertos, e com dez veículos a lateral virava um rolo. O
-     * aberto é o veículo em que se está trabalhando; os outros mostram só a
-     * contagem, que já responde "quantas perguntas este carro tem".
-     */
-    abertos: new Set([0]),
   
-    /** 'veiculos' | 'respostas' — qual aba do painel está visível. */
+    /** 'veiculos' | 'respostas' | 'config' — qual aba do painel está visível. */
     aba: 'veiculos',
     /** E-mail da conta do Firebase autenticada nesta aba, ou null. */
     operador: null,
@@ -12857,42 +13877,32 @@
   /** A raiz que `montarAdmin` recebe. Fora da camada aberta, é null. */
   let app = null;
   
-  /* -------------------------------------------------------------- validação -- */
-  
-  /**
-   * Agrupa as mensagens de validarBaralho por rodada, que é como a UI mostra.
-   *
-   * Desde o banco de perguntas a mensagem pode vir com duas coordenadas —
-   * "rodada 3, pergunta 2: ..." —, então o erro é guardado nas duas: por veículo
-   * (para o selo na lista) e por pergunta (para acender a certa).
-   */
-  function errosPorRodada(deck) {
-    const todos = validarBaralho(deck);
-    const porRodada = new Map();
-    const porPergunta = new Map();
-    const gerais = [];
-    for (const m of todos) {
-      const n = m.match(/^rodada (\d+)(?:, pergunta (\d+))?: (.*)$/);
-      if (n) {
-        const i = Number(n[1]) - 1;
-        const j = n[2] ? Number(n[2]) - 1 : 0;
-        if (!porRodada.has(i)) porRodada.set(i, []);
-        porRodada.get(i).push(n[3]);
-        const chave = `${i}:${j}`;
-        if (!porPergunta.has(chave)) porPergunta.set(chave, []);
-        porPergunta.get(chave).push(n[3]);
-      } else {
-        gerais.push(m);
-      }
-    }
-    return { total: todos.length, porRodada, porPergunta, gerais };
-  }
-  
   /** Um resumo curto da pergunta, para a lista. */
   const resumoDaPergunta = (pergunta, j) => {
     const texto = (pergunta?.pt?.pergunta ?? '').trim();
-    return texto ? texto.slice(0, 58) : `pergunta ${j + 1} (sem enunciado)`;
+    return texto ? texto.slice(0, 70) : `Pergunta ${j + 1} (sem enunciado)`;
   };
+  
+  const nomeDoVeiculo = (i) => estado.baralho.slots[i]?.veiculo?.nome?.trim() || `Veículo ${i + 1}`;
+  
+  /* ------------------------------------------------------- fotos sem uso -- */
+  
+  /**
+   * Apaga do Storage a foto que esta aba enviou e que nada mais cita — trocada
+   * por outra, veículo removido, alterações descartadas. Ver a nota grande em
+   * admin/imagens.js sobre por que só essas saem na hora.
+   *
+   * "Nada mais cita" é o editor E o baralho publicado: depois de "Descartar", a
+   * foto que voltou a valer é a publicada, e ela fica.
+   */
+  async function soltarFotosSemUso() {
+    if (!haRecemEnviadas()) return;
+    const emUso = new Set([...fotosDoBaralho(estado.baralho), ...fotosDoBaralho(carregarBaralho())]);
+    const { apagadas } = await apagarRecemEnviadasSemUso(emUso);
+    if (apagadas) {
+      aviso(apagadas === 1 ? 'A foto anterior foi apagada do Firebase Storage.' : `${apagadas} fotos sem uso foram apagadas do Firebase Storage.`);
+    }
+  }
   
   /* ------------------------------------------------------------------ ações -- */
   
@@ -12904,15 +13914,17 @@
       return;
     }
   
-    const { total, gerais, porRodada } = errosPorRodada(estado.baralho);
+    const { total, itens, gerais } = agruparProblemas(estado.baralho);
     if (total > 0) {
-      const primeira = [...porRodada.keys()].sort((a, b) => a - b)[0];
-      aviso(`${total} problema(s) impedem salvar. ${gerais[0] ?? ''}`.trim(), 'erro');
-      if (primeira != null) {
-        estado.selecionado = primeira;
-        estado.pergunta = 0;
-        desenhar();
-      }
+      const primeiro = itens[0];
+      const explicado = primeiro ? explicarProblema(primeiro.mensagem) : null;
+      aviso(
+        `${total === 1 ? 'Um problema impede' : `${total} problemas impedem`} salvar. ${
+          primeiro ? `${nomeDoVeiculo(primeiro.i)}: ${explicado.texto}.` : gerais[0] ?? ''
+        }`.trim(),
+        'erro'
+      );
+      if (primeiro) irParaProblema(primeiro);
       return;
     }
   
@@ -12925,7 +13937,7 @@
       !podeUsarNuvem()
         ? 'Atenção: esta cópia não fala com o Firebase, então o baralho vai valer só neste navegador. Para salvar na nuvem daqui, abra o jogo com ?comNuvem=1 no endereço.'
         : !estado.operador
-          ? 'Atenção: você entrou sem login, então o baralho vai valer só neste navegador. Entre com a conta do Firebase, na aba Respostas, para publicar para os outros totens.'
+          ? 'Atenção: você entrou sem login, então o baralho vai valer só neste navegador. Clique em Entrar, no alto da tela, para salvar para os outros totens.'
           : 'Vai para o Firebase: todo totem com internet pega na próxima partida.',
       'A próxima partida aqui já usa este conteúdo.',
     ].filter(Boolean);
@@ -12940,9 +13952,9 @@
     if (podeUsarNuvem() && estado.operador) {
       const { sumidas } = await fotosQueSumiram(estado.baralho);
       if (sumidas.length) {
-        const nomes = sumidas.map((i) => estado.baralho.slots[i]?.veiculo?.nome?.trim() || `rodada ${i + 1}`);
+        const nomes = sumidas.map((i) => nomeDoVeiculo(i));
         aviso(
-          `A foto de ${nomes.join(', ')} não existe mais no Firebase Storage (a limpeza apaga as que passam de ${CARENCIA_DIAS} dias sem uso). Envie a imagem de novo e salve.`,
+          `A foto de ${nomes.join(', ')} não existe mais no Firebase Storage (foi apagada por outra máquina, ou pela limpeza das que passam de ${CARENCIA_DIAS} dias sem uso). Envie a imagem de novo e salve.`,
           'erro'
         );
         estado.selecionado = sumidas[0];
@@ -12952,13 +13964,18 @@
       }
     }
   
+    // O que estava publicado ANTES deste Salvar: as fotos que ele citava e o novo
+    // não cita mais foram trocadas agora, e saem do Storage sem esperar a
+    // carência — depois de a troca chegar à nuvem, nunca antes.
+    const antes = carregarBaralho();
+  
     if (!publicarBaralho(estado.baralho)) {
       // "Cheio" e "recusado" pedem coisas opostas: um pede tirar imagem enviada,
       // o outro pede liberar o armazenamento do site. Dizer qual dos dois e.
       const motivo = motivoDaFalha();
       aviso(
         motivo === 'cheio'
-          ? `Não caberia: o baralho está com cerca de ${pesoDoBaralho()} KB e o navegador não aceitou. Imagens enviadas do computador sem login são o que mais ocupa — entre com a conta do Firebase e envie de novo (vão para o Storage), ou troque por um caminho de arquivo em assets/images.`
+          ? `Não caberia: o baralho está com cerca de ${pesoDoBaralho()} KB e o navegador não aceitou. Imagens enviadas do computador sem login são o que mais ocupa — entre com a conta do Firebase e envie de novo (vão para o Storage), ou troque por uma das fotos do jogo.`
           : 'Não foi possível gravar — o navegador está bloqueando o armazenamento deste site.',
         'erro'
       );
@@ -12972,10 +13989,7 @@
     // gravado local de propósito: se a internet estiver fora, o que foi editado
     // não se perde, e o operador é avisado do que ficou faltando.
     if (!podeUsarNuvem()) {
-      aviso(
-        'Esta cópia não fala com o Firebase — abra com ?comNuvem=1 no endereço para salvar na nuvem daqui.',
-        'erro'
-      );
+      aviso('Esta cópia não fala com o Firebase — abra com ?comNuvem=1 no endereço para salvar na nuvem daqui.', 'erro');
       return;
     }
     // Sem conta autenticada não adianta tentar: a regra de `conteudo` exige
@@ -12983,10 +13997,7 @@
     // um "insufficient permissions" que não diz ao operador o que fazer. Melhor
     // dizer aqui, com o caminho do conserto.
     if (!estado.operador) {
-      aviso(
-        'Sem login, o baralho ficou só neste navegador. Entre com a conta do Firebase, na aba Respostas, para publicar para os outros totens.',
-        'erro'
-      );
+      aviso('Sem login, o baralho ficou só neste navegador. Clique em Entrar, no alto da tela, para salvar para os outros totens.', 'erro');
       return;
     }
     const r = await publicarNaNuvem(estado.baralho);
@@ -13000,10 +14011,19 @@
     // A faxina do Storage roda aqui, e não num servidor: é o único momento em
     // que se sabe, com certeza, qual baralho está publicado. Com o que acabou
     // de subir, e não com `estado.baralho` — o operador pode voltar a editar
-    // enquanto a lista do Storage desce. Ver admin/imagens.js.
-    const limpeza = await limparFotosSemUso(clonar(carregarBaralho()));
+    // enquanto a lista do Storage desce; o que ele voltar a citar entra por
+    // `tambemEmUso`. Ver admin/imagens.js.
+    const publicado = clonar(carregarBaralho());
+    const fotosPublicadas = fotosDoBaralho(publicado);
+    // Publicadas, as fotos desta aba passam a ser do baralho da nuvem.
+    esquecerRecemEnviadas(fotosPublicadas);
+    const trocadas = [...fotosDoBaralho(antes)].filter((c) => !fotosPublicadas.has(c));
+    const limpeza = await limparFotosSemUso(publicado, {
+      semCarencia: trocadas,
+      tambemEmUso: () => (estado.baralho ? fotosDoBaralho(estado.baralho) : new Set()),
+    });
     if (limpeza.apagadas > 0) {
-      aviso(`${limpeza.apagadas} foto(s) que nenhum veículo usa havia mais de ${CARENCIA_DIAS} dias saíram do Firebase Storage.`);
+      aviso(`${limpeza.apagadas} foto(s) que nenhum veículo usa mais saíram do Firebase Storage.`);
     } else if (!limpeza.ok) {
       console.warn('limpeza do Storage não rodou:', limpeza.motivo);
     }
@@ -13028,7 +14048,7 @@
   
   async function atualizarRespostas() {
     estado.respostas.carregando = true;
-    if (estado.aba === 'respostas') atualizarChrome();
+    if (estado.aba === 'respostas') desenhar();
     try {
       const r = await buscarRespostas();
       if (!app) return;
@@ -13040,17 +14060,19 @@
       estado.respostas.carregando = false;
       aviso(`Não deu para carregar as respostas: ${erro?.message ?? erro}`, 'erro');
     }
-    if (app && estado.aba === 'respostas') atualizarChrome();
+    if (app && estado.aba === 'respostas') desenhar();
   }
   
   /**
-   * A conta do Firebase para ler telefone — não a senha 2040 da porta. Ver a
-   * nota grande em `admin/respostas.js` sobre por que uma exige a outra.
+   * A conta do Firebase — não a senha 2040 da porta. É a mesma que a porta
+   * pede onde a nuvem alcança; daqui ela serve a quem entrou pela senha local
+   * e ganhou rede depois. Ver a nota grande em `admin/respostas.js` sobre por
+   * que o telefone exige uma conta de verdade.
    */
   async function entrarComFirebase() {
     const dados = await pedirCredenciais({
-      titulo: 'Entrar para ver telefone',
-      texto: 'A conta do Firebase do projeto. Sem ela, a tabela mostra os dados da partida sem telefone.',
+      titulo: 'Entrar com a conta do Firebase',
+      texto: 'Com a conta, o Salvar vale para todos os totens, as fotos vão para o Firebase Storage e a aba Respostas mostra o telefone.',
     });
     if (!dados) return;
     const r = await entrar(dados.email, dados.senha, { manter: dados.manter });
@@ -13061,13 +14083,19 @@
       return;
     }
     aviso(`Conectado como ${dados.email} — ${dados.manter ? 'mantido neste navegador' : 'até fechar esta aba'}.`);
-    // A tabela é atualizada pelo aoMudarOperador (montarAdmin), que dispara
-    // sozinho quando o login mudar.
+    // A barra e a tabela são atualizadas pelo aoMudarOperador (montarAdmin), que
+    // dispara sozinho quando o login muda.
   }
   
   async function sairComFirebase() {
+    const ok = await confirmar({
+      titulo: 'Sair da conta?',
+      texto: `Você está conectado como ${estado.operador}. Sem a conta, o Salvar vale só neste navegador e a aba Respostas deixa de mostrar o telefone de quem jogou em outros totens.`,
+      confirmarTexto: 'Sair da conta',
+    });
+    if (!ok) return;
     await sair();
-    aviso('Desconectado. A tabela volta a mostrar sem telefone.');
+    aviso('Você saiu da conta do Firebase.');
   }
   
   function baixarRespostas() {
@@ -13081,13 +14109,16 @@
     baixarArquivo(`tecgame-respostas-${hoje}.csv`, paraCSV(linhas, colunas));
   }
   
+  /* ---------------------------------------------------------- o baralho ---- */
+  
   async function descartar() {
-    if (!(await confirmar({ titulo: 'Descartar alterações?', texto: 'Volta ao baralho salvo agora.', perigoso: true, confirmarTexto: 'Descartar' }))) return;
+    if (!(await confirmar({ titulo: 'Descartar alterações?', texto: 'Tudo volta a ser como estava no último Salvar.', perigoso: true, confirmarTexto: 'Descartar' }))) return;
     estado.baralho = clonar(carregarBaralho());
     estado.selecionado = Math.min(estado.selecionado, estado.baralho.slots.length - 1);
     estado.sujo = false;
     desenhar();
     aviso('Alterações descartadas.');
+    soltarFotosSemUso();
   }
   
   /**
@@ -13102,7 +14133,7 @@
     const ok = await confirmar({
       titulo: 'Resetar todos os dados?',
       texto:
-        'Volta ao baralho de fábrica (dez veículos, uma pergunta cada) e apaga deste navegador o ranking e os telefones das partidas já jogadas. O que já foi salvo no Firebase continua lá — isso só se apaga pelo console do Firebase.',
+        'Volta às perguntas de fábrica (dez veículos, uma pergunta cada) e apaga deste navegador o ranking e os telefones das partidas já jogadas. O que já foi salvo no Firebase continua lá — isso só se apaga pelo console do Firebase.',
       perigoso: true,
       confirmarTexto: 'Resetar tudo',
     });
@@ -13116,27 +14147,27 @@
     estado.pergunta = 0;
     estado.sujo = false;
     desenhar();
-    aviso('Baralho de fábrica de volta, e o ranking deste navegador apagado.');
+    aviso('Perguntas de fábrica de volta, e o ranking deste navegador apagado.');
+    soltarFotosSemUso();
   }
   
   function adicionarRodada() {
     estado.baralho.slots.push(slotVazio());
     estado.selecionado = estado.baralho.slots.length - 1;
     estado.pergunta = 0;
-    estado.abertos.add(estado.selecionado);
     estado.sujo = true;
     desenhar();
-    aviso('Veículo adicionado. Preencha o veículo e a primeira pergunta.');
+    // O veículo novo está no fim da lista, e é o nome dele que se digita
+    // primeiro.
+    app.querySelector('.veiculo-campos .campo-entrada')?.focus();
+    aviso('Veículo adicionado no fim da roleta. Dê um nome, escolha a foto e escreva a primeira pergunta.');
   }
-  
-  /* ---------------------------------------------- o banco de um veículo ----- */
   
   function adicionarPergunta(i) {
     const slot = estado.baralho.slots[i];
     slot.perguntas.push(perguntaVazia());
     estado.selecionado = i;
     estado.pergunta = slot.perguntas.length - 1;
-    estado.abertos.add(i);
     estado.sujo = true;
     desenhar();
     aviso('Pergunta nova no banco deste veículo. Preencha os três idiomas.');
@@ -13149,9 +14180,9 @@
     slot.perguntas.splice(j + 1, 0, copia);
     estado.selecionado = i;
     estado.pergunta = j + 1;
-    estado.abertos.add(i);
     estado.sujo = true;
     desenhar();
+    aviso('Pergunta duplicada. A cópia está aberta.');
   }
   
   async function removerPergunta(i, j) {
@@ -13163,10 +14194,10 @@
     const resumo = resumoDaPergunta(slot.perguntas[j], j);
     if (
       !(await confirmar({
-        titulo: 'Remover pergunta?',
-        texto: `"${resumo}" sai do banco de ${slot.veiculo.nome || 'este veículo'}.`,
+        titulo: 'Excluir pergunta?',
+        texto: `"${resumo}" sai do banco de ${nomeDoVeiculo(i)}.`,
         perigoso: true,
-        confirmarTexto: 'Remover',
+        confirmarTexto: 'Excluir',
       }))
     ) {
       return;
@@ -13193,21 +14224,24 @@
     copia.veiculo.nome = `${copia.veiculo.nome} (cópia)`;
     estado.baralho.slots.splice(i + 1, 0, copia);
     estado.selecionado = i + 1;
+    estado.pergunta = 0;
     estado.sujo = true;
     desenhar();
+    aviso('Veículo duplicado logo abaixo do original.');
   }
   
   async function removerRodada(i) {
     if (estado.baralho.slots.length <= 1) {
-      aviso('O baralho precisa de pelo menos uma rodada.', 'erro');
+      aviso('A roleta precisa de pelo menos um veículo.', 'erro');
       return;
     }
-    const nome = estado.baralho.slots[i].veiculo.nome || `rodada ${i + 1}`;
-    if (!(await confirmar({ titulo: 'Remover rodada?', texto: `"${nome}" sai do baralho.`, perigoso: true, confirmarTexto: 'Remover' }))) return;
+    if (!(await confirmar({ titulo: 'Excluir veículo?', texto: `"${nomeDoVeiculo(i)}" e as perguntas dele saem da roleta.`, perigoso: true, confirmarTexto: 'Excluir' }))) return;
     estado.baralho.slots.splice(i, 1);
     estado.selecionado = Math.max(0, Math.min(i, estado.baralho.slots.length - 1));
+    estado.pergunta = 0;
     estado.sujo = true;
     desenhar();
+    soltarFotosSemUso();
   }
   
   function mover(i, delta) {
@@ -13220,6 +14254,17 @@
     desenhar();
   }
   
+  /** Abre o veículo e a pergunta onde um problema mora, na aba de idioma dele. */
+  function irParaProblema({ i, j, mensagem }) {
+    fecharPopover();
+    estado.aba = 'veiculos';
+    estado.selecionado = i;
+    estado.pergunta = j;
+    const { idioma } = explicarProblema(mensagem);
+    if (idioma) estado.idioma = idioma;
+    desenhar();
+    app.querySelector('.painel .tem-erro')?.scrollIntoView({ block: 'center' });
+  }
   
   /* ------------------------------------------------------------------ telas -- */
   
@@ -13253,29 +14298,74 @@
   }
   
   /**
-   * A situação do baralho, numa frase.
+   * A situação do baralho, num selo só.
    *
-   * Antes o selo dizia "publicado no totem", que só falava deste navegador — e
-   * era justamente a pergunta errada: o operador precisa saber se o que ele
-   * salvou chegou ao Firebase, e se alguém em outra máquina salvou depois dele.
+   * Eram três, lado a lado — a gravação, "pronto para salvar" e a origem do
+   * baralho —, e o operador não sabia qual ler. A pergunta que ele faz é uma só:
+   * "preciso clicar em Salvar?". Problema vence alteração, que vence o "salvo";
+   * o detalhe de quando e onde foi salvo mora no (?).
    */
-  function seloDaSituacao() {
-    if (estado.sujo) return { texto: 'alterações não salvas', tipo: 'suja' };
+  function seloDaSituacao(total) {
+    if (total > 0) return { tipo: 'erro', texto: total === 1 ? '1 problema' : `${total} problemas` };
+    if (estado.sujo) return { tipo: 'suja', texto: 'Alterações não salvas' };
   
     const nuvem = estado.ultimaNuvem;
     if (nuvem?.quando) {
       return {
         tipo: 'ok',
-        texto: `salvo ${faz(nuvem.quando)}`,
-        titulo: `Última gravação no Firebase: ${nuvem.quando.toLocaleString('pt-BR')}${
-          nuvem.quem ? ` — por ${nuvem.quem}` : ''
-        }`,
+        texto: `Salvo ${faz(nuvem.quando)}`,
+        ajuda: `Gravado no Firebase em ${nuvem.quando.toLocaleString('pt-BR')}${nuvem.quem ? `, por ${nuvem.quem}` : ''}. Todo totem com internet já joga com este conteúdo.`,
       };
     }
     if (temBaralhoPublicado()) {
-      return { texto: 'salvo só neste navegador', tipo: 'atencao', titulo: 'Nada foi gravado no Firebase ainda.' };
+      return {
+        tipo: 'neutra',
+        texto: 'Salvo neste navegador',
+        ajuda: 'Nada foi gravado no Firebase ainda: os outros totens não têm este conteúdo.',
+      };
     }
-    return { texto: 'usando o baralho de fábrica', tipo: 'neutra' };
+    return {
+      tipo: 'neutra',
+      texto: 'Perguntas de fábrica',
+      ajuda: 'Ninguém salvou nada ainda: o jogo usa as perguntas que vêm com ele.',
+    };
+  }
+  
+  /**
+   * O selo de problemas é um botão: abre a lista do que falta, e cada linha leva
+   * ao campo. Antes o operador lia "3 problema(s)" e caçava veículo por veículo.
+   */
+  function seloDeProblemas(selo, itens, gerais) {
+    const MAXIMO = 12;
+    const abrir = (e) => {
+      const linhas = itens.slice(0, MAXIMO).map((item) =>
+        el(
+          'button',
+          { type: 'button', class: 'problema', onClick: () => irParaProblema(item) },
+          [
+            el('strong', {
+              text: `${nomeDoVeiculo(item.i)}${(estado.baralho.slots[item.i]?.perguntas?.length ?? 0) > 1 ? ` · pergunta ${item.j + 1}` : ''}`,
+            }),
+            el('span', { text: explicarProblema(item.mensagem).texto }),
+          ]
+        )
+      );
+      abrirPopover(
+        e.currentTarget,
+        [
+          el('div', { class: 'popover-titulo', text: 'O que falta para salvar' }),
+          ...gerais.map((g) => el('p', { class: 'problema-geral', text: g })),
+          el('div', { class: 'problemas' }, linhas),
+          itens.length > MAXIMO ? el('p', { class: 'nota', text: `e mais ${itens.length - MAXIMO}…` }) : null,
+        ],
+        { rotulo: 'O que falta para salvar' }
+      );
+    };
+    return el(
+      'button',
+      { type: 'button', class: 'situacao situacao-erro situacao-botao', 'aria-haspopup': 'dialog', onClick: abrir },
+      [icone('alerta', { classe: 'situacao-icone' }), el('span', { text: selo.texto })]
+    );
   }
   
   /**
@@ -13300,251 +14390,125 @@
         'aria-label': novidade ? 'Novidades desta versão — ainda não vistas' : 'Novidades desta versão',
         onClick: abrirNotas,
       },
-      [
-        el('span', { 'aria-hidden': 'true', text: '🔔' }),
-        novidade ? el('span', { class: 'sininho-ponto', 'aria-hidden': 'true' }) : null,
-      ]
+      [icone('sino'), novidade ? el('span', { class: 'sininho-ponto', 'aria-hidden': 'true' }) : null]
     );
   }
   
-  /** As duas abas do painel. Trocar de aba não perde o que a outra tinha. */
+  /** As três abas do painel. Trocar de aba não perde o que a outra tinha. */
   function abas() {
-    const item = (aba, rotulo) =>
-      el('button', {
-        type: 'button',
-        class: ['aba-painel', estado.aba === aba ? 'ativa' : null],
-        role: 'tab',
-        'aria-selected': estado.aba === aba ? 'true' : 'false',
-        text: rotulo,
-        onClick: () => trocarAba(aba),
-      });
+    const item = (aba, rotulo, nomeDoIcone) =>
+      el(
+        'button',
+        {
+          type: 'button',
+          class: ['aba-painel', estado.aba === aba ? 'ativa' : null],
+          role: 'tab',
+          'aria-selected': estado.aba === aba ? 'true' : 'false',
+          'data-aba': aba,
+          onClick: () => trocarAba(aba),
+        },
+        [icone(nomeDoIcone), el('span', { text: rotulo })]
+      );
     return el('nav', { class: 'abas-painel', role: 'tablist', 'aria-label': 'Seção do painel' }, [
-      item('veiculos', 'Veículos'),
-      item('respostas', 'Respostas'),
+      item('veiculos', 'Veículos', 'carro'),
+      item('respostas', 'Respostas', 'grafico'),
+      item('config', 'Configurações', 'engrenagem'),
     ]);
   }
   
-  /** `.barra-info` + `.barra-acoes` da aba Veículos — o que já existia. */
-  function infoEAcoesDeVeiculos() {
-    const { total } = errosPorRodada(estado.baralho);
+  /**
+   * Quem está conectado — ou o aviso de que ninguém está.
+   *
+   * Mora na barra, à vista de todas as abas, porque muda o que o Salvar faz: sem
+   * login, ele grava só neste navegador. Antes o "Entrar" ficava escondido na
+   * aba Respostas, e quem queria publicar para os outros totens não o achava.
+   *
+   * Quem entrou pela senha local vê o painel MARCADO aqui, e não pode deixar de
+   * ver: é a promessa do modo local (ver porta.js).
+   */
+  function conta() {
+    if (estado.operador) {
+      return el('div', { class: 'conta' }, [
+        el(
+          'button',
+          {
+            type: 'button',
+            class: 'conta-botao',
+            title: `Conectado ao Firebase como ${estado.operador}. Clique para sair da conta.`,
+            onClick: sairComFirebase,
+          },
+          [
+            el('span', { class: 'conta-avatar', 'aria-hidden': 'true', text: estado.operador.slice(0, 1).toUpperCase() }),
+            el('span', { class: 'conta-email', text: estado.operador }),
+          ]
+        ),
+      ]);
+    }
+    return el('div', { class: 'conta' }, [
+      el('span', { class: 'situacao situacao-atencao' }, [
+        'Sem login',
+        ajuda(
+          podeUsarNuvem()
+            ? 'Você entrou pela senha local: o que salvar vale só neste navegador, e a foto enviada fica dentro do baralho. Clique em Entrar para usar a conta do Firebase.'
+            : 'Este navegador não alcança o Firebase (jogo aberto do disco, localhost ou sem internet). O que salvar vale só aqui.',
+          { rotulo: 'Sem login' }
+        ),
+      ]),
+      podeUsarNuvem() ? botao('Entrar', { onClick: entrarComFirebase, acao: 'entrar' }) : null,
+    ]);
+  }
+  
+  /** O selo e os botões da aba Veículos. */
+  function acoesDeVeiculos() {
+    const { total, itens, gerais } = agruparProblemas(estado.baralho);
     const peso = pesoDoBaralho();
-    const situacao = seloDaSituacao();
+    const selo = seloDaSituacao(total);
   
     return [
-      el('div', { class: 'barra-info' }, [
-        // Primeiro de todos porque muda o que o botão Salvar faz: sem login, ele
-        // grava só aqui. Ver `publicar()` e o cabeçalho de porta.js.
-        !estado.operador
-          ? el('span', {
-              class: 'situacao situacao-atencao',
-              text: 'sem login — só este navegador',
-              title: podeUsarNuvem()
-                ? 'Entre com a conta do Firebase, na aba Respostas, para publicar o baralho para os outros totens.'
-                : 'Este navegador não alcança o Firebase (jogo aberto do disco, localhost, ou sem rede). O que for salvo vale só aqui.',
-            })
-          : null,
-        el('span', {
-          class: `situacao situacao-${situacao.tipo}`,
-          text: situacao.texto,
-          title: situacao.titulo ?? null,
-        }),
-        total > 0
-          ? el('span', { class: 'situacao situacao-erro', text: `${total} problema(s)` })
-          : el('span', { class: 'situacao situacao-ok', text: 'pronto para salvar' }),
-        // Este fica: é um aviso de verdade, e só aparece quando há o que avisar.
-        peso >= PESO_DE_ATENCAO_KB
-          ? el('span', {
-              class: 'situacao situacao-atencao',
-              title:
-                'O baralho vive no armazenamento do navegador, que tem poucos megabytes. Imagens enviadas do computador são o que mais ocupa.',
-              text: `${peso} KB — perto do limite`,
-            })
-          : null,
-      ]),
-      // "Resetar todos os dados" saiu daqui: ficava encostado em "Salvar", que é
-      // o botão mais clicado do painel, e apaga o baralho e o ranking deste
-      // navegador. Agora mora no pé da lista de veículos, longe da mão que salva.
-      el('div', { class: 'barra-acoes' }, [
-        estado.sujo ? botao('Descartar', { onClick: descartar }) : null,
-        botao('Salvar', { onClick: publicar, tipo: 'primario' }),
-      ]),
+      // Só aparece quando há o que avisar.
+      peso >= PESO_DE_ATENCAO_KB
+        ? el('span', { class: 'situacao situacao-atencao' }, [
+            `${peso} KB — perto do limite`,
+            ajuda('O baralho vive no armazenamento do navegador, que tem poucos megabytes. Fotos enviadas do computador sem login são o que mais ocupa.', {
+              rotulo: 'Perto do limite',
+            }),
+          ])
+        : null,
+      total > 0
+        ? seloDeProblemas(selo, itens, gerais)
+        : el('span', { class: `situacao situacao-${selo.tipo}` }, [selo.texto, selo.ajuda ? ajuda(selo.ajuda, { rotulo: selo.texto }) : null]),
+      estado.sujo ? botao('Descartar', { onClick: descartar, titulo: 'Volta a como estava no último Salvar' }) : null,
+      botao('Salvar', { onClick: publicar, tipo: 'primario', acao: 'salvar' }),
     ];
   }
   
-  /** `.barra-info` + `.barra-acoes` da aba Respostas. */
-  function infoEAcoesDeRespostas() {
-    const { fonte, comTelefone, carregando, linhas } = estado.respostas;
-  
+  function acoesDeRespostas() {
+    const { carregando, linhas } = estado.respostas;
     return [
-      el('div', { class: 'barra-info' }, [
-        fonte
-          ? el('span', {
-              class: `situacao ${fonte === 'nuvem' ? 'situacao-ok' : 'situacao-atencao'}`,
-              text: fonte === 'nuvem' ? 'todos os totens' : 'só este navegador',
-              title:
-                fonte === 'nuvem'
-                  ? 'Lendo o Firestore: partidas de qualquer totem com internet.'
-                  : 'A nuvem está desligada ou fora do alcance — mostrando só o que este navegador jogou.',
-            })
-          : null,
-        el('span', {
-          class: `situacao ${comTelefone ? 'situacao-ok' : 'situacao-neutra'}`,
-          text: comTelefone ? 'com telefone' : 'sem telefone',
-          title: comTelefone
-            ? null
-            : 'Entre com a conta do Firebase para ver o telefone de quem jogou nos outros totens.',
-        }),
-        estado.operador
-          ? el('span', { class: 'situacao situacao-ok', text: estado.operador, title: 'Conectado ao Firebase' })
-          : null,
-        linhas.length ? el('span', { class: 'situacao situacao-neutra', text: `${linhas.length} partida(s)` }) : null,
-      ]),
-      el('div', { class: 'barra-acoes' }, [
-        botao('Atualizar', { onClick: atualizarRespostas, titulo: 'Buscar de novo' }),
-        podeUsarNuvem()
-          ? estado.operador
-            ? botao('Sair da conta', { onClick: sairComFirebase, titulo: `Conectado como ${estado.operador}` })
-            : botao('Entrar', { onClick: entrarComFirebase, titulo: 'Conta do Firebase, para ver telefone' })
-          : null,
-        botao('Baixar dados', { onClick: baixarRespostas, tipo: 'primario', disabled: carregando || !linhas.length }),
-      ]),
+      botao('Atualizar', { icone: 'atualizar', onClick: atualizarRespostas, titulo: 'Buscar as partidas de novo' }),
+      botao('Baixar planilha', {
+        icone: 'baixar',
+        onClick: baixarRespostas,
+        tipo: 'primario',
+        disabled: carregando || !linhas.length,
+        titulo: 'Um arquivo CSV, que abre no Excel',
+      }),
     ];
   }
   
   function barra() {
+    const acoes = estado.aba === 'veiculos' ? acoesDeVeiculos() : estado.aba === 'respostas' ? acoesDeRespostas() : [];
     return el('header', { class: 'barra' }, [
-      el('div', { class: 'marca' }, [
-        el('strong', { text: 'TecGame' }),
-        el('span', { text: `administração · v${VERSAO_DO_JOGO}` }),
+      el('div', { class: 'barra-interna' }, [
+        el('div', { class: 'marca' }, [el('strong', { text: 'TecGame' }), el('span', { text: `administração · v${VERSAO_DO_JOGO}` })]),
+        abas(),
+        el('div', { class: 'barra-acoes' }, acoes),
+        el('div', { class: 'barra-global' }, [
+          sininho(),
+          conta(),
+          botao('Voltar ao jogo', { icone: 'voltar', onClick: voltarAoJogo, titulo: 'Fecha a administração e volta para a tela do jogador' }),
+        ]),
       ]),
-      sininho(),
-      abas(),
-      ...(estado.aba === 'veiculos' ? infoEAcoesDeVeiculos() : infoEAcoesDeRespostas()),
-      el('div', { class: 'barra-acoes barra-acoes-sair' }, [
-        botao('Voltar ao jogo', { onClick: voltarAoJogo, titulo: 'Fecha a administração e volta para a tela do jogador' }),
-      ]),
-    ]);
-  }
-  
-  /** Abre ou fecha o banco de um veículo. */
-  function alternarAberto(i) {
-    if (estado.abertos.has(i)) estado.abertos.delete(i);
-    else estado.abertos.add(i);
-    atualizarChrome();
-  }
-  
-  /* --------------------------------------------------------------- na feira -- */
-  
-  /**
-   * "Na feira": o que o operador ajusta no estande, e não no baralho — vale só
-   * para ESTE navegador, na hora, sem Salvar.
-   *
-   *   - o estilo da tela da pergunta (clássico ou palco — ver palco.js);
-   *   - pular o vídeo demonstrativo do equipamento (ver tela_video_scanner.js);
-   *   - o volume do som, porque a feira barulhenta e o auditório silencioso
-   *     pedem volumes diferentes, e ele era cravado no código;
-   *   - a Pergunta do Milhão do dia: chamar o mais rápido de volta ao totem
-   *     para uma pergunta extra, valendo brinde (ver pages/milhao.js).
-   */
-  function naFeira() {
-    const campoEstilo = selecao({
-      rotulo: 'Estilo da tela da pergunta',
-      valor: estiloDaPergunta(),
-      opcoes: [
-        { valor: 'classico', rotulo: 'Clássico — a coluna do Show do Milhão (padrão)' },
-        { valor: 'palco', rotulo: 'Palco — os losangos do Milionário' },
-      ],
-      onChange: (v) => {
-        definirEstiloDaPergunta(v);
-        aviso(`A próxima pergunta já sai no estilo ${v === 'palco' ? 'Palco' : 'Clássico'}.`);
-      },
-    });
-  
-    const campoPularVideo = el('div', { class: 'campo', 'data-campo': 'pular-video' }, [
-      caixaDeMarcar({
-        rotulo: 'Pular o vídeo demonstrativo do equipamento',
-        marcado: pulaVideoDoEquipamento(),
-        onChange: (v) => {
-          definirPularVideoDoEquipamento(v);
-          aviso(v ? 'A partir da próxima partida, o jogo vai do equipamento direto para a pergunta.' : 'O vídeo do equipamento volta a passar antes da pergunta.');
-        },
-      }),
-      el('span', {
-        class: 'campo-dica',
-        text: 'Tira os 14 segundos entre a escolha do equipamento e a pergunta. O Rasther 4 não tem vídeo e sempre vai direto.',
-      }),
-    ]);
-  
-    const faixa = el('input', { type: 'range', min: '0', max: '100', step: '5', class: 'volume-faixa', 'aria-label': 'Volume do som do jogo' });
-    faixa.value = String(Math.round(volumeAtual() * 100));
-    const valor = el('span', { class: 'volume-valor', text: `${faixa.value}%` });
-    const mudo = caixaDeMarcar({
-      rotulo: 'Sem som',
-      marcado: estaMudo(),
-      onChange: (v) => {
-        if (v !== estaMudo()) alternarMudo();
-      },
-    });
-    faixa.addEventListener('input', () => {
-      definirVolume(Number(faixa.value) / 100);
-      valor.textContent = `${faixa.value}%`;
-      const caixa = mudo.querySelector('input');
-      if (caixa) caixa.checked = estaMudo();
-    });
-  
-    // A lista vem do baralho PUBLICADO — é com ele que o jogo joga, e não com a
-    // cópia em edição aqui ao lado.
-    const publicado = carregarBaralho();
-    const opcoesDoMilhao = [{ valor: 'sorteio', rotulo: 'Sortear uma das perguntas ligadas' }];
-    publicado.slots.forEach((slot, i) =>
-      (slot.perguntas ?? []).forEach((p, j) => {
-        if (p.ativa === false) return;
-        const texto = (p.pt?.pergunta ?? '').trim();
-        opcoesDoMilhao.push({
-          valor: `${i}:${j}`,
-          rotulo: `${slot.veiculo?.nome?.trim() || `Rodada ${i + 1}`} — ${texto.slice(0, 48)}${texto.length > 48 ? '…' : ''}`,
-        });
-      })
-    );
-    const campeao = maisRapidoDoDia();
-    const campoNome = campo({
-      rotulo: 'Quem vai jogar',
-      valor: campeao?.nome ?? '',
-      dica: campeao
-        ? `O mais rápido de hoje neste totem: ${campeao.nome}, ${formatarTempoDeResposta(campeao.tempo)}.`
-        : 'Ninguém venceu hoje neste totem ainda — escreva o nome de quem vai jogar.',
-    });
-    const campoPergunta = selecao({ rotulo: 'Pergunta', valor: 'sorteio', opcoes: opcoesDoMilhao });
-  
-    const ultimas = getRecords('milhao').slice(-3).reverse();
-  
-    return el('div', { class: 'zona-de-risco na-feira' }, [
-      el('h3', { text: 'Na feira' }),
-      el('p', { class: 'nota', text: 'Vale só para este navegador, na hora — não precisa Salvar.' }),
-      campoEstilo,
-      campoPularVideo,
-      el('div', { class: 'campo' }, [
-        el('span', { class: 'campo-rotulo', text: 'Volume do som' }),
-        el('div', { class: 'volume-linha' }, [faixa, valor, botao('Testar', { onClick: () => Som.fanfarra(0), titulo: 'Toca a fanfarra do acerto no volume escolhido' })]),
-        mudo,
-        el('span', { class: 'campo-dica', text: 'No totem, sem abrir o painel: Ctrl+Alt+M liga e desliga o som, Ctrl+Alt+↑/↓ muda o volume, Ctrl+Alt+Home volta ao cadastro.' }),
-      ]),
-      el('h3', { text: 'Pergunta do Milhão' }),
-      el('p', { class: 'nota', text: 'Uma pergunta extra, valendo brinde, para chamar o mais rápido do dia de volta ao totem. Sem ajudas, e não entra no ranking.' }),
-      campoNome,
-      campoPergunta,
-      botao('Chamar ao palco', { tipo: 'primario', onClick: () => chamarMilhao(campoNome.entrada.value, campoPergunta.entrada.value) }),
-      ultimas.length
-        ? el(
-            'ul',
-            { class: 'milhao-ultimas' },
-            ultimas.map((r) =>
-              el('li', {
-                text: `${r.nome || '(sem nome)'} — ${r.venceu ? `levou o brinde (${formatarTempoDeResposta(r.tempo)})` : 'não levou'} · ${new Date(r.data).toLocaleString('pt-BR')}`,
-              })
-            )
-          )
-        : null,
     ]);
   }
   
@@ -13552,14 +14516,15 @@
   async function chamarMilhao(nome, qual) {
     if (estado.sujo) {
       const segue = await confirmar({
-        titulo: 'Sair sem publicar?',
-        texto: 'Há alterações que o totem ainda não recebeu. Chamar a Pergunta do Milhão agora as descarta.',
+        titulo: 'Sair sem salvar?',
+        texto: 'Há alterações no baralho que o totem ainda não recebeu. Chamar a Pergunta do Milhão agora as descarta.',
         confirmarTexto: 'Descartar e chamar',
         perigoso: true,
       });
       if (!segue) return;
       estado.baralho = clonar(carregarBaralho());
       estado.sujo = false;
+      soltarFotosSemUso();
     }
     FFAppState.recarregarBaralho();
     const [i, j] = String(qual).split(':').map(Number);
@@ -13569,150 +14534,161 @@
     goNamed('milhao');
   }
   
+  /* ------------------------------------------------------- a lista lateral -- */
+  
   /**
-   * A lateral: todos os veículos e, debaixo do que estiver aberto, o banco de
+   * As miniaturas da lista, guardadas entre um redesenho e outro.
+   *
+   * A lista é refeita a cada tecla no editor (o selo de problema muda), e uma
+   * `<img>` nova a cada vez piscava em branco antes de decodificar — com dez
+   * fotos, a coluna inteira tremia enquanto se digitava. O mesmo nó, movido
+   * para a lista nova, não pisca.
+   */
+  const miniaturas = new Map();
+  
+  function miniatura(i, src) {
+    if (!src) return el('span', { class: 'item-miniatura item-miniatura-vazia', 'aria-hidden': 'true' }, icone('imagem'));
+    const chave = `${i}|${src}`;
+    let img = miniaturas.get(chave);
+    if (!img) {
+      img = el('img', { class: 'item-miniatura', src, alt: '', decoding: 'async' });
+      miniaturas.set(chave, img);
+    }
+    return img;
+  }
+  
+  /** "1 pergunta", "3 perguntas · 1 desligada". */
+  function contagem(perguntas) {
+    const desligadas = perguntas.filter((p) => p.ativa === false).length;
+    const n = perguntas.length;
+    const base = n === 1 ? '1 pergunta' : `${n} perguntas`;
+    if (!desligadas) return base;
+    if (n === 1) return '1 pergunta, desligada';
+    return `${base} · ${desligadas} desligada${desligadas > 1 ? 's' : ''}`;
+  }
+  
+  /**
+   * Os itens da lista: todos os veículos e, debaixo do aberto, o banco de
    * perguntas dele.
    *
-   * O veículo fechado mostra a contagem ("2 de 3 ativas"), que já responde
-   * "quantas perguntas este carro tem" sem esticar a lista. O aberto mostra cada
-   * uma, com a marca que liga e desliga — desligada, ela fica de rascunho e nunca
-   * cai em partida.
+   * Só o aberto mostra as perguntas. Com dez veículos e os bancos todos abertos
+   * a lista virava um rolo, e cada linha de veículo carregava quatro botões
+   * empilhados (subir, descer, duplicar, remover) — que agora moram, com nome,
+   * no cabeçalho do editor.
    */
-  function lista() {
-    const { porRodada, porPergunta } = errosPorRodada(estado.baralho);
+  function itensDaLista() {
+    const { porRodada, porPergunta } = agruparProblemas(estado.baralho);
+    const usadas = new Set();
   
     const itens = estado.baralho.slots.flatMap((slot, i) => {
       const problemas = porRodada.get(i)?.length ?? 0;
-      const nome = slot.veiculo.nome?.trim() || '(sem nome)';
       const perguntas = slot.perguntas ?? [];
-      const ativas = perguntas.filter((p) => p.ativa !== false).length;
-  
-      const aberto = estado.abertos.has(i);
+      const aberto = i === estado.selecionado;
+      usadas.add(`${i}|${slot.veiculo?.imagem}`);
   
       const cabeca = el(
         'li',
-        { class: ['item', 'veiculo', i === estado.selecionado ? 'selecionado' : null, problemas ? 'com-problema' : null] },
-        [
-          el('button', {
-            type: 'button',
-            class: ['seta-banco', aberto ? 'aberta' : null],
-            title: aberto ? 'Recolher as perguntas' : 'Expandir as perguntas',
-            'aria-expanded': aberto ? 'true' : 'false',
-            'aria-label': `${aberto ? 'Recolher' : 'Expandir'} as perguntas de ${nome}`,
-            text: '▸',
-            onClick: () => alternarAberto(i),
-          }),
-          el('button', {
+        { class: ['item', 'veiculo', aberto ? 'selecionado' : null, problemas ? 'com-problema' : null] },
+        el(
+          'button',
+          {
             type: 'button',
             class: 'item-botao',
+            'aria-current': aberto ? 'true' : null,
             onClick: () => {
               estado.selecionado = i;
               estado.pergunta = 0;
-              // Escolher um veículo abre o banco dele: é o que a pessoa veio ver.
-              estado.abertos.add(i);
               desenhar();
             },
-          }, [
-            el('span', { class: 'item-indice', text: String(i + 1) }),
+          },
+          [
+            miniatura(i, slot.veiculo?.imagem),
             el('span', { class: 'item-texto' }, [
-              el('strong', { text: nome }),
-              el('span', {
-                class: 'item-pergunta',
-                text:
-                  perguntas.length === 1
-                    ? `${ativas === 1 ? '1 pergunta' : '1 pergunta desligada'}`
-                    : `${ativas} de ${perguntas.length} perguntas ativas`,
-              }),
+              el('strong', {}, [
+                el('span', { class: 'item-indice', text: `${i + 1}` }),
+                el('span', { class: 'item-nome', text: slot.veiculo.nome?.trim() || '(sem nome)' }),
+              ]),
+              el('span', { class: 'item-pergunta', text: contagem(perguntas) }),
             ]),
-            problemas ? el('span', { class: 'item-selo', text: String(problemas) }) : null,
-          ]),
-          el('span', { class: 'item-acoes' }, [
-            botao('', { icone: '↑', titulo: 'Subir', onClick: () => mover(i, -1) }),
-            botao('', { icone: '↓', titulo: 'Descer', onClick: () => mover(i, 1) }),
-            botao('', { icone: '⧉', titulo: 'Duplicar veículo', onClick: () => duplicarRodada(i) }),
-            botao('', { icone: '✕', titulo: 'Remover veículo', tipo: 'perigo', onClick: () => removerRodada(i) }),
-          ]),
-        ]
+            problemas
+              ? el('span', { class: 'item-selo', title: `${problemas} problema(s) neste veículo`, text: String(problemas) })
+              : null,
+          ]
+        )
       );
   
-      const banco = perguntas.map((pergunta, j) => {
-        const comProblema = (porPergunta.get(`${i}:${j}`)?.length ?? 0) > 0;
-        const aberta = i === estado.selecionado && j === estado.pergunta;
-        const marca = el('input', {
-          type: 'checkbox',
-          class: 'pq-marca',
-          title: pergunta.ativa !== false ? 'Ligada — pode cair em partida' : 'Desligada — fica só de rascunho',
-          'aria-label': `Pergunta ${j + 1} de ${nome} ativa`,
-          onChange: (e) => alternarPergunta(i, j, e.currentTarget.checked),
-        });
-        marca.checked = pergunta.ativa !== false;
+      if (!aberto) return [cabeca];
   
+      const banco = perguntas.map((pergunta, j) => {
+        const comProblema = porPergunta.get(`${i}:${j}`)?.length ?? 0;
         return el(
           'li',
           {
             class: [
               'item',
               'pergunta',
-              aberta ? 'selecionado' : null,
+              j === estado.pergunta ? 'selecionado' : null,
               comProblema ? 'com-problema' : null,
               pergunta.ativa === false ? 'desligada' : null,
             ],
           },
-          [
-            marca,
-            el('button', {
+          el(
+            'button',
+            {
               type: 'button',
               class: 'item-botao pq-botao',
+              'aria-current': j === estado.pergunta ? 'true' : null,
               onClick: () => {
-                estado.selecionado = i;
                 estado.pergunta = j;
                 desenhar();
               },
-            }, [
-              el('span', { class: 'item-texto' }, [
-                el('span', { class: 'item-pergunta', text: resumoDaPergunta(pergunta, j) }),
-              ]),
-              comProblema ? el('span', { class: 'item-selo', text: String(porPergunta.get(`${i}:${j}`).length) }) : null,
-            ]),
-            el('span', { class: 'item-acoes' }, [
-              botao('', { icone: '⧉', titulo: 'Duplicar pergunta', onClick: () => duplicarPergunta(i, j) }),
-              botao('', { icone: '✕', titulo: 'Remover pergunta', tipo: 'perigo', onClick: () => removerPergunta(i, j) }),
-            ]),
-          ]
+            },
+            [
+              el('span', { class: 'pq-numero', text: String(j + 1) }),
+              el('span', { class: 'item-pergunta', text: resumoDaPergunta(pergunta, j) }),
+              pergunta.ativa === false ? el('span', { class: 'pq-desligada', text: 'desligada' }) : null,
+              comProblema ? el('span', { class: 'item-selo', text: String(comProblema) }) : null,
+            ]
+          )
         );
       });
   
-      if (!aberto) return [cabeca];
+      const acrescentar = el(
+        'li',
+        { class: 'item pergunta acrescentar' },
+        botao('Nova pergunta', { icone: 'mais', tipo: 'discreto', titulo: `Mais uma pergunta para ${nomeDoVeiculo(i)}`, onClick: () => adicionarPergunta(i) })
+      );
   
-      const acrescentar = el('li', { class: 'item pergunta acrescentar' }, [
-        botao('Pergunta', { icone: '+', titulo: `Nova pergunta para ${nome}`, onClick: () => adicionarPergunta(i) }),
-      ]);
-  
-      return [cabeca, ...banco, acrescentar];
+      return [cabeca, el('li', { class: 'banco' }, el('ul', {}, [...banco, acrescentar]))];
     });
   
+    for (const chave of miniaturas.keys()) if (!usadas.has(chave)) miniaturas.delete(chave);
+    return el('ul', { class: 'itens' }, itens);
+  }
+  
+  function lista() {
     return el('aside', { class: 'lateral' }, [
       el('div', { class: 'lateral-topo' }, [
-        el('h2', { text: 'Veículos' }),
-        botao('Veículo', { onClick: adicionarRodada, tipo: 'primario', icone: '+' }),
+        el('h2', {}, [
+          'Veículos',
+          ajuda(
+            'A ordem da lista é a ordem das fatias na roleta. Cada veículo pode ter várias perguntas: quando a roleta para nele, o jogo sorteia uma das ativas.',
+            { rotulo: 'Veículos' }
+          ),
+        ]),
+        botao('Novo veículo', { onClick: adicionarRodada, tipo: 'primario', icone: 'mais', acao: 'novo-veiculo' }),
       ]),
-      el('p', {
-        class: 'nota',
-        text: 'A ordem dos veículos é a ordem das fatias da roleta. Cada veículo pode ter várias perguntas: quando a roleta para nele, o jogo sorteia uma das ligadas.',
-      }),
-      el('ul', { class: 'itens' }, itens),
-      naFeira(),
-      // O fim da lista é o lugar de quem só se procura de propósito.
-      el('div', { class: 'zona-de-risco' }, [
-        el('h3', { text: 'Antes da feira' }),
-        el('p', {
-          class: 'nota',
-          text: 'Volta ao baralho de fábrica e apaga o ranking e os telefones gravados neste navegador.',
-        }),
-        botao('Resetar todos os dados', { onClick: resetarTudo, tipo: 'perigo' }),
-      ]),
+      el('div', { class: 'lateral-rolo' }, itensDaLista()),
     ]);
   }
+  
+  /** Troca só os itens da lista, mantendo onde ela estava rolada. */
+  function atualizarLista() {
+    const ul = app.querySelector('.lateral-rolo > .itens');
+    if (ul) ul.replaceWith(itensDaLista());
+  }
+  
+  /* ---------------------------------------------------------- respostas ---- */
   
   /**
    * A tabela de partidas. As colunas seguem `COLUNAS` de respostas.js; sem
@@ -13720,20 +14696,49 @@
    * insinuaria um dado perdido em vez de um dado que a conta atual não vê.
    */
   function telaRespostas() {
-    const { linhas, carregado, carregando } = estado.respostas;
-    const colunas = estado.respostas.comTelefone ? COLUNAS : COLUNAS.filter((c) => c.chave !== 'telefone');
+    const { linhas, carregado, carregando, fonte, comTelefone } = estado.respostas;
+    const colunas = comTelefone ? COLUNAS : COLUNAS.filter((c) => c.chave !== 'telefone');
+  
+    // O que eram três selos na barra virou uma linha em cima da tabela: diz de
+    // onde vêm as partidas e se o telefone está na mistura.
+    const resumo = el('p', { class: 'respostas-resumo' }, [
+      linhas.length ? el('strong', { text: linhas.length === 1 ? '1 partida' : `${linhas.length} partidas` }) : null,
+      fonte
+        ? el('span', { class: 'respostas-fonte' }, [
+            fonte === 'nuvem' ? 'de todos os totens' : 'só deste navegador',
+            ajuda(
+              fonte === 'nuvem'
+                ? 'Lidas do Firebase: as partidas de qualquer totem com internet.'
+                : 'A nuvem está desligada ou fora do alcance: só o que este navegador jogou aparece aqui.',
+              { rotulo: 'De onde vêm as partidas' }
+            ),
+          ])
+        : null,
+      el('span', { class: 'respostas-telefone' }, [
+        comTelefone ? 'com telefone' : 'sem telefone',
+        comTelefone ? null : ajuda('Entre com a conta do Firebase (botão Entrar, no alto) para ver o telefone de quem jogou nos outros totens.', { rotulo: 'Sem telefone' }),
+      ]),
+    ]);
+  
+    const topo = el('div', { class: 'pagina-topo' }, [el('h2', { text: 'Respostas dos jogadores' }), resumo]);
   
     if (carregando && !carregado) {
-      return el('main', { class: 'corpo-respostas' }, [el('p', { class: 'nota', text: 'Carregando respostas…' })]);
+      return el('main', { class: 'corpo corpo-respostas' }, [topo, el('p', { class: 'vazio', text: 'Carregando as partidas…' })]);
     }
   
     if (!linhas.length) {
-      return el('main', { class: 'corpo-respostas' }, [
-        el('p', { class: 'nota', text: 'Nenhuma partida registrada ainda.' }),
+      return el('main', { class: 'corpo corpo-respostas' }, [
+        topo,
+        el('div', { class: 'vazio' }, [
+          icone('grafico', { classe: 'vazio-icone' }),
+          el('strong', { text: 'Nenhuma partida ainda' }),
+          el('span', { text: 'As respostas aparecem aqui assim que alguém jogar.' }),
+        ]),
       ]);
     }
   
-    return el('main', { class: 'corpo-respostas' }, [
+    return el('main', { class: 'corpo corpo-respostas' }, [
+      topo,
       el('div', { class: 'tabela-rolo' }, [
         el('table', { class: 'tabela' }, [
           el('thead', {}, [el('tr', {}, colunas.map((c) => el('th', { text: c.rotulo })))]),
@@ -13747,12 +14752,37 @@
     ]);
   }
   
+  /* ------------------------------------------------------------ desenhar --- */
+  
+  /**
+   * Rola a lista (só ela) até o veículo aberto aparecer. `scrollIntoView` não
+   * serve: na tela estreita a página inteira rola, e um clique em "Duplicar
+   * pergunta", no editor, levaria a tela de volta para a lista.
+   */
+  function mostrarSelecionadoNaLista() {
+    const rolo = app.querySelector('.lateral-rolo');
+    const item = rolo?.querySelector('.item.veiculo.selecionado');
+    if (!rolo || !item) return;
+    const r = rolo.getBoundingClientRect();
+    const it = item.getBoundingClientRect();
+    if (it.top < r.top) rolo.scrollTop -= r.top - it.top + 8;
+    else if (it.bottom > r.bottom) rolo.scrollTop += it.bottom - r.bottom + 8;
+  }
+  
   function desenhar() {
+    fecharPopover();
+    // A lista é refeita junto com o resto, e nasceria rolada para o topo: quem
+    // clicou no décimo veículo o perderia de vista.
+    const rolagemDaLista = app.querySelector('.lateral-rolo')?.scrollTop ?? 0;
     limpar(app);
     app.appendChild(barra());
   
     if (estado.aba === 'respostas') {
       app.appendChild(telaRespostas());
+      return;
+    }
+    if (estado.aba === 'config') {
+      app.appendChild(telaConfiguracoes({ aoChamarMilhao: chamarMilhao, aoResetar: resetarTudo }));
       return;
     }
   
@@ -13761,15 +14791,22 @@
     // para a primeira em vez de abrir vazio.
     if (slot && !slot.perguntas[estado.pergunta]) estado.pergunta = 0;
     const pergunta = slot?.perguntas?.[estado.pergunta];
+    const i = estado.selecionado;
+    const j = estado.pergunta;
   
     const editor =
       slot && pergunta
         ? editorDeSlot({
             slot,
             pergunta,
-            indice: estado.selecionado,
-            posicao: estado.pergunta,
+            indice: i,
+            posicao: j,
             total: slot.perguntas.length,
+            totalDeVeiculos: estado.baralho.slots.length,
+            idioma: estado.idioma,
+            onIdioma: (lang) => {
+              estado.idioma = lang;
+            },
             // O mesmo critério do Salvar: a conta real do Firebase, e não a
             // senha local — o Storage cobra `request.auth != null`.
             nuvemDeImagens: () => podeUsarNuvem() && Boolean(estado.operador),
@@ -13779,32 +14816,46 @@
               // editor inteiro tiraria o foco do campo que está sendo digitado.
               atualizarChrome();
             },
+            aoTrocarFoto: soltarFotosSemUso,
+            acoes: {
+              subir: () => mover(i, -1),
+              descer: () => mover(i, 1),
+              duplicarVeiculo: () => duplicarRodada(i),
+              excluirVeiculo: () => removerRodada(i),
+              duplicarPergunta: () => duplicarPergunta(i, j),
+              excluirPergunta: () => removerPergunta(i, j),
+              alternarAtiva: (ligada) => alternarPergunta(i, j, ligada),
+            },
           })
-        : el('p', { text: 'Nenhum veículo.' });
+        : el('p', { class: 'vazio', text: 'Nenhum veículo.' });
   
-    const { porPergunta } = errosPorRodada(estado.baralho);
-    editor.marcarErros?.(porPergunta.get(`${estado.selecionado}:${estado.pergunta}`) ?? []);
+    const { porPergunta } = agruparProblemas(estado.baralho);
+    editor.marcarErros?.(porPergunta.get(`${i}:${j}`) ?? []);
   
-    app.appendChild(el('main', { class: 'corpo' }, [lista(), el('div', { class: 'painel' }, editor)]));
+    app.appendChild(el('main', { class: 'corpo corpo-veiculos' }, [lista(), el('div', { class: 'painel' }, editor)]));
     app.__editor = editor;
+    const rolo = app.querySelector('.lateral-rolo');
+    if (rolo) rolo.scrollTop = rolagemDaLista;
+    mostrarSelecionadoNaLista();
   }
   
   /**
-   * Redesenha a barra e o corpo. Na aba Veículos, troca só a lista e preserva o
-   * foco no editor — redesenhar tudo tiraria o foco do campo em que se digita.
-   * Na aba Respostas não há campo de texto para perder, então é mais simples
-   * redesenhar tudo.
+   * Redesenha a barra e, na aba Veículos, a lista — preservando o foco no editor
+   * e a rolagem da lista: redesenhar tudo tiraria o foco do campo em que se
+   * digita, e a lista refeita voltava para o topo a cada tecla.
+   *
+   * Nas outras abas só a barra muda: a aba Configurações tem caixa de texto (o
+   * nome da Pergunta do Milhão), e o selo de "salvo há…" chegando da nuvem não
+   * pode apagar o que se digita ali. A tabela de Respostas se redesenha quando os
+   * dados chegam (`atualizarRespostas`).
    */
   function atualizarChrome() {
-    if (estado.aba !== 'veiculos') {
-      desenhar();
-      return;
-    }
+    fecharPopover();
     const barraAntiga = app.querySelector('.barra');
-    const listaAntiga = app.querySelector('.lateral');
     if (barraAntiga) barraAntiga.replaceWith(barra());
-    if (listaAntiga) listaAntiga.replaceWith(lista());
-    const { porPergunta } = errosPorRodada(estado.baralho);
+    if (estado.aba !== 'veiculos') return;
+    atualizarLista();
+    const { porPergunta } = agruparProblemas(estado.baralho);
     app.__editor?.marcarErros?.(porPergunta.get(`${estado.selecionado}:${estado.pergunta}`) ?? []);
   }
   
@@ -13826,7 +14877,7 @@
   async function voltarAoJogo() {
     if (estado.sujo) {
       const segue = await confirmar({
-        titulo: 'Sair sem publicar?',
+        titulo: 'Sair sem salvar?',
         texto: 'Há alterações que o totem ainda não recebeu. Sair agora as descarta.',
         confirmarTexto: 'Sair e descartar',
         perigoso: true,
@@ -13834,6 +14885,7 @@
       if (!segue) return;
       estado.baralho = clonar(carregarBaralho());
       estado.sujo = false;
+      soltarFotosSemUso();
     }
     fecharCamada?.();
   }
@@ -13868,7 +14920,7 @@
       sincronizarBaralho().then((mudou) => {
         if (mudou && app && !estado.sujo) {
           estado.baralho = clonar(carregarBaralho());
-          desenhar();
+          if (estado.aba === 'veiculos') desenhar();
           aviso('Baralho atualizado com o que está salvo na nuvem.');
         }
       });
@@ -13881,7 +14933,7 @@
     // Aviso honesto na primeira abertura: nada foi salvo ainda, e o que está na
     // tela é o conteúdo que veio com o jogo.
     if (!temBaralhoPublicado() && estado.baralho.slots.length === SLOTS_ORIGINAIS.length) {
-      setTimeout(() => aviso('Você está vendo o baralho de fábrica. Edite e clique em Salvar.'), 400);
+      setTimeout(() => aviso('Você está vendo as perguntas de fábrica. Edite e clique em Salvar.'), 400);
     }
   
     // Novidade não vista: abre sozinho na primeira tela depois da versão mudar.
@@ -13891,18 +14943,15 @@
       setTimeout(() => abrirNotas(), 350);
     }
   
-    // O SDK restaura a sessão do Firebase de forma assíncrona, então a aba
-    // Respostas nasce "sem telefone" e se corrige quando isto dispara. Se a
-    // aba já tinha sido aberta antes (troca de conta em sessão longa), busca de
-    // novo — é o login que decide se `contatos` entra na mistura.
+    // O SDK restaura a sessão do Firebase de forma assíncrona, então a barra
+    // nasce "sem login" e se corrige quando isto dispara. Se a aba Respostas já
+    // tinha sido aberta (troca de conta em sessão longa), busca de novo — é o
+    // login que decide se `contatos` entra na mistura.
     aoMudarOperador((email) => {
       estado.operador = email;
       if (!app) return;
-      // Redesenha SEMPRE: o selo "sem login" vive na barra da aba Veículos, e
-      // antes só a de Respostas reagia — entrar pela porta deixava o selo velho
-      // na tela até trocar de aba.
+      atualizarChrome();
       if (estado.respostas.carregado) atualizarRespostas();
-      else atualizarChrome();
     }).then((cancelar) => {
       pararDeOuvirLogin = cancelar;
     });
@@ -13916,6 +14965,8 @@
     window.removeEventListener('beforeunload', aoDescarregar);
     pararDeOuvirLogin?.();
     pararDeOuvirLogin = null;
+    fecharPopover();
+    miniaturas.clear();
     if (app) limpar(app);
     app = null;
     fecharCamada = null;
@@ -14195,7 +15246,7 @@
       // na segunda chamada do mesmo gesto (o selo pergunta, a rota confirma).
       if (ja === 'local' && !recemAberta && podeUsarNuvem()) {
         diagnostico(
-          'A porta já foi aberta nesta aba pela senha local, e não pergunta de novo. Para entrar com a conta: aba Respostas → Entrar, ou abra o jogo numa aba nova.'
+          'A porta já foi aberta nesta aba pela senha local, e não pergunta de novo. Para entrar com a conta: botão Entrar, no alto do painel, ou abra o jogo numa aba nova.'
         );
       }
       recemAberta = false;

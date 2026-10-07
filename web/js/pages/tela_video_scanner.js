@@ -50,7 +50,7 @@ function videoFor(scannerEscolhido) {
 /* ------------------------------------------------- pular esta tela ------- */
 
 /**
- * O operador pode tirar esta tela do caminho, no painel ("Na feira"). Os
+ * O operador pode tirar esta tela do caminho, no painel (aba Configurações). Os
  * clipes ainda apontam para o bucket do FlutterFlow, que responde 402 (ver
  * `useLocalScannerVideos` em config.js): sem as cópias locais, são 14 segundos
  * de tela escura entre o equipamento e a pergunta — e fila parada.

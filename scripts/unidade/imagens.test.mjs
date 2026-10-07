@@ -89,6 +89,24 @@ test('a limpeza apaga só o que está fora de uso E parado além da carência', 
   assert.deepEqual(escolherOrfas(arquivos, emUso, { agora }), ['veiculos/orfa-velha.webp']);
 });
 
+test('a foto que o Salvar trocou sai sem esperar a carência — mas nunca se ainda estiver em uso', () => {
+  const agora = Date.parse('2026-10-07T12:00:00Z');
+  const hoje = new Date(agora - 60_000).toISOString();
+  const arquivos = [
+    { caminho: 'veiculos/trocada-hoje.webp', atualizado: hoje },
+    { caminho: 'veiculos/trocada-e-reusada.webp', atualizado: hoje },
+    { caminho: 'veiculos/orfa-de-hoje.webp', atualizado: hoje },
+    // Sem data a carência guarda; trocada, sai do mesmo jeito: a troca já diz
+    // que ninguém mais a quer.
+    { caminho: 'veiculos/trocada-sem-data.webp', atualizado: null },
+  ];
+  const emUso = new Set(['veiculos/trocada-e-reusada.webp']);
+  const semCarencia = ['veiculos/trocada-hoje.webp', 'veiculos/trocada-e-reusada.webp', 'veiculos/trocada-sem-data.webp', 'outra-pasta/x.webp'];
+  assert.deepEqual(escolherOrfas(arquivos, emUso, { agora, semCarencia }), ['veiculos/trocada-hoje.webp', 'veiculos/trocada-sem-data.webp']);
+  // Sem a lista, nada de hoje sai.
+  assert.deepEqual(escolherOrfas(arquivos, emUso, { agora }), []);
+});
+
 test('a carência é estrita: exatamente no limite, a foto fica', () => {
   const agora = 1_000_000_000_000;
   const carenciaMs = 5000;

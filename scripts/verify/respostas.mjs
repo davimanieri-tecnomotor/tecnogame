@@ -98,7 +98,9 @@ await wait(600);
 
 const tela = await page.evaluate(() => ({
   abaAtiva: document.querySelector('.aba-painel.ativa')?.textContent,
-  fonte: document.querySelector('.barra-info .situacao')?.textContent,
+  // De onde vêm as partidas: era um selo na barra, e virou a linha de resumo
+  // em cima da tabela.
+  fonte: document.querySelector('.respostas-fonte')?.textContent,
   linhas: document.querySelectorAll('.tabela tbody tr').length,
   colunas: [...document.querySelectorAll('.tabela thead th')].map((n) => n.textContent),
   primeiraLinha: [...(document.querySelectorAll('.tabela tbody tr')[0]?.children ?? [])].map((n) => n.textContent),
@@ -137,12 +139,12 @@ await wait(300);
 const pastaDownload = fs.mkdtempSync(path.join(os.tmpdir(), 'tecgame-download-'));
 const cdp = await page.target().createCDPSession();
 await cdp.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: pastaDownload });
-await clicar('Baixar dados');
+await clicar('Baixar planilha');
 await wait(900);
 const arquivos = fs.readdirSync(pastaDownload);
 console.log('3. baixou ->', JSON.stringify(arquivos));
 if (arquivos.length !== 1) {
-  falhas.push(`"Baixar dados" gerou ${arquivos.length} arquivo(s), esperava 1`);
+  falhas.push(`"Baixar planilha" gerou ${arquivos.length} arquivo(s), esperava 1`);
 } else {
   const conteudo = fs.readFileSync(path.join(pastaDownload, arquivos[0]), 'utf8');
   if (!conteudo.includes('Nome;Telefone')) falhas.push('o CSV não começa com o cabeçalho esperado');
@@ -155,13 +157,15 @@ fs.rmSync(pastaDownload, { recursive: true, force: true });
 
 // Sem ?comNuvem=1 a suíte continua hermética: nem tenta a rede. Por isso o
 // botão Entrar nem aparece — não há nuvem nenhuma para entrar (ver
-// podeUsarNuvem em firebase.js). Não afirma `entrar()` direto por
+// podeUsarNuvem em firebase.js). Desde a 3.3 ele mora na barra, à vista de
+// todas as abas, e não mais nas ações da aba Respostas: procura-se na barra
+// inteira. Não afirma `entrar()` direto por
 // `import()`: dinâmico falha em file:// (origem nula), e é exatamente por
 // isso que o jogo aberto do disco nunca alcança o Firebase (ver CLAUDE.md).
 const botoesDaAba = await page.evaluate(() =>
-  [...document.querySelectorAll('.barra-acoes button')].map((n) => n.textContent.trim())
+  [...document.querySelectorAll('.barra button')].map((n) => n.textContent.trim())
 );
-console.log('4. botões da aba respostas ->', JSON.stringify(botoesDaAba));
+console.log('4. botões da barra ->', JSON.stringify(botoesDaAba));
 if (botoesDaAba.some((t) => /Entrar/.test(t))) {
   falhas.push('o botão Entrar não deveria aparecer com a nuvem desligada');
 }

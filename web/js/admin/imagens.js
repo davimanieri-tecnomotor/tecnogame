@@ -19,18 +19,28 @@
 //     continua mostrando quando a internet da feira cai.
 //
 // A LIMPEZA. Trocar a foto de um veículo, apagar um veículo, enviar e desistir
-// sem salvar: tudo isso deixa arquivo que nenhum baralho usa. Ao salvar na
-// nuvem, o painel lista `veiculos/` e apaga o que o baralho recém-publicado não
-// cita E não foi tocado há mais de `CARENCIA_DIAS`. A carência existe porque o
-// baralho publicado não é o único lugar que cita uma foto:
-//   - outro notebook pode estar editando, com uma foto enviada e não salva;
-//   - um totem pode estar no meio de uma partida com o baralho anterior.
-// Ela conta do `updated` do arquivo, que o reaproveitamento renova — enviar de
-// novo uma foto órfã antiga a tira da fila.
+// sem salvar: tudo isso deixa arquivo que nenhum baralho usa. Três caminhos o
+// tiram do Storage, do mais imediato ao mais cauteloso:
 //
-// Se mesmo assim uma foto citada sumir (um rascunho parado além da carência),
-// `fotosQueSumiram` pega antes de salvar: o painel recusa publicar endereço
-// que não abre e diz qual veículo precisa de foto nova.
+//   - a foto que ESTA aba acabou de enviar sai na hora em que deixa de ser
+//     usada — trocada por outra, veículo removido, alterações descartadas
+//     (`apagarRecemEnviadasSemUso`). Ninguém mais pode citá-la: ela nunca foi
+//     publicada, e o nome é o conteúdo, então só existia por causa deste envio;
+//   - a foto que o baralho publicado citava e o Salvar acabou de trocar sai
+//     logo depois de a troca chegar à nuvem (`semCarencia` em
+//     `limparFotosSemUso`). Antes disso não pode: o totem que ainda joga com o
+//     baralho anterior a mostraria quebrada, e "Descartar" voltaria para ela;
+//   - o resto sai pela carência: ao salvar na nuvem, o painel lista
+//     `veiculos/` e apaga o que o baralho recém-publicado não cita E não foi
+//     tocado há mais de `CARENCIA_DIAS`. Ela cobre o rascunho de outro
+//     notebook e a aba fechada sem salvar, que nenhum dos dois de cima alcança.
+//     Conta do `updated` do arquivo, que o reaproveitamento renova — enviar de
+//     novo uma foto órfã antiga a tira da fila.
+//
+// Se mesmo assim uma foto citada sumir (um rascunho parado além da carência,
+// ou a foto que outro notebook trocou e apagou), `fotosQueSumiram` pega antes
+// de salvar: o painel recusa publicar endereço que não abre e diz qual veículo
+// precisa de foto nova.
 
 import { CONFIG } from '../config.js';
 import { comPrazo } from '../backend.js';
@@ -114,13 +124,23 @@ export function fotosDoBaralho(deck) {
  *
  * @param {Array<{caminho: string, atualizado: string|number|Date|null}>} arquivos
  * @param {Set<string>} emUso os caminhos que o baralho cita (`fotosDoBaralho`)
+ * @param {object} [opcoes]
+ * @param {Iterable<string>} [opcoes.semCarencia] fora de uso, estes saem já,
+ *   sem esperar a carência: são as fotos que o Salvar acabou de trocar. Em uso,
+ *   ficam do mesmo jeito — estar nesta lista nunca vence `emUso`.
  * @returns {string[]} os caminhos a apagar
  */
-export function escolherOrfas(arquivos, emUso, { agora = Date.now(), carenciaMs = CARENCIA_DIAS * DIA_MS } = {}) {
+export function escolherOrfas(
+  arquivos,
+  emUso,
+  { agora = Date.now(), carenciaMs = CARENCIA_DIAS * DIA_MS, semCarencia = [] } = {}
+) {
+  const jaPodem = new Set(semCarencia);
   return arquivos
     .filter(({ caminho, atualizado }) => {
       if (typeof caminho !== 'string' || !caminho.startsWith(`${PASTA}/`)) return false;
       if (emUso.has(caminho)) return false;
+      if (jaPodem.has(caminho)) return true;
       // Sem data não há como saber a idade, e o arquivo fica. Errar para o
       // lado de guardar custa uns KB; errar para o outro custa a foto de um
       // veículo sumindo do totem.
@@ -177,6 +197,33 @@ let emAndamento = 0;
  * ANTIGA, e a nova chegaria depois só neste navegador.
  */
 export const enviosEmAndamento = () => emAndamento;
+
+/**
+ * As fotos que esta aba CRIOU no Storage e que a nuvem ainda não publicou.
+ *
+ * São as únicas que dá para apagar na hora em que saem de uso: nenhum baralho
+ * publicado as cita, e nenhum outro notebook as enviou (se tivesse, o arquivo
+ * já existiria e o envio seria reaproveitamento, que não entra aqui).
+ */
+const recemEnviadas = new Set();
+
+/**
+ * Os bytes de cada foto enviada nesta aba, como `data:` URL, pelo caminho no
+ * Storage. É o que deixa "Baixar foto" baixar a foto recém-enviada sem buscá-la
+ * de volta no Storage — que, sem CORS no bucket, o navegador nem deixa ler.
+ */
+const bytesDaSessao = new Map();
+
+/** Há foto desta aba esperando para ser apagada quando sair de uso? */
+export const haRecemEnviadas = () => recemEnviadas.size > 0;
+
+/**
+ * O Salvar levou estas fotos para a nuvem: daqui em diante elas pertencem ao
+ * baralho publicado, e só a limpeza do Salvar as apaga.
+ */
+export function esquecerRecemEnviadas(caminhos) {
+  for (const c of caminhos) recemEnviadas.delete(c);
+}
 
 const naoExiste = (erro) => String(erro?.code ?? '').includes('object-not-found');
 
@@ -239,7 +286,12 @@ export async function enviarFoto(dataUrl, { aoProgredir = null } = {}) {
   try {
     const s = await firebaseStorage();
     if (!s) return { ok: false, motivo: motivoSemFirebase() ?? 'não deu para falar com o Firebase.' };
-    return await subir(s, bytes, tipo, aoProgredir);
+    const r = await subir(s, bytes, tipo, aoProgredir);
+    if (r.ok) {
+      bytesDaSessao.set(r.caminho, dataUrl);
+      if (!r.reaproveitada) recemEnviadas.add(r.caminho);
+    }
+    return r;
   } finally {
     emAndamento--;
   }
@@ -327,9 +379,15 @@ export async function fotosQueSumiram(deck) {
  * Melhor esforço: falhar aqui não desfaz nada do que foi salvo, e a próxima
  * gravação tenta de novo.
  *
+ * @param {object} [opcoes]
+ * @param {Iterable<string>} [opcoes.semCarencia] as fotos que este Salvar
+ *   trocou: saem já, sem esperar a carência — ver `escolherOrfas`
+ * @param {Function} [opcoes.tambemEmUso] devolve, NA HORA de escolher, mais
+ *   caminhos a poupar: o painel passa o que está aberto no editor, que pode ter
+ *   voltado a citar uma foto enquanto a lista do Storage descia
  * @returns {Promise<{ok: boolean, apagadas: number, restantes?: number, motivo?: string}>}
  */
-export async function limparFotosSemUso(deck, { agora = Date.now() } = {}) {
+export async function limparFotosSemUso(deck, { agora = Date.now(), semCarencia = [], tambemEmUso = null } = {}) {
   // Um baralho vazio citaria nada, e tudo viraria órfão. O validador não deixa
   // salvar baralho vazio, mas esta função apaga coisa: confere de novo.
   if (!deck?.slots?.length) return { ok: false, apagadas: 0, motivo: 'baralho vazio — limpeza não roda.' };
@@ -348,11 +406,134 @@ export async function limparFotosSemUso(deck, { agora = Date.now() } = {}) {
         )
       )
     );
-    const alvo = escolherOrfas(arquivos, fotosDoBaralho(deck), { agora });
+    const emUso = new Set([...fotosDoBaralho(deck), ...(tambemEmUso?.() ?? [])]);
+    const alvo = escolherOrfas(arquivos, emUso, { agora, semCarencia });
     const feitos = await Promise.allSettled(alvo.map((c) => st.deleteObject(st.ref(storage, c))));
     const apagadas = feitos.filter((f) => f.status === 'fulfilled').length;
     return { ok: true, apagadas, restantes: arquivos.length - apagadas };
   } catch (erro) {
     return { ok: false, apagadas: 0, motivo: traduzir(erro) };
+  }
+}
+
+/** Apagar uma foto não pode segurar a tela: sem rede, desiste e a carência cuida. */
+const PRAZO_PARA_APAGAR_MS = 8000;
+
+/**
+ * Apaga do Storage as fotos que esta aba enviou e que nada mais cita — a foto
+ * trocada por outra antes de salvar, a do veículo removido, a das alterações
+ * descartadas.
+ *
+ * Só as recém-enviadas (ver `recemEnviadas`): uma foto que o baralho publicado
+ * cita, ou que outro notebook enviou, espera o Salvar ou a carência.
+ *
+ * Melhor esforço, como a limpeza: a que não sair agora (sem rede, sem login)
+ * fica para a carência, e não é tentada de novo a cada tecla.
+ *
+ * @param {Set<string>} emUso o que o editor e o baralho publicado citam
+ * @returns {Promise<{apagadas: number}>}
+ */
+export async function apagarRecemEnviadasSemUso(emUso) {
+  const alvo = [...recemEnviadas].filter((c) => !emUso.has(c));
+  if (!alvo.length) return { apagadas: 0 };
+  // Sai do conjunto ANTES de esperar a rede: duas edições seguidas não mandam
+  // apagar o mesmo arquivo duas vezes.
+  for (const c of alvo) recemEnviadas.delete(c);
+
+  try {
+    const s = await comPrazo(firebaseStorage(), PRAZO_PARA_APAGAR_MS);
+    if (!s) return { apagadas: 0 };
+    const { storage, st } = s;
+    const feitos = await Promise.allSettled(
+      alvo.map((c) =>
+        comPrazo(st.deleteObject(st.ref(storage, c)), PRAZO_PARA_APAGAR_MS).catch((erro) => {
+          // Já não estava lá: o que se queria aconteceu.
+          if (!naoExiste(erro)) throw erro;
+        })
+      )
+    );
+    for (const [k, f] of feitos.entries()) {
+      if (f.status === 'fulfilled') bytesDaSessao.delete(alvo[k]);
+      else console.warn(`a foto ${alvo[k]} ficou no Storage (a carência apaga depois):`, f.reason);
+    }
+    return { apagadas: feitos.filter((f) => f.status === 'fulfilled').length };
+  } catch (erro) {
+    console.warn('as fotos recém-enviadas sem uso ficaram no Storage (a carência apaga depois):', erro);
+    return { apagadas: 0 };
+  }
+}
+
+/* ------------------------------------------------------------ baixar -- */
+
+/** Para o fallback de abrir a foto numa aba: o navegador só deixa abrir janela logo depois do clique. */
+const PRAZO_PARA_BAIXAR_MS = 4000;
+
+const EXTENSAO_DO_CAMINHO = /\.(webp|png|jpg|gif)$/;
+
+/** "FIAT TORO / 10GF" -> "FIAT TORO 10GF": sem o que o Windows recusa em nome de arquivo. */
+const nomeDeArquivo = (nome) => String(nome ?? '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim() || 'foto';
+
+function salvarComo(endereco, nome) {
+  const link = document.createElement('a');
+  link.href = endereco;
+  link.download = nome;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+/** Baixa os bytes de um `data:` URL como arquivo, com a extensão do tipo dele. */
+function salvarDataUrl(dataUrl, nome) {
+  const { tipo, bytes } = bytesDeDataUrl(dataUrl);
+  const url = URL.createObjectURL(new Blob([bytes], { type: tipo }));
+  salvarComo(url, `${nome}.${EXTENSAO[tipo] ?? 'png'}`);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/**
+ * Baixa para o computador a foto de um veículo — a enviada, que só existe no
+ * Storage ou dentro do baralho.
+ *
+ * Três caminhos, do melhor ao pior:
+ *   - a foto está dentro do baralho, ou foi enviada nesta aba: os bytes estão
+ *     aqui, e o arquivo sai na hora;
+ *   - senão, busca no Storage. Isso só funciona com CORS liberado no bucket
+ *     (firebase/cors.json): o `<img>` mostra a foto sem CORS, mas ler os bytes
+ *     de outra origem pelo JavaScript precisa dele;
+ *   - sem CORS, abre a foto numa aba nova, de onde o "Salvar imagem como…" do
+ *     navegador a baixa. O `download` de um link de outra origem é ignorado
+ *     pelo navegador, então não há como forçar o arquivo daqui.
+ *
+ * @param {string} src o `veiculo.imagem`
+ * @param {string} nome o nome do veículo, que vira o nome do arquivo
+ * @returns {Promise<'baixou'|'abriu'|'falhou'>}
+ */
+export async function baixarFoto(src, nome) {
+  if (typeof src !== 'string' || !src) return 'falhou';
+  const arquivo = nomeDeArquivo(nome);
+  const caminho = caminhoNoStorage(src);
+  try {
+    const local = src.startsWith('data:') ? src : caminho ? bytesDaSessao.get(caminho) : null;
+    if (local) {
+      salvarDataUrl(local, arquivo);
+      return 'baixou';
+    }
+  } catch (_) {
+    /* data URL que não é base64: tenta pelo endereço, como qualquer outro */
+  }
+
+  try {
+    const resposta = await comPrazo(fetch(src, { mode: 'cors' }), PRAZO_PARA_BAIXAR_MS);
+    if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
+    const blob = await resposta.blob();
+    const ext = EXTENSAO[blob.type] ?? caminho?.match(EXTENSAO_DO_CAMINHO)?.[1] ?? 'png';
+    const url = URL.createObjectURL(blob);
+    salvarComo(url, `${arquivo}.${ext}`);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return 'baixou';
+  } catch (erro) {
+    console.info('a foto não veio por fetch (sem CORS no bucket?) — abrindo numa aba nova:', erro?.message ?? erro);
+    window.open(src, '_blank', 'noopener');
+    return 'abriu';
   }
 }

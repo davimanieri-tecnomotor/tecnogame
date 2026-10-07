@@ -6,8 +6,9 @@
 //     RASTHER 4 na etiqueta "Você está usando" (cair no vídeo padrão mostraria o
 //     3S como se fosse ele);
 //  3. sem a marca do painel, um equipamento com vídeo passa pelo vídeo;
-//  4. a marca "Pular o vídeo demonstrativo do equipamento", em "Na feira", fica
-//     guardada no navegador e tira o vídeo do caminho de todos.
+//  4. a marca "Pular o vídeo demonstrativo do equipamento", na aba
+//     Configurações do painel, fica guardada no navegador e tira o vídeo do
+//     caminho de todos.
 import fs from 'node:fs';
 import puppeteer from 'puppeteer';
 
@@ -129,6 +130,10 @@ if (porta) {
   await porta.type('2040');
   await page.evaluate(() => document.querySelector('.porta-botao--ok').click());
 }
+// A marca mora na aba Configurações desde a 3.3 (era o "Na feira", no pé da
+// lista de veículos).
+await page.waitForSelector('#adm .aba-painel[data-aba="config"]', { timeout: 20000 }).then((h) => h.dispose());
+await page.evaluate(() => document.querySelector('#adm .aba-painel[data-aba="config"]').click());
 await page.waitForSelector('#adm [data-campo="pular-video"] input', { timeout: 20000 }).then(
   (h) => h.dispose(),
   async (erro) => {
