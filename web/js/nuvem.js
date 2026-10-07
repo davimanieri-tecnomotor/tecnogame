@@ -48,7 +48,9 @@ const DOCUMENTO = 'baralho';
  * O Firestore recusa documento acima de 1 MiB, e a mensagem dele não diz o que
  * fazer. Este teto é menor de propósito — sobra para nomes de campo e para o
  * `serverTimestamp` — e quem o estoura, na prática, é foto enviada do
- * computador: cada uma vira um `data:` URL de ~88 KB dentro do baralho.
+ * computador SEM login: cada uma vira um `data:` URL de ~88 KB dentro do
+ * baralho. Com login ela vai para o Storage e o baralho guarda só o endereço
+ * (ver admin/imagens.js).
  */
 const TETO_KB = 900;
 
@@ -66,7 +68,7 @@ export function cabeNaNuvem(deck) {
     kb,
     motivo:
       `o baralho ficou com ${kb} KB e o Firestore aceita no máximo ${TETO_KB} por documento. ` +
-      'Imagens enviadas do computador são o que mais ocupa — troque alguma por um caminho em assets/images.',
+      'Imagens enviadas do computador sem login são o que mais ocupa — envie de novo com a conta do Firebase conectada (vão para o Storage) ou troque por um caminho em assets/images.',
   };
 }
 

@@ -14,7 +14,7 @@ npm start          # http://localhost:8099
 npm run bundle     # DEPOIS de qualquer mudança em web/js/ — ver abaixo
 npm run check      # imports resolvem, nada morto, bundle em dia (0,1s)
 npm test           # lógica pura, sem navegador (0,3s) — a volta mais curta
-npm run verify     # a suíte inteira, 34 execuções, ~5min
+npm run verify     # a suíte inteira, 36 execuções, ~5min
 npm run verify:rapido   # só HTTP, ~110s — a volta do dia a dia
 ```
 
@@ -67,11 +67,12 @@ web/js/            os módulos ES — a fonte
   changelog.js       versão do jogo e as notas do sininho de novidades
   pages/ components/ admin/
     admin/respostas.js  dados de partida, telefone com login, export CSV
+    admin/imagens.js    foto de veículo no Storage: envio, limpeza das sem uso
 web/js/bundle.js   GERADO. Não editar.
 scripts/unidade/   testes de lógica pura (node --test), um arquivo por assunto
 scripts/verify/    a suíte (puppeteer), um arquivo por afirmação
 scripts/desempenho/ muitas partidas seguidas e o armazenamento envelhecido — fora da suíte
-firebase/          regras e índices do Firestore
+firebase/          regras do Firestore e do Storage, e os índices
 ```
 
 O jogo vive num **palco fixo de 1920x1080** escalado para caber na janela, então
@@ -120,6 +121,13 @@ resposta certa.
 `background-image`. Uma regra de folha com `background-image` não alcança. Para
 pôr gradiente num Container, use o parâmetro `gradient`.
 
+**`hidden` perde para `display` de folha.** `.campo` é `grid` e `.embutida` é
+`flex`: desde que o envio de imagem existe, `campoImagem.hidden = true` não
+escondia nada — o campo de caminho e o quadro do resumo apareciam juntos, e o
+teste só lia o atributo. Elemento com `display` próprio que se esconde por
+`hidden` precisa de `[hidden] { display: none }` na regra dele — e o teste
+confere `getComputedStyle`, não `.hidden`.
+
 **Escala negativa é espelhamento.** `ScaleEffect({begin: [-1,-1]})` faz a coisa
 nascer invertida, encolher até um ponto e voltar desvirada. Estava na tela do
 carro e na dos scanners; nas duas o sintoma relatado foi "vem ao contrário".
@@ -162,7 +170,7 @@ E ao medir isso: **handle do Puppeteer também segura** (`waitForSelector`,
 
 ## Antes de dizer que está pronto
 
-- `npm run verify` — **34 de 34**, nos dois transportes.
+- `npm run verify` — **36 de 36**, nos dois transportes.
 - **Olhe a tela.** Um probe que devolve números pode passar com a tela quebrada:
   o bug da resposta que sumia passou por um probe verde porque eu li o JSON e
   não abri a captura. Ponha um `page.screenshot` e leia a imagem.

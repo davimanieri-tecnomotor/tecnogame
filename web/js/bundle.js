@@ -6227,10 +6227,11 @@
   __define("firebase.js", function (__exports, __require) {
   // O Firebase, carregado sob demanda.
   //
-  // Um lugar só para subir o SDK, porque três assuntos diferentes o usam: o
+  // Um lugar só para subir o SDK, porque quatro assuntos diferentes o usam: o
   // ranking (`backend.js`, coleção `usuarios`), o conteúdo do jogo (`nuvem.js`,
-  // coleção `conteudo`, sem login) e as respostas com telefone
-  // (`admin/respostas.js`, coleção `contatos`, com login de verdade).
+  // coleção `conteudo`), as respostas com telefone (`admin/respostas.js`,
+  // coleção `contatos`) e as fotos de veículo no Storage (`admin/imagens.js`).
+  // Os três últimos escrevem ou leem só com login de verdade.
   //
   // POR QUE `import()` DINÂMICO E NÃO UM ARQUIVO NO REPOSITÓRIO
   // O SDK do Firebase vem da CDN do Google como módulo ES. Isso tem uma
@@ -6306,9 +6307,46 @@
   
     return promessa;
   }
+  
+  let promessaDoStorage = null;
+  
+  /**
+   * Sobe o módulo do Cloud Storage e devolve `{ storage, st }`, ou `null` se não
+   * der. `st` é o módulo inteiro, do mesmo jeito que `fs` e `fa` em `firebase()`.
+   *
+   * Separado de `firebase()` porque só o painel o usa — para enviar e apagar
+   * foto de veículo (ver admin/imagens.js). O jogo só MOSTRA a foto, e para isso
+   * o endereço basta: nenhum totem precisa baixar este módulo.
+   */
+  function firebaseStorage() {
+    if (promessaDoStorage) return promessaDoStorage;
+  
+    promessaDoStorage = (async () => {
+      const fb = await firebase();
+      if (!fb) {
+        promessaDoStorage = null;
+        return null;
+      }
+      const st = await import(`${CDN}/firebase-storage.js`);
+      const storage = st.getStorage(fb.app);
+      // O SDK insiste por 2 min numa operação e 10 min num envio antes de
+      // desistir. Sem rede, isso é o painel parado com "enviando…" na tela —
+      // e o Salvar, que confere as fotos antes de gravar, esperando junto.
+      storage.maxOperationRetryTime = 15000;
+      storage.maxUploadRetryTime = 30000;
+      return { storage, st };
+    })().catch((erro) => {
+      console.warn('Storage do Firebase indisponível; foto enviada fica dentro do baralho.', erro);
+      promessaDoStorage = null;
+      return null;
+    });
+  
+    return promessaDoStorage;
+  }
   Object.defineProperty(__exports, "podeUsarNuvem", { get: () => podeUsarNuvem, enumerable: true });
   Object.defineProperty(__exports, "motivoSemFirebase", { get: () => motivoSemFirebase, enumerable: true });
   Object.defineProperty(__exports, "firebase", { get: () => firebase, enumerable: true });
+  Object.defineProperty(__exports, "firebaseStorage", { get: () => firebaseStorage, enumerable: true });
   });
 
   /* ===== backend.js ===== */
@@ -6592,6 +6630,7 @@
     }
   }
   Object.defineProperty(__exports, "createUsuariosRecordData", { get: () => createUsuariosRecordData, enumerable: true });
+  Object.defineProperty(__exports, "comPrazo", { get: () => comPrazo, enumerable: true });
   Object.defineProperty(__exports, "addUsuario", { get: () => addUsuario, enumerable: true });
   Object.defineProperty(__exports, "queryUsuariosVencedores", { get: () => queryUsuariosVencedores, enumerable: true });
   Object.defineProperty(__exports, "queryRespostasDaPergunta", { get: () => queryRespostasDaPergunta, enumerable: true });
@@ -7533,7 +7572,9 @@
    *
    * @param {object} props
    * @param {Function} props.onEscolha recebe (resultado, arquivo); resultado e
-   *   null quando a leitura falhou, e o terceiro argumento traz o erro
+   *   null quando a leitura falhou, e o terceiro argumento traz o erro. Pode ser
+   *   assincrona (o envio ao Storage): o seletor fica desligado ate ela acabar,
+   *   e o que ela tiver a dizer vai por `raiz.mostrarEstado`.
    */
   function entradaDeImagem({ rotulo, dica, onEscolha }) {
     const entrada = el('input', { type: 'file', accept: 'image/*', class: 'campo-arquivo' });
@@ -7543,18 +7584,22 @@
       const arquivo = entrada.files?.[0];
       if (!arquivo) return;
       estado.textContent = 'processando…';
+      // Desligado durante o envio: uma segunda escolha no meio da primeira
+      // terminaria na ordem em que a rede respondesse, e nao na do clique.
+      entrada.disabled = true;
       try {
         const r = await reduzirImagem(arquivo);
         estado.textContent = r.reduziu
           ? `${arquivo.name} — reduzida para ${r.largura}x${r.altura}, cerca de ${r.kb} KB`
           : `${arquivo.name} — cerca de ${r.kb} KB`;
-        onEscolha(r, arquivo);
+        await onEscolha(r, arquivo);
       } catch (e) {
         estado.textContent = e?.message ?? 'não foi possível usar este arquivo';
         onEscolha(null, arquivo, e);
       } finally {
         // Zerar deixa escolher o MESMO arquivo de novo depois de um erro.
         entrada.value = '';
+        entrada.disabled = false;
       }
     });
   
@@ -7565,6 +7610,17 @@
       estado,
     ]);
     raiz.entrada = entrada;
+    /**
+     * @param {string} texto
+     * @param {'andamento'|'ok'|'atencao'|'erro'|null} [tipo] a cor da linha; em
+     *   andamento ela ganha um giro na frente, para não parecer parada
+     */
+    raiz.mostrarEstado = (texto, tipo = null) => {
+      estado.textContent = texto;
+      for (const t of ['andamento', 'ok', 'atencao', 'erro']) {
+        estado.classList.toggle(`campo-arquivo-estado--${t}`, t === tipo);
+      }
+    };
     return raiz;
   }
   Object.defineProperty(__exports, "el", { get: () => el, enumerable: true });
@@ -7581,6 +7637,380 @@
   Object.defineProperty(__exports, "entradaDeImagem", { get: () => entradaDeImagem, enumerable: true });
   });
 
+  /* ===== admin/imagens.js ===== */
+  __define("admin/imagens.js", function (__exports, __require) {
+  // As fotos de veículo no Cloud Storage do Firebase.
+  //
+  // O PROBLEMA QUE ISTO RESOLVE
+  // Foto enviada do computador vivia DENTRO do baralho, como `data:` URL (~88 KB
+  // cada, já reduzida). O baralho inteiro é um documento só no Firestore, com
+  // teto de 1 MiB (ver `TETO_KB` em nuvem.js): umas dez fotos e ele não subia
+  // mais. Agora, com login, a foto vai para o Storage e o baralho guarda só o
+  // endereço dela. Sem login (a senha local, o jogo aberto do disco) o caminho
+  // antigo continua valendo — a foto fica dentro do baralho.
+  //
+  // O NOME É O CONTEÚDO. Cada foto vira `veiculos/<sha-256>.<ext>`, e três
+  // coisas se apoiam nisso:
+  //   - a mesma foto enviada duas vezes é um arquivo só;
+  //   - um arquivo NUNCA é sobrescrito. Sobrescrever no Storage gera token novo,
+  //     e o endereço que o baralho publicado guarda deixaria de abrir em todo
+  //     totem. Se o arquivo já existe, é reaproveitado — e as regras
+  //     (firebase/storage.rules) recusam a sobrescrita mesmo que alguém tente;
+  //   - imutável, ele sai com cache de um ano: o totem que já viu a foto
+  //     continua mostrando quando a internet da feira cai.
+  //
+  // A LIMPEZA. Trocar a foto de um veículo, apagar um veículo, enviar e desistir
+  // sem salvar: tudo isso deixa arquivo que nenhum baralho usa. Ao salvar na
+  // nuvem, o painel lista `veiculos/` e apaga o que o baralho recém-publicado não
+  // cita E não foi tocado há mais de `CARENCIA_DIAS`. A carência existe porque o
+  // baralho publicado não é o único lugar que cita uma foto:
+  //   - outro notebook pode estar editando, com uma foto enviada e não salva;
+  //   - um totem pode estar no meio de uma partida com o baralho anterior.
+  // Ela conta do `updated` do arquivo, que o reaproveitamento renova — enviar de
+  // novo uma foto órfã antiga a tira da fila.
+  //
+  // Se mesmo assim uma foto citada sumir (um rascunho parado além da carência),
+  // `fotosQueSumiram` pega antes de salvar: o painel recusa publicar endereço
+  // que não abre e diz qual veículo precisa de foto nova.
+  
+  const { CONFIG } = __require("config.js");
+  const { comPrazo } = __require("backend.js");
+  const { firebaseStorage, motivoSemFirebase } = __require("firebase.js");
+  
+  /** A única pasta que este módulo escreve — e a única que a limpeza apaga. */
+  const PASTA = 'veiculos';
+  
+  /**
+   * Quanto tempo uma foto sem uso espera antes de ser apagada.
+   *
+   * Sete dias cobrem o rascunho aberto noutro notebook e o totem que ficou uns
+   * dias sem internet. Custa pouco: sete dias de órfãs, a ~90 KB por foto, são
+   * alguns MB.
+   */
+  const CARENCIA_DIAS = 7;
+  const DIA_MS = 24 * 60 * 60 * 1000;
+  
+  /**
+   * O maior arquivo que vai para o Storage. Uma foto reduzida a 1280px em WebP
+   * fica em centenas de KB; o teto folgado é para o navegador que só sabe gravar
+   * PNG (ver `reduzirImagem` em ui.js). O mesmo número está em storage.rules.
+   */
+  const TETO_BYTES = 5 * 1024 * 1024;
+  
+  /** Os tipos que storage.rules aceita, e a extensão de cada um. */
+  const EXTENSAO = { 'image/webp': 'webp', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif' };
+  
+  /** Imutável de verdade: o nome muda quando o conteúdo muda. */
+  const CACHE = 'public, max-age=31536000, immutable';
+  
+  /* ------------------------------------------------------------ as puras -- */
+  
+  /**
+   * O caminho no Storage de uma foto deste projeto, a partir do endereço que o
+   * baralho guarda — ou `null` para qualquer outra coisa (assets/images, `data:`,
+   * foto de outro bucket).
+   *
+   * É o que decide o que a limpeza considera "em uso", então erra para o lado
+   * estreito: só reconhece endereço de download do bucket de `config.js` dentro
+   * de `veiculos/`, que é também o único lugar onde ela apaga.
+   *
+   * @param {string} endereco o `veiculo.imagem`
+   * @param {string} [bucket] o bucket do projeto; o padrão é o de config.js
+   */
+  function caminhoNoStorage(endereco, bucket = CONFIG.firebaseOptions.storageBucket) {
+    if (typeof endereco !== 'string' || !endereco.startsWith('https://')) return null;
+    let u;
+    try {
+      u = new URL(endereco);
+    } catch (_) {
+      return null;
+    }
+    if (u.hostname !== 'firebasestorage.googleapis.com') return null;
+    // https://firebasestorage.googleapis.com/v0/b/<bucket>/o/<caminho codificado>?alt=media&token=...
+    const m = u.pathname.match(/^\/v0\/b\/([^/]+)\/o\/([^/]+)$/);
+    if (!m) return null;
+    let caminho;
+    try {
+      if (decodeURIComponent(m[1]) !== bucket) return null;
+      caminho = decodeURIComponent(m[2]);
+    } catch (_) {
+      return null;
+    }
+    return caminho.startsWith(`${PASTA}/`) && !caminho.slice(PASTA.length + 1).includes('/') ? caminho : null;
+  }
+  
+  /** Os caminhos do Storage que o baralho cita. */
+  function fotosDoBaralho(deck) {
+    const caminhos = new Set();
+    for (const slot of deck?.slots ?? []) {
+      const c = caminhoNoStorage(slot?.veiculo?.imagem);
+      if (c) caminhos.add(c);
+    }
+    return caminhos;
+  }
+  
+  /**
+   * Quais arquivos a limpeza apaga: fora de uso e parados há mais que a
+   * carência. Pura, para dar para afirmar sem Firebase.
+   *
+   * @param {Array<{caminho: string, atualizado: string|number|Date|null}>} arquivos
+   * @param {Set<string>} emUso os caminhos que o baralho cita (`fotosDoBaralho`)
+   * @returns {string[]} os caminhos a apagar
+   */
+  function escolherOrfas(arquivos, emUso, { agora = Date.now(), carenciaMs = CARENCIA_DIAS * DIA_MS } = {}) {
+    return arquivos
+      .filter(({ caminho, atualizado }) => {
+        if (typeof caminho !== 'string' || !caminho.startsWith(`${PASTA}/`)) return false;
+        if (emUso.has(caminho)) return false;
+        // Sem data não há como saber a idade, e o arquivo fica. Errar para o
+        // lado de guardar custa uns KB; errar para o outro custa a foto de um
+        // veículo sumindo do totem.
+        const t = atualizado == null ? NaN : new Date(atualizado).getTime();
+        return Number.isFinite(t) && agora - t > carenciaMs;
+      })
+      .map((a) => a.caminho);
+  }
+  
+  /**
+   * Os bytes e o tipo de um `data:` URL em base64 — o formato que `reduzirImagem`
+   * (ui.js) devolve, venha de canvas ou de FileReader.
+   *
+   * @returns {{tipo: string, bytes: Uint8Array}}
+   */
+  function bytesDeDataUrl(dataUrl) {
+    const m = /^data:([^;,]+)(?:;[^;,]+)*;base64,(.*)$/s.exec(typeof dataUrl === 'string' ? dataUrl : '');
+    if (!m) throw new Error('a imagem não veio num formato que dê para enviar.');
+    const binario = atob(m[2]);
+    const bytes = new Uint8Array(binario.length);
+    for (let i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i);
+    return { tipo: m[1].toLowerCase(), bytes };
+  }
+  
+  /**
+   * `veiculos/<64 hex>.<ext>`, ou `null` para tipo que o Storage não aceita.
+   * O formato é o que storage.rules confere no nome do arquivo.
+   */
+  function nomeDaFoto(hex, tipo) {
+    const ext = EXTENSAO[tipo];
+    return ext && /^[0-9a-f]{64}$/.test(hex) ? `${PASTA}/${hex}.${ext}` : null;
+  }
+  
+  const paraHex = (buffer) => Array.from(new Uint8Array(buffer), (b) => b.toString(16).padStart(2, '0')).join('');
+  
+  /**
+   * O SHA-256 dos bytes. `crypto.subtle` só existe em contexto seguro (https,
+   * localhost): o GitHub Pages é https, mas um painel aberto por IP da rede
+   * local em http não é — e aí o nome é sorteado no mesmo formato. Perde-se só
+   * a deduplicação; nada sobrescreve nada do mesmo jeito.
+   */
+  async function impressaoDigital(bytes) {
+    if (globalThis.crypto?.subtle) return paraHex(await crypto.subtle.digest('SHA-256', bytes));
+    return paraHex(crypto.getRandomValues(new Uint8Array(32)));
+  }
+  
+  /* ------------------------------------------------------- o Storage, de fato -- */
+  
+  /** Quantos envios estão no ar agora — o Salvar espera por eles. */
+  let emAndamento = 0;
+  
+  /**
+   * Há foto subindo? Salvar no meio do envio publicaria o veículo com a foto
+   * ANTIGA, e a nova chegaria depois só neste navegador.
+   */
+  const enviosEmAndamento = () => emAndamento;
+  
+  const naoExiste = (erro) => String(erro?.code ?? '').includes('object-not-found');
+  
+  /** O erro do SDK numa frase que diz ao operador o que fazer. */
+  function traduzir(erro) {
+    const c = String(erro?.code ?? '');
+    if (c.includes('unauthorized') || c.includes('unauthenticated')) {
+      return 'o Storage recusou: entre com a conta do Firebase — e, se já estiver conectado, confira se o deploy das regras do Storage foi feito (firebase/README.md).';
+    }
+    if (c.includes('bucket-not-found') || c.includes('project-not-found')) {
+      return 'o Storage não está ativado no projeto do Firebase (firebase/README.md).';
+    }
+    if (c.includes('retry-limit-exceeded') || erro?.message === 'prazo') {
+      return 'o Storage não respondeu a tempo — sem internet?';
+    }
+    if (c.includes('quota-exceeded')) return 'o Storage recusou por cota — confira o plano do projeto no Console.';
+    // Bucket que não existe (o Storage nunca ativado no Console) chega no envio
+    // como `storage/unknown` e "An unknown error occurred": o SDK só traduz
+    // 401, 402 e 403, e o 404 fica na resposta crua do servidor.
+    const resposta = String(erro?.serverResponse ?? erro?.message ?? '');
+    if (erro?.status === 404 || /"code":\s*404/.test(resposta)) {
+      return 'o bucket do Storage não existe (404): ative o Storage no Console do Firebase (firebase/README.md).';
+    }
+    if (c.includes('unknown')) {
+      return `o Storage respondeu com um erro sem explicação${erro?.status ? ` (HTTP ${erro.status})` : ''} — confira se ele está ativado no Console e se as regras foram publicadas (firebase/README.md).`;
+    }
+    return erro?.message ?? String(erro);
+  }
+  
+  /**
+   * Manda a foto para o Storage e devolve o endereço que o baralho vai guardar.
+   *
+   * Se o arquivo já existe (a mesma foto, enviada antes), não envia de novo:
+   * sobrescrever trocaria o token e quebraria o endereço já publicado. Só
+   * renova o `updated`, que é de onde a carência da limpeza conta.
+   *
+   * Exige a conta do Firebase: quem chama confere antes (`nuvemDeImagens` no
+   * editor), e a regra do Storage confere de novo.
+   *
+   * @param {string} dataUrl o que `reduzirImagem` devolveu
+   * @param {object} [opcoes]
+   * @param {Function} [opcoes.aoProgredir] recebe a fração enviada, de 0 a 1, a
+   *   cada pedaço que sobe — é o que a barra do editor desenha
+   * @returns {Promise<{ok: true, url: string, caminho: string, reaproveitada: boolean} | {ok: false, motivo: string}>}
+   */
+  async function enviarFoto(dataUrl, { aoProgredir = null } = {}) {
+    let tipo;
+    let bytes;
+    try {
+      ({ tipo, bytes } = bytesDeDataUrl(dataUrl));
+    } catch (erro) {
+      return { ok: false, motivo: erro.message };
+    }
+    if (!EXTENSAO[tipo]) return { ok: false, motivo: `o Storage só recebe WebP, PNG, JPEG ou GIF, e esta veio como ${tipo}.` };
+    if (bytes.length > TETO_BYTES) {
+      return { ok: false, motivo: `a foto ficou com ${Math.round(bytes.length / 1024)} KB, e o Storage aceita até ${TETO_BYTES / 1024 / 1024} MB.` };
+    }
+  
+    emAndamento++;
+    try {
+      const s = await firebaseStorage();
+      if (!s) return { ok: false, motivo: motivoSemFirebase() ?? 'não deu para falar com o Firebase.' };
+      return await subir(s, bytes, tipo, aoProgredir);
+    } finally {
+      emAndamento--;
+    }
+  }
+  
+  async function subir({ storage, st }, bytes, tipo, aoProgredir) {
+    const caminho = nomeDaFoto(await impressaoDigital(bytes), tipo);
+    const alvo = st.ref(storage, caminho);
+  
+    try {
+      let reaproveitada = true;
+      try {
+        await st.getMetadata(alvo);
+      } catch (erro) {
+        if (!naoExiste(erro)) throw erro;
+        reaproveitada = false;
+      }
+      if (reaproveitada) {
+        await st.updateMetadata(alvo, { customMetadata: { tocadaEm: new Date().toISOString() } });
+      } else {
+        // O envio retomável, e não o `uploadBytes` simples, porque só ele conta
+        // os bytes enquanto sobem: sem progresso na tela, o operador olhava a
+        // foto antiga parada e achava que nada estava acontecendo.
+        const tarefa = st.uploadBytesResumable(alvo, bytes, { contentType: tipo, cacheControl: CACHE });
+        tarefa.on('state_changed', (p) => aoProgredir?.(p.totalBytes ? p.bytesTransferred / p.totalBytes : 0));
+        await tarefa;
+      }
+      aoProgredir?.(1);
+      return { ok: true, url: await st.getDownloadURL(alvo), caminho, reaproveitada };
+    } catch (erro) {
+      return { ok: false, motivo: traduzir(erro) };
+    }
+  }
+  
+  /** Sem rede, o SDK tentaria por `maxOperationRetryTime`; o Salvar não espera tanto. */
+  const PRAZO_DA_CONFERENCIA_MS = 6000;
+  
+  /**
+   * Os veículos cuja foto no Storage não existe mais — índices de `deck.slots`.
+   *
+   * `conferiu: false` quer dizer "não deu para saber" (sem rede, sem Storage):
+   * quem chama segue em frente, porque recusar salvar por falta de internet
+   * seria pior que o risco que isto cobre.
+   *
+   * @returns {Promise<{conferiu: boolean, sumidas: number[], motivo?: string}>}
+   */
+  async function fotosQueSumiram(deck) {
+    const porCaminho = new Map();
+    (deck?.slots ?? []).forEach((slot, i) => {
+      const c = caminhoNoStorage(slot?.veiculo?.imagem);
+      if (c) porCaminho.set(c, [...(porCaminho.get(c) ?? []), i]);
+    });
+    if (!porCaminho.size) return { conferiu: true, sumidas: [] };
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return { conferiu: false, sumidas: [] };
+  
+    try {
+      const s = await comPrazo(firebaseStorage(), PRAZO_DA_CONFERENCIA_MS);
+      if (!s) return { conferiu: false, sumidas: [] };
+      const { storage, st } = s;
+      const resultado = await comPrazo(
+        Promise.all(
+          [...porCaminho].map(([caminho, indices]) =>
+            st.getMetadata(st.ref(storage, caminho)).then(
+              () => [],
+              (erro) => {
+                if (naoExiste(erro)) return indices;
+                throw erro;
+              }
+            )
+          )
+        ),
+        PRAZO_DA_CONFERENCIA_MS
+      );
+      return { conferiu: true, sumidas: resultado.flat().sort((a, b) => a - b) };
+    } catch (erro) {
+      return { conferiu: false, sumidas: [], motivo: traduzir(erro) };
+    }
+  }
+  
+  /**
+   * Apaga de `veiculos/` as fotos que o baralho não cita e que ninguém tocou há
+   * mais de `CARENCIA_DIAS`. O painel chama depois de salvar na nuvem, com o
+   * baralho que acabou de subir.
+   *
+   * Melhor esforço: falhar aqui não desfaz nada do que foi salvo, e a próxima
+   * gravação tenta de novo.
+   *
+   * @returns {Promise<{ok: boolean, apagadas: number, restantes?: number, motivo?: string}>}
+   */
+  async function limparFotosSemUso(deck, { agora = Date.now() } = {}) {
+    // Um baralho vazio citaria nada, e tudo viraria órfão. O validador não deixa
+    // salvar baralho vazio, mas esta função apaga coisa: confere de novo.
+    if (!deck?.slots?.length) return { ok: false, apagadas: 0, motivo: 'baralho vazio — limpeza não roda.' };
+  
+    const s = await firebaseStorage();
+    if (!s) return { ok: false, apagadas: 0, motivo: motivoSemFirebase() ?? 'não deu para falar com o Firebase.' };
+    const { storage, st } = s;
+  
+    try {
+      const { items } = await st.listAll(st.ref(storage, PASTA));
+      const arquivos = await Promise.all(
+        items.map((ref) =>
+          st.getMetadata(ref).then(
+            (m) => ({ caminho: ref.fullPath, atualizado: m.updated ?? m.timeCreated ?? null }),
+            () => ({ caminho: ref.fullPath, atualizado: null })
+          )
+        )
+      );
+      const alvo = escolherOrfas(arquivos, fotosDoBaralho(deck), { agora });
+      const feitos = await Promise.allSettled(alvo.map((c) => st.deleteObject(st.ref(storage, c))));
+      const apagadas = feitos.filter((f) => f.status === 'fulfilled').length;
+      return { ok: true, apagadas, restantes: arquivos.length - apagadas };
+    } catch (erro) {
+      return { ok: false, apagadas: 0, motivo: traduzir(erro) };
+    }
+  }
+  Object.defineProperty(__exports, "PASTA", { get: () => PASTA, enumerable: true });
+  Object.defineProperty(__exports, "CARENCIA_DIAS", { get: () => CARENCIA_DIAS, enumerable: true });
+  Object.defineProperty(__exports, "TETO_BYTES", { get: () => TETO_BYTES, enumerable: true });
+  Object.defineProperty(__exports, "caminhoNoStorage", { get: () => caminhoNoStorage, enumerable: true });
+  Object.defineProperty(__exports, "fotosDoBaralho", { get: () => fotosDoBaralho, enumerable: true });
+  Object.defineProperty(__exports, "escolherOrfas", { get: () => escolherOrfas, enumerable: true });
+  Object.defineProperty(__exports, "bytesDeDataUrl", { get: () => bytesDeDataUrl, enumerable: true });
+  Object.defineProperty(__exports, "nomeDaFoto", { get: () => nomeDaFoto, enumerable: true });
+  Object.defineProperty(__exports, "enviosEmAndamento", { get: () => enviosEmAndamento, enumerable: true });
+  Object.defineProperty(__exports, "enviarFoto", { get: () => enviarFoto, enumerable: true });
+  Object.defineProperty(__exports, "fotosQueSumiram", { get: () => fotosQueSumiram, enumerable: true });
+  Object.defineProperty(__exports, "limparFotosSemUso", { get: () => limparFotosSemUso, enumerable: true });
+  });
+
   /* ===== admin/editor.js ===== */
   __define("admin/editor.js", function (__exports, __require) {
   // O editor: o veículo em cima, e embaixo UMA pergunta do banco dele — os
@@ -7592,6 +8022,7 @@
   // lista do painel.
   
   const { el, campo, selecao, caixaDeMarcar, limpar, botao, entradaDeImagem } = __require("admin/ui.js");
+  const { caminhoNoStorage, enviarFoto } = __require("admin/imagens.js");
   const { CAMPOS_QUESTAO, CAMPOS_OBRIGATORIOS, IDIOMAS, SCANNERS, VEICULOS_ORIGINAIS } = __require("deck.js");
   
   const NOME_IDIOMA = { pt: 'Português', en: 'English', es: 'Español' };
@@ -7621,17 +8052,45 @@
    * @param {object}   props.pergunta  a pergunta do banco que está sendo editada
    * @param {number}   props.indice    posição no baralho
    * @param {Function} props.onChange  chamado a cada edição, para revalidar
+   * @param {Function} [props.nuvemDeImagens] diz, NA HORA do envio, se a foto
+   *   vai para o Storage (há conta do Firebase nesta aba). Função, e não valor,
+   *   porque o login pode chegar com o editor já aberto. Sem ela, ou devolvendo
+   *   `false`, a foto fica dentro do baralho.
    */
-  function editorDeSlot({ slot, pergunta, indice, posicao = 0, total = 1, onChange }) {
+  function editorDeSlot({ slot, pergunta, indice, posicao = 0, total = 1, onChange, nuvemDeImagens = null }) {
     const mudou = () => onChange?.();
   
     /* ------------------------------------------------------------- veículo -- */
   
-    /** Uma imagem enviada do computador vive dentro do baralho, como data URL. */
+    /** Uma imagem enviada do computador sem login vive dentro do baralho, como data URL. */
     const embutida = (src) => typeof src === 'string' && src.startsWith('data:');
+    /** Com login, ela vai para o Storage e o baralho guarda só o endereço. */
+    const noStorage = (src) => caminhoNoStorage(src) != null;
   
     const previaFoto = el('img', { class: 'previa-foto', alt: '' });
     const semFoto = el('div', { class: 'previa-vazia', text: 'sem imagem' });
+  
+    // O véu do envio ao Storage, por cima da prévia. Existe porque a única pista
+    // era uma linha cinza embaixo do seletor, e a prévia seguia com a foto
+    // ANTIGA até o fim do envio: parecia que nada estava acontecendo.
+    const preenchidoEnvio = el('div', { class: 'previa-envio-preenchido' });
+    const barraEnvio = el('div', { class: 'previa-envio-barra' }, preenchidoEnvio);
+    const textoEnvio = el('span', { class: 'previa-envio-texto' });
+    const veuEnvio = el('div', { class: 'previa-envio', role: 'status' }, [
+      el('span', { class: 'previa-envio-giro', 'aria-hidden': 'true' }),
+      textoEnvio,
+      barraEnvio,
+    ]);
+    veuEnvio.hidden = true;
+  
+    /** `fracao` null é "começando": a barra corre sem medida até o 1º pedaço subir. */
+    const mostrarEnvio = (fracao) => {
+      veuEnvio.hidden = false;
+      const medida = typeof fracao === 'number';
+      barraEnvio.classList.toggle('indeterminada', !medida);
+      preenchidoEnvio.style.width = medida ? `${Math.round(fracao * 100)}%` : '';
+      textoEnvio.textContent = medida ? `Enviando… ${Math.round(fracao * 100)}%` : 'Enviando…';
+    };
     const resumoEmbutida = el('span', { class: 'embutida-texto' });
     const blocoEmbutida = el('div', { class: 'embutida' }, [
       resumoEmbutida,
@@ -7656,12 +8115,16 @@
   
       // Um data URL tem centenas de milhares de caracteres: dentro de um campo de
       // texto ele e inutil e ainda dispara `input` a cada tecla. Some o campo e
-      // mostra o tamanho, com a saida para voltar ao modo caminho.
+      // mostra o tamanho, com a saida para voltar ao modo caminho. O endereco do
+      // Storage e curto, mas carrega um token que ninguem deve editar a mao.
       const dentro = embutida(src);
-      campoImagem.hidden = dentro;
-      blocoEmbutida.hidden = !dentro;
+      const naNuvem = noStorage(src);
+      campoImagem.hidden = dentro || naNuvem;
+      blocoEmbutida.hidden = !(dentro || naNuvem);
       if (dentro) {
         resumoEmbutida.textContent = `Imagem enviada do computador — cerca de ${Math.round(src.length / 1024)} KB, guardada dentro do baralho`;
+      } else if (naNuvem) {
+        resumoEmbutida.textContent = 'Imagem enviada ao Firebase Storage — o baralho guarda só o endereço dela';
       }
     };
   
@@ -7718,10 +8181,48 @@
   
     const envio = entradaDeImagem({
       rotulo: 'Ou enviar uma imagem do computador',
-      dica: 'Fica guardada dentro do baralho, então funciona no totem sem copiar arquivo nenhum. Reduzida para no máximo 1280px.',
-      onEscolha: (r, arquivo) => {
+      dica:
+        'Com login, vai para o Firebase Storage e o baralho guarda só o endereço; sem login, fica guardada dentro do baralho. ' +
+        'Nos dois casos o totem mostra a foto sem copiar arquivo nenhum. Reduzida para no máximo 1280px.',
+      onEscolha: async (r, arquivo) => {
         if (!r) return;
-        slot.veiculo.imagem = r.dataUrl;
+        const nome = arquivo?.name ?? 'imagem';
+        let src = r.dataUrl;
+        if (nuvemDeImagens?.()) {
+          // A foto escolhida já aparece, sob o véu: o operador vê O QUE está
+          // subindo, e não a foto de antes.
+          previaFoto.src = r.dataUrl;
+          previaFoto.hidden = false;
+          semFoto.hidden = true;
+          mostrarEnvio(null);
+          envio.mostrarEstado(`Enviando ${nome} para o Firebase Storage…`, 'andamento');
+          const enviada = await enviarFoto(r.dataUrl, {
+            aoProgredir: (f) => {
+              mostrarEnvio(f);
+              envio.mostrarEstado(`Enviando ${nome} para o Firebase Storage… ${Math.round(f * 100)}%`, 'andamento');
+            },
+          });
+          veuEnvio.hidden = true;
+          if (enviada.ok) {
+            src = enviada.url;
+            envio.mostrarEstado(
+              `${nome} — no Firebase Storage, cerca de ${r.kb} KB${enviada.reaproveitada ? ' (já estava lá)' : ''}`,
+              'ok'
+            );
+          } else {
+            // Não perde a foto por causa da rede: ela fica dentro do baralho,
+            // como sem login, e o operador sabe por quê.
+            envio.mostrarEstado(`Não foi para o Storage — ${enviada.motivo} A foto ficou guardada dentro do baralho.`, 'erro');
+          }
+        } else {
+          // Sem esta linha, quem esperava o Storage via a foto "enviada" e não
+          // tinha como saber que ela não saiu deste navegador.
+          envio.mostrarEstado(
+            `${nome} — cerca de ${r.kb} KB, guardada dentro do baralho: sem a conta do Firebase conectada nesta aba, a foto não vai para o Storage.`,
+            'atencao'
+          );
+        }
+        slot.veiculo.imagem = src;
         // O aspecto de uma foto qualquer não é o das fotos originais, então
         // `contain` para ela caber inteira em vez de sair recortada.
         slot.veiculo.fit = 'contain';
@@ -7774,7 +8275,7 @@
     const blocoVeiculo = el('section', { class: 'bloco' }, [
       el('h3', { text: 'Veículo' }),
       el('div', { class: 'veiculo-grade' }, [
-        el('div', { class: 'previa' }, [previaFoto, semFoto]),
+        el('div', { class: 'previa' }, [previaFoto, semFoto, veuEnvio]),
         el('div', { class: 'veiculo-campos' }, [
           campoNome,
           atalhoImagem,
@@ -11615,7 +12116,9 @@
    * O Firestore recusa documento acima de 1 MiB, e a mensagem dele não diz o que
    * fazer. Este teto é menor de propósito — sobra para nomes de campo e para o
    * `serverTimestamp` — e quem o estoura, na prática, é foto enviada do
-   * computador: cada uma vira um `data:` URL de ~88 KB dentro do baralho.
+   * computador SEM login: cada uma vira um `data:` URL de ~88 KB dentro do
+   * baralho. Com login ela vai para o Storage e o baralho guarda só o endereço
+   * (ver admin/imagens.js).
    */
   const TETO_KB = 900;
   
@@ -11633,7 +12136,7 @@
       kb,
       motivo:
         `o baralho ficou com ${kb} KB e o Firestore aceita no máximo ${TETO_KB} por documento. ` +
-        'Imagens enviadas do computador são o que mais ocupa — troque alguma por um caminho em assets/images.',
+        'Imagens enviadas do computador sem login são o que mais ocupa — envie de novo com a conta do Firebase conectada (vão para o Storage) ou troque por um caminho em assets/images.',
     };
   }
   
@@ -11762,10 +12265,19 @@
   
   const { readRaw, writeRaw } = __require("storage.js");
   
-  const VERSAO_DO_JOGO = '3.1.0';
+  const VERSAO_DO_JOGO = '3.2.0';
   
   /** Mais recente primeiro — é a ordem em que o painel lista. */
   const NOTAS_DE_ATUALIZACAO = [
+    {
+      versao: '3.2.0',
+      data: '2026-10-06',
+      itens: [
+        'Foto de veículo enviada do computador, com a conta do Firebase conectada, agora vai para o Firebase Storage — o baralho guarda só o endereço dela. Enquanto sobe, a prévia mostra a foto escolhida com a porcentagem enviada. Antes ela ia dentro do baralho, e umas dez fotos já impediam salvar na nuvem. Sem login (senha local, jogo aberto do disco) a foto continua indo dentro do baralho, como antes.',
+        'O Storage se limpa sozinho: ao salvar na nuvem, as fotos que nenhum veículo usa há mais de 7 dias são apagadas. A mesma foto enviada duas vezes vira um arquivo só.',
+        'Se a foto de um veículo tiver sido apagada do Storage (um rascunho parado por mais de 7 dias), o Salvar avisa qual veículo precisa de foto nova em vez de publicar um carro sem imagem.',
+      ],
+    },
     {
       versao: '3.1.0',
       data: '2026-10-01',
@@ -12281,8 +12793,10 @@
   // baralho neste navegador e, se houver nuvem, no Firebase; o jogo o relê quando
   // a próxima partida começa.
   //
-  // Salvar não pede login. A escrita do baralho no Firestore é aberta por decisão
-  // do projeto — ver a nota em firebase/firestore.rules, que diz o que isso custa.
+  // Salvar na nuvem pede a conta do Firebase: a regra de `conteudo` exige
+  // `request.auth != null` (firebase/firestore.rules). Sem ela, Salvar grava só
+  // neste navegador e diz por quê. A mesma conta manda as fotos enviadas do
+  // computador para o Storage — ver admin/imagens.js.
   
   const { el, botao, aviso, confirmar, limpar, mostrarNotas, pedirCredenciais } = __require("admin/ui.js");
   const { campo, caixaDeMarcar, selecao } = __require("admin/ui.js");
@@ -12302,6 +12816,7 @@
   const { motivoDaFalha, removerChave } = __require("storage.js");
   const { podeUsarNuvem } = __require("firebase.js");
   const { publicarNaNuvem, sincronizarBaralho, ultimaPublicacao } = __require("nuvem.js");
+  const { CARENCIA_DIAS, enviosEmAndamento, fotosQueSumiram, limparFotosSemUso } = __require("admin/imagens.js");
   const { VERSAO_DO_JOGO, NOTAS_DE_ATUALIZACAO, temNovidade, marcarVersaoVista } = __require("changelog.js");
   const { COLUNAS, aoMudarOperador, baixarArquivo, buscarRespostas, descreverFalha, entrar, formatarCelula, paraCSV, sair } = __require("admin/respostas.js");
   
@@ -12382,6 +12897,13 @@
   /* ------------------------------------------------------------------ ações -- */
   
   async function publicar() {
+    // A foto nova só entra no veículo quando o envio termina: salvar antes
+    // publicaria a ANTIGA, e a nova ficaria pendente só neste navegador.
+    if (enviosEmAndamento() > 0) {
+      aviso('Espere a foto terminar de subir para o Firebase Storage e salve de novo.', 'erro');
+      return;
+    }
+  
     const { total, gerais, porRodada } = errosPorRodada(estado.baralho);
     if (total > 0) {
       const primeira = [...porRodada.keys()].sort((a, b) => a - b)[0];
@@ -12410,13 +12932,33 @@
   
     if (!(await confirmar({ titulo: 'Salvar o baralho?', texto: partes.join(' '), confirmarTexto: 'Salvar' }))) return;
   
+    // Antes de gravar em qualquer lugar: uma foto do Storage que a limpeza já
+    // apagou (rascunho parado além da carência) viraria um veículo sem foto na
+    // roleta de todo totem. Só com login — sem ele a regra nem deixa conferir —,
+    // e sem rede segue em frente: não dá para saber, e recusar salvar por isso
+    // seria pior.
+    if (podeUsarNuvem() && estado.operador) {
+      const { sumidas } = await fotosQueSumiram(estado.baralho);
+      if (sumidas.length) {
+        const nomes = sumidas.map((i) => estado.baralho.slots[i]?.veiculo?.nome?.trim() || `rodada ${i + 1}`);
+        aviso(
+          `A foto de ${nomes.join(', ')} não existe mais no Firebase Storage (a limpeza apaga as que passam de ${CARENCIA_DIAS} dias sem uso). Envie a imagem de novo e salve.`,
+          'erro'
+        );
+        estado.selecionado = sumidas[0];
+        estado.pergunta = 0;
+        desenhar();
+        return;
+      }
+    }
+  
     if (!publicarBaralho(estado.baralho)) {
       // "Cheio" e "recusado" pedem coisas opostas: um pede tirar imagem enviada,
       // o outro pede liberar o armazenamento do site. Dizer qual dos dois e.
       const motivo = motivoDaFalha();
       aviso(
         motivo === 'cheio'
-          ? `Não caberia: o baralho está com cerca de ${pesoDoBaralho()} KB e o navegador não aceitou. Imagens enviadas do computador são o que mais ocupa — troque alguma por um caminho de arquivo em assets/images.`
+          ? `Não caberia: o baralho está com cerca de ${pesoDoBaralho()} KB e o navegador não aceitou. Imagens enviadas do computador sem login são o que mais ocupa — entre com a conta do Firebase e envie de novo (vão para o Storage), ou troque por um caminho de arquivo em assets/images.`
           : 'Não foi possível gravar — o navegador está bloqueando o armazenamento deste site.',
         'erro'
       );
@@ -12454,6 +12996,17 @@
     }
     aviso(`Salvo na nuvem (${r.kb} KB). Todo totem com internet pega na próxima partida.`);
     await atualizarUltimaNuvem();
+  
+    // A faxina do Storage roda aqui, e não num servidor: é o único momento em
+    // que se sabe, com certeza, qual baralho está publicado. Com o que acabou
+    // de subir, e não com `estado.baralho` — o operador pode voltar a editar
+    // enquanto a lista do Storage desce. Ver admin/imagens.js.
+    const limpeza = await limparFotosSemUso(clonar(carregarBaralho()));
+    if (limpeza.apagadas > 0) {
+      aviso(`${limpeza.apagadas} foto(s) que nenhum veículo usa havia mais de ${CARENCIA_DIAS} dias saíram do Firebase Storage.`);
+    } else if (!limpeza.ok) {
+      console.warn('limpeza do Storage não rodou:', limpeza.motivo);
+    }
   }
   
   /** Relê quando o baralho foi salvo na nuvem, e redesenha o selo da barra. */
@@ -13217,6 +13770,9 @@
             indice: estado.selecionado,
             posicao: estado.pergunta,
             total: slot.perguntas.length,
+            // O mesmo critério do Salvar: a conta real do Firebase, e não a
+            // senha local — o Storage cobra `request.auth != null`.
+            nuvemDeImagens: () => podeUsarNuvem() && Boolean(estado.operador),
             onChange: () => {
               estado.sujo = true;
               // Só a barra e a lista precisam reagir a cada tecla; redesenhar o

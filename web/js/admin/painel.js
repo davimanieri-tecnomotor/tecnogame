@@ -17,8 +17,10 @@
 // baralho neste navegador e, se houver nuvem, no Firebase; o jogo o relê quando
 // a próxima partida começa.
 //
-// Salvar não pede login. A escrita do baralho no Firestore é aberta por decisão
-// do projeto — ver a nota em firebase/firestore.rules, que diz o que isso custa.
+// Salvar na nuvem pede a conta do Firebase: a regra de `conteudo` exige
+// `request.auth != null` (firebase/firestore.rules). Sem ela, Salvar grava só
+// neste navegador e diz por quê. A mesma conta manda as fotos enviadas do
+// computador para o Storage — ver admin/imagens.js.
 
 import { el, botao, aviso, confirmar, limpar, mostrarNotas, pedirCredenciais } from './ui.js';
 import { campo, caixaDeMarcar, selecao } from './ui.js';
@@ -50,6 +52,7 @@ import {
 import { motivoDaFalha, removerChave } from '../storage.js';
 import { podeUsarNuvem } from '../firebase.js';
 import { publicarNaNuvem, sincronizarBaralho, ultimaPublicacao } from '../nuvem.js';
+import { CARENCIA_DIAS, enviosEmAndamento, fotosQueSumiram, limparFotosSemUso } from './imagens.js';
 import { VERSAO_DO_JOGO, NOTAS_DE_ATUALIZACAO, temNovidade, marcarVersaoVista } from '../changelog.js';
 import {
   COLUNAS,
@@ -140,6 +143,13 @@ const resumoDaPergunta = (pergunta, j) => {
 /* ------------------------------------------------------------------ ações -- */
 
 async function publicar() {
+  // A foto nova só entra no veículo quando o envio termina: salvar antes
+  // publicaria a ANTIGA, e a nova ficaria pendente só neste navegador.
+  if (enviosEmAndamento() > 0) {
+    aviso('Espere a foto terminar de subir para o Firebase Storage e salve de novo.', 'erro');
+    return;
+  }
+
   const { total, gerais, porRodada } = errosPorRodada(estado.baralho);
   if (total > 0) {
     const primeira = [...porRodada.keys()].sort((a, b) => a - b)[0];
@@ -168,13 +178,33 @@ async function publicar() {
 
   if (!(await confirmar({ titulo: 'Salvar o baralho?', texto: partes.join(' '), confirmarTexto: 'Salvar' }))) return;
 
+  // Antes de gravar em qualquer lugar: uma foto do Storage que a limpeza já
+  // apagou (rascunho parado além da carência) viraria um veículo sem foto na
+  // roleta de todo totem. Só com login — sem ele a regra nem deixa conferir —,
+  // e sem rede segue em frente: não dá para saber, e recusar salvar por isso
+  // seria pior.
+  if (podeUsarNuvem() && estado.operador) {
+    const { sumidas } = await fotosQueSumiram(estado.baralho);
+    if (sumidas.length) {
+      const nomes = sumidas.map((i) => estado.baralho.slots[i]?.veiculo?.nome?.trim() || `rodada ${i + 1}`);
+      aviso(
+        `A foto de ${nomes.join(', ')} não existe mais no Firebase Storage (a limpeza apaga as que passam de ${CARENCIA_DIAS} dias sem uso). Envie a imagem de novo e salve.`,
+        'erro'
+      );
+      estado.selecionado = sumidas[0];
+      estado.pergunta = 0;
+      desenhar();
+      return;
+    }
+  }
+
   if (!publicarBaralho(estado.baralho)) {
     // "Cheio" e "recusado" pedem coisas opostas: um pede tirar imagem enviada,
     // o outro pede liberar o armazenamento do site. Dizer qual dos dois e.
     const motivo = motivoDaFalha();
     aviso(
       motivo === 'cheio'
-        ? `Não caberia: o baralho está com cerca de ${pesoDoBaralho()} KB e o navegador não aceitou. Imagens enviadas do computador são o que mais ocupa — troque alguma por um caminho de arquivo em assets/images.`
+        ? `Não caberia: o baralho está com cerca de ${pesoDoBaralho()} KB e o navegador não aceitou. Imagens enviadas do computador sem login são o que mais ocupa — entre com a conta do Firebase e envie de novo (vão para o Storage), ou troque por um caminho de arquivo em assets/images.`
         : 'Não foi possível gravar — o navegador está bloqueando o armazenamento deste site.',
       'erro'
     );
@@ -212,6 +242,17 @@ async function publicar() {
   }
   aviso(`Salvo na nuvem (${r.kb} KB). Todo totem com internet pega na próxima partida.`);
   await atualizarUltimaNuvem();
+
+  // A faxina do Storage roda aqui, e não num servidor: é o único momento em
+  // que se sabe, com certeza, qual baralho está publicado. Com o que acabou
+  // de subir, e não com `estado.baralho` — o operador pode voltar a editar
+  // enquanto a lista do Storage desce. Ver admin/imagens.js.
+  const limpeza = await limparFotosSemUso(clonar(carregarBaralho()));
+  if (limpeza.apagadas > 0) {
+    aviso(`${limpeza.apagadas} foto(s) que nenhum veículo usa havia mais de ${CARENCIA_DIAS} dias saíram do Firebase Storage.`);
+  } else if (!limpeza.ok) {
+    console.warn('limpeza do Storage não rodou:', limpeza.motivo);
+  }
 }
 
 /** Relê quando o baralho foi salvo na nuvem, e redesenha o selo da barra. */
@@ -975,6 +1016,9 @@ function desenhar() {
           indice: estado.selecionado,
           posicao: estado.pergunta,
           total: slot.perguntas.length,
+          // O mesmo critério do Salvar: a conta real do Firebase, e não a
+          // senha local — o Storage cobra `request.auth != null`.
+          nuvemDeImagens: () => podeUsarNuvem() && Boolean(estado.operador),
           onChange: () => {
             estado.sujo = true;
             // Só a barra e a lista precisam reagir a cada tecla; redesenhar o

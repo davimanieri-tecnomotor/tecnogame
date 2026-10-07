@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "jogo",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["node_modules/http-server/bin/http-server", "web", "-p", "8099", "-c-1", "-s"],
+      "port": 8099
+    },
+    {
       "name": "proposta-visual",
       "runtimeExecutable": "node",
       "runtimeArgs": ["node_modules/http-server/bin/http-server", ".", "-p", "8123", "-c-1", "-s"],

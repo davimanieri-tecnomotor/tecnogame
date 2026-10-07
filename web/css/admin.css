@@ -908,6 +908,114 @@
   display: none;
 }
 
+/* A linha de estado do envio, com cor por desfecho. Cinza como a dica ela se
+   perdia: o operador não via que a foto estava subindo, nem que tinha falhado. */
+.campo-arquivo-estado--andamento {
+  color: var(--azul-claro);
+  font-weight: 600;
+}
+
+.campo-arquivo-estado--andamento::before {
+  content: '';
+  display: inline-block;
+  width: 0.8em;
+  height: 0.8em;
+  margin-right: 0.45em;
+  vertical-align: -0.1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: envio-gira 0.8s linear infinite;
+}
+
+.campo-arquivo-estado--ok {
+  color: var(--ok);
+}
+
+.campo-arquivo-estado--atencao {
+  color: var(--atencao);
+}
+
+.campo-arquivo-estado--erro {
+  color: var(--erro);
+}
+
+/* O véu por cima da prévia enquanto a foto sobe para o Storage: a foto escolhida
+   já aparece por baixo, e o giro e a barra dizem que algo está acontecendo. */
+.previa-envio {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(6, 11, 20, 0.62);
+  color: var(--texto);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* Ver a nota de `.campo[hidden]` abaixo: `display` de folha vence `hidden`. */
+.previa-envio[hidden] {
+  display: none;
+}
+
+.previa-envio-giro {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  border-top-color: var(--azul-claro);
+  border-radius: 50%;
+  animation: envio-gira 0.8s linear infinite;
+}
+
+.previa-envio-barra {
+  width: 70%;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+
+.previa-envio-preenchido {
+  width: 0;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--azul-claro);
+  transition: width 0.2s ease;
+}
+
+/* Antes do primeiro pedaço subir não há medida: a barra corre de um lado ao
+   outro em vez de ficar parada no zero, que parece travada. */
+.previa-envio-barra.indeterminada .previa-envio-preenchido {
+  width: 35%;
+  animation: envio-vai-e-vem 1.1s ease-in-out infinite;
+}
+
+@keyframes envio-gira {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes envio-vai-e-vem {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(290%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .previa-envio-giro,
+  .campo-arquivo-estado--andamento::before,
+  .previa-envio-barra.indeterminada .previa-envio-preenchido {
+    animation: none;
+  }
+}
+
 .embutida {
   display: flex;
   flex-wrap: wrap;
@@ -923,6 +1031,16 @@
   flex: 1 1 14rem;
   font-size: 0.82rem;
   color: var(--texto-2);
+}
+
+/* O atributo `hidden` perde para qualquer `display` de folha: `.campo` (grid)
+   e `.embutida` (flex) o ignoravam, e o editor do veículo mostrava ao mesmo
+   tempo o campo de caminho — com o data URL inteiro, ou o endereço do Storage
+   com token, dentro dele — e o quadro do resumo, vazio quando a foto era um
+   caminho de arquivo. */
+.campo[hidden],
+.embutida[hidden] {
+  display: none;
 }
 
 /* A zona de risco no pé da lista de veículos. "Resetar todos os dados" morava

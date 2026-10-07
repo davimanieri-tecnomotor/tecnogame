@@ -1,13 +1,13 @@
 # Infra do Firebase
 
-Regras e índices do Firestore usados pelo TecGame, em versão controlada junto do
-código que os consome. O projeto é **`tecnogame-c7e46`** — o da Tecnomotor. O
+Regras e índices do Firestore, e as regras do Cloud Storage, usados pelo
+TecGame, em versão controlada junto do código que os consome. O projeto é **`tecnogame-c7e46`** — o da Tecnomotor. O
 `projeto-assis-3qcf6v`, que vinha do FlutterFlow original, está morto (o bucket
 dele responde 402) e não é mais usado por nada.
 
 ```bash
 cd firebase
-firebase deploy --only firestore:rules,firestore:indexes
+firebase deploy --only firestore:rules,firestore:indexes,storage
 ```
 
 ## Antes do primeiro uso — duas coisas só existem pelo console
@@ -112,10 +112,54 @@ fechar a leitura, é **não colocar telefone no que é lido**:
 | --- | --- | --- | --- |
 | `usuarios` | nome, atuação, venceu, tempo, equipamento | sim (é o ranking, e a aba Respostas do painel) | só `create`, com formato validado |
 | `contatos` | nome, telefone | **só autenticado** (aba Respostas do painel, ver acima) | só `create`, com formato validado |
-| `conteudo` | baralho de veículos, regras e perguntas salvo pelo admin | sim | **qualquer um**, com formato validado (ver acima) |
+| `conteudo` | baralho de veículos, regras e perguntas salvo pelo admin | sim | **só autenticado**, com formato validado (ver acima) |
 
 Escrita cega em `contatos`: o cliente grava e nunca lê de volta. Quem precisa do
 telefone (o disparo de WhatsApp) passa a ler de lá autenticado, no servidor.
+
+## Fotos de veículo no Cloud Storage
+
+Desde a 3.2.0, foto enviada do computador **com login** vai para o Storage, em
+`veiculos/`, e o baralho guarda só o endereço de download (o código está em
+`web/js/admin/imagens.js`; as regras, em `storage.rules`). Sem login ela
+continua indo dentro do baralho, como `data:` URL.
+
+**Antes do primeiro uso, dois passos — nenhum sai do código:**
+
+1. **Ativar o Storage** em `tecnogame-c7e46`: Console → Build → Storage →
+   *Começar*. O projeto já está no plano Blaze, que o Storage exige para buckets
+   novos. O bucket tem de ser o que `web/js/config.js` declara em
+   `firebaseOptions.storageBucket` — hoje `tecnogame-c7e46.firebasestorage.app`.
+   A localização não muda o código, mas só `US-CENTRAL1`, `US-EAST1` e
+   `US-WEST1` caem no nível gratuito ("Always Free") do Cloud Storage.
+2. **Publicar as regras**: `firebase deploy --only storage`, nesta pasta. Sem
+   isso o bucket nasce com as regras do assistente, e o painel recebe
+   `storage/unauthorized` — o editor avisa e a foto fica dentro do baralho.
+
+Não precisa configurar CORS no bucket: o jogo mostra a foto por `<img>` e pelo
+`<image>` do SVG da roleta, que não pedem CORS, e o SDK cuida do envio.
+
+**O que as regras defendem.** Ler a foto não passa por elas — o endereço de
+download carrega um token que dispensa regra, e é assim que o totem mostra a
+foto sem conta. O que elas cobram é a escrita: só com login, só arquivo novo
+(sobrescrever trocaria o token e quebraria o endereço publicado), só imagem
+WebP/PNG/JPEG/GIF de até 5 MB, com o nome no formato `<sha-256>.<ext>`.
+
+**A limpeza.** Não há servidor nem regra de ciclo de vida no bucket: quem limpa
+é o painel, logo depois de salvar o baralho na nuvem — o único momento em que se
+sabe qual baralho está publicado. Ele apaga de `veiculos/` o que o baralho não
+cita **e** não foi tocado há mais de 7 dias (`CARENCIA_DIAS` em
+`admin/imagens.js`). Por isso:
+
+- uma foto trocada leva até a primeira gravação depois de 7 dias para sair;
+- uma regra de ciclo de vida por idade no bucket **não** serve de reforço: ela
+  apagaria também foto em uso, que nunca muda de data;
+- o painel recusa publicar baralho que cite foto já apagada, e diz qual veículo
+  precisa de foto nova.
+
+Vale configurar um **alerta de orçamento** no Google Cloud (Faturamento →
+Orçamentos e alertas): o Blaze cobra por uso, e o alerta é o que avisa se algo
+fugir do previsto — a limpeza cuida das fotos, não do resto do projeto.
 
 ## Ainda pendente do lado de vocês
 
