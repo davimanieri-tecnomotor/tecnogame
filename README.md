@@ -121,10 +121,10 @@ na roda desenhada.
 
 **Quatro minutos parado, e o jogo volta ao começo.** Qualquer tela que passe
 quatro minutos sem um toque ou uma tecla volta sozinha ao cadastro, e a partida
-de quem saiu é esquecida (`js/inatividade.js`). Antes só o cadastro tinha
-prazo: a roleta, a escolha do equipamento e o fim de jogo esperavam para
-sempre, e quem chegava depois de uma partida largada jogava com o nome e o
-telefone de quem tinha ido embora. O prazo é de cada tela — trocar de tela
+de quem saiu é esquecida (`js/inatividade.js`). Toda tela tem prazo, não só o
+cadastro: sem isso, a roleta, a escolha do equipamento e o fim de jogo
+esperariam para sempre, e quem chegasse depois de uma partida largada jogaria
+com o nome e o telefone de quem foi embora. O prazo é de cada tela — trocar de tela
 recomeça a contagem — e duas fogem do padrão. No **cadastro**, que já é o
 começo, o prazo só apaga a ficha preenchida pela metade; sem nada digitado, o
 ranking do ocioso segue na tela. A **administração** não tem prazo: é
@@ -262,10 +262,9 @@ demonstrativo do equipamento, o volume do som e a Pergunta do Milhão do dia.
 
 ### Um veículo, várias perguntas
 
-Até a v1 do baralho, um veículo tinha exatamente uma pergunta grudada nele:
-caiu no VW Delivery, era sempre aquela — e numa feira o segundo da fila já sabia
-a resposta. Agora cada veículo tem um **banco**, e quando a roleta para nele o
-jogo **sorteia uma das ligadas**.
+Cada veículo tem um **banco** de perguntas, e quando a roleta para nele o jogo
+**sorteia uma das ligadas**. Uma pergunta fixa por veículo deixaria a resposta
+decorada: numa feira, o segundo da fila já saberia.
 
 Escolher um veículo na lista abre o banco dele logo embaixo; os outros mostram
 só a contagem. A chave **Ativa no jogo**, no alto da pergunta, liga e desliga.
@@ -276,8 +275,9 @@ cairia num carro sem jogo.
 Gabarito e equipamentos pertencem à **pergunta**, não ao veículo: duas perguntas
 do mesmo carro podem ter resposta certa diferente e pedir scanners diferentes.
 
-O baralho publicado antes desta mudança continua abrindo — `carregarBaralho()`
-converte v1 em v2 na leitura, transformando a pergunta solta num banco de uma.
+O baralho antigo (v1, uma pergunta por veículo) continua abrindo —
+`carregarBaralho()` converte v1 em v2 na leitura, transformando a pergunta solta
+num banco de uma.
 
 ### Onde o baralho mora
 
@@ -292,11 +292,11 @@ Para a nuvem vai **tudo** — veículo, regras e perguntas, as dez de fábrica
 incluídas, mesmo intocadas. O que está gravado lá é o que o jogo joga, por
 extenso, e é isso que o painel mostra quando abre.
 
-> Houve uma versão que subia só o que diferia da fábrica e guardava o resto por
-> referência. Economizava 37 KB num teto de 1 MB e, em troca, fazia o texto de
-> uma pergunta original vir do `questions.js` do totem em vez do que estava
-> gravado — e quem abrisse o Firestore não via o conteúdo do jogo. Não valia o
-> que custava.
+> O baralho é gravado inteiro, e não como a diferença sobre o de fábrica. Guardar
+> o resto por referência economizaria 37 KB num teto de 1 MB, mas faria o texto
+> de uma pergunta original vir do `questions.js` do totem em vez do que está
+> gravado — e quem abrisse o Firestore não veria o conteúdo do jogo. Não vale o
+> que custa.
 
 Salvar grava local primeiro e sobe depois, de propósito: se a internet da feira
 estiver fora, o que foi editado não se perde e o painel diz o que faltou. O
@@ -327,10 +327,9 @@ fica com a última cópia que baixou.
 > o porquê — em vez de deixar o Firestore devolver um "insufficient permissions"
 > que não ensina nada.
 >
-> Entre 11/09/2026 e 21/09/2026 essa escrita foi **aberta**, com a justificativa
-> de que o endereço não seria divulgado. Fica registrado o que aquilo custava,
-> para a troca não voltar sem querer: **quem descobrisse a URL reescrevia o
-> jogo**, e endereço de GitHub Pages é indexável.
+> Essa escrita **não deve voltar a ser aberta**, nem sob a justificativa de que o
+> endereço não será divulgado: não há segredo possível no cliente, e endereço de
+> GitHub Pages é indexável — **quem descobrisse a URL reescreveria o jogo**.
 >
 > `contatos`, com nome e telefone dos jogadores, sempre foi a mais fechada —
 > `allow read: if request.auth != null`, lida só pela aba **Respostas**. A conta
@@ -403,10 +402,10 @@ Ativar o Storage, publicar as regras e liberar o CORS do bucket são passos de
 Console, de `firebase deploy` e de `gcloud` — ver
 [`firebase/README.md`](firebase/README.md).
 
-> **Até onde cada entrada protege.** Até a v1 a administração era um
-> `admin.html` separado, e a proteção era real: bastava não copiar aquele
-> arquivo para o totem. Um endereço único no GitHub Pages custou isso — o código
-> do admin passou a viajar para todo navegador que abre o jogo.
+> **Até onde cada entrada protege.** A administração mora no mesmo endereço do
+> jogo, então o código do admin viaja para todo navegador que abre o jogo — não há
+> proteção por arquivo ausente, como haveria com um `admin.html` separado que
+> bastasse não copiar para o totem.
 >
 > O **login** devolve a proteção onde ela pode existir: a conta vive no projeto
 > de vocês, não no JavaScript que o jogador recebe, e é o Firestore que a cobra.

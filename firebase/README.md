@@ -17,7 +17,7 @@ banco de dados). Pode escolher *produção*: as regras deste repositório
 substituem as do assistente no `deploy` acima.
 
 **Login por e-mail/senha. Sem isto ninguém abre o painel pela rede, nem salva
-baralho.** Desde 21/09/2026 a conta é cobrada em três lugares: a porta da
+baralho.** A conta é cobrada em três lugares: a porta da
 administração (`web/js/admin/porta.js`), a escrita do baralho em `conteudo` e a
 leitura de telefone em `contatos`. Dois passos, os dois pelo Console, nenhum
 pela tela do jogo:
@@ -54,16 +54,15 @@ causa do totem — ver `guardarSessao` em `web/js/admin/respostas.js`.
 porta do painel, que entra com a conta do Firebase sempre que alcança a nuvem —
 o operador não faz nada além de entrar uma vez por aba.
 
-Entre 11/09/2026 e 21/09/2026 essa escrita foi **aberta**, com a justificativa
-de que o endereço do jogo não seria divulgado. Fica registrado o que aquilo
-custava, para a troca não voltar sem querer:
+Essa escrita **não deve voltar a ser aberta**, nem sob a justificativa de que o
+endereço do jogo não será divulgado:
 
-- **quem descobrisse a URL reescrevia o jogo.** Não há segredo possível no
-  cliente — a chave web vai no bundle —, então a única proteção era ninguém
-  saber o endereço, e endereço de GitHub Pages é indexável;
-- a senha `2040` não mudava nada disso: ela viaja no mesmo JavaScript que o
-  jogador recebe. Hoje só existe onde o Firebase é inalcançável, e quem entra
-  por ela não publica na nuvem (`web/js/admin/porta.js`).
+- **quem descobrisse a URL reescreveria o jogo.** Não há segredo possível no
+  cliente — a chave web vai no bundle —, então a única proteção de uma escrita
+  aberta seria ninguém saber o endereço, e endereço de GitHub Pages é indexável;
+- a senha `2040` não protege disso: ela viaja no mesmo JavaScript que o jogador
+  recebe. Só existe onde o Firebase é inalcançável, e quem entra por ela não
+  publica na nuvem (`web/js/admin/porta.js`).
 
 O que as regras defendem além da conta: o **formato**. Sem `isBaralhoValido`,
 uma conta perdida transformaria a coleção em depósito de dados quaisquer.
@@ -126,7 +125,7 @@ telefone. Quem joga não apaga nada, e `update` continua negado.
 
 ## Fotos de veículo no Cloud Storage
 
-Desde a 3.2.0, foto enviada do computador **com login** vai para o Storage, em
+Foto enviada do computador **com login** vai para o Storage, em
 `veiculos/`, e o baralho guarda só o endereço de download (o código está em
 `web/js/admin/imagens.js`; as regras, em `storage.rules`). Sem login ela
 continua indo dentro do baralho, como `data:` URL.
