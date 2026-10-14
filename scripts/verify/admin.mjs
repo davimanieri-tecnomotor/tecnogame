@@ -206,12 +206,18 @@ const noTopo = await page.evaluate(() => {
     tituloVisivel: visivel(caixa.querySelector('h2')),
     versaoVisivel: visivel(caixa.querySelector('.notas-versao h3')),
     primeiraVersao: caixa.querySelector('.notas-versao h3')?.textContent ?? null,
+    versoes: [...caixa.querySelectorAll('.notas-versao h3')].map((h) => h.textContent),
   };
 });
 console.log('   abre no topo ->', JSON.stringify(noTopo));
 if (noTopo?.rolagem !== 0) falhas.push(`o modal de notas abriu rolado (scrollTop ${noTopo?.rolagem})`);
 if (!noTopo?.tituloVisivel) falhas.push('o titulo do modal de notas nasceu fora da area visivel');
 if (!noTopo?.versaoVisivel) falhas.push('o cabecalho da versao mais nova nasceu fora da area visivel');
+// So a atual e a anterior: dez versoes de notas escondiam justamente a que importa.
+if (noTopo?.versoes?.length !== 2) falhas.push(`o sininho listou ${noTopo?.versoes?.length} versoes, esperava 2: ${JSON.stringify(noTopo?.versoes)}`);
+else if (!noTopo.versoes[0].startsWith(`v${aoAbrir.versaoNaBarra.match(/v(\d+\.\d+\.\d+)/)?.[1]}`)) {
+  falhas.push(`a primeira versao do sininho nao e a da barra: ${noTopo.versoes[0]} x ${aoAbrir.versaoNaBarra}`);
+}
 
 // Fechar marca como vista: nao deve reaparecer sozinho de novo.
 await page.evaluate(() => document.querySelector('.modal-notas .modal-acoes button').click());

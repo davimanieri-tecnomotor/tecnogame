@@ -4572,8 +4572,14 @@
   /** O pedido de navegacao que chegou durante outra (ver render). */
   let pendente = null;
   
-  function defineRoute({ name, path, builder }) {
-    routes.set(path, { name, path, builder });
+  /**
+   * @param {boolean} [empilhar] a rota ganha uma entrada PRÓPRIA no histórico do
+   *   navegador, por cima da tela do jogo de onde se veio. As do jogo não: elas
+   *   trocam a entrada (`replaceState`), porque o totem não tem "voltar" e uma
+   *   entrada por tela só entupiria o histórico.
+   */
+  function defineRoute({ name, path, builder, empilhar = false }) {
+    routes.set(path, { name, path, builder, empilhar });
     namedPaths.set(name, path);
   }
   
@@ -4624,9 +4630,76 @@
       .animate([{ opacity: de }, { opacity: para }], { duration: ESMAECER_MS, easing: 'linear', fill: 'both' })
       .finished.catch(() => {});
   
+  /* -------------------------------------------- o histórico do navegador ------ */
+  
+  /**
+   * O "voltar" do navegador na administração.
+   *
+   * O jogo troca de tela com `replaceState`, então a sessão inteira é UMA entrada
+   * no histórico — e o "voltar" de quem estava na administração saía do jogo, para
+   * a página que o navegador tivesse antes. Uma rota `empilhar` ganha entrada
+   * própria: o "voltar" a desempilha, o `hashchange` renderiza a tela do jogo que
+   * estava embaixo, e a camada do admin se fecha como qualquer troca de tela.
+   *
+   * `sobreOJogo` no estado da entrada diz "empilhei esta entrada, e logo abaixo
+   * há tela do jogo". Sem a marca, não dá para saber: a entrada pode ter vindo de
+   * um endereço digitado numa aba nova, e aí embaixo há outro site.
+   */
+  function registrarEntradaEmpilhada(path) {
+    // Só o jogo chamando `go('/adm')` (o selo) empilha aqui. Quando o navegador já
+    // trouxe a entrada (o hash editado, o "avançar", um recarregamento), ela fica
+    // como está.
+    if (location.hash.slice(1) !== path) history.pushState({ path, sobreOJogo: true }, '', `#${path}`);
+  }
+  
+  /**
+   * `#/adm` digitado numa aba nova é a única entrada do histórico, e o "voltar"
+   * dela sai do jogo. A tela do jogo é posta embaixo — mas no primeiro gesto do
+   * usuário, e não no boot: o Chrome pula na volta as entradas que a página
+   * empilha sem nenhuma interação (a "history manipulation intervention", contra
+   * página que prende o "voltar"), e a empilhada no boot faria o "voltar" sair do
+   * jogo do mesmo jeito.
+   */
+  function empilharNoPrimeiroGesto(path) {
+    const parar = new AbortController();
+    const empilhar = () => {
+      parar.abort();
+      if (location.hash.slice(1) !== path || history.state?.sobreOJogo) return;
+      history.replaceState({ path: '/cadastro' }, '', '#/cadastro');
+      history.pushState({ path, sobreOJogo: true }, '', `#${path}`);
+    };
+    for (const tipo of ['pointerdown', 'keydown']) {
+      window.addEventListener(tipo, empilhar, { capture: true, signal: parar.signal });
+    }
+  }
+  
+  /** Um `history.back()` já pedido, esperando o `hashchange` que o conclui. */
+  let desempilhando = false;
+  
+  /**
+   * Sai de uma rota `empilhar` para o jogo. Quando a entrada foi empilhada,
+   * desempilha em vez de navegar: `go` trocaria a entrada da administração pela
+   * do cadastro e deixaria duas entradas iguais, e cada ida e volta ao painel
+   * somaria mais uma. Um segundo clique antes de o primeiro concluir não pode
+   * desempilhar de novo — seria sair do jogo.
+   *
+   * @param {string} destino para onde ir quando não há entrada para desempilhar
+   */
+  function sairDaRotaEmpilhada(destino) {
+    if (!history.state?.sobreOJogo) return go(destino);
+    if (desempilhando) return;
+    desempilhando = true;
+    // Sem o `hashchange` (que zera isto em `render`), não fica preso para sempre.
+    setTimeout(() => {
+      desempilhando = false;
+    }, 1000);
+    history.back();
+  }
+  
   /* -------------------------------------------------------------- navigate -- */
   
   async function render(path, { comFade }) {
+    desempilhando = false;
     if (navigating) {
       // Um toque durante a transicao de ENTRADA da tela anterior era engolido em
       // silencio: este `return` descartava a navegacao e o jogador ficava olhando
@@ -4689,7 +4762,8 @@
         path,
       };
   
-      if (location.hash.slice(1) !== path) {
+      if (route.empilhar) registrarEntradaEmpilhada(path);
+      else if (location.hash.slice(1) !== path) {
         history.replaceState({ path }, '', `#${path}`);
       }
   
@@ -4747,6 +4821,11 @@
   /** initialLocation: '/' */
   function startRouter() {
     const initial = location.hash.slice(1) || '/';
+  
+    // Recarregar em cima de uma entrada já empilhada não refaz nada: o estado
+    // dela sobrevive ao recarregamento.
+    if (resolve(initial)?.empilhar && !history.state?.sobreOJogo) empilharNoPrimeiroGesto(initial);
+  
     render(initial, { comFade: false });
   
     window.addEventListener('hashchange', () => {
@@ -4757,6 +4836,7 @@
   }
   Object.defineProperty(__exports, "defineRoute", { get: () => defineRoute, enumerable: true });
   Object.defineProperty(__exports, "serializeParam", { get: () => serializeParam, enumerable: true });
+  Object.defineProperty(__exports, "sairDaRotaEmpilhada", { get: () => sairDaRotaEmpilhada, enumerable: true });
   Object.defineProperty(__exports, "goNamed", { get: () => goNamed, enumerable: true });
   Object.defineProperty(__exports, "go", { get: () => go, enumerable: true });
   Object.defineProperty(__exports, "telaAtual", { get: () => telaAtual, enumerable: true });
@@ -6079,8 +6159,9 @@
   //
   // Duas, e separadas de propósito:
   //
-  //   useFirestore     falar com o Firebase — o baralho em `conteudo`.
-  //   rankingNaNuvem   gravar RESULTADO DE PARTIDA em `usuarios`/`contatos`.
+  //   useFirestore     falar com o Firebase — o baralho em `conteudo`, e LER as
+  //                    partidas em `usuarios` (o ranking e a aba Respostas).
+  //   rankingNaNuvem   GRAVAR resultado de partida em `usuarios`/`contatos`.
   //
   // A segunda é mais rígida que a primeira: numa máquina de trabalho ela fica
   // desligada mesmo com `?comNuvem=1`. Mexer no baralho pelo `npm start` é
@@ -6164,14 +6245,18 @@
     useFirestore: !origemDeDesenvolvimento(),
   
     /**
-     * O RANKING é caso à parte, e mais rígido: numa máquina de trabalho ele NUNCA
-     * vai para a nuvem, nem com `?comNuvem=1`.
+     * GRAVAR a partida é caso à parte, e mais rígido: numa máquina de trabalho ela
+     * NUNCA vai para a nuvem, nem com `?comNuvem=1`.
      *
      * `comNuvem` existe para mexer no baralho pelo `npm start` e ver chegar no
      * Firebase — não para semear o ranking da feira com partidas de teste. Foi
      * exatamente isso que encheu `usuarios` e `contatos` de "Davi" e "Vencedor"
-     * com telefone de mentira. Numa máquina de trabalho o ranking é local, e é o
-     * local que o jogo lê de volta, para a tela de fim ficar coerente.
+     * com telefone de mentira.
+     *
+     * Isto manda só na ESCRITA. LER é com `useFirestore`, e vale para o ranking e
+     * para a aba Respostas igualmente (ver `fonteDasPartidas`, em backend.js): com
+     * `?comNuvem=1` os dois mostram a nuvem, e a partida de teste, gravada só
+     * aqui, não aparece em nenhum dos dois.
      */
     rankingNaNuvem: !maquinaDeTrabalho() && !busca().has('semNuvem'),
   
@@ -6354,9 +6439,13 @@
   // Port of the Firestore layer (lib/backend/backend.dart, usuarios_record.dart)
   // and the two HTTP calls in lib/backend/api_requests/api_calls.dart.
   //
-  // O ranking vai para o Firestore de `tecnogame-c7e46` (o projeto do Dart,
+  // A partida vai para o Firestore de `tecnogame-c7e46` (o projeto do Dart,
   // `projeto-assis-3qcf6v`, está morto) E para o armazenamento deste navegador.
   // Os dois, e não um ou outro: ver `addUsuario`.
+  //
+  // O RANKING NÃO TEM TABELA PRÓPRIA. Ele é uma consulta sobre as mesmas partidas
+  // que a aba Respostas lista (`usuarios`), e as duas decidem de onde ler pela
+  // mesma regra — `fonteDasPartidas`. Apagar a tabela apaga o ranking junto.
   //
   // O disparo de WhatsApp pela z-api continua DESLIGADO (`useWhatsApp` em
   // config.js), porque a credencial dele não pode viajar no cliente.
@@ -6366,7 +6455,7 @@
   // `limit n`).
   
   const { CONFIG } = __require("config.js");
-  const { firebase } = __require("firebase.js");
+  const { firebase, podeUsarNuvem } = __require("firebase.js");
   const { getRecords, putRecord } = __require("storage.js");
   
   const LOCAL_KEY = 'usuarios';
@@ -6416,8 +6505,23 @@
   
   const recusado = (erro) => String(erro?.code ?? erro?.message ?? '').includes('permission-denied');
   
-  /** Ranking local, já com a retenção de um ano aplicada (ver storage.js). */
+  /** Partidas locais, já com a retenção de um ano aplicada (ver storage.js). */
   const readLocal = () => getRecords(LOCAL_KEY);
+  
+  /**
+   * De onde vêm as partidas: nuvem quando o Firebase está ao alcance, local
+   * quando não está. É a regra da aba Respostas (`buscarRespostas`) E a do
+   * ranking, de propósito — antes o ranking tinha a dele (`rankingNaNuvem`), e numa
+   * máquina de trabalho com `?comNuvem=1` a tabela mostrava a nuvem enquanto o
+   * ranking mostrava o que estava guardado no navegador: dois números para a mesma
+   * coisa.
+   *
+   * `rankingNaNuvem` continua mandando em GRAVAR (ver `addUsuario`): ler não suja
+   * nada, e gravar partida de teste sujou o ranking de verdade.
+   *
+   * @returns {'nuvem'|'local'}
+   */
+  const fonteDasPartidas = () => (podeUsarNuvem() ? 'nuvem' : 'local');
   
   /* ------------------------------------------------------------- Firestore -- */
   
@@ -6433,8 +6537,16 @@
    */
   const PRAZO_MS = 2500;
   
-  const comPrazo = (promessa, ms = PRAZO_MS) =>
-    Promise.race([promessa, new Promise((_, rejeitar) => setTimeout(() => rejeitar(new Error('prazo')), ms))]);
+  const comPrazo = (promessa, ms = PRAZO_MS) => {
+    let relogio;
+    const estouro = new Promise((_, rejeitar) => {
+      relogio = setTimeout(() => rejeitar(new Error('prazo')), ms);
+    });
+    // O relógio sai quando a promessa se resolve: solto, ele ficava de pé até o
+    // fim do prazo — inofensivo no navegador, mas um teste de unidade esperava os
+    // 30 s do prazo da exclusão antes de o Node encerrar.
+    return Promise.race([promessa, estouro]).finally(() => clearTimeout(relogio));
+  };
   
   let firestore = null;
   
@@ -6510,7 +6622,7 @@
    * the fastest players first - the ranking is sorted exactly as in the Dart.
    */
   async function queryUsuariosVencedores({ limit = 15 } = {}) {
-    if (CONFIG.rankingNaNuvem) {
+    if (fonteDasPartidas() === 'nuvem') {
       try {
         const alvo = await comPrazo(ensureFirestore());
         if (alvo) {
@@ -6553,7 +6665,7 @@
    */
   async function queryRespostasDaPergunta(perguntaId, { limit = 1000 } = {}) {
     if (!perguntaId) return [];
-    if (CONFIG.rankingNaNuvem) {
+    if (fonteDasPartidas() === 'nuvem') {
       try {
         const alvo = await comPrazo(ensureFirestore());
         if (alvo) {
@@ -6630,6 +6742,7 @@
     }
   }
   Object.defineProperty(__exports, "createUsuariosRecordData", { get: () => createUsuariosRecordData, enumerable: true });
+  Object.defineProperty(__exports, "fonteDasPartidas", { get: () => fonteDasPartidas, enumerable: true });
   Object.defineProperty(__exports, "comPrazo", { get: () => comPrazo, enumerable: true });
   Object.defineProperty(__exports, "addUsuario", { get: () => addUsuario, enumerable: true });
   Object.defineProperty(__exports, "queryUsuariosVencedores", { get: () => queryUsuariosVencedores, enumerable: true });
@@ -6670,6 +6783,15 @@
   function adiantarRanking() {
     adiantado = { quando: Date.now(), promessa: queryUsuariosVencedores({ limit: TOPO_DO_RANKING }).catch(() => []) };
     return adiantado.promessa;
+  }
+  
+  /**
+   * Esquece o ranking adiantado. Quem apaga a tabela de partidas (aba Respostas)
+   * chama isto: o ranking é lido dessa tabela, e os dois minutos de validade
+   * mostrariam um pódio que já não existe.
+   */
+  function esquecerRankingAdiantado() {
+    adiantado = null;
   }
   
   /** O ranking adiantado, se ainda valer; senão, um pedido novo. */
@@ -6736,6 +6858,7 @@
   }
   Object.defineProperty(__exports, "TOPO_DO_RANKING", { get: () => TOPO_DO_RANKING, enumerable: true });
   Object.defineProperty(__exports, "adiantarRanking", { get: () => adiantarRanking, enumerable: true });
+  Object.defineProperty(__exports, "esquecerRankingAdiantado", { get: () => esquecerRankingAdiantado, enumerable: true });
   Object.defineProperty(__exports, "rankingAdiantado", { get: () => rankingAdiantado, enumerable: true });
   Object.defineProperty(__exports, "numerosDoDia", { get: () => numerosDoDia, enumerable: true });
   Object.defineProperty(__exports, "maisRapidoDoDia", { get: () => maisRapidoDoDia, enumerable: true });
@@ -7619,6 +7742,23 @@
   /* ---------------------------------------------------------------- diálogo -- */
   
   /**
+   * Os diálogos abertos agora, cada um como a função que o fecha desistindo. Eles
+   * moram no `body`, e não na camada do painel — então fechar a camada não os
+   * leva junto. Com o "voltar" do navegador (que fecha o painel sem passar pelo
+   * botão), o das novidades ficava de pé em cima do jogo.
+   */
+  const abertos = new Set();
+  
+  /**
+   * Fecha todo diálogo aberto como se o operador tivesse desistido: o `confirmar`
+   * resolve com `false`, o `pedirCredenciais` com `null`. Quem espera por eles
+   * segue o caminho de quem cancelou.
+   */
+  function fecharDialogos() {
+    for (const desistir of [...abertos]) desistir();
+  }
+  
+  /**
    * Diálogo modal. Resolve com `true` no confirmar e `false` no cancelar, então
    * quem chama faz `if (await confirmar(...))`.
    */
@@ -7627,8 +7767,10 @@
       const fechar = (r) => {
         fundo.remove();
         document.removeEventListener('keydown', onTecla);
+        abertos.delete(desistir);
         resolve(r);
       };
+      const desistir = () => fechar(false);
       const onTecla = (e) => {
         if (e.key === 'Escape') fechar(false);
       };
@@ -7644,6 +7786,7 @@
       ]);
       const fundo = el('div', { class: 'modal-fundo', onClick: (e) => e.target === fundo && fechar(false) }, caixa);
       document.body.appendChild(fundo);
+      abertos.add(desistir);
       document.addEventListener('keydown', onTecla);
       botaoOk.focus();
     });
@@ -7667,8 +7810,10 @@
       const fechar = (r) => {
         fundo.remove();
         document.removeEventListener('keydown', onTecla);
+        abertos.delete(desistir);
         resolve(r);
       };
+      const desistir = () => fechar(null);
       const enviar = () => {
         const e = email.entrada.value.trim();
         const s = senha.entrada.value;
@@ -7702,6 +7847,7 @@
       ]);
       const fundo = el('div', { class: 'modal-fundo', onClick: (ev) => ev.target === fundo && fechar(null) }, caixa);
       document.body.appendChild(fundo);
+      abertos.add(desistir);
       document.addEventListener('keydown', onTecla);
       email.entrada.focus();
     });
@@ -7726,6 +7872,7 @@
       const fechar = () => {
         fundo.remove();
         document.removeEventListener('keydown', onTecla);
+        abertos.delete(fechar);
         resolve();
       };
       const onTecla = (e) => {
@@ -7751,6 +7898,7 @@
       ]);
       const fundo = el('div', { class: 'modal-fundo', onClick: (e) => e.target === fundo && fechar() }, caixa);
       document.body.appendChild(fundo);
+      abertos.add(fechar);
       document.addEventListener('keydown', onTecla);
       // `focus()` sem mais nada ROLA o contêiner até o elemento focado. Com notas
       // suficientes para a caixa rolar, o "Entendi" lá embaixo levava junto o
@@ -7900,6 +8048,7 @@
   Object.defineProperty(__exports, "fecharPopover", { get: () => fecharPopover, enumerable: true });
   Object.defineProperty(__exports, "abrirPopover", { get: () => abrirPopover, enumerable: true });
   Object.defineProperty(__exports, "aviso", { get: () => aviso, enumerable: true });
+  Object.defineProperty(__exports, "fecharDialogos", { get: () => fecharDialogos, enumerable: true });
   Object.defineProperty(__exports, "confirmar", { get: () => confirmar, enumerable: true });
   Object.defineProperty(__exports, "pedirCredenciais", { get: () => pedirCredenciais, enumerable: true });
   Object.defineProperty(__exports, "mostrarNotas", { get: () => mostrarNotas, enumerable: true });
@@ -9609,7 +9758,7 @@
       'Zerar os dados deste navegador',
       {
         classe: 'zona-de-risco',
-        ajuda: 'O que já foi salvo no Firebase continua lá — isso só se apaga pelo console do Firebase.',
+        ajuda: 'O que já foi salvo no Firebase continua lá. Para apagar também a nuvem, use "Apagar tabela" na aba Respostas.',
       },
       [
         el('div', { class: 'zerar-linha' }, [
@@ -10935,6 +11084,8 @@
    * @param {object} opcoes.veiculo `{ nome, imagem }`
    * @param {string} opcoes.equipamento a chave de `scannerEscolhido`
    * @param {object} opcoes.medidas `{ x, y, escala }`
+   * @param {boolean} [opcoes.semEquipamento] esconde a etiqueta "Você está usando":
+   *   o jogador não escolheu equipamento nenhum nesta rodada
    */
   function OrdemDeServico({ veiculo, equipamento, medidas, semEquipamento = false }) {
     const eq = EQUIPAMENTOS[equipamento] ?? EQUIPAMENTOS['Rasther 3'];
@@ -10960,8 +11111,8 @@
     const placa = PlacaMercosul(veiculo?.nome ?? '');
     placa.classList.add('aud-oculta');
   
-    // A Pergunta do Milhão não passou pela escolha do equipamento: a etiqueta
-    // não diria nada de verdade ali.
+    // Sem escolha de equipamento (a Pergunta do Milhão, ou a pergunta que
+    // dispensa a escolha) a etiqueta não diria nada de verdade ali.
     if (semEquipamento) chip.style.display = 'none';
   
     const raiz = el(
@@ -12408,7 +12559,13 @@
     selo.classList.add('aud-oculta', 'pg-selo');
     Object.assign(selo.style, { left: `${E.selo.x}px`, top: `${E.selo.y}px` });
   
-    const os = OrdemDeServico({ veiculo: rodada.veiculo, equipamento: rodada.equipamento, medidas: E.os, semEquipamento: milhao });
+    // A etiqueta "Você está usando" só diz uma verdade quando o jogador ESCOLHEU o
+    // equipamento. Quem pulou a escolha (`pularEquipamento`, ver
+    // carro_sleecionado.js) tem o equipamento padrão só para `scannerEscolhido`
+    // não ficar vazio — e a etiqueta afirmaria RASTHER 3S para quem nunca viu a
+    // tela dos seis. O Milhão também não passa pela escolha.
+    const semEquipamento = milhao || FFAppState.equipamentoPulado;
+    const os = OrdemDeServico({ veiculo: rodada.veiculo, equipamento: rodada.equipamento, medidas: E.os, semEquipamento });
     const crono = Cronometro({ tamanho: E.cronometro.tamanho });
     Object.assign(crono.no.style, { left: `${E.cronometro.x}px`, top: `${E.cronometro.y}px` });
   
@@ -13282,10 +13439,21 @@
   
   const { readRaw, writeRaw } = __require("storage.js");
   
-  const VERSAO_DO_JOGO = '3.3.0';
+  const VERSAO_DO_JOGO = '3.4.0';
   
   /** Mais recente primeiro — é a ordem em que o painel lista. */
   const NOTAS_DE_ATUALIZACAO = [
+    {
+      versao: '3.4.0',
+      data: '2026-10-14',
+      itens: [
+        'Na aba Respostas, o botão "Apagar tabela" apaga todas as partidas e telefones — os de todos os totens, quando há internet e você entrou com a conta, ou só os deste navegador — e o ranking vai junto. Antes, o que estava no Firebase só saía pelo console. Para valer na nuvem, alguém do time precisa publicar as regras do Firestore (firebase deploy --only firestore:rules); até lá o painel avisa que o Firebase recusou.',
+        'O ranking agora sai da mesma tabela da aba Respostas, e não de uma cópia guardada no navegador: o que aparece num lugar é o que aparece no outro, e apagar a tabela esvazia o ranking.',
+        'Quando a pergunta dispensa a escolha do equipamento, a etiqueta "Você está usando" não aparece mais na tela da pergunta. Ela dizia RASTHER 3S para quem não tinha escolhido nada.',
+        'O botão "voltar" do navegador, dentro da administração, volta para o jogo em vez de sair dele.',
+        'O sininho de novidades passou a mostrar só as duas últimas atualizações: a atual e a anterior.',
+      ],
+    },
     {
       versao: '3.3.0',
       data: '2026-10-07',
@@ -13415,6 +13583,17 @@
     },
   ];
   
+  /**
+   * Quantas versões o sininho lista: a atual e a anterior. Quem opera o totem
+   * quer saber o que mudou desde a última vez, e dez versões de notas a cada
+   * abertura escondiam justamente a que importa. O resto da lista é histórico
+   * (e o git o guarda).
+   */
+  const NOTAS_VISIVEIS = 2;
+  
+  /** As notas que o sininho mostra: as `NOTAS_VISIVEIS` mais recentes. */
+  const notasVisiveis = () => NOTAS_DE_ATUALIZACAO.slice(0, NOTAS_VISIVEIS);
+  
   const CHAVE = 'admin.versaoVista';
   
   /** Última versão que o operador já viu no sininho, ou null se nunca abriu. */
@@ -13426,6 +13605,8 @@
   const temNovidade = () => versaoVista() !== VERSAO_DO_JOGO;
   Object.defineProperty(__exports, "VERSAO_DO_JOGO", { get: () => VERSAO_DO_JOGO, enumerable: true });
   Object.defineProperty(__exports, "NOTAS_DE_ATUALIZACAO", { get: () => NOTAS_DE_ATUALIZACAO, enumerable: true });
+  Object.defineProperty(__exports, "NOTAS_VISIVEIS", { get: () => NOTAS_VISIVEIS, enumerable: true });
+  Object.defineProperty(__exports, "notasVisiveis", { get: () => notasVisiveis, enumerable: true });
   Object.defineProperty(__exports, "versaoVista", { get: () => versaoVista, enumerable: true });
   Object.defineProperty(__exports, "marcarVersaoVista", { get: () => marcarVersaoVista, enumerable: true });
   Object.defineProperty(__exports, "temNovidade", { get: () => temNovidade, enumerable: true });
@@ -13434,7 +13615,7 @@
   /* ===== admin/respostas.js ===== */
   __define("admin/respostas.js", function (__exports, __require) {
   // Os dados de partida (aba "Respostas" do painel): buscar, juntar telefone
-  // quando der, e exportar em CSV.
+  // quando der, exportar em CSV e apagar a tabela.
   //
   // DUAS COLEÇÕES, DUAS REGRAS (ver firebase/firestore.rules e backend.js):
   //
@@ -13462,8 +13643,10 @@
   // existe `janelaMs` para poder ser ajustada se um dia casar errado.
   
   const { CONFIG } = __require("config.js");
-  const { firebase, motivoSemFirebase, podeUsarNuvem } = __require("firebase.js");
-  const { getRecords } = __require("storage.js");
+  const { comPrazo, fonteDasPartidas } = __require("backend.js");
+  const { esquecerRankingAdiantado } = __require("estatisticas.js");
+  const { firebase, motivoSemFirebase } = __require("firebase.js");
+  const { getRecords, removerChave } = __require("storage.js");
   
   /* ---------------------------------------------------------------- login -- */
   
@@ -13700,7 +13883,8 @@
   /**
    * As linhas da aba, prontas para desenhar e exportar.
    *
-   * NUVEM QUANDO DÁ, LOCAL QUANDO NÃO DÁ — mesma regra do baralho (nuvem.js).
+   * NUVEM QUANDO DÁ, LOCAL QUANDO NÃO DÁ — mesma regra do baralho (nuvem.js) e
+   * do ranking (`fonteDasPartidas`, em backend.js).
    * Não mistura as duas fontes: as partidas deste navegador já estão na nuvem
    * (é o mesmo `addUsuario` que grava as duas), então somar as duas contaria
    * cada partida bem-sucedida duas vezes.
@@ -13712,7 +13896,7 @@
    * @returns {Promise<{linhas: object[], fonte: 'nuvem'|'local', comTelefone: boolean, autenticado: boolean}>}
    */
   async function buscarRespostas() {
-    if (podeUsarNuvem()) {
+    if (fonteDasPartidas() === 'nuvem') {
       try {
         const fb = await firebase();
         const autenticado = Boolean(fb?.auth?.currentUser);
@@ -13726,6 +13910,122 @@
     const usuarios = getRecords('usuarios');
     const contatos = getRecords('contatos');
     return { linhas: combinar(usuarios, contatos), fonte: 'local', comTelefone: true, autenticado: false };
+  }
+  
+  /* ------------------------------------------------------------- apagar ----- */
+  
+  /**
+   * Documentos por lote de exclusão. O Firestore aceita até 500 operações num
+   * `writeBatch`; sobra folga para não depender do número exato.
+   */
+  const LOTE_DA_EXCLUSAO = 400;
+  
+  /**
+   * Prazo de cada passo da exclusão. Mais largo que o `comPrazo` padrão (2,5 s),
+   * pensado para ler um ranking: um lote de 400 apagados não cabe nele.
+   */
+  const PRAZO_DA_EXCLUSAO_MS = 30_000;
+  
+  /** Trava contra laço sem fim: 200 lotes são 80 mil documentos, muito além do teto da aba. */
+  const MAX_LOTES = 200;
+  
+  /**
+   * Apaga uma coleção inteira do Firestore, um lote por vez — o cliente não tem
+   * "apagar coleção". Cada rodada lê um lote, apaga e lê de novo até a coleção
+   * esvaziar.
+   *
+   * @param {{db: object, fs: object}} fb o que `firebase()` devolve
+   * @param {string} nome a coleção
+   * @returns {Promise<number>} quantos documentos saíram
+   */
+  async function apagarColecao(fb, nome) {
+    const { db, fs } = fb;
+    let apagados = 0;
+    for (let i = 0; i < MAX_LOTES; i++) {
+      const fotografia = await comPrazo(
+        fs.getDocs(fs.query(fs.collection(db, nome), fs.limit(LOTE_DA_EXCLUSAO))),
+        PRAZO_DA_EXCLUSAO_MS
+      );
+      if (fotografia.empty) return apagados;
+      const lote = fs.writeBatch(db);
+      fotografia.docs.forEach((d) => lote.delete(d.ref));
+      await comPrazo(lote.commit(), PRAZO_DA_EXCLUSAO_MS);
+      apagados += fotografia.size;
+    }
+    return apagados;
+  }
+  
+  /**
+   * O que uma falha de exclusão quer dizer para quem opera, e o que fazer.
+   *
+   * `permission-denied` é o caso esperado até alguém publicar as regras novas: o
+   * código chega ao Firebase antes delas, e o cliente nunca pôde apagar
+   * (`allow delete: if false`, nas regras de antes).
+   */
+  function traduzirFalhaDeExclusao(erro) {
+    const texto = String(erro?.code ?? erro?.message ?? erro ?? '');
+    if (texto.includes('permission-denied')) {
+      return {
+        motivo: 'o Firebase recusou: as regras de exclusão ainda não foram publicadas neste projeto, ou a conta não vale mais.',
+        dica: 'Publique com `firebase deploy --only firestore:rules`, na pasta firebase/, e entre de novo com a conta.',
+      };
+    }
+    if (texto.includes('prazo')) {
+      return { motivo: 'o Firebase não respondeu a tempo.', dica: 'Confira a internet e tente de novo.' };
+    }
+    return { motivo: texto || 'erro desconhecido.', dica: null };
+  }
+  
+  /**
+   * Apaga a TABELA de jogadores — as partidas e os telefones — e, com ela, o
+   * ranking, que não tem tabela própria: é uma consulta sobre as mesmas partidas
+   * (ver `fonteDasPartidas`, em backend.js).
+   *
+   * Na nuvem, apaga `contatos` e depois `usuarios` — o dado mais sensível sai
+   * primeiro, e a falha no meio deixa as partidas, e não os telefones. Só mexe no
+   * navegador depois de a nuvem ter esvaziado: se a nuvem recusar, o que se vê na
+   * tela continua sendo o que existe.
+   *
+   * Com a fonte local, apaga só deste navegador. O que outros totens guardam
+   * localmente é deles, e só o painel de cada um alcança.
+   *
+   * @param {object} opcoes
+   * @param {'nuvem'|'local'} opcoes.fonte de onde a tabela da tela veio
+   * @param {object} [opcoes.nuvem] o que `firebase()` devolve; omitido, busca
+   * @returns {Promise<{ok: true, partidas: number|null, contatos: number|null} |
+   *   {ok: false, motivo: string, dica: string|null, apagados: string[]}>} `null`
+   *   em `partidas`/`contatos` quer dizer "não tocou na nuvem"; `apagados` lista o
+   *   que a nuvem já tinha perdido quando a falha veio
+   */
+  async function apagarPartidas({ fonte, nuvem = null }) {
+    let partidas = null;
+    let contatos = null;
+    const apagados = [];
+  
+    if (fonte === 'nuvem') {
+      const fb = nuvem ?? (await firebase());
+      if (!fb?.auth?.currentUser) {
+        return {
+          ok: false,
+          motivo: 'apagar da nuvem exige a conta do Firebase.',
+          dica: 'Entre pelo botão Entrar, no alto do painel.',
+          apagados,
+        };
+      }
+      try {
+        contatos = await apagarColecao(fb, 'contatos');
+        apagados.push('contatos');
+        partidas = await apagarColecao(fb, 'usuarios');
+      } catch (erro) {
+        console.warn('não deu para apagar a tabela da nuvem.', erro);
+        return { ok: false, ...traduzirFalhaDeExclusao(erro), apagados };
+      }
+    }
+  
+    removerChave('usuarios');
+    removerChave('contatos');
+    esquecerRankingAdiantado();
+    return { ok: true, partidas, contatos };
   }
   
   /* --------------------------------------------------------------- export -- */
@@ -13794,6 +14094,9 @@
   Object.defineProperty(__exports, "aoMudarOperador", { get: () => aoMudarOperador, enumerable: true });
   Object.defineProperty(__exports, "combinar", { get: () => combinar, enumerable: true });
   Object.defineProperty(__exports, "buscarRespostas", { get: () => buscarRespostas, enumerable: true });
+  Object.defineProperty(__exports, "apagarColecao", { get: () => apagarColecao, enumerable: true });
+  Object.defineProperty(__exports, "traduzirFalhaDeExclusao", { get: () => traduzirFalhaDeExclusao, enumerable: true });
+  Object.defineProperty(__exports, "apagarPartidas", { get: () => apagarPartidas, enumerable: true });
   Object.defineProperty(__exports, "COLUNAS", { get: () => COLUNAS, enumerable: true });
   Object.defineProperty(__exports, "formatarCelula", { get: () => formatarCelula, enumerable: true });
   Object.defineProperty(__exports, "paraCSV", { get: () => paraCSV, enumerable: true });
@@ -13829,7 +14132,7 @@
   // neste navegador e diz por quê. A mesma conta manda as fotos enviadas do
   // computador para o Storage — ver admin/imagens.js.
   
-  const { el, botao, aviso, confirmar, limpar, mostrarNotas, pedirCredenciais, ajuda, icone } = __require("admin/ui.js");
+  const { el, botao, aviso, confirmar, fecharDialogos, limpar, mostrarNotas, pedirCredenciais, ajuda, icone } = __require("admin/ui.js");
   const { abrirPopover, fecharPopover } = __require("admin/ui.js");
   const { editorDeSlot } = __require("admin/editor.js");
   const { telaConfiguracoes } = __require("admin/configuracoes.js");
@@ -13841,10 +14144,11 @@
   const { BARALHO_ORIGINAL, SLOTS_ORIGINAIS, carregarBaralho, novoIdDePergunta, perguntaVazia, publicarBaralho, restaurarOriginal, slotVazio, temBaralhoPublicado, usaArteOriginal } = __require("deck.js");
   const { motivoDaFalha, removerChave } = __require("storage.js");
   const { podeUsarNuvem } = __require("firebase.js");
+  const { esquecerRankingAdiantado } = __require("estatisticas.js");
   const { publicarNaNuvem, sincronizarBaralho, ultimaPublicacao } = __require("nuvem.js");
   const { CARENCIA_DIAS, apagarRecemEnviadasSemUso, enviosEmAndamento, esquecerRecemEnviadas, fotosDoBaralho, fotosQueSumiram, haRecemEnviadas, limparFotosSemUso } = __require("admin/imagens.js");
-  const { VERSAO_DO_JOGO, NOTAS_DE_ATUALIZACAO, temNovidade, marcarVersaoVista } = __require("changelog.js");
-  const { COLUNAS, aoMudarOperador, baixarArquivo, buscarRespostas, descreverFalha, entrar, formatarCelula, paraCSV, sair } = __require("admin/respostas.js");
+  const { VERSAO_DO_JOGO, notasVisiveis, temNovidade, marcarVersaoVista } = __require("changelog.js");
+  const { COLUNAS, aoMudarOperador, apagarPartidas, baixarArquivo, buscarRespostas, descreverFalha, entrar, formatarCelula, paraCSV, sair } = __require("admin/respostas.js");
   
   /* -------------------------------------------------------------- o estado -- */
   
@@ -14109,6 +14413,50 @@
     baixarArquivo(`tecgame-respostas-${hoje}.csv`, paraCSV(linhas, colunas));
   }
   
+  /**
+   * Apaga a tabela de jogadores — partidas e telefones — e o ranking com ela: o
+   * ranking é uma consulta sobre estas mesmas partidas, e não tem tabela própria
+   * (ver `fonteDasPartidas`, em backend.js).
+   *
+   * Onde a tabela vem da nuvem, apaga a nuvem, que é de todos os totens; a aba
+   * diz isso na confirmação, porque o mesmo botão apaga coisas diferentes
+   * conforme a fonte.
+   */
+  async function apagarTabela() {
+    const { linhas, fonte } = estado.respostas;
+    if (fonte === 'nuvem' && !estado.operador) {
+      aviso('Para apagar a tabela da nuvem, entre com a conta do Firebase (botão Entrar, no alto).', 'erro', { ms: 8000 });
+      return;
+    }
+    const quantas = linhas.length === 1 ? '1 partida' : `${linhas.length} partidas`;
+    const ok = await confirmar({
+      titulo: 'Apagar a tabela de jogadores?',
+      texto:
+        (fonte === 'nuvem'
+          ? `Apaga do Firebase ${quantas}, com nome e telefone, de TODOS os totens — e deste navegador também. `
+          : `Apaga ${quantas}, com nome e telefone, deste navegador. `) +
+        'O ranking sai junto: ele é lido desta mesma tabela. Não tem volta; se quiser guardar, baixe a planilha antes.',
+      perigoso: true,
+      confirmarTexto: 'Apagar tudo',
+    });
+    if (!ok) return;
+  
+    const r = await apagarPartidas({ fonte });
+    if (!r.ok) {
+      const parcial = r.apagados.length ? ` Já tinham sido apagados: ${r.apagados.join(', ')}.` : '';
+      aviso(`Não apagou: ${r.motivo}${r.dica ? ` ${r.dica}` : ''}${parcial}`, 'erro', { ms: 14000 });
+      // O que a tela mostra tem de ser o que existe, inclusive no meio da falha.
+      if (r.apagados.length) atualizarRespostas();
+      return;
+    }
+    aviso(
+      fonte === 'nuvem'
+        ? `Tabela apagada: ${r.partidas} partidas e ${r.contatos} contatos saíram do Firebase, e o ranking junto.`
+        : 'Tabela apagada deste navegador, e o ranking junto.'
+    );
+    atualizarRespostas();
+  }
+  
   /* ---------------------------------------------------------- o baralho ---- */
   
   async function descartar() {
@@ -14127,13 +14475,13 @@
    *
    * É o botão de antes da feira — inclusive para varrer as partidas de teste. O
    * que ele NÃO alcança está dito no próprio diálogo: o que já foi para o
-   * Firebase só sai pelo console, porque as regras não dão apagar ao cliente.
+   * Firebase continua lá, e sai pelo "Apagar tabela" da aba Respostas.
    */
   async function resetarTudo() {
     const ok = await confirmar({
       titulo: 'Resetar todos os dados?',
       texto:
-        'Volta às perguntas de fábrica (dez veículos, uma pergunta cada) e apaga deste navegador o ranking e os telefones das partidas já jogadas. O que já foi salvo no Firebase continua lá — isso só se apaga pelo console do Firebase.',
+        'Volta às perguntas de fábrica (dez veículos, uma pergunta cada) e apaga deste navegador o ranking e os telefones das partidas já jogadas. O que já foi salvo no Firebase continua lá — para apagá-lo também, use "Apagar tabela" na aba Respostas.',
       perigoso: true,
       confirmarTexto: 'Resetar tudo',
     });
@@ -14142,6 +14490,7 @@
     restaurarOriginal();
     removerChave('usuarios');
     removerChave('contatos');
+    esquecerRankingAdiantado();
     estado.baralho = clonar(BARALHO_ORIGINAL);
     estado.selecionado = 0;
     estado.pergunta = 0;
@@ -14373,7 +14722,10 @@
    * ponto do sininho sumir e ele não reabrir sozinho até a próxima versão.
    */
   async function abrirNotas() {
-    await mostrarNotas({ titulo: `Novidades do TecGame — v${VERSAO_DO_JOGO}`, notas: NOTAS_DE_ATUALIZACAO });
+    await mostrarNotas({ titulo: `Novidades do TecGame — v${VERSAO_DO_JOGO}`, notas: notasVisiveis() });
+    // O painel pode ter fechado com o diálogo de pé (o "voltar" do navegador): aí
+    // ninguém as leu, e a versão continua sem ser vista.
+    if (!app) return;
     marcarVersaoVista(VERSAO_DO_JOGO);
     atualizarChrome();
   }
@@ -14492,6 +14844,13 @@
         tipo: 'primario',
         disabled: carregando || !linhas.length,
         titulo: 'Um arquivo CSV, que abre no Excel',
+      }),
+      botao('Apagar tabela', {
+        icone: 'lixeira',
+        tipo: 'perigo',
+        onClick: apagarTabela,
+        disabled: carregando || !linhas.length,
+        titulo: 'Apaga todas as partidas e telefones — e o ranking, que sai desta mesma tabela',
       }),
     ];
   }
@@ -14962,6 +15321,8 @@
   
   /** Esvazia a camada e solta o que ela tinha preso no documento. */
   function desmontarAdmin() {
+    // Antes de zerar `app`: quem esperava o diálogo confere `app` ao continuar.
+    fecharDialogos();
     window.removeEventListener('beforeunload', aoDescarregar);
     pararDeOuvirLogin?.();
     pararDeOuvirLogin = null;
@@ -15007,10 +15368,12 @@
   //
   // O caminho: cinco toques no selo do cadastro (ou `#/adm` na barra do
   // navegador) -> login (ou a senha, sem nuvem) -> a camada do admin. Sair volta
-  // ao cadastro.
+  // ao cadastro — pelo botão "Voltar ao jogo" ou pelo "voltar" do navegador: a
+  // rota `/adm` tem entrada própria no histórico (ver `empilhar` em router.js), e
+  // o "voltar" não leva para fora do jogo.
   
   const { el } = __require("widgets.js");
-  const { go } = __require("router.js");
+  const { go, sairDaRotaEmpilhada } = __require("router.js");
   const { firebase, motivoSemFirebase, podeUsarNuvem } = __require("firebase.js");
   const { montarAdmin, desmontarAdmin } = __require("admin/painel.js");
   const { aviso, pedirCredenciais } = __require("admin/ui.js");
@@ -15285,7 +15648,7 @@
   
     const raiz = raizDoAdmin();
     raiz.hidden = false;
-    montarAdmin(raiz, { aoSair: () => go('/cadastro') });
+    montarAdmin(raiz, { aoSair: () => sairDaRotaEmpilhada('/cadastro') });
   }
   
   function fecharCamada() {
@@ -15313,7 +15676,7 @@
     // gesto do selo ela já foi pedida antes de navegar, e `pedirEntrada` volta
     // na hora.
     (async () => {
-      if (!(await pedirEntrada())) return go('/cadastro');
+      if (!(await pedirEntrada())) return sairDaRotaEmpilhada('/cadastro');
       // Entre o pedido de senha e agora o operador pode ter navegado; só abre se
       // a rota do admin ainda é a rota atual.
       if (location.hash.slice(1).split('?')[0] !== '/adm') return;
@@ -15321,10 +15684,11 @@
     })();
   
     // Fechar por aqui é síncrono — o roteador não espera promessa no dispose —,
-    // então não dá para perguntar nada a quem apertou o "voltar" do navegador. Em
-    // vez de perder o trabalho em silêncio, a edição pendente fica guardada e
-    // reaparece na próxima abertura (ver `montarAdmin`). O botão "Voltar ao jogo"
-    // continua perguntando, porque ali dá tempo.
+    // então não dá para perguntar nada a quem apertou o "voltar" do navegador, que
+    // fecha o painel como o botão mas sem a pergunta. Em vez de perder o trabalho
+    // em silêncio, a edição pendente fica guardada e reaparece na próxima abertura
+    // (ver `montarAdmin`). O botão "Voltar ao jogo" continua perguntando, porque
+    // ali dá tempo.
     casca.__dispose = fecharCamada;
   
     // O painel não tem prazo de inatividade (inatividade.js). É ferramenta de
@@ -18897,10 +19261,10 @@
       // É uma marca do baralho, por pergunta (`pularEquipamento`, ver deck.js):
       // há pergunta que não depende de scanner nenhum, e para essa a tela dos
       // seis equipamentos é uma parada sem decisão — em feira cheia, é a fila
-      // parada. Quem pula joga com o equipamento padrão, que é o que dá ao painel
-      // da pergunta uma pele inteira em vez do cinza de reserva, e não vê o vídeo
-      // demonstrativo: ele é a apresentação do equipamento ESCOLHIDO, e aqui não
-      // houve escolha. O registro da partida diz isso com todas as letras (ver
+      // parada. Quem pula fica com o equipamento padrão só para `scannerEscolhido`
+      // nunca ser vazio, e não vê o vídeo demonstrativo nem a etiqueta "Você está
+      // usando": são a apresentação do equipamento ESCOLHIDO, e aqui não houve
+      // escolha. O registro da partida diz isso com todas as letras (ver
       // `equipamentoDaPartida`, em pages/tela_acao.js).
       if (FFAppState.questoesBrasil[FFAppState.indiceAtual]?.pularEquipamento) {
         FFAppState.scannerEscolhido = EQUIPAMENTO_PADRAO;
@@ -19376,7 +19740,9 @@
     { name: 'instrucoes', path: '/instrucoes', builder: InstrucoesWidget },
     { name: 'carroSleecionado', path: '/carro', builder: CarroSleecionadoWidget },
     { name: 'milhao', path: '/milhao', builder: PerguntaDoMilhaoWidget },
-    { name: 'adm', path: '/adm', builder: PortaDoAdmWidget },
+    // `empilhar`: a administração tem entrada própria no histórico, e o "voltar"
+    // do navegador volta ao jogo em vez de sair dele (ver router.js).
+    { name: 'adm', path: '/adm', builder: PortaDoAdmWidget, empilhar: true },
   ];
   
   function main() {
@@ -19400,6 +19766,7 @@
         name: route.name,
         path: route.path,
         builder: ({ params }) => route.builder({ params }),
+        empilhar: route.empilhar,
       });
     }
   

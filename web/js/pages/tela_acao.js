@@ -239,7 +239,13 @@ export function montarPergunta(rodada, { aoTerminar = null } = {}) {
   selo.classList.add('aud-oculta', 'pg-selo');
   Object.assign(selo.style, { left: `${E.selo.x}px`, top: `${E.selo.y}px` });
 
-  const os = OrdemDeServico({ veiculo: rodada.veiculo, equipamento: rodada.equipamento, medidas: E.os, semEquipamento: milhao });
+  // A etiqueta "Você está usando" só diz uma verdade quando o jogador ESCOLHEU o
+  // equipamento. Quem pulou a escolha (`pularEquipamento`, ver
+  // carro_sleecionado.js) tem o equipamento padrão só para `scannerEscolhido`
+  // não ficar vazio — e a etiqueta afirmaria RASTHER 3S para quem nunca viu a
+  // tela dos seis. O Milhão também não passa pela escolha.
+  const semEquipamento = milhao || FFAppState.equipamentoPulado;
+  const os = OrdemDeServico({ veiculo: rodada.veiculo, equipamento: rodada.equipamento, medidas: E.os, semEquipamento });
   const crono = Cronometro({ tamanho: E.cronometro.tamanho });
   Object.assign(crono.no.style, { left: `${E.cronometro.x}px`, top: `${E.cronometro.y}px` });
 

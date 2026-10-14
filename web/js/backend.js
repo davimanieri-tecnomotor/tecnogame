@@ -1,9 +1,13 @@
 // Port of the Firestore layer (lib/backend/backend.dart, usuarios_record.dart)
 // and the two HTTP calls in lib/backend/api_requests/api_calls.dart.
 //
-// O ranking vai para o Firestore de `tecnogame-c7e46` (o projeto do Dart,
+// A partida vai para o Firestore de `tecnogame-c7e46` (o projeto do Dart,
 // `projeto-assis-3qcf6v`, está morto) E para o armazenamento deste navegador.
 // Os dois, e não um ou outro: ver `addUsuario`.
+//
+// O RANKING NÃO TEM TABELA PRÓPRIA. Ele é uma consulta sobre as mesmas partidas
+// que a aba Respostas lista (`usuarios`), e as duas decidem de onde ler pela
+// mesma regra — `fonteDasPartidas`. Apagar a tabela apaga o ranking junto.
 //
 // O disparo de WhatsApp pela z-api continua DESLIGADO (`useWhatsApp` em
 // config.js), porque a credencial dele não pode viajar no cliente.
@@ -13,7 +17,7 @@
 // `limit n`).
 
 import { CONFIG } from './config.js';
-import { firebase } from './firebase.js';
+import { firebase, podeUsarNuvem } from './firebase.js';
 import { getRecords, putRecord } from './storage.js';
 
 const LOCAL_KEY = 'usuarios';
@@ -63,8 +67,23 @@ const CAMPOS_DA_3_0 = ['perguntaId', 'alternativa'];
 
 const recusado = (erro) => String(erro?.code ?? erro?.message ?? '').includes('permission-denied');
 
-/** Ranking local, já com a retenção de um ano aplicada (ver storage.js). */
+/** Partidas locais, já com a retenção de um ano aplicada (ver storage.js). */
 const readLocal = () => getRecords(LOCAL_KEY);
+
+/**
+ * De onde vêm as partidas: nuvem quando o Firebase está ao alcance, local
+ * quando não está. É a regra da aba Respostas (`buscarRespostas`) E a do
+ * ranking, de propósito — antes o ranking tinha a dele (`rankingNaNuvem`), e numa
+ * máquina de trabalho com `?comNuvem=1` a tabela mostrava a nuvem enquanto o
+ * ranking mostrava o que estava guardado no navegador: dois números para a mesma
+ * coisa.
+ *
+ * `rankingNaNuvem` continua mandando em GRAVAR (ver `addUsuario`): ler não suja
+ * nada, e gravar partida de teste sujou o ranking de verdade.
+ *
+ * @returns {'nuvem'|'local'}
+ */
+export const fonteDasPartidas = () => (podeUsarNuvem() ? 'nuvem' : 'local');
 
 /* ------------------------------------------------------------- Firestore -- */
 
@@ -80,8 +99,16 @@ const readLocal = () => getRecords(LOCAL_KEY);
  */
 const PRAZO_MS = 2500;
 
-export const comPrazo = (promessa, ms = PRAZO_MS) =>
-  Promise.race([promessa, new Promise((_, rejeitar) => setTimeout(() => rejeitar(new Error('prazo')), ms))]);
+export const comPrazo = (promessa, ms = PRAZO_MS) => {
+  let relogio;
+  const estouro = new Promise((_, rejeitar) => {
+    relogio = setTimeout(() => rejeitar(new Error('prazo')), ms);
+  });
+  // O relógio sai quando a promessa se resolve: solto, ele ficava de pé até o
+  // fim do prazo — inofensivo no navegador, mas um teste de unidade esperava os
+  // 30 s do prazo da exclusão antes de o Node encerrar.
+  return Promise.race([promessa, estouro]).finally(() => clearTimeout(relogio));
+};
 
 let firestore = null;
 
@@ -157,7 +184,7 @@ export async function addUsuario(record, { serverTimestamp = false } = {}) {
  * the fastest players first - the ranking is sorted exactly as in the Dart.
  */
 export async function queryUsuariosVencedores({ limit = 15 } = {}) {
-  if (CONFIG.rankingNaNuvem) {
+  if (fonteDasPartidas() === 'nuvem') {
     try {
       const alvo = await comPrazo(ensureFirestore());
       if (alvo) {
@@ -200,7 +227,7 @@ export async function queryUsuariosVencedores({ limit = 15 } = {}) {
  */
 export async function queryRespostasDaPergunta(perguntaId, { limit = 1000 } = {}) {
   if (!perguntaId) return [];
-  if (CONFIG.rankingNaNuvem) {
+  if (fonteDasPartidas() === 'nuvem') {
     try {
       const alvo = await comPrazo(ensureFirestore());
       if (alvo) {

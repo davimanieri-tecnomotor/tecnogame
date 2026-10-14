@@ -25,7 +25,7 @@
 // neste navegador e diz por quê. A mesma conta manda as fotos enviadas do
 // computador para o Storage — ver admin/imagens.js.
 
-import { el, botao, aviso, confirmar, limpar, mostrarNotas, pedirCredenciais, ajuda, icone } from './ui.js';
+import { el, botao, aviso, confirmar, fecharDialogos, limpar, mostrarNotas, pedirCredenciais, ajuda, icone } from './ui.js';
 import { abrirPopover, fecharPopover } from './ui.js';
 import { editorDeSlot } from './editor.js';
 import { telaConfiguracoes } from './configuracoes.js';
@@ -48,6 +48,7 @@ import {
 } from '../deck.js';
 import { motivoDaFalha, removerChave } from '../storage.js';
 import { podeUsarNuvem } from '../firebase.js';
+import { esquecerRankingAdiantado } from '../estatisticas.js';
 import { publicarNaNuvem, sincronizarBaralho, ultimaPublicacao } from '../nuvem.js';
 import {
   CARENCIA_DIAS,
@@ -59,10 +60,11 @@ import {
   haRecemEnviadas,
   limparFotosSemUso,
 } from './imagens.js';
-import { VERSAO_DO_JOGO, NOTAS_DE_ATUALIZACAO, temNovidade, marcarVersaoVista } from '../changelog.js';
+import { VERSAO_DO_JOGO, notasVisiveis, temNovidade, marcarVersaoVista } from '../changelog.js';
 import {
   COLUNAS,
   aoMudarOperador,
+  apagarPartidas,
   baixarArquivo,
   buscarRespostas,
   descreverFalha,
@@ -335,6 +337,50 @@ function baixarRespostas() {
   baixarArquivo(`tecgame-respostas-${hoje}.csv`, paraCSV(linhas, colunas));
 }
 
+/**
+ * Apaga a tabela de jogadores — partidas e telefones — e o ranking com ela: o
+ * ranking é uma consulta sobre estas mesmas partidas, e não tem tabela própria
+ * (ver `fonteDasPartidas`, em backend.js).
+ *
+ * Onde a tabela vem da nuvem, apaga a nuvem, que é de todos os totens; a aba
+ * diz isso na confirmação, porque o mesmo botão apaga coisas diferentes
+ * conforme a fonte.
+ */
+async function apagarTabela() {
+  const { linhas, fonte } = estado.respostas;
+  if (fonte === 'nuvem' && !estado.operador) {
+    aviso('Para apagar a tabela da nuvem, entre com a conta do Firebase (botão Entrar, no alto).', 'erro', { ms: 8000 });
+    return;
+  }
+  const quantas = linhas.length === 1 ? '1 partida' : `${linhas.length} partidas`;
+  const ok = await confirmar({
+    titulo: 'Apagar a tabela de jogadores?',
+    texto:
+      (fonte === 'nuvem'
+        ? `Apaga do Firebase ${quantas}, com nome e telefone, de TODOS os totens — e deste navegador também. `
+        : `Apaga ${quantas}, com nome e telefone, deste navegador. `) +
+      'O ranking sai junto: ele é lido desta mesma tabela. Não tem volta; se quiser guardar, baixe a planilha antes.',
+    perigoso: true,
+    confirmarTexto: 'Apagar tudo',
+  });
+  if (!ok) return;
+
+  const r = await apagarPartidas({ fonte });
+  if (!r.ok) {
+    const parcial = r.apagados.length ? ` Já tinham sido apagados: ${r.apagados.join(', ')}.` : '';
+    aviso(`Não apagou: ${r.motivo}${r.dica ? ` ${r.dica}` : ''}${parcial}`, 'erro', { ms: 14000 });
+    // O que a tela mostra tem de ser o que existe, inclusive no meio da falha.
+    if (r.apagados.length) atualizarRespostas();
+    return;
+  }
+  aviso(
+    fonte === 'nuvem'
+      ? `Tabela apagada: ${r.partidas} partidas e ${r.contatos} contatos saíram do Firebase, e o ranking junto.`
+      : 'Tabela apagada deste navegador, e o ranking junto.'
+  );
+  atualizarRespostas();
+}
+
 /* ---------------------------------------------------------- o baralho ---- */
 
 async function descartar() {
@@ -353,13 +399,13 @@ async function descartar() {
  *
  * É o botão de antes da feira — inclusive para varrer as partidas de teste. O
  * que ele NÃO alcança está dito no próprio diálogo: o que já foi para o
- * Firebase só sai pelo console, porque as regras não dão apagar ao cliente.
+ * Firebase continua lá, e sai pelo "Apagar tabela" da aba Respostas.
  */
 async function resetarTudo() {
   const ok = await confirmar({
     titulo: 'Resetar todos os dados?',
     texto:
-      'Volta às perguntas de fábrica (dez veículos, uma pergunta cada) e apaga deste navegador o ranking e os telefones das partidas já jogadas. O que já foi salvo no Firebase continua lá — isso só se apaga pelo console do Firebase.',
+      'Volta às perguntas de fábrica (dez veículos, uma pergunta cada) e apaga deste navegador o ranking e os telefones das partidas já jogadas. O que já foi salvo no Firebase continua lá — para apagá-lo também, use "Apagar tabela" na aba Respostas.',
     perigoso: true,
     confirmarTexto: 'Resetar tudo',
   });
@@ -368,6 +414,7 @@ async function resetarTudo() {
   restaurarOriginal();
   removerChave('usuarios');
   removerChave('contatos');
+  esquecerRankingAdiantado();
   estado.baralho = clonar(BARALHO_ORIGINAL);
   estado.selecionado = 0;
   estado.pergunta = 0;
@@ -599,7 +646,10 @@ function seloDeProblemas(selo, itens, gerais) {
  * ponto do sininho sumir e ele não reabrir sozinho até a próxima versão.
  */
 async function abrirNotas() {
-  await mostrarNotas({ titulo: `Novidades do TecGame — v${VERSAO_DO_JOGO}`, notas: NOTAS_DE_ATUALIZACAO });
+  await mostrarNotas({ titulo: `Novidades do TecGame — v${VERSAO_DO_JOGO}`, notas: notasVisiveis() });
+  // O painel pode ter fechado com o diálogo de pé (o "voltar" do navegador): aí
+  // ninguém as leu, e a versão continua sem ser vista.
+  if (!app) return;
   marcarVersaoVista(VERSAO_DO_JOGO);
   atualizarChrome();
 }
@@ -718,6 +768,13 @@ function acoesDeRespostas() {
       tipo: 'primario',
       disabled: carregando || !linhas.length,
       titulo: 'Um arquivo CSV, que abre no Excel',
+    }),
+    botao('Apagar tabela', {
+      icone: 'lixeira',
+      tipo: 'perigo',
+      onClick: apagarTabela,
+      disabled: carregando || !linhas.length,
+      titulo: 'Apaga todas as partidas e telefones — e o ranking, que sai desta mesma tabela',
     }),
   ];
 }
@@ -1188,6 +1245,8 @@ export function montarAdmin(raiz, { aoSair = null } = {}) {
 
 /** Esvazia a camada e solta o que ela tinha preso no documento. */
 export function desmontarAdmin() {
+  // Antes de zerar `app`: quem esperava o diálogo confere `app` ao continuar.
+  fecharDialogos();
   window.removeEventListener('beforeunload', aoDescarregar);
   pararDeOuvirLogin?.();
   pararDeOuvirLogin = null;

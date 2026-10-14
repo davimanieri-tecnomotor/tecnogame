@@ -10,10 +10,21 @@
 
 import { readRaw, writeRaw } from './storage.js';
 
-export const VERSAO_DO_JOGO = '3.3.0';
+export const VERSAO_DO_JOGO = '3.4.0';
 
 /** Mais recente primeiro — é a ordem em que o painel lista. */
 export const NOTAS_DE_ATUALIZACAO = [
+  {
+    versao: '3.4.0',
+    data: '2026-10-14',
+    itens: [
+      'Na aba Respostas, o botão "Apagar tabela" apaga todas as partidas e telefones — os de todos os totens, quando há internet e você entrou com a conta, ou só os deste navegador — e o ranking vai junto. Antes, o que estava no Firebase só saía pelo console. Para valer na nuvem, alguém do time precisa publicar as regras do Firestore (firebase deploy --only firestore:rules); até lá o painel avisa que o Firebase recusou.',
+      'O ranking agora sai da mesma tabela da aba Respostas, e não de uma cópia guardada no navegador: o que aparece num lugar é o que aparece no outro, e apagar a tabela esvazia o ranking.',
+      'Quando a pergunta dispensa a escolha do equipamento, a etiqueta "Você está usando" não aparece mais na tela da pergunta. Ela dizia RASTHER 3S para quem não tinha escolhido nada.',
+      'O botão "voltar" do navegador, dentro da administração, volta para o jogo em vez de sair dele.',
+      'O sininho de novidades passou a mostrar só as duas últimas atualizações: a atual e a anterior.',
+    ],
+  },
   {
     versao: '3.3.0',
     data: '2026-10-07',
@@ -142,6 +153,17 @@ export const NOTAS_DE_ATUALIZACAO = [
     ],
   },
 ];
+
+/**
+ * Quantas versões o sininho lista: a atual e a anterior. Quem opera o totem
+ * quer saber o que mudou desde a última vez, e dez versões de notas a cada
+ * abertura escondiam justamente a que importa. O resto da lista é histórico
+ * (e o git o guarda).
+ */
+export const NOTAS_VISIVEIS = 2;
+
+/** As notas que o sininho mostra: as `NOTAS_VISIVEIS` mais recentes. */
+export const notasVisiveis = () => NOTAS_DE_ATUALIZACAO.slice(0, NOTAS_VISIVEIS);
 
 const CHAVE = 'admin.versaoVista';
 

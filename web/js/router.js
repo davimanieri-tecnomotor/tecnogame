@@ -20,8 +20,14 @@ let navigating = false;
 /** O pedido de navegacao que chegou durante outra (ver render). */
 let pendente = null;
 
-export function defineRoute({ name, path, builder }) {
-  routes.set(path, { name, path, builder });
+/**
+ * @param {boolean} [empilhar] a rota ganha uma entrada PRÓPRIA no histórico do
+ *   navegador, por cima da tela do jogo de onde se veio. As do jogo não: elas
+ *   trocam a entrada (`replaceState`), porque o totem não tem "voltar" e uma
+ *   entrada por tela só entupiria o histórico.
+ */
+export function defineRoute({ name, path, builder, empilhar = false }) {
+  routes.set(path, { name, path, builder, empilhar });
   namedPaths.set(name, path);
 }
 
@@ -72,9 +78,76 @@ const esmaecer = (node, de, para) =>
     .animate([{ opacity: de }, { opacity: para }], { duration: ESMAECER_MS, easing: 'linear', fill: 'both' })
     .finished.catch(() => {});
 
+/* -------------------------------------------- o histórico do navegador ------ */
+
+/**
+ * O "voltar" do navegador na administração.
+ *
+ * O jogo troca de tela com `replaceState`, então a sessão inteira é UMA entrada
+ * no histórico — e o "voltar" de quem estava na administração saía do jogo, para
+ * a página que o navegador tivesse antes. Uma rota `empilhar` ganha entrada
+ * própria: o "voltar" a desempilha, o `hashchange` renderiza a tela do jogo que
+ * estava embaixo, e a camada do admin se fecha como qualquer troca de tela.
+ *
+ * `sobreOJogo` no estado da entrada diz "empilhei esta entrada, e logo abaixo
+ * há tela do jogo". Sem a marca, não dá para saber: a entrada pode ter vindo de
+ * um endereço digitado numa aba nova, e aí embaixo há outro site.
+ */
+function registrarEntradaEmpilhada(path) {
+  // Só o jogo chamando `go('/adm')` (o selo) empilha aqui. Quando o navegador já
+  // trouxe a entrada (o hash editado, o "avançar", um recarregamento), ela fica
+  // como está.
+  if (location.hash.slice(1) !== path) history.pushState({ path, sobreOJogo: true }, '', `#${path}`);
+}
+
+/**
+ * `#/adm` digitado numa aba nova é a única entrada do histórico, e o "voltar"
+ * dela sai do jogo. A tela do jogo é posta embaixo — mas no primeiro gesto do
+ * usuário, e não no boot: o Chrome pula na volta as entradas que a página
+ * empilha sem nenhuma interação (a "history manipulation intervention", contra
+ * página que prende o "voltar"), e a empilhada no boot faria o "voltar" sair do
+ * jogo do mesmo jeito.
+ */
+function empilharNoPrimeiroGesto(path) {
+  const parar = new AbortController();
+  const empilhar = () => {
+    parar.abort();
+    if (location.hash.slice(1) !== path || history.state?.sobreOJogo) return;
+    history.replaceState({ path: '/cadastro' }, '', '#/cadastro');
+    history.pushState({ path, sobreOJogo: true }, '', `#${path}`);
+  };
+  for (const tipo of ['pointerdown', 'keydown']) {
+    window.addEventListener(tipo, empilhar, { capture: true, signal: parar.signal });
+  }
+}
+
+/** Um `history.back()` já pedido, esperando o `hashchange` que o conclui. */
+let desempilhando = false;
+
+/**
+ * Sai de uma rota `empilhar` para o jogo. Quando a entrada foi empilhada,
+ * desempilha em vez de navegar: `go` trocaria a entrada da administração pela
+ * do cadastro e deixaria duas entradas iguais, e cada ida e volta ao painel
+ * somaria mais uma. Um segundo clique antes de o primeiro concluir não pode
+ * desempilhar de novo — seria sair do jogo.
+ *
+ * @param {string} destino para onde ir quando não há entrada para desempilhar
+ */
+export function sairDaRotaEmpilhada(destino) {
+  if (!history.state?.sobreOJogo) return go(destino);
+  if (desempilhando) return;
+  desempilhando = true;
+  // Sem o `hashchange` (que zera isto em `render`), não fica preso para sempre.
+  setTimeout(() => {
+    desempilhando = false;
+  }, 1000);
+  history.back();
+}
+
 /* -------------------------------------------------------------- navigate -- */
 
 async function render(path, { comFade }) {
+  desempilhando = false;
   if (navigating) {
     // Um toque durante a transicao de ENTRADA da tela anterior era engolido em
     // silencio: este `return` descartava a navegacao e o jogador ficava olhando
@@ -137,7 +210,8 @@ async function render(path, { comFade }) {
       path,
     };
 
-    if (location.hash.slice(1) !== path) {
+    if (route.empilhar) registrarEntradaEmpilhada(path);
+    else if (location.hash.slice(1) !== path) {
       history.replaceState({ path }, '', `#${path}`);
     }
 
@@ -195,6 +269,11 @@ function buildPath(name, queryParameters) {
 /** initialLocation: '/' */
 export function startRouter() {
   const initial = location.hash.slice(1) || '/';
+
+  // Recarregar em cima de uma entrada já empilhada não refaz nada: o estado
+  // dela sobrevive ao recarregamento.
+  if (resolve(initial)?.empilhar && !history.state?.sobreOJogo) empilharNoPrimeiroGesto(initial);
+
   render(initial, { comFade: false });
 
   window.addEventListener('hashchange', () => {

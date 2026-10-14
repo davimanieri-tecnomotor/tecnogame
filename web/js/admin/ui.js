@@ -376,6 +376,23 @@ export function aviso(texto, tipo = 'ok', { ms = tipo === 'erro' ? 6000 : 3000 }
 /* ---------------------------------------------------------------- diálogo -- */
 
 /**
+ * Os diálogos abertos agora, cada um como a função que o fecha desistindo. Eles
+ * moram no `body`, e não na camada do painel — então fechar a camada não os
+ * leva junto. Com o "voltar" do navegador (que fecha o painel sem passar pelo
+ * botão), o das novidades ficava de pé em cima do jogo.
+ */
+const abertos = new Set();
+
+/**
+ * Fecha todo diálogo aberto como se o operador tivesse desistido: o `confirmar`
+ * resolve com `false`, o `pedirCredenciais` com `null`. Quem espera por eles
+ * segue o caminho de quem cancelou.
+ */
+export function fecharDialogos() {
+  for (const desistir of [...abertos]) desistir();
+}
+
+/**
  * Diálogo modal. Resolve com `true` no confirmar e `false` no cancelar, então
  * quem chama faz `if (await confirmar(...))`.
  */
@@ -384,8 +401,10 @@ export function confirmar({ titulo, texto, confirmarTexto = 'Confirmar', perigos
     const fechar = (r) => {
       fundo.remove();
       document.removeEventListener('keydown', onTecla);
+      abertos.delete(desistir);
       resolve(r);
     };
+    const desistir = () => fechar(false);
     const onTecla = (e) => {
       if (e.key === 'Escape') fechar(false);
     };
@@ -401,6 +420,7 @@ export function confirmar({ titulo, texto, confirmarTexto = 'Confirmar', perigos
     ]);
     const fundo = el('div', { class: 'modal-fundo', onClick: (e) => e.target === fundo && fechar(false) }, caixa);
     document.body.appendChild(fundo);
+    abertos.add(desistir);
     document.addEventListener('keydown', onTecla);
     botaoOk.focus();
   });
@@ -424,8 +444,10 @@ export function pedirCredenciais({ titulo = 'Entrar', texto } = {}) {
     const fechar = (r) => {
       fundo.remove();
       document.removeEventListener('keydown', onTecla);
+      abertos.delete(desistir);
       resolve(r);
     };
+    const desistir = () => fechar(null);
     const enviar = () => {
       const e = email.entrada.value.trim();
       const s = senha.entrada.value;
@@ -459,6 +481,7 @@ export function pedirCredenciais({ titulo = 'Entrar', texto } = {}) {
     ]);
     const fundo = el('div', { class: 'modal-fundo', onClick: (ev) => ev.target === fundo && fechar(null) }, caixa);
     document.body.appendChild(fundo);
+    abertos.add(desistir);
     document.addEventListener('keydown', onTecla);
     email.entrada.focus();
   });
@@ -483,6 +506,7 @@ export function mostrarNotas({ titulo, notas, fecharTexto = 'Entendi' }) {
     const fechar = () => {
       fundo.remove();
       document.removeEventListener('keydown', onTecla);
+      abertos.delete(fechar);
       resolve();
     };
     const onTecla = (e) => {
@@ -508,6 +532,7 @@ export function mostrarNotas({ titulo, notas, fecharTexto = 'Entendi' }) {
     ]);
     const fundo = el('div', { class: 'modal-fundo', onClick: (e) => e.target === fundo && fechar() }, caixa);
     document.body.appendChild(fundo);
+    abertos.add(fechar);
     document.addEventListener('keydown', onTecla);
     // `focus()` sem mais nada ROLA o contêiner até o elemento focado. Com notas
     // suficientes para a caixa rolar, o "Entendi" lá embaixo levava junto o

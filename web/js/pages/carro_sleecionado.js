@@ -152,10 +152,10 @@ export function CarroSleecionadoWidget() {
     // É uma marca do baralho, por pergunta (`pularEquipamento`, ver deck.js):
     // há pergunta que não depende de scanner nenhum, e para essa a tela dos
     // seis equipamentos é uma parada sem decisão — em feira cheia, é a fila
-    // parada. Quem pula joga com o equipamento padrão, que é o que dá ao painel
-    // da pergunta uma pele inteira em vez do cinza de reserva, e não vê o vídeo
-    // demonstrativo: ele é a apresentação do equipamento ESCOLHIDO, e aqui não
-    // houve escolha. O registro da partida diz isso com todas as letras (ver
+    // parada. Quem pula fica com o equipamento padrão só para `scannerEscolhido`
+    // nunca ser vazio, e não vê o vídeo demonstrativo nem a etiqueta "Você está
+    // usando": são a apresentação do equipamento ESCOLHIDO, e aqui não houve
+    // escolha. O registro da partida diz isso com todas as letras (ver
     // `equipamentoDaPartida`, em pages/tela_acao.js).
     if (FFAppState.questoesBrasil[FFAppState.indiceAtual]?.pularEquipamento) {
       FFAppState.scannerEscolhido = EQUIPAMENTO_PADRAO;

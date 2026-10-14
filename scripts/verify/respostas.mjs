@@ -3,13 +3,16 @@
 // verdade, e recusa entrar quando a nuvem está desligada. O caminho
 // autenticado da nuvem não entra aqui: pediria uma conta de teste de verdade
 // no Firebase do projeto, e a suíte tem de continuar hermética (ver
-// config.js).
+// config.js) — esse caminho (login, exclusão no Firestore) é afirmado em
+// scripts/unidade/respostas.test.mjs, contra uma nuvem de mentira.
 import puppeteer from 'puppeteer';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8099';
+const OUT = process.env.OUT ?? 'shots/respostas';
+fs.mkdirSync(OUT, { recursive: true });
 const raiz = BASE.endsWith('.html') ? BASE.replace(/[^/]+$/, '') : `${BASE}/`;
 const urlJogo = (rota) => `${raiz}index.html#${rota}`;
 const SENHA = '2040';
@@ -169,6 +172,69 @@ console.log('4. botões da barra ->', JSON.stringify(botoesDaAba));
 if (botoesDaAba.some((t) => /Entrar/.test(t))) {
   falhas.push('o botão Entrar não deveria aparecer com a nuvem desligada');
 }
+
+/* ------------------------------------------------ 5. apagar a tabela ----- */
+
+// O ranking não tem tabela própria: é uma consulta sobre as mesmas partidas. Por
+// isso o que se afirma aqui é o par — a tabela esvazia E o ranking esvazia — e
+// não só que o botão limpou o localStorage.
+const lerRanking = () =>
+  page.evaluate(async () => {
+    const backend = window.__tecgameRequire ? window.__tecgameRequire('backend.js') : await import('./js/backend.js');
+    return (await backend.queryUsuariosVencedores({ limit: 5 })).map((r) => r.nome);
+  });
+
+const rankingAntes = await lerRanking();
+console.log('5. ranking antes de apagar ->', JSON.stringify(rankingAntes));
+if (!rankingAntes.includes('Fulano')) falhas.push(`o ranking nao tinha o Fulano antes de apagar (teste nao mede nada): ${JSON.stringify(rankingAntes)}`);
+
+// O sininho abre sozinho na primeira abertura depois de a versao mudar, e fica
+// por cima de tudo ate alguem fechar. Sem fechar, `.modal` aponta para ELE, e o
+// teste passaria lendo as notas de atualizacao no lugar da confirmacao.
+await page.evaluate(() => document.querySelector('.modal-notas .modal-acoes button')?.click());
+await wait(300);
+
+const DIALOGO = '.modal[aria-label="Apagar a tabela de jogadores?"]';
+const botaoDoDialogo = (posicao) =>
+  page.evaluate(
+    (sel, pos) => {
+      const botoes = [...document.querySelectorAll(`${sel} .modal-acoes button`)];
+      botoes[pos === 'ultimo' ? botoes.length - 1 : 0]?.click();
+      return botoes.length;
+    },
+    DIALOGO,
+    posicao
+  );
+
+// Cancelar nao apaga nada.
+await clicar('Apagar tabela');
+const dialogo = await page.evaluate((sel) => document.querySelector(sel)?.innerText ?? null, DIALOGO);
+console.log('   confirmacao ->', JSON.stringify(dialogo?.slice(0, 200)));
+if (!dialogo) falhas.push('"Apagar tabela" nao abriu a confirmacao');
+else if (!/ranking/i.test(dialogo) || !/deste navegador/.test(dialogo)) falhas.push('a confirmacao nao diz que o ranking sai junto e que e so deste navegador');
+if ((await botaoDoDialogo('primeiro')) !== 2) falhas.push('a confirmacao nao tem os dois botoes, Cancelar e Apagar');
+await wait(400);
+if ((await page.evaluate(() => document.querySelectorAll('.tabela tbody tr').length)) !== 2) falhas.push('Cancelar apagou a tabela');
+if (await page.evaluate((sel) => !!document.querySelector(sel), DIALOGO)) falhas.push('Cancelar nao fechou a confirmacao');
+
+// Confirmar apaga tudo.
+await clicar('Apagar tabela');
+await botaoDoDialogo('ultimo');
+await wait(900);
+const depois = await page.evaluate(() => ({
+  linhas: document.querySelectorAll('.tabela tbody tr').length,
+  vazio: document.querySelector('.vazio strong')?.textContent ?? null,
+  usuarios: localStorage.getItem('tecgame:usuarios'),
+  contatos: localStorage.getItem('tecgame:contatos'),
+  apagarDesligado: [...document.querySelectorAll('.barra button')].find((b) => /Apagar tabela/.test(b.textContent))?.disabled ?? null,
+}));
+console.log('   depois ->', JSON.stringify(depois));
+if (depois.linhas !== 0 || depois.vazio !== 'Nenhuma partida ainda') falhas.push('a tabela nao esvaziou depois de apagar');
+if (depois.usuarios !== null || depois.contatos !== null) falhas.push('as partidas ou os telefones continuaram guardados');
+if (depois.apagarDesligado !== true) falhas.push('sem partidas, "Apagar tabela" deveria ficar desligado');
+const rankingDepois = await lerRanking();
+if (rankingDepois.length) falhas.push(`o ranking sobreviveu a tabela apagada: ${JSON.stringify(rankingDepois)}`);
+await page.screenshot({ path: `${OUT}/apagada.png` });
 
 await page.evaluate(() => localStorage.clear());
 await browser.close();

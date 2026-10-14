@@ -14,7 +14,7 @@ npm start          # http://localhost:8099
 npm run bundle     # DEPOIS de qualquer mudança em web/js/ — ver abaixo
 npm run check      # imports resolvem, nada morto, bundle em dia (0,1s)
 npm test           # lógica pura, sem navegador (0,3s) — a volta mais curta
-npm run verify     # a suíte inteira, 36 execuções, ~5min
+npm run verify     # a suíte inteira, 38 execuções, ~5min
 npm run verify:rapido   # só HTTP, ~110s — a volta do dia a dia
 ```
 
@@ -66,7 +66,7 @@ web/js/            os módulos ES — a fonte
   inatividade.js     quatro minutos sem toque, e qualquer tela volta ao cadastro
   changelog.js       versão do jogo e as notas do sininho de novidades
   pages/ components/ admin/
-    admin/respostas.js  dados de partida, telefone com login, export CSV
+    admin/respostas.js  dados de partida, telefone com login, export CSV, apagar a tabela
     admin/imagens.js    foto de veículo no Storage: envio, download, limpeza
     admin/configuracoes.js  a aba Configurações: estilo, vídeo, som, Milhão, reset
     admin/problemas.js  o que impede salvar, agrupado e na língua da tela
@@ -93,9 +93,11 @@ O painel de administração mostra, num sino na barra, as últimas atualizaçõe
 do jogo — para quem opera o totem em feiras diferentes perceber o que mudou
 sem ler commit. O conteúdo mora em `web/js/changelog.js`: `VERSAO_DO_JOGO`
 (acompanha o `version` do `package.json` e a tag git) e
-`NOTAS_DE_ATUALIZACAO` (mais recente primeiro). O sino abre sozinho na
-primeira tela depois que a versão muda e some ao fechar, só reaparecendo
-sozinho na próxima mudança de versão — ver `temNovidade()`.
+`NOTAS_DE_ATUALIZACAO` (mais recente primeiro). O sino lista só as duas
+últimas versões (`NOTAS_VISIVEIS`, ver `notasVisiveis()`): a atual e a
+anterior. O sino abre sozinho na primeira tela depois que a versão muda e some
+ao fechar, só reaparecendo sozinho na próxima mudança de versão — ver
+`temNovidade()`.
 
 **Toda atualização grande — funcionalidade nova, mudança de comportamento que
 o operador perceberia — sobe as três juntas**: `VERSAO_DO_JOGO` em
@@ -146,8 +148,27 @@ sumia e a tela de fim ficava em branco esperando um ranking que não vinha.
 
 **Em `localhost` e `file://` o jogo não fala com o Firebase.** É proposital: a
 suíte joga quatro partidas por rodada e encheu o ranking de produção com dados de
-teste. Para trabalhar na nuvem daqui, abra com **`?comNuvem=1`**. O ranking
-continua local mesmo assim; `?semNuvem=1` desliga tudo.
+teste. Para trabalhar na nuvem daqui, abra com **`?comNuvem=1`**: o ranking e a
+aba Respostas passam a LER a nuvem, mas a partida jogada aqui continua sem ser
+GRAVADA nela (`rankingNaNuvem`) — ler não suja nada, gravar sujou.
+`?semNuvem=1` desliga tudo.
+
+**O ranking não tem tabela própria.** É uma consulta sobre `usuarios`, a mesma
+tabela da aba Respostas, e os dois decidem de onde ler por `fonteDasPartidas`
+(`backend.js`). Uma regra por lado já deu errado: com `?comNuvem=1` a tabela
+mostrava a nuvem e o ranking, uma cópia no navegador. Quem apaga partidas
+(`apagarPartidas`, em `admin/respostas.js`) leva o ranking junto, e tem de
+chamar `esquecerRankingAdiantado()` — o ranking pedido antes da hora vale 2
+minutos e sobreviveria à tabela.
+
+**O jogo troca de tela com `replaceState`; só `/adm` empilha.** A sessão inteira
+é UMA entrada do histórico, e o "voltar" do navegador no painel saía do site. A
+rota `/adm` tem `empilhar` (`router.js`): o "voltar" a desempilha e cai na tela
+do jogo. Duas consequências a manter: o "Voltar ao jogo" **desempilha**
+(`sairDaRotaEmpilhada`) em vez de navegar, senão cada ida e volta soma uma
+entrada igual; e os diálogos do painel moram no `body`, fora da camada, então
+`desmontarAdmin` os fecha (`fecharDialogos`); sem isso, fechado o painel pelo
+"voltar", o das novidades fica de pé em cima do jogo.
 
 **Som que acompanha movimento sai da trajetória, no relógio do áudio.** A roleta
 já errou o compasso dos dois jeitos: tocando uma gravação de ritmo próprio (que
@@ -177,7 +198,7 @@ E ao medir isso: **handle do Puppeteer também segura** (`waitForSelector`,
 
 ## Antes de dizer que está pronto
 
-- `npm run verify` — **36 de 36**, nos dois transportes.
+- `npm run verify` — **38 de 38**, nos dois transportes.
 - **Olhe a tela.** Um probe que devolve números pode passar com a tela quebrada:
   o bug da resposta que sumia passou por um probe verde porque eu li o JSON e
   não abri a captura. Ponha um `page.screenshot` e leia a imagem.
@@ -207,6 +228,10 @@ todo visitante carrega** — a chave web do Firebase inclusive.
 - **`contatos` (nome + telefone) é a coleção mais fechada**, e sempre foi: a
   conta de quem entra só existe se alguém do time a criar pelo Console do
   Firebase (ver `firebase/README.md`) — não há cadastro pela tela, de propósito.
+  Apagar `usuarios` e `contatos` (o "Apagar tabela" da aba Respostas) exige a
+  mesma conta, e só vale depois de as regras serem publicadas
+  (`firebase deploy --only firestore:rules`): até lá o Firestore devolve
+  `permission-denied` e o painel diz isso.
   Qualquer mudança que dependa da senha 2040 ou de login anônimo para liberar
   esta coleção **não protege nada** e não deve entrar de carona numa tarefa que
   não seja essa decisão, deliberadamente. A política de privacidade que o

@@ -53,6 +53,8 @@ export const EQUIPAMENTOS = {
  * @param {object} opcoes.veiculo `{ nome, imagem }`
  * @param {string} opcoes.equipamento a chave de `scannerEscolhido`
  * @param {object} opcoes.medidas `{ x, y, escala }`
+ * @param {boolean} [opcoes.semEquipamento] esconde a etiqueta "Você está usando":
+ *   o jogador não escolheu equipamento nenhum nesta rodada
  */
 export function OrdemDeServico({ veiculo, equipamento, medidas, semEquipamento = false }) {
   const eq = EQUIPAMENTOS[equipamento] ?? EQUIPAMENTOS['Rasther 3'];
@@ -78,8 +80,8 @@ export function OrdemDeServico({ veiculo, equipamento, medidas, semEquipamento =
   const placa = PlacaMercosul(veiculo?.nome ?? '');
   placa.classList.add('aud-oculta');
 
-  // A Pergunta do Milhão não passou pela escolha do equipamento: a etiqueta
-  // não diria nada de verdade ali.
+  // Sem escolha de equipamento (a Pergunta do Milhão, ou a pergunta que
+  // dispensa a escolha) a etiqueta não diria nada de verdade ali.
   if (semEquipamento) chip.style.display = 'none';
 
   const raiz = el(

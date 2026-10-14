@@ -28,10 +28,12 @@
 //
 // O caminho: cinco toques no selo do cadastro (ou `#/adm` na barra do
 // navegador) -> login (ou a senha, sem nuvem) -> a camada do admin. Sair volta
-// ao cadastro.
+// ao cadastro — pelo botão "Voltar ao jogo" ou pelo "voltar" do navegador: a
+// rota `/adm` tem entrada própria no histórico (ver `empilhar` em router.js), e
+// o "voltar" não leva para fora do jogo.
 
 import { el } from '../widgets.js';
-import { go } from '../router.js';
+import { go, sairDaRotaEmpilhada } from '../router.js';
 import { firebase, motivoSemFirebase, podeUsarNuvem } from '../firebase.js';
 import { montarAdmin, desmontarAdmin } from './painel.js';
 import { aviso, pedirCredenciais } from './ui.js';
@@ -306,7 +308,7 @@ function abrirCamada() {
 
   const raiz = raizDoAdmin();
   raiz.hidden = false;
-  montarAdmin(raiz, { aoSair: () => go('/cadastro') });
+  montarAdmin(raiz, { aoSair: () => sairDaRotaEmpilhada('/cadastro') });
 }
 
 function fecharCamada() {
@@ -334,7 +336,7 @@ export function PortaDoAdmWidget() {
   // gesto do selo ela já foi pedida antes de navegar, e `pedirEntrada` volta
   // na hora.
   (async () => {
-    if (!(await pedirEntrada())) return go('/cadastro');
+    if (!(await pedirEntrada())) return sairDaRotaEmpilhada('/cadastro');
     // Entre o pedido de senha e agora o operador pode ter navegado; só abre se
     // a rota do admin ainda é a rota atual.
     if (location.hash.slice(1).split('?')[0] !== '/adm') return;
@@ -342,10 +344,11 @@ export function PortaDoAdmWidget() {
   })();
 
   // Fechar por aqui é síncrono — o roteador não espera promessa no dispose —,
-  // então não dá para perguntar nada a quem apertou o "voltar" do navegador. Em
-  // vez de perder o trabalho em silêncio, a edição pendente fica guardada e
-  // reaparece na próxima abertura (ver `montarAdmin`). O botão "Voltar ao jogo"
-  // continua perguntando, porque ali dá tempo.
+  // então não dá para perguntar nada a quem apertou o "voltar" do navegador, que
+  // fecha o painel como o botão mas sem a pergunta. Em vez de perder o trabalho
+  // em silêncio, a edição pendente fica guardada e reaparece na próxima abertura
+  // (ver `montarAdmin`). O botão "Voltar ao jogo" continua perguntando, porque
+  // ali dá tempo.
   casca.__dispose = fecharCamada;
 
   // O painel não tem prazo de inatividade (inatividade.js). É ferramenta de

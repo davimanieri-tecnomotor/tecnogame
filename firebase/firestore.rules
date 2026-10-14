@@ -31,8 +31,11 @@ service cloud.firestore {
 
       allow create: if isPartidaValida(request.resource.data);
 
-      // Um resultado nunca é editado nem apagado pelo cliente.
-      allow update, delete: if false;
+      // Um resultado nunca é editado. Apagar só com conta: é o "Apagar tabela"
+      // da aba Respostas (web/js/admin/respostas.js), e o ranking, que é uma
+      // consulta sobre esta coleção, esvazia junto. Quem joga não apaga nada.
+      allow update: if false;
+      allow delete: if request.auth != null;
     }
 
     // --------------------------------------------------------------- contatos
@@ -45,7 +48,9 @@ service cloud.firestore {
     match /contatos/{document} {
       allow read: if request.auth != null;
       allow create: if isContatoValido(request.resource.data);
-      allow update, delete: if false;
+      allow update: if false;
+      // Mesma conta que lê: o "Apagar tabela" leva os telefones junto.
+      allow delete: if request.auth != null;
     }
 
     // ------------------------------------------------------------- conteúdo

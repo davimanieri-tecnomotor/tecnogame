@@ -1,5 +1,5 @@
 // Os dados de partida (aba "Respostas" do painel): buscar, juntar telefone
-// quando der, e exportar em CSV.
+// quando der, exportar em CSV e apagar a tabela.
 //
 // DUAS COLEÇÕES, DUAS REGRAS (ver firebase/firestore.rules e backend.js):
 //
@@ -27,8 +27,10 @@
 // existe `janelaMs` para poder ser ajustada se um dia casar errado.
 
 import { CONFIG } from '../config.js';
-import { firebase, motivoSemFirebase, podeUsarNuvem } from '../firebase.js';
-import { getRecords } from '../storage.js';
+import { comPrazo, fonteDasPartidas } from '../backend.js';
+import { esquecerRankingAdiantado } from '../estatisticas.js';
+import { firebase, motivoSemFirebase } from '../firebase.js';
+import { getRecords, removerChave } from '../storage.js';
 
 /* ---------------------------------------------------------------- login -- */
 
@@ -265,7 +267,8 @@ export function combinar(usuarios, contatos, { janelaMs = 60_000 } = {}) {
 /**
  * As linhas da aba, prontas para desenhar e exportar.
  *
- * NUVEM QUANDO DÁ, LOCAL QUANDO NÃO DÁ — mesma regra do baralho (nuvem.js).
+ * NUVEM QUANDO DÁ, LOCAL QUANDO NÃO DÁ — mesma regra do baralho (nuvem.js) e
+ * do ranking (`fonteDasPartidas`, em backend.js).
  * Não mistura as duas fontes: as partidas deste navegador já estão na nuvem
  * (é o mesmo `addUsuario` que grava as duas), então somar as duas contaria
  * cada partida bem-sucedida duas vezes.
@@ -277,7 +280,7 @@ export function combinar(usuarios, contatos, { janelaMs = 60_000 } = {}) {
  * @returns {Promise<{linhas: object[], fonte: 'nuvem'|'local', comTelefone: boolean, autenticado: boolean}>}
  */
 export async function buscarRespostas() {
-  if (podeUsarNuvem()) {
+  if (fonteDasPartidas() === 'nuvem') {
     try {
       const fb = await firebase();
       const autenticado = Boolean(fb?.auth?.currentUser);
@@ -291,6 +294,122 @@ export async function buscarRespostas() {
   const usuarios = getRecords('usuarios');
   const contatos = getRecords('contatos');
   return { linhas: combinar(usuarios, contatos), fonte: 'local', comTelefone: true, autenticado: false };
+}
+
+/* ------------------------------------------------------------- apagar ----- */
+
+/**
+ * Documentos por lote de exclusão. O Firestore aceita até 500 operações num
+ * `writeBatch`; sobra folga para não depender do número exato.
+ */
+const LOTE_DA_EXCLUSAO = 400;
+
+/**
+ * Prazo de cada passo da exclusão. Mais largo que o `comPrazo` padrão (2,5 s),
+ * pensado para ler um ranking: um lote de 400 apagados não cabe nele.
+ */
+const PRAZO_DA_EXCLUSAO_MS = 30_000;
+
+/** Trava contra laço sem fim: 200 lotes são 80 mil documentos, muito além do teto da aba. */
+const MAX_LOTES = 200;
+
+/**
+ * Apaga uma coleção inteira do Firestore, um lote por vez — o cliente não tem
+ * "apagar coleção". Cada rodada lê um lote, apaga e lê de novo até a coleção
+ * esvaziar.
+ *
+ * @param {{db: object, fs: object}} fb o que `firebase()` devolve
+ * @param {string} nome a coleção
+ * @returns {Promise<number>} quantos documentos saíram
+ */
+export async function apagarColecao(fb, nome) {
+  const { db, fs } = fb;
+  let apagados = 0;
+  for (let i = 0; i < MAX_LOTES; i++) {
+    const fotografia = await comPrazo(
+      fs.getDocs(fs.query(fs.collection(db, nome), fs.limit(LOTE_DA_EXCLUSAO))),
+      PRAZO_DA_EXCLUSAO_MS
+    );
+    if (fotografia.empty) return apagados;
+    const lote = fs.writeBatch(db);
+    fotografia.docs.forEach((d) => lote.delete(d.ref));
+    await comPrazo(lote.commit(), PRAZO_DA_EXCLUSAO_MS);
+    apagados += fotografia.size;
+  }
+  return apagados;
+}
+
+/**
+ * O que uma falha de exclusão quer dizer para quem opera, e o que fazer.
+ *
+ * `permission-denied` é o caso esperado até alguém publicar as regras novas: o
+ * código chega ao Firebase antes delas, e o cliente nunca pôde apagar
+ * (`allow delete: if false`, nas regras de antes).
+ */
+export function traduzirFalhaDeExclusao(erro) {
+  const texto = String(erro?.code ?? erro?.message ?? erro ?? '');
+  if (texto.includes('permission-denied')) {
+    return {
+      motivo: 'o Firebase recusou: as regras de exclusão ainda não foram publicadas neste projeto, ou a conta não vale mais.',
+      dica: 'Publique com `firebase deploy --only firestore:rules`, na pasta firebase/, e entre de novo com a conta.',
+    };
+  }
+  if (texto.includes('prazo')) {
+    return { motivo: 'o Firebase não respondeu a tempo.', dica: 'Confira a internet e tente de novo.' };
+  }
+  return { motivo: texto || 'erro desconhecido.', dica: null };
+}
+
+/**
+ * Apaga a TABELA de jogadores — as partidas e os telefones — e, com ela, o
+ * ranking, que não tem tabela própria: é uma consulta sobre as mesmas partidas
+ * (ver `fonteDasPartidas`, em backend.js).
+ *
+ * Na nuvem, apaga `contatos` e depois `usuarios` — o dado mais sensível sai
+ * primeiro, e a falha no meio deixa as partidas, e não os telefones. Só mexe no
+ * navegador depois de a nuvem ter esvaziado: se a nuvem recusar, o que se vê na
+ * tela continua sendo o que existe.
+ *
+ * Com a fonte local, apaga só deste navegador. O que outros totens guardam
+ * localmente é deles, e só o painel de cada um alcança.
+ *
+ * @param {object} opcoes
+ * @param {'nuvem'|'local'} opcoes.fonte de onde a tabela da tela veio
+ * @param {object} [opcoes.nuvem] o que `firebase()` devolve; omitido, busca
+ * @returns {Promise<{ok: true, partidas: number|null, contatos: number|null} |
+ *   {ok: false, motivo: string, dica: string|null, apagados: string[]}>} `null`
+ *   em `partidas`/`contatos` quer dizer "não tocou na nuvem"; `apagados` lista o
+ *   que a nuvem já tinha perdido quando a falha veio
+ */
+export async function apagarPartidas({ fonte, nuvem = null }) {
+  let partidas = null;
+  let contatos = null;
+  const apagados = [];
+
+  if (fonte === 'nuvem') {
+    const fb = nuvem ?? (await firebase());
+    if (!fb?.auth?.currentUser) {
+      return {
+        ok: false,
+        motivo: 'apagar da nuvem exige a conta do Firebase.',
+        dica: 'Entre pelo botão Entrar, no alto do painel.',
+        apagados,
+      };
+    }
+    try {
+      contatos = await apagarColecao(fb, 'contatos');
+      apagados.push('contatos');
+      partidas = await apagarColecao(fb, 'usuarios');
+    } catch (erro) {
+      console.warn('não deu para apagar a tabela da nuvem.', erro);
+      return { ok: false, ...traduzirFalhaDeExclusao(erro), apagados };
+    }
+  }
+
+  removerChave('usuarios');
+  removerChave('contatos');
+  esquecerRankingAdiantado();
+  return { ok: true, partidas, contatos };
 }
 
 /* --------------------------------------------------------------- export -- */

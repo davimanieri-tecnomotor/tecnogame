@@ -44,7 +44,9 @@ const ROUTES = [
   { name: 'instrucoes', path: '/instrucoes', builder: InstrucoesWidget },
   { name: 'carroSleecionado', path: '/carro', builder: CarroSleecionadoWidget },
   { name: 'milhao', path: '/milhao', builder: PerguntaDoMilhaoWidget },
-  { name: 'adm', path: '/adm', builder: PortaDoAdmWidget },
+  // `empilhar`: a administração tem entrada própria no histórico, e o "voltar"
+  // do navegador volta ao jogo em vez de sair dele (ver router.js).
+  { name: 'adm', path: '/adm', builder: PortaDoAdmWidget, empilhar: true },
 ];
 
 function main() {
@@ -68,6 +70,7 @@ function main() {
       name: route.name,
       path: route.path,
       builder: ({ params }) => route.builder({ params }),
+      empilhar: route.empilhar,
     });
   }
 

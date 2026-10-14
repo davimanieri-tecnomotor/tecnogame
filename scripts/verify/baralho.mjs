@@ -8,6 +8,7 @@
 //  4. um baralho de tamanho diferente sorteia, gera a roda e joga até o fim;
 //  5. a fatia que para sob a seta é a mesma rodada que o jogo abre em seguida;
 //  9. a pergunta marcada com `pularEquipamento` vai do carro direto para o jogo.
+import fs from 'node:fs';
 import puppeteer from 'puppeteer';
 import { continuar, passarDaAbertura, responder } from './_jogo.mjs';
 
@@ -610,8 +611,8 @@ falhas.push(...nuvem);
  * `pularEquipamento` e uma marca do baralho, por pergunta: ha pergunta que nao
  * depende de scanner, e para essa a tela dos cinco e uma parada sem decisao.
  * O que se afirma aqui e o percurso inteiro: do carro vai DIRETO para o jogo
- * (sem passar pela escolha nem pelo video), o painel veste o equipamento
- * padrao, e a partida fica gravada como sem escolha. */
+ * (sem passar pela escolha nem pelo video), a etiqueta "Voce esta usando" nao
+ * aparece, e a partida fica gravada como sem escolha. */
 
 await page.evaluate(async () => {
   const carregar = async (nome) =>
@@ -663,12 +664,26 @@ const peleEregistro = await page.evaluate(async () => {
   return {
     escolhido: st.FFAppState.scannerEscolhido,
     marcado: st.FFAppState.equipamentoPulado,
-    // A etiqueta "Voce esta usando" mostra o equipamento padrao (o 3S).
-    foto: [...document.querySelectorAll('#pages img')].map((i) => i.getAttribute('src')).find((src) => /Rasther_CANFD/.test(src)),
+    // A etiqueta "Voce esta usando" afirmaria RASTHER 3S (o padrao) para quem
+    // nunca escolheu: tem de existir no documento, mas fora da tela. O computed
+    // style, e nao o atributo `hidden` — ver o `display` proprio do chip.
+    etiqueta: (() => {
+      const chip = document.querySelector('#pages .aud-os-chip');
+      return chip ? { display: getComputedStyle(chip).display, largura: chip.getBoundingClientRect().width } : null;
+    })(),
   };
 });
-console.log('   pele do painel ->', JSON.stringify(peleEregistro));
-if (!peleEregistro.foto) falhas.push('o painel nao vestiu o equipamento padrao');
+console.log('   etiqueta e registro ->', JSON.stringify(peleEregistro));
+// Um probe que devolve numeros pode passar com a tela quebrada: fica a captura
+// para ser olhada.
+if (process.env.OUT) {
+  fs.mkdirSync(process.env.OUT, { recursive: true });
+  await page.screenshot({ path: `${process.env.OUT}/09-sem-etiqueta.png` });
+}
+if (!peleEregistro.etiqueta) falhas.push('a tela da pergunta nao montou a etiqueta (o teste nao mede nada)');
+else if (peleEregistro.etiqueta.display !== 'none' || peleEregistro.etiqueta.largura !== 0) {
+  falhas.push(`quem pulou a escolha viu a etiqueta "Voce esta usando": ${JSON.stringify(peleEregistro.etiqueta)}`);
+}
 if (peleEregistro.marcado !== true) falhas.push('a partida nao ficou marcada como sem escolha');
 
 // Responde, para conferir o que vai para a aba Respostas. A partida e gravada

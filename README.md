@@ -11,7 +11,7 @@ web/                  o jogo portado (é isto que se publica)
   css/fonts.css         gerado: as cinco famílias auto-hospedadas
   js/                   os módulos ES — o código-fonte
   js/admin/             a administração: porta.js, painel.js, editor.js, ui.js
-  js/admin/respostas.js a aba Respostas: dados de partida, telefone com login, CSV
+  js/admin/respostas.js a aba Respostas: dados de partida, telefone com login, CSV, apagar a tabela
   js/admin/configuracoes.js a aba Configurações: o que vale só neste navegador
   js/admin/problemas.js o que impede salvar, na língua da tela
   js/admin/imagens.js   foto de veículo no Storage: envio, download e limpeza
@@ -104,10 +104,12 @@ depende de scanner nenhum, e para essa a tela dos seis é uma parada sem decisã
 **direto** para a pergunta, com a tela do equipamento padrão (o Rasther 3S, em
 `EQUIPAMENTO_PADRAO`) e sem o vídeo demonstrativo de 14s — que é a apresentação
 do equipamento *escolhido*, e ali não houve escolha (ainda mais com o bucket dos
-vídeos fora do ar; ver *Coisas que já vinham quebradas*). A partida fica marcada
-como **sem escolha**: a coluna `Equipamento` da aba Respostas recebe
-`não escolhido`, e não o padrão — ela existe para o time saber o que a feira
-escolhe, e uma etapa que não aconteceu não é preferência.
+vídeos fora do ar; ver *Coisas que já vinham quebradas*). Pelo mesmo motivo a
+etiqueta **"Você está usando"** da tela da pergunta não aparece: ela diria
+RASTHER 3S para quem nunca viu a tela dos seis (a Pergunta do Milhão também a
+esconde). A partida fica marcada como **sem escolha**: a coluna `Equipamento` da
+aba Respostas recebe `não escolhido`, e não o padrão — ela existe para o time
+saber o que a feira escolhe, e uma etapa que não aconteceu não é preferência.
 
 **As imagens da roleta são pedidas no cadastro.** A roleta é a tela mais pesada
 do jogo — a arte pronta, ou uma foto por fatia quando o baralho não é o de
@@ -208,10 +210,17 @@ O painel ocupa 90% da largura da janela e tem três abas — **Veículos** (o
 baralho), **Respostas** (as partidas) e **Configurações** (o que vale só
 neste navegador). A barra de cima, sempre à vista, tem um selo só com a
 situação do baralho (*Alterações não salvas*, *Salvo há 3 min*, ou quantos
-problemas impedem salvar), o **Salvar**, as novidades da versão (o sino), a
-conta do Firebase (**Entrar** / **Sair da conta**) e o **Voltar ao jogo**. A
-explicação de cada campo não ocupa a tela: mora no ícone **?** ao lado do nome
-dele, e abre ao passar o mouse.
+problemas impedem salvar), o **Salvar**, as novidades da versão (o sino, que
+lista só a versão atual e a anterior), a conta do Firebase (**Entrar** / **Sair
+da conta**) e o **Voltar ao jogo**. A explicação de cada campo não ocupa a tela:
+mora no ícone **?** ao lado do nome dele, e abre ao passar o mouse.
+
+O **"voltar" do navegador** também leva de volta ao jogo, e não para fora dele: o
+jogo troca de tela sem somar entradas ao histórico (`replaceState`), então a
+sessão toda é uma entrada só — e sem uma entrada própria o "voltar" no painel
+sairia do site. A rota `/adm` é a única que a tem (`empilhar`, em
+`js/router.js`). Fechar o painel assim não pergunta nada, como o botão pergunta:
+a edição pendente fica guardada e reaparece na próxima abertura.
 
 O que dá para fazer:
 
@@ -238,10 +247,14 @@ O que dá para fazer:
   correspondente, e o selo de problemas da barra abre a lista do que falta, com
   cada item levando ao campo; **salvar fica bloqueado** enquanto houver
   problema;
+- **apagar a tabela de jogadores** (aba **Respostas**, **Apagar tabela**): leva
+  as partidas, os telefones **e o ranking**, que não tem tabela própria — é uma
+  consulta sobre as mesmas partidas. Onde a tabela vem da nuvem apaga a nuvem,
+  que é de todos os totens (ver *Respostas*, abaixo);
 - **resetar todos os dados**: volta ao baralho de fábrica e apaga deste
   navegador o ranking e os telefones das partidas já jogadas. O que já foi para
-  o Firebase só sai pelo console. Fica na aba **Configurações**, e não na barra
-  — apagar tudo não é vizinho de salvar.
+  o Firebase continua lá e sai pelo **Apagar tabela**. Fica na aba
+  **Configurações**, e não na barra — apagar tudo não é vizinho de salvar.
 
 Na aba **Configurações** mora também o que o operador ajusta no estande, sem
 Salvar e só para este navegador: o estilo da tela da pergunta, pular o vídeo
@@ -301,9 +314,11 @@ fica com a última cópia que baixou.
 > http://localhost:8099/index.html?comNuvem=1#/adm
 > ```
 >
-> O ranking continua local mesmo assim, de propósito: `comNuvem` serve para
-> mexer no conteúdo, não para semear `usuarios` e `contatos` com partidas de
-> teste. E `?semNuvem=1` desliga tudo em qualquer lugar.
+> O ranking e a aba Respostas **leem** a nuvem, mas a partida que você jogar
+> aqui **não é gravada** nela, de propósito: `comNuvem` serve para mexer no
+> conteúdo, não para semear `usuarios` e `contatos` com partidas de teste. Sua
+> partida fica só no navegador, e não aparece nem no ranking nem na tabela. E
+> `?semNuvem=1` desliga tudo em qualquer lugar.
 
 > **Salvar na nuvem exige login.** A regra de `conteudo` pede
 > `request.auth != null` ([`firebase/firestore.rules`](firebase/firestore.rules)),
@@ -414,6 +429,22 @@ Nuvem quando dá, local quando não dá, a mesma regra do baralho: com o
 Firestore alcançável, a tabela junta as partidas de **todos os totens**; sem
 rede (ou `file://`), mostra só o que este navegador jogou. A linha em cima da
 tabela diz qual dos dois está valendo, e se o **telefone** está na mistura.
+
+**O ranking é uma consulta sobre esta mesma tabela**, e decide de onde ler pela
+mesma regra (`fonteDasPartidas`, em `js/backend.js`): com a nuvem ao alcance, os
+dois leem `usuarios`; sem ela, os dois leem o `localStorage`. Uma regra para
+cada lado daria dois números para a mesma coisa: com `?comNuvem=1`, a tabela
+mostraria a nuvem e o ranking, uma cópia guardada no navegador.
+
+**Apagar tabela** leva as partidas, os telefones e o ranking junto, depois de
+uma confirmação que diz o alcance — a nuvem, de todos os totens, ou só este
+navegador. Na nuvem exige a conta do Firebase (`allow delete: if request.auth !=
+null`, nas regras de `usuarios` e `contatos`) e apaga em lotes, `contatos`
+primeiro; se o Firebase recusar, nada some do navegador e o aviso diz o que
+fazer. **As regras de exclusão só valem depois de publicadas**
+(`firebase deploy --only firestore:rules`); até lá o painel avisa que o Firebase
+recusou. Num totem que estava sem rede, o que ele guardou no próprio navegador
+só sai pelo painel dele.
 
 Telefone é caso à parte: `contatos` (nome + telefone) é a única coleção do
 projeto que continua exigindo login de verdade — não a senha 2040 da porta,
@@ -555,8 +586,8 @@ mexer no jogo nunca escreva em dado de feira. São duas, e a segunda é mais
 rígida que a primeira:
 
 ```js
-useFirestore:   !origemDeDesenvolvimento()   // falar com o Firebase (baralho em `conteudo`)
-rankingNaNuvem: !maquinaDeTrabalho() && ...  // gravar PARTIDA em `usuarios`/`contatos`
+useFirestore:   !origemDeDesenvolvimento()   // falar com o Firebase: baralho em `conteudo`, e LER as partidas
+rankingNaNuvem: !maquinaDeTrabalho() && ...  // GRAVAR partida em `usuarios`/`contatos`
 useWhatsApp:    false                        // a credencial não pode viajar no cliente
 ```
 
@@ -565,13 +596,14 @@ duas nascem desligadas. Um IP de rede local (o totem servido de outra máquina
 do estande) continua valendo como produção. `?comNuvem=1` liga a primeira, para
 trabalhar no baralho pelo `npm start`; **não** liga a segunda, de propósito — é
 o que impede a suíte, que joga quatro partidas por rodada, de semear o ranking
-da feira. `?semNuvem=1` desliga tudo em qualquer lugar. O porquê de cada uma
+da feira. Ler não suja nada, então o ranking e a aba Respostas seguem a
+primeira; só a escrita segue a segunda. `?semNuvem=1` desliga tudo em qualquer lugar. O porquê de cada uma
 está no cabeçalho de `js/config.js`, e o uso em
 [Onde o baralho mora](#onde-o-baralho-mora).
 
-Com a nuvem desligada o ranking vive no `localStorage` deste navegador, com
-exatamente a mesma consulta (`where venceu == true`, `orderBy tempo desc`,
-`limit n`) — as telas de ranking funcionam igual.
+Com a nuvem desligada as partidas vivem no `localStorage` deste navegador, e o
+ranking sai delas com exatamente a mesma consulta (`where venceu == true`,
+`orderBy tempo desc`, `limit n`) — as telas de ranking funcionam igual.
 
 Todo `localStorage` do projeto fica sob o prefixo `tecgame:`
 (`web/js/storage.js`), com as chaves antigas ainda lidas como retorno, e as
@@ -588,7 +620,8 @@ controlada, com o `firebase/README.md` de como fazer o deploy. Duas coisas que
   com autenticação. No original o telefone de todo mundo estava a uma consulta
   de distância de qualquer visitante;
 - as regras validam o formato de cada gravação e **negam tudo** o que não seja
-  as três coleções que o jogo usa.
+  as três coleções que o jogo usa. Apagar `usuarios` e `contatos` exige conta
+  (é o **Apagar tabela** do painel); quem joga não apaga nada.
 
 A `apiKey` do Firebase continua em `js/config.js`, e pode: chave web é
 identificador público por design, não credencial — quem defende os dados são as
@@ -651,7 +684,7 @@ afirmado num nível **não se repete no outro**: a conversão de baralho v1 para
 v2, por exemplo, mora no `verify:baralho`, com o jogo rodando, e não tem cópia
 em `scripts/unidade/`.
 
-As 36 execuções correm **em paralelo** (um terço dos núcleos, no máximo 6). Cada teste
+As 38 execuções correm **em paralelo** (um terço dos núcleos, no máximo 6). Cada teste
 sobe o próprio Chrome e só lê do servidor, então não disputam nada entre si; o
 que os prendia era o laço sequencial do `all.mjs`. A saída de cada um sai
 inteira quando ele termina, e no fim vem o tempo de cada execução — é assim que
@@ -676,21 +709,22 @@ em outro terminal, ou de `BASE=` apontando para o `file://`):
 | Comando | O que afirma |
 | --- | --- |
 | `npm run check` | todo import resolve, é usado, e o bundle está atualizado |
-| `npm test` | lógica pura, sem navegador: validação do baralho e a lista de problemas do painel, retenção, junção de respostas, CSV, estalos da roleta, prazo de inatividade, cronômetro e caminho do equipamento, o que a limpeza do Storage apaga, funções do Dart |
+| `npm test` | lógica pura, sem navegador: validação do baralho e a lista de problemas do painel, retenção, junção de respostas, CSV, apagar a tabela (contra uma nuvem de mentira), de onde o ranking lê, as notas do sininho, estalos da roleta, prazo de inatividade, cronômetro e caminho do equipamento, o que a limpeza do Storage apaga, funções do Dart |
 | `npm run verify:routes` | as 11 rotas: erro de console, imagem faltando, algo fora do palco |
 | `npm run verify:corte` | nada **recortado** dentro do palco (texto que não cabe no próprio container) |
 | `npm run verify:play` | uma partida completa, ponta a ponta |
 | `npm run verify:pergunta` | o roteiro da pergunta: o relógio espera o PODE!, o cronômetro é o único tempo na tela, teclado, a revelação, Cartas e Placas, os dois estilos, a tela de fim sem repetir a resposta certa, a Pergunta do Milhão |
-| `npm run verify:equipamento` | os seis equipamentos na escolha; o Rasther 4 vai direto para a pergunta; o vídeo demonstrativo sai do caminho pela marca do painel |
+| `npm run verify:equipamento` | os seis equipamentos na escolha; o Rasther 4 vai direto para a pergunta, com a etiqueta "Você está usando"; o vídeo demonstrativo sai do caminho pela marca do painel |
 | `npm run verify:instrucoes` | "Como funciona": a captura carrega nos dois transportes, cada passo acende a peça dele na cor dele, e a tela segue sozinha em 15 s |
 | `npm run verify:dialogs` | diálogos, i18n, ranking de inatividade, vitória |
 | `npm run verify:idioma` | trocar de idioma não apaga o formulário |
 | `npm run verify:teclado` | os alvos são alcançáveis e acionáveis por teclado |
-| `npm run verify:baralho` | o embutido reproduz `questions.js`; baralho de outro tamanho joga |
+| `npm run verify:baralho` | o embutido reproduz `questions.js`; baralho de outro tamanho joga; a pergunta que dispensa o equipamento vai direto para o jogo, sem a etiqueta "Você está usando" |
 | `npm run verify:estalo` | a roleta estala uma vez por divisa, no instante e no ritmo em que a tela mostra a roda |
 | `npm run verify:centro` | a roleta e o carro sorteado ficam no meio do palco, como no Dart |
 | `npm run verify:admin` | ver, editar, adicionar, validar, publicar, enviar e baixar imagem, remover e restaurar; o painel em 90% da largura, sem linha de descrição no editor (o ? abre o balão), a lista de problemas e as configurações na aba própria |
-| `npm run verify:respostas` | aba Respostas: dados locais com telefone, baixa CSV de verdade, sem nuvem não mostra Entrar |
+| `npm run verify:respostas` | aba Respostas: dados locais com telefone, baixa CSV de verdade, sem nuvem não mostra Entrar; **Apagar tabela** confirma, cancela sem apagar e leva o ranking junto |
+| `npm run verify:voltar` | o "voltar" do navegador fecha o painel e fica no jogo — pelos cinco toques e pelo `#/adm` digitado numa aba nova —, e o "Voltar ao jogo" desempilha a entrada em vez de somar uma igual |
 | `npm run verify:login` | a porta diz por que pede o que pede, a recusa do login vem com o código, e "Manter conectado" decide onde a sessão fica (com um SDK falso — a suíte não fala com o Firebase) |
 | `npm run verify:imagens` | a roleta mostra a foto do Storage (também aberta do disco); com login a foto sobe com nome de conteúdo e não sobe duas vezes; a recém-enviada trocada sai na hora, a publicada trocada sai no Salvar; a limpeza respeita uso e carência; Baixar foto com e sem CORS; foto sumida não é publicada (Storage falso) |
 | `npm run verify:inatividade` | quatro minutos sem toque devolvem qualquer tela ao cadastro, sem a partida de quem saiu; no cadastro só a ficha começada sai, e o painel fica de fora |

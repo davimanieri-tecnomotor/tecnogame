@@ -31,6 +31,15 @@ export function adiantarRanking() {
   return adiantado.promessa;
 }
 
+/**
+ * Esquece o ranking adiantado. Quem apaga a tabela de partidas (aba Respostas)
+ * chama isto: o ranking é lido dessa tabela, e os dois minutos de validade
+ * mostrariam um pódio que já não existe.
+ */
+export function esquecerRankingAdiantado() {
+  adiantado = null;
+}
+
 /** O ranking adiantado, se ainda valer; senão, um pedido novo. */
 export function rankingAdiantado() {
   if (!adiantado || Date.now() - adiantado.quando > VALIDADE_MS) return adiantarRanking();

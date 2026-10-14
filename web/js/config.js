@@ -2,8 +2,9 @@
 //
 // Duas, e separadas de propósito:
 //
-//   useFirestore     falar com o Firebase — o baralho em `conteudo`.
-//   rankingNaNuvem   gravar RESULTADO DE PARTIDA em `usuarios`/`contatos`.
+//   useFirestore     falar com o Firebase — o baralho em `conteudo`, e LER as
+//                    partidas em `usuarios` (o ranking e a aba Respostas).
+//   rankingNaNuvem   GRAVAR resultado de partida em `usuarios`/`contatos`.
 //
 // A segunda é mais rígida que a primeira: numa máquina de trabalho ela fica
 // desligada mesmo com `?comNuvem=1`. Mexer no baralho pelo `npm start` é
@@ -87,14 +88,18 @@ export const CONFIG = {
   useFirestore: !origemDeDesenvolvimento(),
 
   /**
-   * O RANKING é caso à parte, e mais rígido: numa máquina de trabalho ele NUNCA
-   * vai para a nuvem, nem com `?comNuvem=1`.
+   * GRAVAR a partida é caso à parte, e mais rígido: numa máquina de trabalho ela
+   * NUNCA vai para a nuvem, nem com `?comNuvem=1`.
    *
    * `comNuvem` existe para mexer no baralho pelo `npm start` e ver chegar no
    * Firebase — não para semear o ranking da feira com partidas de teste. Foi
    * exatamente isso que encheu `usuarios` e `contatos` de "Davi" e "Vencedor"
-   * com telefone de mentira. Numa máquina de trabalho o ranking é local, e é o
-   * local que o jogo lê de volta, para a tela de fim ficar coerente.
+   * com telefone de mentira.
+   *
+   * Isto manda só na ESCRITA. LER é com `useFirestore`, e vale para o ranking e
+   * para a aba Respostas igualmente (ver `fonteDasPartidas`, em backend.js): com
+   * `?comNuvem=1` os dois mostram a nuvem, e a partida de teste, gravada só
+   * aqui, não aparece em nenhum dos dois.
    */
   rankingNaNuvem: !maquinaDeTrabalho() && !busca().has('semNuvem'),
 

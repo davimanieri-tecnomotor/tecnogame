@@ -103,12 +103,20 @@ await escolher('4s');
 conferir(await esperarRota('telaAcao', 15000), 'chegou na pergunta');
 const etiqueta = await page.evaluate(() => {
   const chip = document.querySelector('#pages .aud-os-chip');
-  return { equipamento: chip?.dataset.equipamento, texto: chip?.textContent ?? '', foto: chip?.querySelector('img')?.getAttribute('src') ?? '' };
+  return {
+    equipamento: chip?.dataset.equipamento,
+    texto: chip?.textContent ?? '',
+    foto: chip?.querySelector('img')?.getAttribute('src') ?? '',
+    // O contraponto de quem pula a escolha (verify/baralho.mjs): quem ESCOLHEU
+    // vê a etiqueta.
+    visivel: chip ? getComputedStyle(chip).display !== 'none' : false,
+  };
 });
 const passou = await page.evaluate(() => window.__rotas);
 log(`  telas: ${JSON.stringify(passou)}; etiqueta: ${JSON.stringify(etiqueta)}`);
 conferir(!passou.includes('telaVideoScanner'), 'sem passar pelo vídeo demonstrativo');
 conferir(etiqueta.equipamento === 'Rasther 4' && /RASTHER 4/.test(etiqueta.texto) && /Rasther_4/.test(etiqueta.foto), 'a etiqueta diz RASTHER 4, com a foto dele');
+conferir(etiqueta.visivel, 'e ela aparece, porque o jogador escolheu o equipamento');
 
 /* -------------------------------------- 3. com vídeo, passa pelo vídeo --- */
 log('--- 3. sem a marca do painel, o Rasther ST passa pelo vídeo');

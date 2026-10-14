@@ -73,7 +73,8 @@ fechada: `allow read: if request.auth != null`, e a conta só existe se alguém 
 time a criar pelo Console (ver "Antes do primeiro uso", acima). É o que a aba
 Respostas do painel (`web/js/admin/respostas.js`) usa para mostrar telefone; sem
 entrar, a aba mostra os dados da partida sem ele. A política de privacidade que
-o próprio jogo exibe promete que isso não fica público.
+o próprio jogo exibe promete que isso não fica público. Apagar também exige a
+conta (ver "Apagar a tabela", abaixo).
 
 > **O totem precisa abrir por HTTP.** O SDK do Firebase é módulo ES vindo da
 > CDN, e `file://` recusa módulo ES — o mesmo motivo de existir o `bundle.js`.
@@ -110,12 +111,18 @@ fechar a leitura, é **não colocar telefone no que é lido**:
 
 | coleção | conteúdo | cliente lê | cliente escreve |
 | --- | --- | --- | --- |
-| `usuarios` | nome, atuação, venceu, tempo, equipamento | sim (é o ranking, e a aba Respostas do painel) | só `create`, com formato validado |
-| `contatos` | nome, telefone | **só autenticado** (aba Respostas do painel, ver acima) | só `create`, com formato validado |
+| `usuarios` | nome, atuação, venceu, tempo, equipamento | sim (é o ranking, e a aba Respostas do painel) | `create`, com formato validado; **apagar só autenticado** |
+| `contatos` | nome, telefone | **só autenticado** (aba Respostas do painel, ver acima) | `create`, com formato validado; **apagar só autenticado** |
 | `conteudo` | baralho de veículos, regras e perguntas salvo pelo admin | sim | **só autenticado**, com formato validado (ver acima) |
 
 Escrita cega em `contatos`: o cliente grava e nunca lê de volta. Quem precisa do
 telefone (o disparo de WhatsApp) passa a ler de lá autenticado, no servidor.
+
+**Apagar a tabela.** O botão **Apagar tabela** da aba Respostas apaga `contatos`
+e `usuarios` inteiros, em lotes (`apagarColecao`, em `web/js/admin/respostas.js`),
+e o ranking esvazia junto — ele é uma consulta sobre `usuarios`. Por isso as duas
+coleções aceitam `delete` com `request.auth != null`: a mesma conta que lê o
+telefone. Quem joga não apaga nada, e `update` continua negado.
 
 ## Fotos de veículo no Cloud Storage
 
@@ -202,6 +209,13 @@ fugir do previsto — a limpeza cuida das fotos, não do resto do projeto.
    muda depois de `firebase deploy --only firestore:rules`. Até esse deploy, a
    escrita continua aberta no projeto de vocês mesmo com o código novo no ar —
    é o único passo desta mudança que não sai daqui.
+5. **Publicar as regras de exclusão.** `usuarios` e `contatos` passaram a aceitar
+   `delete` com `request.auth != null` **neste repositório**; em produção só
+   muda com `firebase deploy --only firestore:rules`. Até lá o "Apagar tabela"
+   da aba Respostas, quando a tabela vem da nuvem, recebe `permission-denied` e o
+   painel diz que as regras ainda não foram publicadas — nada some, nem do
+   navegador. Da primeira vez, confira também se a conta que entra no painel
+   consegue de fato apagar.
 
 A `apiKey` do Firebase pode continuar no cliente — chave web é identificador
 público por design, não credencial. A defesa real são estas regras.

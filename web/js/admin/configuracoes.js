@@ -180,7 +180,7 @@ function cartaoDeZerar(aoResetar) {
     'Zerar os dados deste navegador',
     {
       classe: 'zona-de-risco',
-      ajuda: 'O que já foi salvo no Firebase continua lá — isso só se apaga pelo console do Firebase.',
+      ajuda: 'O que já foi salvo no Firebase continua lá. Para apagar também a nuvem, use "Apagar tabela" na aba Respostas.',
     },
     [
       el('div', { class: 'zerar-linha' }, [
