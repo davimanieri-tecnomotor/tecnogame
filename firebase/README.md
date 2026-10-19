@@ -10,6 +10,12 @@ cd firebase
 firebase deploy --only firestore:rules,firestore:indexes,storage
 ```
 
+As regras publicadas em `tecnogame-c7e46` são as de `firestore.rules`. Mudança
+nesse arquivo só vale depois do `deploy`, e o código novo chega ao GitHub Pages
+antes dele: até a publicação, o Firestore continua recusando o que as regras
+antigas recusavam. Por isso o painel traduz `permission-denied` em vez de
+mostrar o erro cru.
+
 ## Antes do primeiro uso — duas coisas só existem pelo console
 
 **Criar o Firestore** em `tecnogame-c7e46` (Build → Firestore Database → Criar
@@ -121,7 +127,9 @@ telefone (o disparo de WhatsApp) passa a ler de lá autenticado, no servidor.
 e `usuarios` inteiros, em lotes (`apagarColecao`, em `web/js/admin/respostas.js`),
 e o ranking esvazia junto — ele é uma consulta sobre `usuarios`. Por isso as duas
 coleções aceitam `delete` com `request.auth != null`: a mesma conta que lê o
-telefone. Quem joga não apaga nada, e `update` continua negado.
+telefone. Quem joga não apaga nada, e `update` continua negado. Se o painel
+responder que o Firebase recusou a exclusão, as regras publicadas não têm esse
+`delete` (ou a conta deixou de valer): publique de novo.
 
 ## Fotos de veículo no Cloud Storage
 
@@ -203,18 +211,6 @@ fugir do previsto — a limpeza cuida das fotos, não do resto do projeto.
 3. **Retenção de 1 ano.** A política promete exclusão automática após um ano e
    nada no projeto implementa isso. Uma TTL policy no Firestore sobre o campo
    `data` cobre, sem código.
-4. **Fazer o deploy das regras com a escrita fechada.** `conteudo` passou a
-   exigir `request.auth != null` **neste repositório**; em produção a regra só
-   muda depois de `firebase deploy --only firestore:rules`. Até esse deploy, a
-   escrita continua aberta no projeto de vocês mesmo com o código novo no ar —
-   é o único passo desta mudança que não sai daqui.
-5. **Publicar as regras de exclusão.** `usuarios` e `contatos` passaram a aceitar
-   `delete` com `request.auth != null` **neste repositório**; em produção só
-   muda com `firebase deploy --only firestore:rules`. Até lá o "Apagar tabela"
-   da aba Respostas, quando a tabela vem da nuvem, recebe `permission-denied` e o
-   painel diz que as regras ainda não foram publicadas — nada some, nem do
-   navegador. Da primeira vez, confira também se a conta que entra no painel
-   consegue de fato apagar.
 
 A `apiKey` do Firebase pode continuar no cliente — chave web é identificador
 público por design, não credencial. A defesa real são estas regras.
