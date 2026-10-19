@@ -22,7 +22,15 @@
 //   node scripts/verify/all.mjs --http     so HTTP
 //   node scripts/verify/all.mjs --file     so file://
 //   node scripts/verify/all.mjs -j 1       um de cada vez, saida ao vivo
+//
+// O que falha na fila paralela e passa sozinho e REEXECUTADO em serie, uma vez, e
+// conta como instavel -- aviso, nao reprovacao (ver "reexecucao" abaixo). Com
+// `-j 1` nao ha reexecucao: la os testes ja correm sozinhos.
+//
+// `TOLERAR=estalo@file,...` (so a CI usa) tira da reprovacao os testes nomeados:
+// eles rodam, a falha vira aviso e entra no resumo. Local a suite e estrita.
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -57,6 +65,7 @@ const JOBS = Math.max(1, Number(iJobs >= 0 ? argv[iJobs + 1] : (process.env.JOBS
 // PRIMEIRO filtro, e `npm run verify -- corte` rodava a suíte inteira.
 const filtros = argv.filter((a, i) => !a.startsWith('-') && (iJobs < 0 || i !== iJobs + 1));
 const escolhidos = filtros.length ? TESTES.filter((t) => filtros.some((f) => t.includes(f))) : TESTES;
+const TOLERAR = new Set((process.env.TOLERAR ?? '').split(',').map((s) => s.trim()).filter(Boolean));
 
 if (!escolhidos.length) {
   console.error(`nenhum teste casa com ${filtros.join(', ')}`);
@@ -74,15 +83,13 @@ const TRANSPORTES = [
  * herdada, porque varios correm ao mesmo tempo -- salvo com `-j 1`.
  *
  * Sem `shell`: o caminho do node no Windows tem espaco ("C:\Program Files\...")
- * e o cmd.exe corta no primeiro deles. Somente o npx precisa de shell, porque
- * e um .cmd -- e esse chamador passa `shell: true` de proposito.
+ * e o cmd.exe corta no primeiro deles.
  */
-function rodar(cmd, args, env = {}, { shell = false, herdar = false } = {}) {
+function rodar(cmd, args, env = {}, { herdar = false } = {}) {
   return new Promise((resolve) => {
     const p = spawn(cmd, args, {
       cwd: RAIZ,
       stdio: herdar ? 'inherit' : ['ignore', 'pipe', 'pipe'],
-      shell,
       env: { ...process.env, ...env },
     });
     let saida = '';
@@ -116,10 +123,14 @@ async function garantirServidor() {
     console.log(`servidor ja de pe em ${HTTP_BASE}`);
     return null;
   }
+  // O node direto no binario, e nao `npx`: no Windows o npx e um .cmd que pede
+  // shell, e o `p.kill()` mata so o invólucro — o servidor de verdade ficava
+  // orfao na porta. O npx tambem levou mais de 10s para subir numa maquina
+  // ocupada, e o runner desistia com a suite por rodar.
   const p = spawn(
-    process.platform === 'win32' ? 'npx.cmd' : 'npx',
-    ['http-server', 'web', '-p', String(PORTA), '-c-1', '--silent'],
-    { cwd: RAIZ, stdio: 'ignore', shell: process.platform === 'win32' }
+    process.execPath,
+    [path.join(RAIZ, 'node_modules', 'http-server', 'bin', 'http-server'), 'web', '-p', String(PORTA), '-c-1', '--silent'],
+    { cwd: RAIZ, stdio: 'ignore' }
   );
   if (!(await esperarPorta(PORTA))) {
     p.kill();
@@ -132,6 +143,8 @@ async function garantirServidor() {
 const segundos = (ms) => `${(ms / 1000).toFixed(1)}s`;
 
 const falhas = [];
+/** Falharam na fila paralela e passaram sozinhos na reexecucao em serie. */
+const instaveis = [];
 const tempos = [];
 let servidor = null;
 const comecou = Date.now();
@@ -198,6 +211,31 @@ try {
     }
   };
   await Promise.all(Array.from({ length: Math.min(JOBS, fila.length) }, trabalhador));
+
+  // REEXECUCAO EM SERIE, uma vez. Cada trabalhador e um Chrome; com varios ao
+  // mesmo tempo a maquina atrasa, e os testes que medem tempo (o compasso do
+  // estalo, o teto do cadastro no playthrough, os relogios acelerados) falham sem
+  // que nada tenha mudado -- e passam quando rodam sozinhos. Quem passa na
+  // segunda vez NAO e dado como limpo: vira `instavel`, com aviso. Quem falha de
+  // novo falhou de verdade. Com `-j 1` repetir nao diria nada: ja foi sozinho.
+  if (falhas.length && !umDeCada) {
+    console.log(`\n--- reexecucao em serie de ${falhas.length}: ${falhas.join(', ')} ---`);
+    for (const rotulo of [...falhas]) {
+      const job = fila.find((j) => `${j.nome}@${j.transporte}` === rotulo);
+      const t0 = Date.now();
+      const { codigo, saida } = await rodar(process.execPath, [`scripts/verify/${job.nome}.mjs`], {
+        BASE: job.base,
+        OUT: job.out,
+      });
+      if (codigo === 0) {
+        falhas.splice(falhas.indexOf(rotulo), 1);
+        instaveis.push(rotulo);
+        console.log(`  ${rotulo} passou sozinho em ${segundos(Date.now() - t0)}`);
+      } else {
+        console.log(`  ${rotulo} falhou de novo:\n${saida}`);
+      }
+    }
+  }
 } finally {
   if (servidor) servidor.kill();
 }
@@ -205,17 +243,45 @@ try {
 const risca = '-'.repeat(52);
 console.log(`\n${risca}`);
 tempos.sort((a, b) => b.ms - a.ms);
+// `!` falhou, `~` so passou na reexecucao em serie.
+const marca = (rotulo) => (falhas.includes(rotulo) ? '!' : instaveis.includes(rotulo) ? '~' : ' ');
 for (const t of tempos) {
-  console.log(`${segundos(t.ms).padStart(7)}  ${t.codigo === 0 ? ' ' : '!'} ${t.rotulo}`);
+  console.log(`${segundos(t.ms).padStart(7)}  ${marca(t.rotulo)} ${t.rotulo}`);
 }
 console.log(risca);
 const somado = tempos.reduce((s, t) => s + t.ms, 0);
-console.log(`parede ${segundos(Date.now() - comecou)}  (soma dos testes ${segundos(somado)})`);
+const parede = segundos(Date.now() - comecou);
+console.log(`parede ${parede}  (soma dos testes ${segundos(somado)})`);
 
-if (falhas.length) {
-  console.error(`${falhas.length} de ${fila.length} falharam: ${falhas.join(', ')}`);
-  process.exit(1);
+const reprovados = falhas.filter((r) => !TOLERAR.has(r));
+const tolerados = falhas.filter((r) => TOLERAR.has(r));
+
+// Na CI, o que nao reprova mas merece olho vira anotacao na pagina da rodada, e
+// a tabela vai para o resumo: ninguem precisa abrir o log de 400 linhas para
+// saber qual teste e lento ou instavel.
+if (process.env.GITHUB_ACTIONS === 'true') {
+  for (const r of tolerados) console.log(`::warning title=Teste tolerado falhou::${r} falhou, mas esta em TOLERAR (ver ci.yml)`);
+  for (const r of instaveis) console.log(`::warning title=Teste instavel::${r} falhou na fila paralela e passou sozinho`);
 }
-console.log(
-  `${fila.length} de ${fila.length} passaram (${escolhidos.join(', ')} x ${TRANSPORTES.map((t) => t.nome).join(', ')})`
-);
+if (process.env.GITHUB_STEP_SUMMARY) {
+  const situacao = (r) =>
+    reprovados.includes(r) ? '❌ falhou' : tolerados.includes(r) ? '⚠️ falhou (tolerado)' : instaveis.includes(r) ? '⚠️ só passou sozinho' : '✅';
+  const linhas = tempos.map((t) => `| ${t.rotulo} | ${situacao(t.rotulo)} | ${segundos(t.ms)} |`);
+  const texto = ['### Suíte de verificação', '', '| teste | resultado | tempo |', '|---|---|---|', ...linhas, '', `parede ${parede}`, ''];
+  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, texto.join('\n'));
+}
+
+// `exitCode`, e nao `process.exit`: num pipe do Windows o exit corta a saida que
+// ainda esta na fila, e o resumo de uma rodada que falhou e justamente o que se quer ler.
+if (reprovados.length) {
+  console.error(`${reprovados.length} de ${fila.length} falharam: ${reprovados.join(', ')}`);
+  process.exitCode = 1;
+} else {
+  const notas = [];
+  if (instaveis.length) notas.push(`${instaveis.length} so passaram na reexecucao em serie: ${instaveis.join(', ')}`);
+  if (tolerados.length) notas.push(`${tolerados.length} toleradas: ${tolerados.join(', ')}`);
+  console.log(
+    `${fila.length - tolerados.length} de ${fila.length} passaram (${escolhidos.join(', ')} x ${TRANSPORTES.map((t) => t.nome).join(', ')})` +
+      (notas.length ? ` -- ${notas.join('; ')}` : '')
+  );
+}

@@ -14,6 +14,7 @@ npm start          # http://localhost:8099
 npm run bundle     # DEPOIS de qualquer mudança em web/js/ — ver abaixo
 npm run check      # imports resolvem, nada morto, bundle em dia (0,1s)
 npm test           # lógica pura, sem navegador (0,3s) — a volta mais curta
+npm run dados      # os 3 arquivos gerados não foram editados à mão (0,1s)
 npm run verify     # a suíte inteira, 38 execuções, ~5min
 npm run verify:rapido   # só HTTP, ~110s — a volta do dia a dia
 ```
@@ -26,8 +27,9 @@ módulo ES por origem nula). Esquecer significa o totem rodando código antigo. 
 `npm run check` avisa, a CI falha, e o `npm run verify` regera antes de testar.
 
 **2. Nunca editar `questions.js`, `translations.js` nem `offensive_words.js`.**
-São gerados por `npm run gen` a partir do Dart original, e a CI roda o gerador e
-falha se o resultado diferir do commitado. **Texto de interface novo vai em
+São gerados por `npm run gen` a partir do Dart original, e a CI falha se o
+SHA-256 de algum deles mudar em relação a `scripts/dados_gerados.json`
+(`npm run dados`). **Texto de interface novo vai em
 `web/js/textos.js`**, que é lido pelo mesmo `FFLocalizations` — e **frase errada
 do Dart se corrige lá também**: escreve-se a certa em `textos.js` e o ponto de
 uso troca `L('chave')` por `T('nome')`, com a chave antiga anotada no cabeçalho
@@ -35,9 +37,10 @@ daquele arquivo. Corrigir na origem depende do zip que saiu do repositório.
 
 > `tec_game.zip` — a fonte de onde `npm run gen` extrai esses três arquivos —
 > saiu do repositório (tinha 48 MB). Sem ele, `scripts/gen_data.py` recusa
-> rodar, e o passo "Dados gerados estão em sincronia" da CI falha sempre, não
-> só quando alguém edita à mão. Rodar `npm run gen`/regenerar esses arquivos
-> continua bloqueado até alguém decidir onde a fonte passa a morar.
+> rodar. A CI **não** depende dele: confere os três pelo manifesto, e só se o zip
+> voltar à raiz ela também regera e compara. Regerar continua bloqueado até
+> alguém decidir onde a fonte passa a morar; quando regerar, `npm run gen` já
+> regrava o manifesto — commite os quatro arquivos juntos.
 
 **3. Os dois transportes são reais.** `npm run verify` roda tudo por HTTP **e**
 por `file://`, porque o totem abre do disco. Já passou bug por essa fresta (um
@@ -198,12 +201,37 @@ E ao medir isso: **handle do Puppeteer também segura** (`waitForSelector`,
 
 ## Antes de dizer que está pronto
 
-- `npm run verify` — **38 de 38**, nos dois transportes.
+- `npm run verify` — **38 de 38**, nos dois transportes. Teste que falha na fila
+  paralela e passa sozinho é reexecutado em série e aparece com `~` na tabela: o
+  resultado é verde, mas **não é limpo** — se for sempre o mesmo, investigue.
 - **Olhe a tela.** Um probe que devolve números pode passar com a tela quebrada:
   o bug da resposta que sumia passou por um probe verde porque eu li o JSON e
   não abri a captura. Ponha um `page.screenshot` e leia a imagem.
 - Teste que não sabe falhar não vale nada. Ao consertar um bug, confira que o
   teste novo **falha** com o código antigo (`git stash` no arquivo, rode, volte).
+
+## A CI
+
+`.github/workflows/ci.yml`: **estático** (imports, unidade, dados gerados, bundle
+em sincronia — sem navegador, ~30s), **suíte** (uma perna por transporte, HTTP e
+`file://`, em paralelo) e **resultado** (verde só se os dois forem; é o nome a
+exigir numa regra de branch). O deploy do Pages (`pages.yml`) é à parte e só
+roda `npm run check` — **não espera a CI**.
+
+- **Bundle em sincronia** é o `npm run bundle` seguido de `git diff`: o `check`
+  compara datas de arquivo, e num checkout novo todas são iguais.
+- **`TOLERAR` (em `ci.yml`) é quarentena, não esquecimento.** Hoje só
+  `estalo@file`, instável: já falhou sozinho e já falhava na 3.3.0. O teste roda,
+  a falha vira aviso na página da rodada e linha no resumo; localmente a suíte
+  continua estrita. Conserte o teste e tire a linha — a perna `file` volta a ser
+  estrita.
+- **Reexecução em série (`scripts/verify/all.mjs`).** O que falha na fila
+  paralela e passa sozinho vira aviso `~`, não vermelho: os testes que medem
+  tempo (`playthrough`, `instrucoes`, `inatividade`, `estalo`) falham sob carga
+  sem que nada tenha mudado. Quem falha de novo, sozinho, reprova. Com `-j 1`
+  não há reexecução — é o modo para investigar.
+- A tabela de tempos e o resumo de cada perna vão para a página da rodada
+  (`GITHUB_STEP_SUMMARY`); as capturas de tela, só se falhar (`capturas-<transporte>`).
 
 ## Postura de segurança, e o que ela não é
 

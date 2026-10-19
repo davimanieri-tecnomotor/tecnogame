@@ -43,6 +43,11 @@ Para publicar, sobe a pasta `web/` inteira — não há passo de build. É o que
 GitHub Pages tal como está. Antes do primeiro uso, em **Settings → Pages**,
 escolha **Source: GitHub Actions**.
 
+A verificação roda em `.github/workflows/ci.yml` a cada push e pull request: um
+job estático (imports, testes de unidade, dados gerados, bundle em sincronia) e
+a suíte de navegador, uma perna por transporte (HTTP e `file://`). O deploy do
+Pages não espera por ela — só roda `npm run check`.
+
 Como todo caminho é relativo, o mesmo `web/` serve na raiz de um domínio, em
 `/<repo>/` (que é onde o Pages de projeto publica) e num pendrive.
 
@@ -497,9 +502,10 @@ python scripts/gen_data.py
 ```
 
 > `tec_game.zip` (o projeto Flutter original, de onde este script extrai) saiu
-> do repositório. Sem ele no lugar esperado, o comando acima recusa rodar — e
-> o mesmo vale para `npm run gen` e o passo correspondente da CI (ver
-> CLAUDE.md).
+> do repositório. Sem ele no lugar esperado, o comando acima — e `npm run gen`
+> — recusa rodar. A CI não depende dele: confere os três arquivos pelo SHA-256
+> guardado em `scripts/dados_gerados.json` (`npm run dados`), que `npm run gen`
+> regrava ao terminar (ver CLAUDE.md).
 
 **Restante da camada FlutterFlow**, arquivo por arquivo:
 

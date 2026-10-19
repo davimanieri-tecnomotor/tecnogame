@@ -1,3 +1,22 @@
+# Integração contínua: o que tem de ser verdade antes de uma mudança valer.
+#
+# Três jobs, em paralelo, e um quarto que só resume:
+#
+#   estatico  — sem navegador e sem `npm ci` (os scripts só usam `node:*`): imports,
+#               lógica pura, dados gerados e bundle em sincronia. ~30s, e é onde
+#               a maioria dos erros aparece.
+#   suite     — a suíte de navegador, UMA perna por transporte (HTTP e file://).
+#               O totem abre o jogo do disco, então file:// não é detalhe: já
+#               passou bug de caminho relativo por essa fresta. Dividir em duas
+#               pernas corta a parede pela metade, e cada uma tem o próprio
+#               resumo e as próprias capturas.
+#   resultado — o único nome que faz sentido exigir numa regra de branch: é verde
+#               só se os dois acima forem, e continua com o mesmo nome se a matriz
+#               mudar.
+#
+# O que a suíte faz quando um teste falha (reexecução em série, aviso de teste
+# instável, resumo na página da rodada) mora em scripts/verify/all.mjs, para o
+# `npm run verify` local e a CI se comportarem igual.
 name: CI
 
 on:
@@ -6,10 +25,92 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Um push numa branch com PR aberto dispara duas rodadas do mesmo commit (push e
+# pull_request), e dois pushes seguidos disparam duas da mesma branch. O grupo é o
+# nome da branch e a mais nova cancela a mais velha: ninguém espera um resultado
+# que já não vale.
+concurrency:
+  group: ci-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
-  verificar:
+  estatico:
+    name: Estático
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Falha se um import não resolver ou se algo importado não for usado. A
+      # checagem de bundle velho dele compara datas de arquivo, e num checkout
+      # novo todas são iguais: quem garante o bundle aqui é o passo "Bundle em
+      # sincronia", mais abaixo.
+      - name: Imports e código morto
+        run: npm run check
+
+      # Lógica pura: ~0,3s. Uma regra de validação ou de retenção quebrada não
+      # precisa de um Chrome para ser vista.
+      - name: Testes de unidade
+        run: npm test
+
+      # `questions.js`, `translations.js` e `offensive_words.js` são gerados. A CI
+      # os conferia regerando, mas o `tec_game.zip` de onde o gerador extrai saiu do
+      # repositório e o passo falhava sempre. Agora a conta é pelo SHA-256 que o
+      # gerador deixou em scripts/dados_gerados.json (ver scripts/check_dados.mjs).
+      - name: Dados gerados não foram editados à mão
+        run: npm run dados
+
+      # Se alguém devolver o zip à raiz, a conferência forte volta sozinha: regera
+      # e compara. Sem o zip, estes dois passos são pulados e o de cima basta.
+      - uses: actions/setup-python@v5
+        if: hashFiles('tec_game.zip') != ''
+        with:
+          python-version: '3.12'
+
+      - name: Dados gerados batem com o gerador (só com a fonte presente)
+        if: hashFiles('tec_game.zip') != ''
+        run: |
+          npm run gen
+          git diff --exit-code -- web/js/questions.js web/js/translations.js web/js/offensive_words.js scripts/dados_gerados.json
+
+      # O bundle é commitado e é ele que o file:// executa: um desencontro vira
+      # totem rodando código antigo. Regerar não pode mudar nada.
+      - name: Bundle em sincronia
+        run: |
+          npm run bundle
+          git diff --exit-code -- web/js/bundle.js || {
+            echo "::error file=web/js/bundle.js::bundle.js desatualizado em relação a web/js/. Rode 'npm run bundle' e commite."
+            exit 1
+          }
+
+  suite:
+    name: Suíte (${{ matrix.transporte }})
     runs-on: ubuntu-latest
     timeout-minutes: 25
+
+    strategy:
+      # Uma perna vermelha não pode esconder a outra: file:// quebrado com HTTP
+      # verde (e o contrário) é justamente a informação que a divisão dá.
+      fail-fast: false
+      matrix:
+        transporte: [http, file]
+
+    env:
+      # `estalo@file` é instável: já falhou rodando sozinho, e no código da 3.3.0
+      # (ver o commit da 3.4.0), porque o ritmo do som por file:// sai fora da
+      # tela; noutras rodadas passa. Fica fora da reprovação para uma falha dele
+      # não derrubar a CI, mas NÃO fica escondido: o teste roda, a falha vira aviso
+      # na página da rodada e linha no resumo. Tirar daqui quando o teste for
+      # consertado — a perna `file` volta a ser estrita.
+      TOLERAR: estalo@file
 
     steps:
       - uses: actions/checkout@v4
@@ -19,54 +120,42 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - uses: actions/setup-python@v5
+      # O `npm ci` baixa o Chromium do puppeteer (~150 MB). Ele só muda quando o
+      # puppeteer muda, e o puppeteer só muda com o lockfile.
+      - uses: actions/cache@v4
         with:
-          python-version: '3.12'
+          path: ~/.cache/puppeteer
+          key: puppeteer-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Instalar dependências
         run: npm ci
 
-      # Falha se um import não resolver, se algo importado não for usado, ou se
-      # um bundle.js estiver mais velho que um módulo que ele contém (o modo
-      # file:// rodaria código antigo).
-      - name: Checagem estática
-        run: npm run check
-
-      # Lógica pura, sem navegador: ~0,3s. Vem antes da suíte porque uma regra
-      # de validação ou de retenção quebrada não precisa de vinte Chromes para
-      # ser vista.
-      - name: Testes de unidade
-        run: npm test
-
-      # Os dados gerados têm de bater com o Dart original: se o gerador produzir
-      # algo diferente do que está commitado, alguém editou à mão.
-      - name: Dados gerados estão em sincronia
-        run: |
-          npm run gen
-          git diff --exit-code -- web/js/questions.js web/js/translations.js web/js/offensive_words.js
-
-      # Mesma checagem para o bundle: regerar não pode mudar nada.
-      - name: Bundle está em sincronia
-        run: |
-          npm run bundle
-          git diff --exit-code -- web/js/bundle.js
-
-      # A suíte inteira, nos dois transportes, subindo o servidor por conta.
-      #
-      # Por que um comando só e não um passo por teste: enumerar os testes aqui
-      # significava manter a lista em dois lugares, e a CI já tinha ficado atrás
-      # da suíte local — rodava dois testes por file:// enquanto o
-      # `npm run verify` roda os nove. `file://` não é detalhe de ambiente: o
-      # totem abre o jogo do disco, e um bug de caminho relativo do admin
-      # atravessou justamente essa fresta.
-      - name: Suíte completa (HTTP e file://)
-        run: npm run verify
+      # Um comando só, e não um passo por teste: enumerar os testes aqui já deixou
+      # a CI atrás da suíte local. O `all.mjs` sobe o servidor sozinho.
+      - name: Suíte completa por ${{ matrix.transporte }}
+        run: npm run verify -- --${{ matrix.transporte }}
 
       - name: Guardar capturas quando falhar
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: capturas
+          name: capturas-${{ matrix.transporte }}
           path: shots/
           if-no-files-found: ignore
           retention-days: 7
+
+  resultado:
+    name: Resultado
+    needs: [estatico, suite]
+    # `always()`: se um job falhar, este ainda roda e reprova de forma explícita,
+    # em vez de ficar "pulado" — que algumas regras de branch tratam como verde.
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Tudo verde?
+        run: |
+          echo "estático: ${{ needs.estatico.result }}"
+          echo "suíte:    ${{ needs.suite.result }}"
+          test "${{ needs.estatico.result }}" = success
+          test "${{ needs.suite.result }}" = success
