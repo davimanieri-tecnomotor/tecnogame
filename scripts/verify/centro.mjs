@@ -128,6 +128,45 @@ if (placaLonga.esquerda < 40 || placaLonga.direita > 1880) {
   falhas.push(`a placa de nome longo vai de ${placaLonga.esquerda.toFixed(0)} a ${placaLonga.direita.toFixed(0)}px — encosta nas bordas do palco`);
 }
 
+// A mesma placa na tela da pergunta, onde ela mora numa caixa de 560px logo
+// acima da faixa de ajudas. "Mercedes Accelo 917" é nome de FÁBRICA e já passa
+// dos 560 numa linha só: o teto de `100%` que a correção do nome longo pôs ali o
+// quebrava em duas linhas, e a segunda caía em cima de "AJUDAS". Por isso o
+// nome de fábrica entra na lista, e não só os compridos.
+for (const nome of ['Mercedes Accelo 917', 'Trocar o óleo do câmbio', 'Qual é a função principal de uma transmissão automática?']) {
+  await page.evaluate(async (nome) => {
+    const carregar = async (m) => (window.__tecgameRequire ? window.__tecgameRequire(m) : await import(`./js/${m}`));
+    const { FFAppState } = await carregar('state.js');
+    FFAppState.baralho.slots.forEach((s) => (s.veiculo.nome = nome));
+    FFAppState.escolha = 1.0;
+    FFAppState.scannerEscolhido = 'Rasther 3';
+    await (await carregar('router.js')).go('/telaAcao');
+  }, nome);
+  await wait(2200);
+  const m = await page.evaluate(() => {
+    const palco = document.getElementById('stage').getBoundingClientRect();
+    const placa = document.querySelector('#pages .aud-placa');
+    const texto = placa?.querySelector('.aud-placa-texto');
+    const ajudas = document.querySelector('#pages .aud-aj-titulo');
+    if (!placa || !ajudas) return null;
+    const p = placa.getBoundingClientRect();
+    return {
+      base: p.bottom - palco.top,
+      esquerda: p.left - palco.left,
+      direita: p.right - palco.left,
+      ajudasTopo: ajudas.getBoundingClientRect().top - palco.top,
+      cortado: texto.scrollWidth > texto.clientWidth + 1,
+    };
+  });
+  if (!m) {
+    falhas.push(`pergunta com "${nome}": nao achou a placa ou a faixa de ajudas`);
+    continue;
+  }
+  if (m.base > m.ajudasTopo) falhas.push(`pergunta com "${nome}": a placa desce até ${m.base.toFixed(0)}px e a faixa de ajudas começa em ${m.ajudasTopo.toFixed(0)}px`);
+  if (m.cortado) falhas.push(`pergunta com "${nome}": a placa corta o fim do nome`);
+  if (m.esquerda < 40 || m.direita > 1880) falhas.push(`pergunta com "${nome}": a placa vai de ${m.esquerda.toFixed(0)} a ${m.direita.toFixed(0)}px`);
+}
+
 await browser.close();
 if (falhas.length) {
   console.log('\nFALHOU:\n- ' + falhas.join('\n- '));

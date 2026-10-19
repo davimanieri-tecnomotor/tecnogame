@@ -466,7 +466,14 @@
 .aud-placa {
   display: inline-block;
   min-width: 318px;
-  max-width: 100%;
+  /* Mais que os 560px da caixa da ordem de serviço, de propósito: com a letra
+     encolhida (ver placa.js) o nome de até 44 letras ocupa ~640px numa linha só
+     (medido: "Trocar o óleo do câmbio" dá 634px de texto), e "Mercedes Accelo 917"
+     já passa dos 560 desde sempre. `100%` aqui os quebrava em duas linhas, e a
+     segunda caía sobre as ajudas. `flex: none` porque, item de um flex de 560px,
+     ela encolheria até a palavra mais larga. */
+  max-width: 700px;
+  flex: none;
   border-radius: 9px;
   overflow: hidden;
   background: linear-gradient(#ffffff, #e6ebf2);
@@ -1756,7 +1763,12 @@
   left: 0;
   right: 0;
   top: 404px;
+  /* A altura de uma placa de uma linha (85px), com a placa colada no fundo: se o
+     nome quebrar, ela cresce PARA CIMA, sobre o pedestal, e não para baixo, sobre
+     a faixa de ajudas. */
+  height: 85px;
   display: flex;
+  align-items: flex-end;
   justify-content: center;
 }
 
