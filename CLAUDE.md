@@ -220,6 +220,16 @@ roda `npm run check` — **não espera a CI**.
 
 - **Bundle em sincronia** é o `npm run bundle` seguido de `git diff`: o `check`
   compara datas de arquivo, e num checkout novo todas são iguais.
+- **Todo `puppeteer.launch` leva `--lang=pt-BR`.** O jogo escolhe o idioma por
+  `navigator.language` (`i18n.js`), e o runner da CI é `en-US`: sem a flag o jogo
+  abria em inglês e cinco testes não achavam "CONFIRMAR" nem "GIRAR A ROLETA".
+  Teste novo: copie a flag. Para reproduzir a falha da CI aqui, troque por
+  `--lang=en-US`.
+- **Teste que mede geometria não mede durante animação.** A entrada de um
+  elemento (`entrar`, escala 1,08 → 1) deixa a caixa maior por alguns frames, e
+  numa máquina mais lenta o teste pega essa janela: foi assim que as peças coladas
+  na borda (ajudas, cronômetro) "saíam da captura" no `instrucoes`. Finalize as
+  animações finitas antes de medir (`getAnimations().…finish()`).
 - **`TOLERAR` (em `ci.yml`) é quarentena, não esquecimento.** Hoje só
   `estalo@file`, instável: já falhou sozinho e já falhava na 3.3.0. O teste roda,
   a falha vira aviso na página da rodada e linha no resumo; localmente a suíte

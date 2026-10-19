@@ -25,7 +25,7 @@ import puppeteer from 'puppeteer';
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8099';
 const TAMANHOS = (process.env.TAMANHOS ?? '0,1000,5000,10000,20000').split(',').map(Number);
 
-const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
+const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--lang=pt-BR'] });
 const page = await browser.newPage();
 await page.goto(`${BASE}/#/cadastro`, { waitUntil: 'networkidle2' });
 

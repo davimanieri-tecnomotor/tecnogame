@@ -22,7 +22,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 /** Em px do palco. O layout e exato; sobra so arredondamento de subpixel. */
 const FOLGA = 2;
 
-const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
+const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--lang=pt-BR'] });
 const page = await browser.newPage();
 await page.setViewport({ width: 1920, height: 1080 });
 await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);

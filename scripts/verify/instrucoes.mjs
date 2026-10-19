@@ -19,7 +19,7 @@ const LOCAL_FILE = BASE.startsWith('file:');
 const pageUrl = (rota) => (BASE.endsWith('.html') ? `${BASE}#${rota}` : `${BASE}/#${rota}`);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required'] });
+const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--lang=pt-BR', '--autoplay-policy=no-user-gesture-required'] });
 const page = await browser.newPage();
 await page.setViewport({ width: 1920, height: 1080 });
 const falhas = [];
@@ -56,6 +56,14 @@ const estado = () =>
       cor: n.style.getPropertyValue('--cor'),
     }));
     const destaques = [...document.querySelectorAll('#pages [data-destaque]')].map((n) => {
+      // A entrada do destaque nasce em escala 1,08 e assenta em 380ms. Medir no
+      // meio dela reprovava as duas peças coladas na borda da captura — as
+      // ajudas e o cronômetro, a 4px do topo — numa máquina mais lenta que a de
+      // quem escreveu o teste (a CI): o que se afirma é o LAYOUT, não a animação.
+      // O pulso (iterations infinitas) só troca a cor da borda e não é finalizável.
+      n.getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+        .forEach((a) => a.finish());
       const r = n.getBoundingClientRect();
       return {
         n: n.dataset.destaque,

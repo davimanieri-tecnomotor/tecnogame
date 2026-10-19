@@ -32,7 +32,7 @@ const targets = routes.length
 
 const browser = await puppeteer.launch({
   headless: true,
-  args: ['--no-sandbox', '--window-size=1920,1080', '--autoplay-policy=no-user-gesture-required', '--font-render-hinting=none'],
+  args: ['--no-sandbox', '--lang=pt-BR', '--window-size=1920,1080', '--autoplay-policy=no-user-gesture-required', '--font-render-hinting=none'],
 });
 
 let problems = 0;

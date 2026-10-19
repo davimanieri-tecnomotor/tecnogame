@@ -20,7 +20,7 @@ const raiz = BASE.endsWith('.html') ? BASE.replace(/[^/]+$/, '') : `${BASE}/`;
 const urlJogo = (rota) => `${raiz}index.html#${rota}`;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required'] });
+const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--lang=pt-BR', '--autoplay-policy=no-user-gesture-required'] });
 const page = await browser.newPage();
 await page.setViewport({ width: 1920, height: 1080 });
 const falhas = [];

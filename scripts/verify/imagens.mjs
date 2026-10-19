@@ -165,7 +165,7 @@ const SDK_FALSO = {
 
 /* ------------------------------------------------------------ o navegador -- */
 
-const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--window-size=1500,1000'] });
+const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--lang=pt-BR', '--window-size=1500,1000'] });
 const falhas = [];
 const conferir = (ok, rotulo) => {
   console.log(`${ok ? 'ok  ' : 'FALHOU'} ${rotulo}`);

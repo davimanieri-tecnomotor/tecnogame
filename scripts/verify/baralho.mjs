@@ -18,7 +18,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = await puppeteer.launch({
   headless: true,
-  args: ['--no-sandbox'],
+  args: ['--no-sandbox', '--lang=pt-BR'],
   // Sozinho este teste roda em ~46s, mas ele joga partidas inteiras e a suite o
   // corre junto com outros cinco Chromes; numa maquina disputada ele ja passou
   // de 188s e morreu no teto padrao de 180s do puppeteer, que e rede de
