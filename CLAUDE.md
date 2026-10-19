@@ -232,6 +232,10 @@ roda `npm run check` — **não espera a CI**.
   não há reexecução — é o modo para investigar.
 - A tabela de tempos e o resumo de cada perna vão para a página da rodada
   (`GITHUB_STEP_SUMMARY`); as capturas de tela, só se falhar (`capturas-<transporte>`).
+- **Teste que reprova leva o nome e o rabo da saída numa anotação** (`::error`),
+  e o mesmo no resumo: o log bruto de uma rodada só abre com login, e sem isso uma
+  perna vermelha diz só "exit code 1". As anotações são públicas
+  (`GET /repos/<repo>/check-runs/<job>/annotations`).
 
 ## Postura de segurança, e o que ela não é
 

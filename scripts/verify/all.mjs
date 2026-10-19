@@ -145,6 +145,8 @@ const segundos = (ms) => `${(ms / 1000).toFixed(1)}s`;
 const falhas = [];
 /** Falharam na fila paralela e passaram sozinhos na reexecucao em serie. */
 const instaveis = [];
+/** A saida do ultimo resultado de cada teste que falhou, para anotar na CI. */
+const saidas = new Map();
 const tempos = [];
 let servidor = null;
 const comecou = Date.now();
@@ -207,7 +209,10 @@ try {
         const rabo = saida.endsWith('\n') ? '' : '\n';
         process.stdout.write(`\n=== ${rotulo} ${marca} em ${segundos(ms)} ===\n${saida}${rabo}`);
       }
-      if (codigo !== 0) falhas.push(rotulo);
+      if (codigo !== 0) {
+        falhas.push(rotulo);
+        saidas.set(rotulo, saida);
+      }
     }
   };
   await Promise.all(Array.from({ length: Math.min(JOBS, fila.length) }, trabalhador));
@@ -233,6 +238,7 @@ try {
         console.log(`  ${rotulo} passou sozinho em ${segundos(Date.now() - t0)}`);
       } else {
         console.log(`  ${rotulo} falhou de novo:\n${saida}`);
+        saidas.set(rotulo, saida);
       }
     }
   }
@@ -256,10 +262,19 @@ console.log(`parede ${parede}  (soma dos testes ${segundos(somado)})`);
 const reprovados = falhas.filter((r) => !TOLERAR.has(r));
 const tolerados = falhas.filter((r) => TOLERAR.has(r));
 
+// O fim da saida de um teste: onde ele diz o que falhou. 40 linhas, no maximo
+// 3500 letras — anotacao de CI e para ler de relance, nao para guardar o log.
+const rabo = (r) => (saidas.get(r) ?? '').trim().split('\n').slice(-40).join('\n').slice(-3500);
+
 // Na CI, o que nao reprova mas merece olho vira anotacao na pagina da rodada, e
 // a tabela vai para o resumo: ninguem precisa abrir o log de 400 linhas para
-// saber qual teste e lento ou instavel.
+// saber qual teste e lento ou instavel. O que REPROVA leva junto o rabo da
+// saida: o log bruto de uma rodada so abre com login, e sem isso uma perna
+// vermelha diz apenas "exit code 1".
 if (process.env.GITHUB_ACTIONS === 'true') {
+  // Comandos de workflow nao aceitam quebra de linha: % \r \n viram escapes.
+  const escapar = (s) => s.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+  for (const r of reprovados) console.log(`::error title=Teste falhou::${escapar(`${r}\n${rabo(r)}`)}`);
   for (const r of tolerados) console.log(`::warning title=Teste tolerado falhou::${r} falhou, mas esta em TOLERAR (ver ci.yml)`);
   for (const r of instaveis) console.log(`::warning title=Teste instavel::${r} falhou na fila paralela e passou sozinho`);
 }
@@ -267,7 +282,8 @@ if (process.env.GITHUB_STEP_SUMMARY) {
   const situacao = (r) =>
     reprovados.includes(r) ? '❌ falhou' : tolerados.includes(r) ? '⚠️ falhou (tolerado)' : instaveis.includes(r) ? '⚠️ só passou sozinho' : '✅';
   const linhas = tempos.map((t) => `| ${t.rotulo} | ${situacao(t.rotulo)} | ${segundos(t.ms)} |`);
-  const texto = ['### Suíte de verificação', '', '| teste | resultado | tempo |', '|---|---|---|', ...linhas, '', `parede ${parede}`, ''];
+  const detalhes = reprovados.flatMap((r) => ['', `<details><summary>❌ ${r}</summary>`, '', '```', rabo(r), '```', '</details>']);
+  const texto = ['### Suíte de verificação', '', '| teste | resultado | tempo |', '|---|---|---|', ...linhas, '', `parede ${parede}`, ...detalhes, ''];
   fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, texto.join('\n'));
 }
 
