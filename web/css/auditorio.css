@@ -466,6 +466,7 @@
 .aud-placa {
   display: inline-block;
   min-width: 318px;
+  max-width: 100%;
   border-radius: 9px;
   overflow: hidden;
   background: linear-gradient(#ffffff, #e6ebf2);
@@ -536,7 +537,8 @@
   text-align: center;
   letter-spacing: 3px;
   text-transform: uppercase;
-  white-space: nowrap;
+  /* Quebra, e não `nowrap`: com nome longo a placa passava da caixa e era aparada. */
+  text-wrap: balance;
 }
 
 /* ================================================= a tela da pergunta ==== */
@@ -2926,7 +2928,11 @@
   font-size: 40px;
   line-height: 1.1;
   letter-spacing: 3px;
-  white-space: nowrap;
+  /* Quebra, com teto: `nowrap` deixava o nome longo maior que o palco da roleta. */
+  width: max-content;
+  max-width: 800px;
+  text-align: center;
+  text-wrap: balance;
   color: #231500;
   background: linear-gradient(180deg, #fff1b8, #ffc21a 50%, #e88a00);
   box-shadow: 0 0 0 3px #fff6cc, 0 0 36px rgba(255, 200, 60, 0.8);
@@ -2981,6 +2987,9 @@
 
 .aud-placa.carro-placa {
   display: block;
+  /* Teto próprio: sem ele a placa de nome longo ocupava o palco inteiro. */
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
 /* ============================================ a escolha do equipamento */

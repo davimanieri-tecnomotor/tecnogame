@@ -106,6 +106,28 @@ for (const k of [0, 7]) {
   conferir(`carro ${nome}`, await grupo(['#pages .ff-carro-respira', '#pages .aud-placa']));
 }
 
+// Nome comprido: o nome é texto livre do painel (já houve pergunta inteira no
+// lugar do veículo). A placa tem de quebrar em linhas e ficar dentro do palco;
+// antes ela crescia até os 1920px e o fim do nome era aparado em silêncio.
+await page.evaluate(async () => {
+  const carregar = async (m) => (window.__tecgameRequire ? window.__tecgameRequire(m) : await import(`./js/${m}`));
+  const { FFAppState } = await carregar('state.js');
+  FFAppState.baralho.slots.forEach((s) => (s.veiculo.nome = 'Qual é a função principal de uma transmissão automática?'));
+  await (await carregar('router.js')).go('/carro');
+});
+await wait(2200);
+const placaLonga = await page.evaluate(() => {
+  const placa = document.querySelector('#pages .aud-placa');
+  const texto = placa.querySelector('.aud-placa-texto');
+  const r = placa.getBoundingClientRect();
+  const palco = document.getElementById('stage').getBoundingClientRect();
+  return { esquerda: r.left - palco.left, direita: r.right - palco.left, cortado: texto.scrollWidth > texto.clientWidth + 1 };
+});
+if (placaLonga.cortado) falhas.push('a placa de nome longo corta o fim do nome');
+if (placaLonga.esquerda < 40 || placaLonga.direita > 1880) {
+  falhas.push(`a placa de nome longo vai de ${placaLonga.esquerda.toFixed(0)} a ${placaLonga.direita.toFixed(0)}px — encosta nas bordas do palco`);
+}
+
 await browser.close();
 if (falhas.length) {
   console.log('\nFALHOU:\n- ' + falhas.join('\n- '));
