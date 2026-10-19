@@ -220,11 +220,15 @@ roda `npm run check` — **não espera a CI**.
 
 - **Bundle em sincronia** é o `npm run bundle` seguido de `git diff`: o `check`
   compara datas de arquivo, e num checkout novo todas são iguais.
-- **Todo `puppeteer.launch` leva `--lang=pt-BR`.** O jogo escolhe o idioma por
-  `navigator.language` (`i18n.js`), e o runner da CI é `en-US`: sem a flag o jogo
-  abria em inglês e cinco testes não achavam "CONFIRMAR" nem "GIRAR A ROLETA".
-  Teste novo: copie a flag. Para reproduzir a falha da CI aqui, troque por
-  `--lang=en-US`.
+- **O navegador dos testes é pt-BR por CDP, e `--lang` NÃO serve.** O jogo
+  escolhe o idioma por `navigator.language` (`i18n.js`), e o runner da CI é
+  `en-US`: o jogo abria em inglês e cinco testes não achavam "CONFIRMAR" nem
+  "GIRAR A ROLETA". `--lang=pt-BR` nos argumentos do Chrome chegou a ir para a
+  `main` e não mudou nada no Linux. O que vale é `scripts/verify/_pt_br.mjs`
+  (`Emulation.setUserAgentOverride` com `acceptLanguage`, aplicado em todo
+  `newPage()`), que o `all.mjs` injeta com `NODE_OPTIONS=--import`. Teste rodado
+  direto (`node scripts/verify/x.mjs`) herda o idioma da máquina. Para simular o
+  runner aqui, ponha `--lang=en-US` nos `launch` e rode pelo `all.mjs`.
 - **Teste que mede geometria não mede durante animação.** A entrada de um
   elemento (`entrar`, escala 1,08 → 1) deixa a caixa maior por alguns frames, e
   numa máquina mais lenta o teste pega essa janela: foi assim que as peças coladas

@@ -44,6 +44,10 @@ const PORTA = Number(process.env.PORTA ?? 8099);
 const HTTP_BASE = `http://127.0.0.1:${PORTA}`;
 const FILE_BASE = pathToFileURL(path.join(WEB, 'index.html')).href;
 
+// Todo teste abre o navegador em pt-BR: o jogo escolhe o idioma por
+// navigator.language, e o runner da CI e en-US (ver _pt_br.mjs).
+const PT_BR = { NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import=${pathToFileURL(path.join(AQUI, '_pt_br.mjs')).href}`.trim() };
+
 /**
  * Ordem: do mais demorado para o mais rapido (tempos medidos em 11/09/2026).
  * Numa fila paralela quem entra por ultimo define o fim, entao o gigante tem de
@@ -199,7 +203,7 @@ try {
       const { codigo, saida } = await rodar(
         process.execPath,
         [`scripts/verify/${job.nome}.mjs`],
-        { BASE: job.base, OUT: job.out },
+        { BASE: job.base, OUT: job.out, ...PT_BR },
         { herdar: umDeCada }
       );
       const ms = Date.now() - t0;
@@ -231,6 +235,7 @@ try {
       const { codigo, saida } = await rodar(process.execPath, [`scripts/verify/${job.nome}.mjs`], {
         BASE: job.base,
         OUT: job.out,
+        ...PT_BR,
       });
       if (codigo === 0) {
         falhas.splice(falhas.indexOf(rotulo), 1);

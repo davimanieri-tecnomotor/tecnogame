@@ -18,7 +18,7 @@ fs.mkdirSync(OUT, { recursive: true });
 
 const browser = await puppeteer.launch({
   headless: true,
-  args: ['--no-sandbox', '--lang=pt-BR', '--window-size=1920,1080', '--autoplay-policy=no-user-gesture-required'],
+  args: ['--no-sandbox', '--window-size=1920,1080', '--autoplay-policy=no-user-gesture-required'],
 });
 const page = await browser.newPage();
 await page.setViewport({ width: 1920, height: 1080 });

@@ -35,7 +35,7 @@ const ROTAS = [
 
 const browser = await puppeteer.launch({
   headless: true,
-  args: ['--no-sandbox', '--lang=pt-BR', '--window-size=1920,1080', '--autoplay-policy=no-user-gesture-required'],
+  args: ['--no-sandbox', '--window-size=1920,1080', '--autoplay-policy=no-user-gesture-required'],
 });
 
 let problemas = 0;

@@ -28,7 +28,7 @@ const LOCAL_FILE = BASE.startsWith('file:');
 const pageUrl = (route, busca = '') => (BASE.endsWith('.html') ? `${BASE}${busca}#${route}` : `${BASE}/${busca}#${route}`);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--lang=pt-BR', '--autoplay-policy=no-user-gesture-required'] });
+const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required'] });
 const page = await browser.newPage();
 await page.setViewport({ width: 1920, height: 1080 });
 const falhas = [];

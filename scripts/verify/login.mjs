@@ -91,7 +91,7 @@ const SDK_FALSO = {
 
 /* ------------------------------------------------------------ o navegador -- */
 
-const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--lang=pt-BR', '--window-size=1400,950'] });
+const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--window-size=1400,950'] });
 const falhas = [];
 
 /** Uma aba nova: sessionStorage vazio, localStorage compartilhado com as outras. */

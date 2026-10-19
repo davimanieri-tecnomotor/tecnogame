@@ -40,7 +40,7 @@ const browser = await puppeteer.launch({
   // O toque deste teste é um `click()` de script, que não conta como gesto, e
   // sem gesto o Chrome segura o áudio suspenso. O totem tem dedo; aqui a
   // política sai do caminho.
-  args: ['--no-sandbox', '--lang=pt-BR', '--autoplay-policy=no-user-gesture-required'],
+  args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required'],
 });
 const page = await browser.newPage();
 await page.setViewport({ width: 1920, height: 1080 });

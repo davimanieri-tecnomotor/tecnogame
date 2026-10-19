@@ -19,7 +19,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = await puppeteer.launch({
   headless: true,
-  args: ['--no-sandbox', '--lang=pt-BR', '--window-size=1500,1000', '--autoplay-policy=no-user-gesture-required'],
+  args: ['--no-sandbox', '--window-size=1500,1000', '--autoplay-policy=no-user-gesture-required'],
 });
 const page = await browser.newPage();
 await page.setViewport({ width: 1500, height: 1000 });
